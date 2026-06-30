@@ -6,7 +6,7 @@
 
 **Architecture:** Start with a transparent deterministic baseline before adding trainable ranking. The core package scans a repository, extracts lightweight features, ranks files/tests, and renders reports. The GitHub Action calls the same CLI so local and CI behavior stay consistent.
 
-**Tech Stack:** Node.js, TypeScript, npm workspaces, Vitest, tsx, esbuild/tsup, GitHub Actions, Next.js for the Vercel docs/playground.
+**Tech Stack:** Node.js, TypeScript, npm workspaces, Vitest, esbuild, GitHub Actions, Next.js for the Vercel docs/playground.
 
 ---
 
@@ -15,6 +15,14 @@
 This plan deliberately avoids building a chatbot. FixMap's first useful product is a repo-routing and verification assistant for AI coding workflows.
 
 The MVP must work without GPUs, external APIs, databases, paid services, or hosted model inference. The first release can use a deterministic ranker. The training command can ship after the CLI and report format are stable.
+
+Review corrections before implementation:
+
+- The private workspace root is named `fixmap-workspace`; the public CLI package keeps the `fixmap` name.
+- Builds run in explicit dependency order: core, CLI, action bundle, then web.
+- The CLI and scanner include real diff support through `--diff`, `--base`, and `--head`; changed files are not stubbed.
+- The baseline ranker uses path overlap, content overlap, changed-file signals, and nearby test matching.
+- The GitHub Action is bundled with esbuild into `packages/action/dist/index.mjs` so consumers can use it without installing dependencies at runtime.
 
 ## File Structure
 
@@ -25,7 +33,7 @@ The MVP must work without GPUs, external APIs, databases, paid services, or host
 - Create `packages/core/package.json`: core scanner/ranker/report package
 - Create `packages/core/src/index.ts`: public exports
 - Create `packages/core/src/types.ts`: shared domain types
-- Create `packages/core/src/repo-scan.ts`: filesystem, package script, git, and test discovery
+- Create `packages/core/src/repo-scan.ts`: filesystem, package script, git diff, content sample, and test discovery
 - Create `packages/core/src/signals.ts`: prompt/diff tokenization and feature extraction
 - Create `packages/core/src/rank.ts`: transparent baseline ranker
 - Create `packages/core/src/report.ts`: markdown and JSON report rendering
@@ -33,7 +41,8 @@ The MVP must work without GPUs, external APIs, databases, paid services, or host
 - Create `packages/cli/package.json`: executable CLI package
 - Create `packages/cli/src/cli.ts`: argument parsing and command dispatch
 - Create `packages/action/action.yml`: GitHub Action metadata for `uses: aryamthecodebreaker/FixMap/packages/action@v0`
-- Create `packages/action/entrypoint.mjs`: Action wrapper around the CLI
+- Create `packages/action/src/index.ts`: Action entrypoint that calls the core package
+- Create `packages/action/dist/index.mjs`: bundled action artifact built with esbuild
 - Create `apps/web/package.json`: Vercel docs/playground app
 - Create `apps/web/tsconfig.json`: Next.js TypeScript config
 - Create `apps/web/next-env.d.ts`: Next.js generated type reference
@@ -57,7 +66,7 @@ Create `package.json`:
 
 ```json
 {
-  "name": "fixmap",
+  "name": "fixmap-workspace",
   "version": "0.0.0",
   "private": true,
   "description": "Repo context, test routing, and review receipts for AI-assisted development.",
@@ -68,7 +77,11 @@ Create `package.json`:
     "apps/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build:core && npm run build:cli && npm run build:action && npm run build:web",
+    "build:core": "npm run build -w @fixmap/core",
+    "build:cli": "npm run build -w fixmap",
+    "build:action": "esbuild packages/action/src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=packages/action/dist/index.mjs",
+    "build:web": "npm run build -w @fixmap/web",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
@@ -78,6 +91,7 @@ Create `package.json`:
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "esbuild": "^0.23.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
   }
@@ -114,6 +128,8 @@ Create `.gitignore`:
 ```gitignore
 node_modules/
 dist/
+!packages/action/dist/
+!packages/action/dist/**
 .next/
 coverage/
 .env
@@ -216,10 +232,11 @@ Create `packages/core/src/types.ts`:
 ```ts
 export type FixMapInput = {
   repoRoot: string;
-  issueText?: string;
-  diffText?: string;
-  baseRef?: string;
-  headRef?: string;
+  issueText?: string | undefined;
+  diffText?: string | undefined;
+  baseRef?: string | undefined;
+  headRef?: string | undefined;
+  diffSpec?: string | undefined;
 };
 
 export type RepoFile = {
@@ -228,6 +245,7 @@ export type RepoFile = {
   sizeBytes: number;
   isTest: boolean;
   isSource: boolean;
+  textSample: string;
 };
 
 export type PackageScript = {
@@ -311,11 +329,15 @@ git commit -m "feat: define fixmap core types"
 Create `packages/core/test/repo-scan.test.ts`:
 
 ```ts
+import { execFile } from "node:child_process";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { scanRepo } from "../src/repo-scan.js";
+
+const exec = promisify(execFile);
 
 describe("scanRepo", () => {
   it("discovers source files, test files, and package scripts", async () => {
@@ -339,10 +361,30 @@ describe("scanRepo", () => {
       "test/login.test.ts"
     ]);
     expect(repo.files.find((file) => file.path === "test/login.test.ts")?.isTest).toBe(true);
+    expect(repo.files.find((file) => file.path === "src/login.ts")?.textSample).toContain("login");
     expect(repo.packageScripts).toEqual([
       { name: "test", command: "vitest run" },
       { name: "typecheck", command: "tsc --noEmit" }
     ]);
+  });
+
+  it("discovers changed files from a git diff spec", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-diff-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src", "login.ts"), "export const login = () => true;\n");
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-m", "initial"], { cwd: root });
+    await exec("git", ["checkout", "-b", "change-login"], { cwd: root });
+    await writeFile(join(root, "src", "login.ts"), "export const login = () => false;\n");
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-m", "change login"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: root, diffSpec: "main...HEAD" });
+
+    expect(repo.changedFiles).toEqual(["src/login.ts"]);
   });
 });
 ```
@@ -358,23 +400,28 @@ Expected: FAIL because `repo-scan.js` does not exist.
 Create `packages/core/src/repo-scan.ts`:
 
 ```ts
+import { execFile } from "node:child_process";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join, relative, sep } from "node:path";
+import { promisify } from "node:util";
 import type { FixMapInput, PackageScript, RepoFile, RepoMap } from "./types.js";
 
 const IGNORED_DIRS = new Set([".git", "node_modules", "dist", ".next", "coverage"]);
 const SOURCE_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".go", ".rs"]);
 const TEST_PATTERNS = [/\.test\./, /\.spec\./, /(^|\/|\\)__tests__(\/|\\)/, /(^|\/|\\)tests?(\/|\\)/];
+const MAX_TEXT_SAMPLE_BYTES = 64_000;
+const exec = promisify(execFile);
 
-export async function scanRepo(input: Pick<FixMapInput, "repoRoot">): Promise<RepoMap> {
+export async function scanRepo(input: Pick<FixMapInput, "repoRoot" | "baseRef" | "headRef" | "diffSpec">): Promise<RepoMap> {
   const files = await walkFiles(input.repoRoot, input.repoRoot);
   const packageScripts = await readPackageScripts(input.repoRoot);
+  const changedFiles = await readChangedFiles(input);
 
   return {
     root: input.repoRoot,
     files,
     packageScripts,
-    changedFiles: []
+    changedFiles
   };
 }
 
@@ -399,13 +446,15 @@ async function walkFiles(root: string, current: string): Promise<RepoFile[]> {
     const relativePath = normalizePath(relative(root, absolutePath));
     const fileStat = await stat(absolutePath);
     const extension = extname(entry.name);
+    const isSource = SOURCE_EXTENSIONS.has(extension);
 
     results.push({
       path: relativePath,
       extension,
       sizeBytes: fileStat.size,
       isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
-      isSource: SOURCE_EXTENSIONS.has(extension)
+      isSource,
+      textSample: isSource ? await readTextSample(absolutePath, fileStat.size) : ""
     });
   }
 
@@ -419,6 +468,38 @@ async function readPackageScripts(root: string): Promise<PackageScript[]> {
     return Object.entries(parsed.scripts ?? {}).map(([name, command]) => ({ name, command }));
   } catch {
     return [];
+  }
+}
+
+async function readChangedFiles(input: Pick<FixMapInput, "repoRoot" | "baseRef" | "headRef" | "diffSpec">): Promise<string[]> {
+  const diffSpec = input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : undefined);
+
+  if (!diffSpec) {
+    return [];
+  }
+
+  try {
+    const { stdout } = await exec("git", ["diff", "--name-only", diffSpec], { cwd: input.repoRoot });
+    return stdout
+      .split(/\r?\n/)
+      .map((path) => path.trim())
+      .filter(Boolean)
+      .map(normalizePath)
+      .sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+}
+
+async function readTextSample(path: string, sizeBytes: number): Promise<string> {
+  if (sizeBytes > MAX_TEXT_SAMPLE_BYTES) {
+    return "";
+  }
+
+  try {
+    return await readFile(path, "utf8");
+  } catch {
+    return "";
   }
 }
 
@@ -484,9 +565,9 @@ describe("rankContextFiles", () => {
       packageScripts: [],
       changedFiles: ["src/auth/reset-password.ts"],
       files: [
-        { path: "src/auth/reset-password.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false },
-        { path: "src/billing/invoice.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false },
-        { path: "test/auth/reset-password.test.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: true }
+        { path: "src/auth/reset-password.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, textSample: "export function resetPassword() {}" },
+        { path: "src/billing/invoice.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, textSample: "export function invoice() {}" },
+        { path: "test/auth/reset-password.test.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: true, textSample: "describe('reset password')" }
       ]
     };
 
@@ -497,6 +578,25 @@ describe("rankContextFiles", () => {
 
     expect(ranked[0]?.path).toBe("src/auth/reset-password.ts");
     expect(ranked[0]?.reasons).toContain("changed file");
+  });
+
+  it("uses file content when the path does not contain the task terms", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      files: [
+        { path: "src/services/UserAccount.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, textSample: "export async function sendPasswordResetEmail() {}" },
+        { path: "src/ui/Button.tsx", extension: ".tsx", sizeBytes: 100, isSource: true, isTest: false, textSample: "export function Button() {}" }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "password reset email fails"
+    });
+
+    expect(ranked[0]?.path).toBe("src/services/UserAccount.ts");
+    expect(ranked[0]?.reasons.some((reason) => reason.startsWith("content matches task terms"))).toBe(true);
   });
 });
 ```
@@ -520,17 +620,11 @@ export type TaskSignals = {
 };
 
 export function extractTaskSignals(input: {
-  issueText?: string;
-  diffText?: string;
+  issueText?: string | undefined;
+  diffText?: string | undefined;
   changedFiles?: string[];
 }): TaskSignals {
-  const text = [input.issueText ?? "", input.diffText ?? ""].join("\n").toLowerCase();
-  const tokens = new Set(
-    text
-      .split(TOKEN_SPLIT)
-      .map((token) => token.trim())
-      .filter((token) => token.length >= 3)
-  );
+  const tokens = tokenizeText([input.issueText ?? "", input.diffText ?? ""].join("\n"));
 
   return {
     tokens,
@@ -538,14 +632,19 @@ export function extractTaskSignals(input: {
   };
 }
 
-export function tokenizePath(path: string): Set<string> {
+export function tokenizeText(text: string): Set<string> {
   return new Set(
-    path
+    text
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
       .toLowerCase()
       .split(TOKEN_SPLIT)
       .map((token) => token.trim())
-      .filter((token) => token.length >= 2)
+      .filter((token) => token.length >= 3)
   );
+}
+
+export function tokenizePath(path: string): Set<string> {
+  return tokenizeText(path);
 }
 ```
 
@@ -554,7 +653,7 @@ export function tokenizePath(path: string): Set<string> {
 Create `packages/core/src/rank.ts`:
 
 ```ts
-import { extractTaskSignals, tokenizePath } from "./signals.js";
+import { extractTaskSignals, tokenizePath, tokenizeText } from "./signals.js";
 import type { RankedFile, RepoMap } from "./types.js";
 
 export function rankContextFiles(
@@ -563,8 +662,8 @@ export function rankContextFiles(
   limit = 12
 ): RankedFile[] {
   const signals = extractTaskSignals({
-    issueText: input.issueText,
-    diffText: input.diffText,
+    issueText: input.issueText ?? "",
+    diffText: input.diffText ?? "",
     changedFiles: repo.changedFiles
   });
 
@@ -586,7 +685,14 @@ export function rankContextFiles(
         reasons.push(`path matches task terms: ${overlap.join(", ")}`);
       }
 
-      if (file.path.includes("auth") || file.path.includes("login")) {
+      const contentTokens = tokenizeText(file.textSample);
+      const contentOverlap = [...contentTokens].filter((token) => signals.tokens.has(token));
+      if (contentOverlap.length > 0) {
+        score += Math.min(contentOverlap.length, 8) * 2;
+        reasons.push(`content matches task terms: ${contentOverlap.slice(0, 8).join(", ")}`);
+      }
+
+      if (pathTokens.has("auth") || pathTokens.has("login")) {
         if (signals.tokens.has("auth") || signals.tokens.has("login") || signals.tokens.has("password")) {
           score += 2;
           reasons.push("auth-related task signal");
@@ -690,10 +796,11 @@ Expected: FAIL because `report.js` does not exist.
 Create `packages/core/src/report.ts`:
 
 ```ts
+import { tokenizePath } from "./signals.js";
 import type { FixMapReport, RepoMap, RiskNote, TestRoute } from "./types.js";
 
 export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRoute[] {
-  const testFiles = repo.files.filter((file) => file.isTest).map((file) => file.path);
+  const relatedTests = findRelatedTests(repo, contextPaths);
   const routes: TestRoute[] = [];
   const testScript = repo.packageScripts.find((script) => script.name === "test");
   const typecheckScript = repo.packageScripts.find((script) => script.name === "typecheck");
@@ -701,8 +808,8 @@ export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRout
   if (testScript) {
     routes.push({
       command: `npm run ${testScript.name}`,
-      reason: "package script named test",
-      relatedFiles: testFiles.slice(0, 8)
+      reason: relatedTests.length > 0 ? "package script named test; related tests ranked by path overlap" : "package script named test",
+      relatedFiles: relatedTests
     });
   }
 
@@ -719,9 +826,9 @@ export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRout
 
 export function buildRiskNotes(contextPaths: string[]): RiskNote[] {
   const risks: RiskNote[] = [];
-  const joined = contextPaths.join("\n").toLowerCase();
+  const tokens = new Set(contextPaths.flatMap((path) => [...tokenizePath(path)]));
 
-  if (joined.includes("auth") || joined.includes("login") || joined.includes("password")) {
+  if (tokens.has("auth") || tokens.has("login") || tokens.has("password")) {
     risks.push({
       area: "authentication",
       severity: "high",
@@ -729,7 +836,7 @@ export function buildRiskNotes(contextPaths: string[]): RiskNote[] {
     });
   }
 
-  if (joined.includes("billing") || joined.includes("payment") || joined.includes("invoice")) {
+  if (tokens.has("billing") || tokens.has("payment") || tokens.has("invoice")) {
     risks.push({
       area: "billing",
       severity: "high",
@@ -738,6 +845,22 @@ export function buildRiskNotes(contextPaths: string[]): RiskNote[] {
   }
 
   return risks;
+}
+
+function findRelatedTests(repo: RepoMap, contextPaths: string[]): string[] {
+  const contextTokens = new Set(contextPaths.flatMap((path) => [...tokenizePath(path)]));
+
+  return repo.files
+    .filter((file) => file.isTest)
+    .map((file) => {
+      const testTokens = tokenizePath(file.path);
+      const overlap = [...testTokens].filter((token) => contextTokens.has(token)).length;
+      return { path: file.path, score: overlap };
+    })
+    .filter((file) => file.score > 0)
+    .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
+    .slice(0, 8)
+    .map((file) => file.path);
 }
 
 export function renderMarkdownReport(report: FixMapReport): string {
@@ -793,9 +916,14 @@ export type {
 
 - [ ] **Step 5: Verify reports**
 
-Run: `npm test -w @fixmap/core -- report.test.ts`
+Run:
 
-Expected: PASS.
+```bash
+npm test -w @fixmap/core -- report.test.ts
+npm run build:core
+```
+
+Expected: tests pass and `packages/core/dist/index.js` exists.
 
 - [ ] **Step 6: Commit**
 
@@ -827,8 +955,7 @@ Create `packages/cli/package.json`:
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@fixmap/core": "0.0.0"
@@ -873,6 +1000,9 @@ type CliOptions = {
   command: string;
   issueText: string;
   repoRoot: string;
+  diffSpec?: string | undefined;
+  baseRef?: string | undefined;
+  headRef?: string | undefined;
   format: "markdown" | "json";
   output?: string;
 };
@@ -880,17 +1010,31 @@ type CliOptions = {
 const options = parseArgs(process.argv.slice(2));
 
 if (options.command !== "plan") {
-  console.error("Usage: fixmap plan --issue \"...\" [--repo .] [--format markdown|json] [--output file]");
+  console.error("Usage: fixmap plan --issue \"...\" [--diff main...HEAD] [--base main --head HEAD] [--repo .] [--format markdown|json] [--output file]");
   process.exit(1);
 }
 
-const repo = await scanRepo({ repoRoot: options.repoRoot });
-const contextFiles = rankContextFiles(repo, { issueText: options.issueText });
+if (!options.issueText && !options.diffSpec && !options.baseRef) {
+  console.error("Provide --issue, --diff, or --base/--head so FixMap has a task signal.");
+  process.exit(1);
+}
+
+const repo = await scanRepo({
+  repoRoot: options.repoRoot,
+  diffSpec: options.diffSpec,
+  baseRef: options.baseRef,
+  headRef: options.headRef
+});
+const contextFiles = rankContextFiles(repo, {
+  issueText: options.issueText,
+  diffText: options.diffSpec ?? [options.baseRef, options.headRef].filter(Boolean).join(" ")
+});
 const contextPaths = contextFiles.map((file) => file.path);
+const testRoutes = buildTestRoutes(repo, contextPaths);
 const report: FixMapReport = {
-  summary: `FixMap found ${contextFiles.length} context files and generated ${buildTestRoutes(repo, contextPaths).length} test routes.`,
+  summary: `FixMap found ${contextFiles.length} context files and generated ${testRoutes.length} test routes.`,
   contextFiles,
-  testRoutes: buildTestRoutes(repo, contextPaths),
+  testRoutes,
   risks: buildRiskNotes(contextPaths),
   changedFiles: repo.changedFiles
 };
@@ -907,6 +1051,9 @@ function parseArgs(args: string[]): CliOptions {
   const command = args[0] ?? "";
   let issueText = "";
   let repoRoot = process.cwd();
+  let diffSpec: string | undefined;
+  let baseRef: string | undefined;
+  let headRef: string | undefined;
   let format: "markdown" | "json" = "markdown";
   let output: string | undefined;
 
@@ -916,6 +1063,15 @@ function parseArgs(args: string[]): CliOptions {
 
     if (arg === "--issue" && value) {
       issueText = value;
+      index += 1;
+    } else if (arg === "--diff" && value) {
+      diffSpec = value;
+      index += 1;
+    } else if (arg === "--base" && value) {
+      baseRef = value;
+      index += 1;
+    } else if (arg === "--head" && value) {
+      headRef = value;
       index += 1;
     } else if (arg === "--repo" && value) {
       repoRoot = resolve(value);
@@ -933,6 +1089,9 @@ function parseArgs(args: string[]): CliOptions {
     command,
     issueText,
     repoRoot,
+    diffSpec,
+    baseRef,
+    headRef,
     format,
     output
   };
@@ -941,13 +1100,13 @@ function parseArgs(args: string[]): CliOptions {
 
 - [ ] **Step 4: Build CLI**
 
-Run: `npm run build -w fixmap`
+Run: `npm run build:core && npm run build:cli`
 
 Expected: PASS and creates `packages/cli/dist/cli.js`.
 
 - [ ] **Step 5: Smoke test CLI**
 
-Run: `node packages/cli/dist/cli.js plan --issue "password reset fails" --repo .`
+Run: `node packages/cli/dist/cli.js plan --issue "password reset fails" --diff main...HEAD --repo .`
 
 Expected: command prints a `# FixMap Report` markdown document.
 
@@ -964,7 +1123,8 @@ git commit -m "feat: add fixmap plan cli"
 
 **Files:**
 - Create: `packages/action/action.yml`
-- Create: `packages/action/entrypoint.mjs`
+- Create: `packages/action/src/index.ts`
+- Create: `packages/action/dist/index.mjs`
 
 - [ ] **Step 1: Create action metadata**
 
@@ -978,86 +1138,150 @@ inputs:
     description: Issue, prompt, or review context for FixMap.
     required: false
     default: Pull request review
+  diff:
+    description: Git diff spec, such as main...HEAD.
+    required: false
+  base:
+    description: Base ref for diffing when diff is not provided.
+    required: false
+  head:
+    description: Head ref for diffing when diff is not provided.
+    required: false
   format:
     description: Output format.
     required: false
     default: markdown
+  github-token:
+    description: Token used to upsert a pull request comment. If omitted, FixMap only writes the step summary.
+    required: false
 runs:
   using: node20
-  main: entrypoint.mjs
+  main: dist/index.mjs
 ```
 
-- [ ] **Step 2: Create action entrypoint**
+- [ ] **Step 2: Create bundled action source**
 
-The MVP action builds FixMap from the checked-out action repository at runtime. This is slower than a bundled action, but it keeps the first release GitHub-only and avoids requiring an npm publish step.
+Create `packages/action/src/index.ts`:
 
-Create `packages/action/entrypoint.mjs`:
-
-```js
-import { spawnSync } from "node:child_process";
-import { appendFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+```ts
+import { appendFileSync, readFileSync } from "node:fs";
+import {
+  buildRiskNotes,
+  buildTestRoutes,
+  rankContextFiles,
+  renderMarkdownReport,
+  scanRepo
+} from "@fixmap/core";
+import type { FixMapReport } from "@fixmap/core";
 
 const issue = process.env.INPUT_ISSUE || "Pull request review";
-const format = process.env.INPUT_FORMAT || "markdown";
-
-const actionDir = dirname(fileURLToPath(import.meta.url));
-const actionRoot = resolve(actionDir, "../..");
 const targetRepo = process.cwd();
+const diffSpec = process.env.INPUT_DIFF || undefined;
+const baseRef = process.env.INPUT_BASE || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : undefined);
+const headRef = process.env.INPUT_HEAD || (process.env.GITHUB_HEAD_REF ? "HEAD" : undefined);
 
-run("npm", ["install"], actionRoot);
-run("npm", ["run", "build", "-w", "@fixmap/core"], actionRoot);
-run("npm", ["run", "build", "-w", "fixmap"], actionRoot);
-
-const result = spawnSync(process.execPath, [
-  resolve(actionRoot, "packages/cli/dist/cli.js"),
-  "plan",
-  "--issue",
-  issue,
-  "--repo",
-  targetRepo,
-  "--format",
-  format
-], {
-  encoding: "utf8"
+const repo = await scanRepo({
+  repoRoot: targetRepo,
+  diffSpec,
+  baseRef,
+  headRef
 });
+const contextFiles = rankContextFiles(repo, {
+  issueText: issue,
+  diffText: diffSpec ?? [baseRef, headRef].filter(Boolean).join(" ")
+});
+const contextPaths = contextFiles.map((file) => file.path);
+const testRoutes = buildTestRoutes(repo, contextPaths);
+const report: FixMapReport = {
+  summary: `FixMap found ${contextFiles.length} context files and generated ${testRoutes.length} test routes.`,
+  contextFiles,
+  testRoutes,
+  risks: buildRiskNotes(contextPaths),
+  changedFiles: repo.changedFiles
+};
+const markdown = renderMarkdownReport(report);
 
-if (result.status !== 0) {
-  process.stderr.write(result.stderr);
-  process.exit(result.status ?? 1);
-}
-
-process.stdout.write(result.stdout);
+process.stdout.write(markdown);
 
 if (process.env.GITHUB_STEP_SUMMARY) {
-  appendFileSync(process.env.GITHUB_STEP_SUMMARY, result.stdout);
+  appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
 }
 
-function run(command, args, cwd) {
-  const result = spawnSync(command, args, {
-    cwd,
-    encoding: "utf8",
-    shell: process.platform === "win32"
-  });
+const token = process.env.INPUT_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
+if (token) {
+  await upsertPullRequestComment(token, markdown);
+}
 
-  if (result.status !== 0) {
-    process.stderr.write(result.stderr);
-    process.exit(result.status ?? 1);
+async function upsertPullRequestComment(token: string, markdown: string): Promise<void> {
+  if (!process.env.GITHUB_EVENT_PATH || !process.env.GITHUB_REPOSITORY) {
+    return;
   }
+
+  const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8")) as {
+    pull_request?: { number?: number };
+  };
+  const issueNumber = event.pull_request?.number;
+  if (!issueNumber) {
+    return;
+  }
+
+  const [owner, repo] = process.env.GITHUB_REPOSITORY.split("/");
+  if (!owner || !repo) {
+    return;
+  }
+
+  const marker = "<!-- fixmap-report -->";
+  const body = `${marker}\n${markdown}`;
+  const headers = {
+    accept: "application/vnd.github+json",
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+    "x-github-api-version": "2022-11-28"
+  };
+  const commentsUrl = `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`;
+  const commentsResponse = await fetch(commentsUrl, { headers });
+  const comments = await commentsResponse.json() as Array<{ id: number; body?: string }>;
+  const existing = Array.isArray(comments)
+    ? comments.find((comment) => comment.body?.includes(marker))
+    : undefined;
+
+  if (existing) {
+    await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/comments/${existing.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ body })
+    });
+    return;
+  }
+
+  await fetch(commentsUrl, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ body })
+  });
 }
 ```
 
-- [ ] **Step 3: Build before local action smoke**
+- [ ] **Step 3: Bundle the action**
 
-Run: `npm run build`
+Run: `npm run build:core && npm run build:action`
 
-Expected: PASS and `packages/cli/dist/cli.js` exists for the action entrypoint.
+Expected: PASS and `packages/action/dist/index.mjs` exists.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Local action smoke**
+
+Run:
 
 ```bash
-git add packages/action
+node packages/action/dist/index.mjs
+```
+
+Expected: command prints a `# FixMap Report` markdown document and does not require a GitHub token locally.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/action/src packages/action/dist packages/action/action.yml
 git commit -m "feat: add github action wrapper"
 ```
 
@@ -1332,7 +1556,7 @@ Run:
 npm run typecheck
 npm test
 npm run build
-node packages/cli/dist/cli.js plan --issue "password reset fails" --repo . --output fixmap-report.md
+node packages/cli/dist/cli.js plan --issue "password reset fails" --diff main...HEAD --repo . --output fixmap-report.md
 ```
 
 Expected: typecheck, tests, and build pass. The CLI writes `fixmap-report.md`.
@@ -1344,7 +1568,7 @@ Modify `README.md` status section:
 ```md
 ## Status
 
-FixMap is in early MVP development. The CLI can scan a JavaScript or TypeScript repository and produce a context/test/risk report from a prompt.
+FixMap is in early MVP development. The CLI can scan a JavaScript or TypeScript repository and produce a context/test/risk report from a prompt or diff.
 ```
 
 - [ ] **Step 3: Commit**
@@ -1360,7 +1584,7 @@ Stop here before implementation. The next coding step is Task 1, but it should n
 
 ## Self-Review
 
-- Spec coverage: README and plan cover the product promise, solo developer flow, maintainer flow, local CLI, GitHub Action, Vercel website, and CPU-only/no-paid-service constraint.
+- Spec coverage: README and plan cover the product promise, solo developer flow, maintainer flow, local CLI, diff support, GitHub Action, Vercel website, and CPU-only/no-paid-service constraint.
 - Placeholder scan: no unresolved placeholders are intentionally left in the plan.
-- Type consistency: shared types are defined before scanner, ranker, report, CLI, and action tasks use them.
+- Type consistency: shared types are defined before scanner, ranker, report, CLI, and action tasks use them. Optional input types are compatible with `exactOptionalPropertyTypes`.
 - Scope check: the MVP is narrow enough to ship; trainable ranking is named as a later enhancement after deterministic ranking works.

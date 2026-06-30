@@ -52,12 +52,18 @@ name: FixMap
 on:
   pull_request:
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   fixmap:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: aryamthecodebreaker/FixMap/packages/action@v0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 The action will explain which files look central, which tests should run, and where review attention should go.
