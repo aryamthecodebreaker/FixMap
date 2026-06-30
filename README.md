@@ -55,12 +55,15 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: write
 
 jobs:
   fixmap:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: aryamthecodebreaker/FixMap/packages/action@v0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}

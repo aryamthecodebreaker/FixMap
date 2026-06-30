@@ -23,6 +23,8 @@ Review corrections before implementation:
 - The CLI and scanner include real diff support through `--diff`, `--base`, and `--head`; changed files are not stubbed.
 - The baseline ranker uses path overlap, content overlap, changed-file signals, and nearby test matching.
 - The GitHub Action is bundled with esbuild into `packages/action/dist/index.mjs` so consumers can use it without installing dependencies at runtime.
+- Root typecheck builds core first so workspace packages can resolve `@fixmap/core` declarations.
+- The Action is its own typed workspace package and the committed bundle is checked for drift in CI.
 
 ## File Structure
 
@@ -41,6 +43,8 @@ Review corrections before implementation:
 - Create `packages/cli/package.json`: executable CLI package
 - Create `packages/cli/src/cli.ts`: argument parsing and command dispatch
 - Create `packages/action/action.yml`: GitHub Action metadata for `uses: aryamthecodebreaker/FixMap/packages/action@v0`
+- Create `packages/action/package.json`: typed private workspace package for the Action source
+- Create `packages/action/tsconfig.json`: Action TypeScript config
 - Create `packages/action/src/index.ts`: Action entrypoint that calls the core package
 - Create `packages/action/dist/index.mjs`: bundled action artifact built with esbuild
 - Create `apps/web/package.json`: Vercel docs/playground app
@@ -82,8 +86,10 @@ Create `package.json`:
     "build:cli": "npm run build -w fixmap",
     "build:action": "esbuild packages/action/src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=packages/action/dist/index.mjs",
     "build:web": "npm run build -w @fixmap/web",
+    "check:action-bundle": "npm run build:action && git diff --exit-code packages/action/dist/index.mjs",
+    "ci": "npm run typecheck && npm test && npm run build && npm run check:action-bundle",
     "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build:core && npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
   },
   "engines": {
@@ -161,9 +167,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      - run: npm run ci
 ```
 
 - [ ] **Step 5: Verify bootstrap**
@@ -1004,7 +1008,7 @@ type CliOptions = {
   baseRef?: string | undefined;
   headRef?: string | undefined;
   format: "markdown" | "json";
-  output?: string;
+  output?: string | undefined;
 };
 
 const options = parseArgs(process.argv.slice(2));
@@ -1123,10 +1127,44 @@ git commit -m "feat: add fixmap plan cli"
 
 **Files:**
 - Create: `packages/action/action.yml`
+- Create: `packages/action/package.json`
+- Create: `packages/action/tsconfig.json`
 - Create: `packages/action/src/index.ts`
 - Create: `packages/action/dist/index.mjs`
 
-- [ ] **Step 1: Create action metadata**
+- [ ] **Step 1: Create action package metadata**
+
+Create `packages/action/package.json`:
+
+```json
+{
+  "name": "@fixmap/action",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fixmap/core": "0.0.0"
+  }
+}
+```
+
+Create `packages/action/tsconfig.json`:
+
+```json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"]
+}
+```
+
+- [ ] **Step 2: Create action metadata**
 
 Create `packages/action/action.yml`:
 
@@ -1159,7 +1197,7 @@ runs:
   main: dist/index.mjs
 ```
 
-- [ ] **Step 2: Create bundled action source**
+- [ ] **Step 3: Create bundled action source**
 
 Create `packages/action/src/index.ts`:
 
@@ -1262,13 +1300,19 @@ async function upsertPullRequestComment(token: string, markdown: string): Promis
 }
 ```
 
-- [ ] **Step 3: Bundle the action**
+- [ ] **Step 4: Typecheck and bundle the action**
 
-Run: `npm run build:core && npm run build:action`
+Run:
+
+```bash
+npm run build:core
+npm run typecheck -w @fixmap/action
+npm run build:action
+```
 
 Expected: PASS and `packages/action/dist/index.mjs` exists.
 
-- [ ] **Step 4: Local action smoke**
+- [ ] **Step 5: Local action smoke**
 
 Run:
 
@@ -1278,10 +1322,10 @@ node packages/action/dist/index.mjs
 
 Expected: command prints a `# FixMap Report` markdown document and does not require a GitHub token locally.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add packages/action/src packages/action/dist packages/action/action.yml
+git add packages/action/package.json packages/action/tsconfig.json packages/action/src packages/action/dist packages/action/action.yml
 git commit -m "feat: add github action wrapper"
 ```
 
@@ -1337,6 +1381,7 @@ Create `apps/web/tsconfig.json`:
     "allowJs": true,
     "incremental": true,
     "jsx": "preserve",
+    "lib": ["dom", "dom.iterable", "ES2022"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,
@@ -1553,13 +1598,11 @@ git commit -m "feat: add fixmap web surface"
 Run:
 
 ```bash
-npm run typecheck
-npm test
-npm run build
+npm run ci
 node packages/cli/dist/cli.js plan --issue "password reset fails" --diff main...HEAD --repo . --output fixmap-report.md
 ```
 
-Expected: typecheck, tests, and build pass. The CLI writes `fixmap-report.md`.
+Expected: typecheck, tests, build, and action bundle drift check pass. The CLI writes `fixmap-report.md`.
 
 - [ ] **Step 2: Update README status**
 
@@ -1586,5 +1629,6 @@ Stop here before implementation. The next coding step is Task 1, but it should n
 
 - Spec coverage: README and plan cover the product promise, solo developer flow, maintainer flow, local CLI, diff support, GitHub Action, Vercel website, and CPU-only/no-paid-service constraint.
 - Placeholder scan: no unresolved placeholders are intentionally left in the plan.
-- Type consistency: shared types are defined before scanner, ranker, report, CLI, and action tasks use them. Optional input types are compatible with `exactOptionalPropertyTypes`.
+- Type consistency: shared types are defined before scanner, ranker, report, CLI, and action tasks use them. Optional input and output fields are compatible with `exactOptionalPropertyTypes`.
+- Build consistency: root `typecheck` builds core first, the Action source is typechecked as a workspace, and CI checks the committed Action bundle for drift.
 - Scope check: the MVP is narrow enough to ship; trainable ranking is named as a later enhancement after deterministic ranking works.
