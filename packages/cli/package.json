@@ -1,0 +1,15 @@
+{
+  "name": "fixmap",
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "fixmap": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fixmap/core": "0.0.0"
+  }
+}

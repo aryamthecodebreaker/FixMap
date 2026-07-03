@@ -1,0 +1,12 @@
+node_modules/
+dist/
+!packages/action/dist/
+!packages/action/dist/**
+.next/
+coverage/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+fixmap-report.json
+fixmap-report.md
