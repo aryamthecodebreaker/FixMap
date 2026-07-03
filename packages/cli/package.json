@@ -1,6 +1,8 @@
 {
   "name": "fixmap",
   "version": "0.0.0",
+  "description": "CLI for mapping issues and diffs to relevant files, tests, and review risks.",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "fixmap": "dist/cli.js"
@@ -11,5 +13,8 @@
   },
   "dependencies": {
     "@fixmap/core": "0.0.0"
+  },
+  "engines": {
+    "node": ">=20.11"
   }
 }

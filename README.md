@@ -1,5 +1,7 @@
 # FixMap
 
+[![CI](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml/badge.svg)](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml)
+
 FixMap is an open-source repo intelligence tool for developers using AI coding agents.
 
 It does not try to replace Codex, Cursor, Copilot, Claude Code, or other coding tools. It helps them start in the right place, read the right files, run the right checks, and leave a clearer review trail.
@@ -87,9 +89,9 @@ That makes the project realistic to train and run with normal developer infrastr
 - no hosted GPU requirement
 - no paid API requirement for the core open-source tool
 
-## Planned Architecture
+## Architecture
 
-FixMap will start with a deterministic baseline and grow into a small trainable ranking model.
+FixMap starts with a deterministic baseline and can grow into a small trainable ranking model once the report format and workflow prove useful.
 
 ```text
 issue / prompt / diff / PR
@@ -101,26 +103,25 @@ repo scanner -> feature extractor -> file ranker -> test router
 repo map                           markdown + JSON report
 ```
 
-The first model will rank files and tests using lightweight features:
+The MVP ranks files and tests using lightweight features:
 
 - path and symbol overlap with the task
-- dependency and import proximity
-- git co-change history
 - test naming conventions
-- recent failures or touched areas when available
-- ownership and review hotspots when available
+- changed-file signals from real git diffs
+- content overlap from lightweight file samples
+- nearby test naming and path overlap
+
+Future releases can add dependency/import proximity, git co-change history, recent failures, and ownership or review hotspots.
 
 The model artifact should be a small JSON file that can be committed, released, or regenerated in CI.
 
-## Planned CLI
+## CLI
 
 ```bash
 fixmap plan --issue "Users cannot reset passwords"
 fixmap plan --diff main...HEAD
-fixmap scan
-fixmap train --from-git-history
-fixmap report --format markdown
-fixmap report --format json
+fixmap plan --base main --head HEAD --format json
+fixmap plan --issue "Users cannot reset passwords" --output fixmap-report.md
 ```
 
 ## MVP Usage
@@ -136,15 +137,15 @@ node packages/cli/dist/cli.js plan --issue "Users cannot reset passwords" --form
 
 The MVP scans local repository files, reads package scripts, resolves real git diff specs, ranks likely context files, suggests test routes, and renders markdown or JSON output.
 
-## Planned GitHub Action
+## GitHub Action
 
-The GitHub Action will:
+The GitHub Action:
 
 1. inspect the pull request diff
 2. build or load the repo map
 3. rank related files and tests
 4. post a concise PR comment
-5. optionally upload a JSON artifact
+5. writes the same report to the step summary
 
 No source code will be sent to a third-party service by default.
 
@@ -168,9 +169,9 @@ FixMap is in early MVP development. The CLI can scan a JavaScript or TypeScript 
 - [ ] Baseline ranker for context files and test routes
 - [ ] GitHub Action for pull request comments
 - [ ] CPU-trainable ranking model from repository history
-- [ ] Vercel-hosted website and playground
+- [x] Vercel-ready website and playground shell
 - [ ] Examples for popular repo types
 
 ## License
 
-FixMap is intended to be open source. The license will be added before the first public release.
+FixMap is released under the MIT License. See [LICENSE](LICENSE).

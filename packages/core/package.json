@@ -1,6 +1,8 @@
 {
   "name": "@fixmap/core",
   "version": "0.0.0",
+  "description": "Core repository scanner, ranker, and report renderer for FixMap.",
+  "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
