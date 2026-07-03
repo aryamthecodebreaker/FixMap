@@ -5,6 +5,22 @@
   "description": "Repo context, test routing, and review receipts for AI-assisted development.",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aryamthecodebreaker/FixMap.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aryamthecodebreaker/FixMap/issues"
+  },
+  "homepage": "https://github.com/aryamthecodebreaker/FixMap#readme",
+  "keywords": [
+    "ai-coding",
+    "code-review",
+    "developer-tools",
+    "github-actions",
+    "repo-intelligence",
+    "testing"
+  ],
   "workspaces": [
     "packages/*",
     "apps/*"
@@ -16,7 +32,8 @@
     "build:action": "esbuild packages/action/src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=packages/action/dist/index.mjs --banner:js=\"import { createRequire as __fixmapCreateRequire } from 'module'; const require = __fixmapCreateRequire(import.meta.url);\"",
     "build:web": "npm run build -w @fixmap/web",
     "check:action-bundle": "npm run build:action && git diff --exit-code packages/action/dist/index.mjs",
-    "ci": "npm run typecheck && npm test && npm run build && npm run check:action-bundle",
+    "ci": "npm run typecheck && npm test && npm run build && npm run check:action-bundle && npm run smoke",
+    "smoke": "node packages/cli/dist/cli.js plan --issue \"password reset fails\" --repo . --format json --output fixmap-report.json && node packages/action/dist/index.mjs",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run build:core && npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
