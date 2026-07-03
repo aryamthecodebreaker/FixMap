@@ -1,0 +1,26 @@
+name: FixMap
+description: Map pull request changes to context files, test routes, and review risks.
+inputs:
+  issue:
+    description: Issue, prompt, or review context for FixMap.
+    required: false
+    default: Pull request review
+  diff:
+    description: Git diff spec, such as main...HEAD.
+    required: false
+  base:
+    description: Base ref for diffing when diff is not provided.
+    required: false
+  head:
+    description: Head ref for diffing when diff is not provided.
+    required: false
+  format:
+    description: Output format.
+    required: false
+    default: markdown
+  github-token:
+    description: Token used to upsert a pull request comment. If omitted, FixMap only writes the step summary.
+    required: false
+runs:
+  using: node20
+  main: dist/index.mjs

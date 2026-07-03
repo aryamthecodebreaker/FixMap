@@ -123,6 +123,19 @@ fixmap report --format markdown
 fixmap report --format json
 ```
 
+## MVP Usage
+
+After installing dependencies from the repository root:
+
+```bash
+npm install
+npm run build
+node packages/cli/dist/cli.js plan --issue "Users cannot reset passwords" --diff main...HEAD --repo .
+node packages/cli/dist/cli.js plan --issue "Users cannot reset passwords" --format json --output fixmap-report.json
+```
+
+The MVP scans local repository files, reads package scripts, resolves real git diff specs, ranks likely context files, suggests test routes, and renders markdown or JSON output.
+
 ## Planned GitHub Action
 
 The GitHub Action will:
@@ -146,7 +159,7 @@ No source code will be sent to a third-party service by default.
 
 ## Status
 
-FixMap is in planning. The first milestone is a working CLI that can scan a JavaScript or TypeScript repository and produce a useful context/test/risk report from a prompt or diff.
+FixMap is in early MVP development. The CLI can scan a JavaScript or TypeScript repository and produce a context/test/risk report from a prompt or diff.
 
 ## Roadmap
 

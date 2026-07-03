@@ -1,0 +1,36 @@
+{
+  "name": "fixmap-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Repo context, test routing, and review receipts for AI-assisted development.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build:core && npm run build:cli && npm run build:action && npm run build:web",
+    "build:core": "npm run build -w @fixmap/core",
+    "build:cli": "npm run build -w fixmap",
+    "build:action": "esbuild packages/action/src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=packages/action/dist/index.mjs --banner:js=\"import { createRequire as __fixmapCreateRequire } from 'module'; const require = __fixmapCreateRequire(import.meta.url);\"",
+    "build:web": "npm run build -w @fixmap/web",
+    "check:action-bundle": "npm run build:action && git diff --exit-code packages/action/dist/index.mjs",
+    "ci": "npm run typecheck && npm test && npm run build && npm run check:action-bundle",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run build:core && npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20.11"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}
