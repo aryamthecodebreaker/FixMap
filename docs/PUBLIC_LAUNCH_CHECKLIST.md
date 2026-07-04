@@ -9,8 +9,8 @@ Use this before announcing FixMap anywhere beyond a quiet soft launch.
 - [x] CI badge is visible.
 - [x] `npm run ci` runs typecheck, tests, build, action bundle drift check, and smoke checks.
 - [x] Example input and sample output are included.
-- [ ] Repository visibility is public.
-- [ ] Repository topics are set: `ai-coding`, `developer-tools`, `github-actions`, `code-review`, `testing`, `repo-intelligence`.
+- [x] Repository visibility is public.
+- [x] Repository topics are set: `ai-coding`, `developer-tools`, `github-actions`, `code-review`, `testing`, `repo-intelligence`.
 
 ## First Release
 
