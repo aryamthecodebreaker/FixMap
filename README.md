@@ -126,7 +126,7 @@ fixmap plan --issue "Users cannot reset passwords" --output fixmap-report.md
 
 ## MVP Usage
 
-After installing dependencies from the repository root:
+Try the CLI locally from the repository root:
 
 ```bash
 npm install
@@ -136,6 +136,16 @@ node packages/cli/dist/cli.js plan --issue "Users cannot reset passwords" --form
 ```
 
 The MVP scans local repository files, reads package scripts, resolves real git diff specs, ranks likely context files, suggests test routes, and renders markdown or JSON output.
+
+## Example
+
+Run FixMap against the tiny auth example:
+
+```bash
+node packages/cli/dist/cli.js plan --issue "password reset emails fail" --repo examples/tiny-auth-app
+```
+
+You should see `src/auth/reset-password.ts` ranked as a context file, `test/auth/reset-password.test.ts` routed as a related test, and an authentication risk note. See [examples/reports/password-reset.md](examples/reports/password-reset.md) for a sample report.
 
 ## GitHub Action
 
@@ -148,6 +158,14 @@ The GitHub Action:
 5. writes the same report to the step summary
 
 No source code will be sent to a third-party service by default.
+
+For the first public release, use the Action from `main` until a `v0.1.0` tag is cut:
+
+```yaml
+- uses: aryamthecodebreaker/FixMap/packages/action@main
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+```
 
 ## Project Principles
 
@@ -170,6 +188,7 @@ FixMap is in early MVP development. The CLI can scan a JavaScript or TypeScript 
 - [ ] GitHub Action for pull request comments
 - [ ] CPU-trainable ranking model from repository history
 - [x] Vercel-ready website and playground shell
+- [x] Minimal example repository and sample report
 - [ ] Examples for popular repo types
 
 ## License

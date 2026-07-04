@@ -9,12 +9,12 @@ import {
 } from "@fixmap/core";
 import type { FixMapReport } from "@fixmap/core";
 
-const issue = process.env.INPUT_ISSUE || "Pull request review";
+const issue = readInput("issue") || "Pull request review";
 const targetRepo = process.cwd();
-const diffSpec = process.env.INPUT_DIFF || undefined;
-const baseRef = process.env.INPUT_BASE || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : undefined);
-const headRef = process.env.INPUT_HEAD || (process.env.GITHUB_HEAD_REF ? "HEAD" : undefined);
-const format = process.env.INPUT_FORMAT === "json" ? "json" : "markdown";
+const diffSpec = readInput("diff");
+const baseRef = readInput("base") || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : undefined);
+const headRef = readInput("head") || (process.env.GITHUB_HEAD_REF ? "HEAD" : undefined);
+const format = readInput("format") === "json" ? "json" : "markdown";
 
 const repo = await scanRepo({
   repoRoot: targetRepo,
@@ -44,9 +44,16 @@ if (process.env.GITHUB_STEP_SUMMARY) {
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
 }
 
-const token = process.env.INPUT_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
+const token = readInput("github-token") || process.env.GITHUB_TOKEN;
 if (token) {
   await upsertPullRequestComment(token, markdown);
+}
+
+function readInput(name: string): string | undefined {
+  const githubName = `INPUT_${name.replace(/ /g, "_").toUpperCase()}`;
+  const shellSafeName = `INPUT_${name.replace(/[- ]/g, "_").toUpperCase()}`;
+  const value = process.env[githubName] || process.env[shellSafeName];
+  return value?.trim() || undefined;
 }
 
 async function upsertPullRequestComment(token: string, markdown: string): Promise<void> {
