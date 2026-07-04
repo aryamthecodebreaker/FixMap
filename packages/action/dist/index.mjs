@@ -278,12 +278,12 @@ function normalizePath(path) {
 }
 
 // packages/action/src/index.ts
-var issue = process.env.INPUT_ISSUE || "Pull request review";
+var issue = readInput("issue") || "Pull request review";
 var targetRepo = process.cwd();
-var diffSpec = process.env.INPUT_DIFF || void 0;
-var baseRef = process.env.INPUT_BASE || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : void 0);
-var headRef = process.env.INPUT_HEAD || (process.env.GITHUB_HEAD_REF ? "HEAD" : void 0);
-var format = process.env.INPUT_FORMAT === "json" ? "json" : "markdown";
+var diffSpec = readInput("diff");
+var baseRef = readInput("base") || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : void 0);
+var headRef = readInput("head") || (process.env.GITHUB_HEAD_REF ? "HEAD" : void 0);
+var format = readInput("format") === "json" ? "json" : "markdown";
 var repo = await scanRepo({
   repoRoot: targetRepo,
   diffSpec,
@@ -309,9 +309,15 @@ process.stdout.write(output);
 if (process.env.GITHUB_STEP_SUMMARY) {
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
 }
-var token = process.env.INPUT_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
+var token = readInput("github-token") || process.env.GITHUB_TOKEN;
 if (token) {
   await upsertPullRequestComment(token, markdown);
+}
+function readInput(name) {
+  const githubName = `INPUT_${name.replace(/ /g, "_").toUpperCase()}`;
+  const shellSafeName = `INPUT_${name.replace(/[- ]/g, "_").toUpperCase()}`;
+  const value = process.env[githubName] || process.env[shellSafeName];
+  return value?.trim() || void 0;
 }
 async function upsertPullRequestComment(token2, markdown2) {
   if (!process.env.GITHUB_EVENT_PATH || !process.env.GITHUB_REPOSITORY) {
