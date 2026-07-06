@@ -20,11 +20,17 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "where"
 ]);
 function extractTaskSignals(input) {
-  const tokens = tokenizeText([input.issueText ?? "", input.diffText ?? ""].join("\n"));
+  const tokens = tokenizeText([input.issueText ?? "", extractDiffContentLines(input.diffText ?? "")].join("\n"));
   return {
     tokens,
     changedFiles: new Set(input.changedFiles ?? [])
   };
+}
+function extractDiffContentLines(diffText) {
+  if (!diffText) {
+    return "";
+  }
+  return diffText.split(/\r?\n/).filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")).join("\n");
 }
 function tokenizeText(text) {
   return new Set(text.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token2) => token2.trim()).filter((token2) => token2.length >= 3).filter((token2) => !STOP_WORDS.has(token2)));
@@ -40,7 +46,10 @@ function rankContextFiles(repo2, input, limit = 12) {
     diffText: input.diffText ?? "",
     changedFiles: repo2.changedFiles
   });
-  return repo2.files.filter((file) => file.isSource && !file.isTest).map((file) => {
+  const candidates = repo2.files.filter((file) => file.isSource && !file.isTest);
+  const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
+  const commonTokens = findCommonTokens(contentTokensByPath);
+  return candidates.map((file) => {
     const reasons = [];
     let score = 0;
     if (signals.changedFiles.has(file.path)) {
@@ -53,8 +62,8 @@ function rankContextFiles(repo2, input, limit = 12) {
       score += pathOverlap.length * 3;
       reasons.push(`path matches task terms: ${pathOverlap.join(", ")}`);
     }
-    const contentTokens = tokenizeText(file.textSample);
-    const contentOverlap = [...contentTokens].filter((token2) => signals.tokens.has(token2));
+    const contentTokens = contentTokensByPath.get(file.path) ?? /* @__PURE__ */ new Set();
+    const contentOverlap = [...contentTokens].filter((token2) => signals.tokens.has(token2) && !commonTokens.has(token2));
     if (contentOverlap.length > 0) {
       score += Math.min(contentOverlap.length, 8) * 2;
       reasons.push(`content matches task terms: ${contentOverlap.slice(0, 8).join(", ")}`);
@@ -75,6 +84,20 @@ function rankContextFiles(repo2, input, limit = 12) {
       reasons: reasons.length > 0 ? reasons : ["source file baseline"]
     };
   }).filter((file) => file.score > 0).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, limit);
+}
+function findCommonTokens(contentTokensByPath) {
+  const fileCount = contentTokensByPath.size;
+  if (fileCount < 4) {
+    return /* @__PURE__ */ new Set();
+  }
+  const threshold = Math.ceil(fileCount / 2);
+  const frequency = /* @__PURE__ */ new Map();
+  for (const tokens of contentTokensByPath.values()) {
+    for (const token2 of tokens) {
+      frequency.set(token2, (frequency.get(token2) ?? 0) + 1);
+    }
+  }
+  return new Set([...frequency].filter(([, count]) => count >= threshold).map(([token2]) => token2));
 }
 function isNearbyChangedFile(path, changedFiles) {
   const folder = path.split("/").slice(0, -1).join("/");
@@ -140,6 +163,11 @@ function findRelatedTests(repo2, contextPaths2) {
     return { path: file.path, score: overlap };
   }).filter((file) => file.score > 0).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, 8).map((file) => file.path);
 }
+function buildSummary(contextFileCount, testRouteCount) {
+  const files = contextFileCount === 1 ? "context file" : "context files";
+  const routes = testRouteCount === 1 ? "test route" : "test routes";
+  return `FixMap found ${contextFileCount} ${files} and generated ${testRouteCount} ${routes}.`;
+}
 function renderMarkdownReport(report2) {
   const lines = [
     "# FixMap Report",
@@ -200,20 +228,33 @@ var SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
 ]);
 var TEST_PATTERNS = [/\.test\./, /\.spec\./, /(^|\/|\\)__tests__(\/|\\)/, /(^|\/|\\)tests?(\/|\\)/];
 var MAX_TEXT_SAMPLE_BYTES = 64e3;
+var MAX_DIFF_TEXT_CHARS = 2e5;
+var GIT_MAX_BUFFER = 10 * 1024 * 1024;
 var exec = promisify(execFile);
 async function scanRepo(input) {
   const files = await walkFiles(input.repoRoot, input.repoRoot);
   const packageScripts = await readPackageScripts(input.repoRoot);
-  const changedFiles = await readChangedFiles(input);
+  const diffSpec2 = resolveDiffSpec(input);
+  const changedFiles = await readChangedFiles(input.repoRoot, diffSpec2);
+  const diffText = await readDiffText(input.repoRoot, diffSpec2);
   return {
     root: input.repoRoot,
     files,
     packageScripts,
-    changedFiles
+    changedFiles,
+    diffText
   };
 }
+function resolveDiffSpec(input) {
+  return input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : void 0);
+}
 async function walkFiles(root, current) {
-  const entries = await readdir(current, { withFileTypes: true });
+  let entries;
+  try {
+    entries = await readdir(current, { withFileTypes: true });
+  } catch {
+    return [];
+  }
   const results = [];
   for (const entry of entries) {
     if (entry.isDirectory()) {
@@ -228,7 +269,12 @@ async function walkFiles(root, current) {
     }
     const absolutePath = join(current, entry.name);
     const relativePath = normalizePath(relative(root, absolutePath));
-    const fileStat = await stat(absolutePath);
+    let fileStat;
+    try {
+      fileStat = await stat(absolutePath);
+    } catch {
+      continue;
+    }
     const extension = extname(entry.name);
     const isSource = SOURCE_EXTENSIONS.has(extension);
     results.push({
@@ -251,16 +297,26 @@ async function readPackageScripts(root) {
     return [];
   }
 }
-async function readChangedFiles(input) {
-  const diffSpec2 = input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : void 0);
+async function readChangedFiles(repoRoot, diffSpec2) {
   if (!diffSpec2) {
     return [];
   }
   try {
-    const { stdout } = await exec("git", ["diff", "--name-only", diffSpec2], { cwd: input.repoRoot });
+    const { stdout } = await exec("git", ["diff", "--name-only", diffSpec2], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER });
     return stdout.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath).sort((a, b) => a.localeCompare(b));
   } catch {
     return [];
+  }
+}
+async function readDiffText(repoRoot, diffSpec2) {
+  if (!diffSpec2) {
+    return "";
+  }
+  try {
+    const { stdout } = await exec("git", ["diff", diffSpec2], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER });
+    return stdout.slice(0, MAX_DIFF_TEXT_CHARS);
+  } catch {
+    return "";
   }
 }
 async function readTextSample(path, sizeBytes) {
@@ -292,12 +348,12 @@ var repo = await scanRepo({
 });
 var contextFiles = rankContextFiles(repo, {
   issueText: issue,
-  diffText: diffSpec ?? [baseRef, headRef].filter(Boolean).join(" ")
+  diffText: repo.diffText
 });
 var contextPaths = contextFiles.map((file) => file.path);
 var testRoutes = buildTestRoutes(repo, contextPaths);
 var report = {
-  summary: `FixMap found ${contextFiles.length} context files and generated ${testRoutes.length} test routes.`,
+  summary: buildSummary(contextFiles.length, testRoutes.length),
   contextFiles,
   testRoutes,
   risks: buildRiskNotes(contextPaths),
@@ -342,9 +398,7 @@ ${markdown2}`;
     "x-github-api-version": "2022-11-28"
   };
   const commentsUrl = `https://api.github.com/repos/${owner}/${repoName}/issues/${issueNumber}/comments`;
-  const commentsResponse = await fetch(commentsUrl, { headers });
-  const comments = await commentsResponse.json();
-  const existing = Array.isArray(comments) ? comments.find((comment) => comment.body?.includes(marker)) : void 0;
+  const existing = await findExistingComment(commentsUrl, headers, marker);
   if (existing) {
     await fetch(`https://api.github.com/repos/${owner}/${repoName}/issues/comments/${existing.id}`, {
       method: "PATCH",
@@ -358,4 +412,21 @@ ${markdown2}`;
     headers,
     body: JSON.stringify({ body })
   });
+}
+async function findExistingComment(commentsUrl, headers, marker) {
+  for (let page = 1; page <= 10; page += 1) {
+    const response = await fetch(`${commentsUrl}?per_page=100&page=${page}`, { headers });
+    const comments = await response.json();
+    if (!Array.isArray(comments) || comments.length === 0) {
+      return void 0;
+    }
+    const existing = comments.find((comment) => comment.body?.includes(marker));
+    if (existing) {
+      return existing;
+    }
+    if (comments.length < 100) {
+      return void 0;
+    }
+  }
+  return void 0;
 }

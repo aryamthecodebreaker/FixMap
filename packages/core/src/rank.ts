@@ -12,8 +12,11 @@ export function rankContextFiles(
     changedFiles: repo.changedFiles
   });
 
-  return repo.files
-    .filter((file) => file.isSource && !file.isTest)
+  const candidates = repo.files.filter((file) => file.isSource && !file.isTest);
+  const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
+  const commonTokens = findCommonTokens(contentTokensByPath);
+
+  return candidates
     .map((file) => {
       const reasons: string[] = [];
       let score = 0;
@@ -30,8 +33,8 @@ export function rankContextFiles(
         reasons.push(`path matches task terms: ${pathOverlap.join(", ")}`);
       }
 
-      const contentTokens = tokenizeText(file.textSample);
-      const contentOverlap = [...contentTokens].filter((token) => signals.tokens.has(token));
+      const contentTokens = contentTokensByPath.get(file.path) ?? new Set<string>();
+      const contentOverlap = [...contentTokens].filter((token) => signals.tokens.has(token) && !commonTokens.has(token));
       if (contentOverlap.length > 0) {
         score += Math.min(contentOverlap.length, 8) * 2;
         reasons.push(`content matches task terms: ${contentOverlap.slice(0, 8).join(", ")}`);
@@ -58,6 +61,24 @@ export function rankContextFiles(
     .filter((file) => file.score > 0)
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
     .slice(0, limit);
+}
+
+function findCommonTokens(contentTokensByPath: Map<string, Set<string>>): Set<string> {
+  const fileCount = contentTokensByPath.size;
+  if (fileCount < 4) {
+    return new Set();
+  }
+
+  const threshold = Math.ceil(fileCount / 2);
+  const frequency = new Map<string, number>();
+
+  for (const tokens of contentTokensByPath.values()) {
+    for (const token of tokens) {
+      frequency.set(token, (frequency.get(token) ?? 0) + 1);
+    }
+  }
+
+  return new Set([...frequency].filter(([, count]) => count >= threshold).map(([token]) => token));
 }
 
 function isNearbyChangedFile(path: string, changedFiles: string[]): boolean {

@@ -1,5 +1,5 @@
 export { rankContextFiles } from "./rank.js";
-export { buildRiskNotes, buildTestRoutes, renderJsonReport, renderMarkdownReport } from "./report.js";
+export { buildRiskNotes, buildSummary, buildTestRoutes, renderJsonReport, renderMarkdownReport } from "./report.js";
 export { scanRepo } from "./repo-scan.js";
 export type {
   FixMapInput,

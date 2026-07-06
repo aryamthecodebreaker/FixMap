@@ -37,7 +37,7 @@ describe("scanRepo", () => {
     ]);
   });
 
-  it("discovers changed files from a git diff spec", async () => {
+  it("discovers changed files from a git diff spec", { timeout: 30_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-diff-"));
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, "src", "login.ts"), "export const login = () => true;\n");
@@ -54,5 +54,6 @@ describe("scanRepo", () => {
     const repo = await scanRepo({ repoRoot: root, diffSpec: "main...HEAD" });
 
     expect(repo.changedFiles).toEqual(["src/login.ts"]);
+    expect(repo.diffText).toContain("login = () => false");
   });
 });

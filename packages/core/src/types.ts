@@ -26,6 +26,7 @@ export type RepoMap = {
   files: RepoFile[];
   packageScripts: PackageScript[];
   changedFiles: string[];
+  diffText: string;
 };
 
 export type RankedFile = {

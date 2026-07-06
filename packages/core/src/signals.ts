@@ -25,12 +25,23 @@ export function extractTaskSignals(input: {
   diffText?: string | undefined;
   changedFiles?: string[];
 }): TaskSignals {
-  const tokens = tokenizeText([input.issueText ?? "", input.diffText ?? ""].join("\n"));
+  const tokens = tokenizeText([input.issueText ?? "", extractDiffContentLines(input.diffText ?? "")].join("\n"));
 
   return {
     tokens,
     changedFiles: new Set(input.changedFiles ?? [])
   };
+}
+
+function extractDiffContentLines(diffText: string): string {
+  if (!diffText) {
+    return "";
+  }
+
+  return diffText
+    .split(/\r?\n/)
+    .filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---"))
+    .join("\n");
 }
 
 export function tokenizeText(text: string): Set<string> {
