@@ -1,8 +1,11 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   buildRiskNotes,
+  buildSummary,
   buildTestRoutes,
   rankContextFiles,
   renderJsonReport,
@@ -20,12 +23,52 @@ type CliOptions = {
   headRef?: string | undefined;
   format: "markdown" | "json";
   output?: string | undefined;
+  unknownArgs: string[];
 };
 
-const options = parseArgs(process.argv.slice(2));
+const USAGE = `FixMap maps an issue, prompt, or diff to context files, test routes, and review risks.
+
+Usage:
+  fixmap plan --issue "Users cannot reset passwords"
+  fixmap plan --diff main...HEAD
+  fixmap plan --base main --head HEAD --format json
+
+Options:
+  --issue <text>      Issue, prompt, or task description
+  --diff <spec>       Git diff spec, such as main...HEAD
+  --base <ref>        Base ref for diffing when --diff is not given
+  --head <ref>        Head ref for diffing (defaults to HEAD)
+  --repo <path>       Repository root to scan (defaults to current directory)
+  --format <fmt>      Output format: markdown (default) or json
+  --output <file>     Write the report to a file instead of stdout
+  --help, -h          Show this help
+  --version           Show the FixMap version
+`;
+
+const rawArgs = process.argv.slice(2);
+
+if (rawArgs.length === 0 || rawArgs[0] === "help" || rawArgs.includes("--help") || rawArgs.includes("-h")) {
+  process.stdout.write(USAGE);
+  process.exit(rawArgs.length === 0 ? 1 : 0);
+}
+
+if (rawArgs[0] === "--version" || rawArgs[0] === "version") {
+  const packageJson = JSON.parse(
+    readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")
+  ) as { version: string };
+  console.log(packageJson.version);
+  process.exit(0);
+}
+
+const options = parseArgs(rawArgs);
 
 if (options.command !== "plan") {
-  console.error("Usage: fixmap plan --issue \"...\" [--diff main...HEAD] [--base main --head HEAD] [--repo .] [--format markdown|json] [--output file]");
+  console.error(`Unknown command: ${options.command || "(none)"}\n\n${USAGE}`);
+  process.exit(1);
+}
+
+if (options.unknownArgs.length > 0) {
+  console.error(`Unknown or incomplete option(s): ${options.unknownArgs.join(", ")}\n\n${USAGE}`);
   process.exit(1);
 }
 
@@ -42,12 +85,12 @@ const repo = await scanRepo({
 });
 const contextFiles = rankContextFiles(repo, {
   issueText: options.issueText,
-  diffText: options.diffSpec ?? [options.baseRef, options.headRef].filter(Boolean).join(" ")
+  diffText: repo.diffText
 });
 const contextPaths = contextFiles.map((file) => file.path);
 const testRoutes = buildTestRoutes(repo, contextPaths);
 const report: FixMapReport = {
-  summary: `FixMap found ${contextFiles.length} context files and generated ${testRoutes.length} test routes.`,
+  summary: buildSummary(contextFiles.length, testRoutes.length),
   contextFiles,
   testRoutes,
   risks: buildRiskNotes(contextPaths),
@@ -71,6 +114,7 @@ function parseArgs(args: string[]): CliOptions {
   let headRef: string | undefined;
   let format: "markdown" | "json" = "markdown";
   let output: string | undefined;
+  const unknownArgs: string[] = [];
 
   for (let index = 1; index < args.length; index += 1) {
     const rawArg = args[index];
@@ -78,7 +122,9 @@ function parseArgs(args: string[]): CliOptions {
       continue;
     }
 
-    const [arg, inlineValue] = rawArg.split("=", 2);
+    const separatorIndex = rawArg.indexOf("=");
+    const arg = separatorIndex === -1 ? rawArg : rawArg.slice(0, separatorIndex);
+    const inlineValue = separatorIndex === -1 ? undefined : rawArg.slice(separatorIndex + 1);
     const nextValue = inlineValue ?? args[index + 1];
     const consumedNext = inlineValue === undefined;
 
@@ -103,6 +149,8 @@ function parseArgs(args: string[]): CliOptions {
     } else if (arg === "--output" && nextValue) {
       output = nextValue;
       index += consumedNext ? 1 : 0;
+    } else {
+      unknownArgs.push(rawArg);
     }
   }
 
@@ -114,6 +162,7 @@ function parseArgs(args: string[]): CliOptions {
     baseRef,
     headRef,
     format,
-    output
+    output,
+    unknownArgs
   };
 }

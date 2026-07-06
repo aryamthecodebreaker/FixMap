@@ -23,23 +23,37 @@ const SOURCE_EXTENSIONS = new Set([
 ]);
 const TEST_PATTERNS = [/\.test\./, /\.spec\./, /(^|\/|\\)__tests__(\/|\\)/, /(^|\/|\\)tests?(\/|\\)/];
 const MAX_TEXT_SAMPLE_BYTES = 64_000;
+const MAX_DIFF_TEXT_CHARS = 200_000;
+const GIT_MAX_BUFFER = 10 * 1024 * 1024;
 const exec = promisify(execFile);
 
 export async function scanRepo(input: Pick<FixMapInput, "repoRoot" | "baseRef" | "headRef" | "diffSpec">): Promise<RepoMap> {
   const files = await walkFiles(input.repoRoot, input.repoRoot);
   const packageScripts = await readPackageScripts(input.repoRoot);
-  const changedFiles = await readChangedFiles(input);
+  const diffSpec = resolveDiffSpec(input);
+  const changedFiles = await readChangedFiles(input.repoRoot, diffSpec);
+  const diffText = await readDiffText(input.repoRoot, diffSpec);
 
   return {
     root: input.repoRoot,
     files,
     packageScripts,
-    changedFiles
+    changedFiles,
+    diffText
   };
 }
 
+function resolveDiffSpec(input: Pick<FixMapInput, "baseRef" | "headRef" | "diffSpec">): string | undefined {
+  return input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : undefined);
+}
+
 async function walkFiles(root: string, current: string): Promise<RepoFile[]> {
-  const entries = await readdir(current, { withFileTypes: true });
+  let entries;
+  try {
+    entries = await readdir(current, { withFileTypes: true });
+  } catch {
+    return [];
+  }
   const results: RepoFile[] = [];
 
   for (const entry of entries) {
@@ -57,7 +71,12 @@ async function walkFiles(root: string, current: string): Promise<RepoFile[]> {
 
     const absolutePath = join(current, entry.name);
     const relativePath = normalizePath(relative(root, absolutePath));
-    const fileStat = await stat(absolutePath);
+    let fileStat;
+    try {
+      fileStat = await stat(absolutePath);
+    } catch {
+      continue;
+    }
     const extension = extname(entry.name);
     const isSource = SOURCE_EXTENSIONS.has(extension);
 
@@ -84,15 +103,13 @@ async function readPackageScripts(root: string): Promise<PackageScript[]> {
   }
 }
 
-async function readChangedFiles(input: Pick<FixMapInput, "repoRoot" | "baseRef" | "headRef" | "diffSpec">): Promise<string[]> {
-  const diffSpec = input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : undefined);
-
+async function readChangedFiles(repoRoot: string, diffSpec: string | undefined): Promise<string[]> {
   if (!diffSpec) {
     return [];
   }
 
   try {
-    const { stdout } = await exec("git", ["diff", "--name-only", diffSpec], { cwd: input.repoRoot });
+    const { stdout } = await exec("git", ["diff", "--name-only", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER });
     return stdout
       .split(/\r?\n/)
       .map((path) => path.trim())
@@ -101,6 +118,19 @@ async function readChangedFiles(input: Pick<FixMapInput, "repoRoot" | "baseRef" 
       .sort((a, b) => a.localeCompare(b));
   } catch {
     return [];
+  }
+}
+
+async function readDiffText(repoRoot: string, diffSpec: string | undefined): Promise<string> {
+  if (!diffSpec) {
+    return "";
+  }
+
+  try {
+    const { stdout } = await exec("git", ["diff", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER });
+    return stdout.slice(0, MAX_DIFF_TEXT_CHARS);
+  } catch {
+    return "";
   }
 }
 

@@ -32,6 +32,7 @@ describe("report rendering", () => {
     const repo: RepoMap = {
       root: "/repo",
       changedFiles: [],
+      diffText: "",
       packageScripts: [
         { name: "test", command: "vitest run" },
         { name: "typecheck", command: "tsc --noEmit" }

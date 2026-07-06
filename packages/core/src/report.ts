@@ -73,6 +73,12 @@ function findRelatedTests(repo: RepoMap, contextPaths: string[]): string[] {
     .map((file) => file.path);
 }
 
+export function buildSummary(contextFileCount: number, testRouteCount: number): string {
+  const files = contextFileCount === 1 ? "context file" : "context files";
+  const routes = testRouteCount === 1 ? "test route" : "test routes";
+  return `FixMap found ${contextFileCount} ${files} and generated ${testRouteCount} ${routes}.`;
+}
+
 export function renderMarkdownReport(report: FixMapReport): string {
   const lines = [
     "# FixMap Report",

@@ -1,6 +1,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import {
   buildRiskNotes,
+  buildSummary,
   buildTestRoutes,
   rankContextFiles,
   renderJsonReport,
@@ -24,12 +25,12 @@ const repo = await scanRepo({
 });
 const contextFiles = rankContextFiles(repo, {
   issueText: issue,
-  diffText: diffSpec ?? [baseRef, headRef].filter(Boolean).join(" ")
+  diffText: repo.diffText
 });
 const contextPaths = contextFiles.map((file) => file.path);
 const testRoutes = buildTestRoutes(repo, contextPaths);
 const report: FixMapReport = {
-  summary: `FixMap found ${contextFiles.length} context files and generated ${testRoutes.length} test routes.`,
+  summary: buildSummary(contextFiles.length, testRoutes.length),
   contextFiles,
   testRoutes,
   risks: buildRiskNotes(contextPaths),
@@ -83,11 +84,7 @@ async function upsertPullRequestComment(token: string, markdown: string): Promis
     "x-github-api-version": "2022-11-28"
   };
   const commentsUrl = `https://api.github.com/repos/${owner}/${repoName}/issues/${issueNumber}/comments`;
-  const commentsResponse = await fetch(commentsUrl, { headers });
-  const comments = await commentsResponse.json() as Array<{ id: number; body?: string }>;
-  const existing = Array.isArray(comments)
-    ? comments.find((comment) => comment.body?.includes(marker))
-    : undefined;
+  const existing = await findExistingComment(commentsUrl, headers, marker);
 
   if (existing) {
     await fetch(`https://api.github.com/repos/${owner}/${repoName}/issues/comments/${existing.id}`, {
@@ -103,4 +100,29 @@ async function upsertPullRequestComment(token: string, markdown: string): Promis
     headers,
     body: JSON.stringify({ body })
   });
+}
+
+async function findExistingComment(
+  commentsUrl: string,
+  headers: Record<string, string>,
+  marker: string
+): Promise<{ id: number; body?: string } | undefined> {
+  for (let page = 1; page <= 10; page += 1) {
+    const response = await fetch(`${commentsUrl}?per_page=100&page=${page}`, { headers });
+    const comments = await response.json() as Array<{ id: number; body?: string }>;
+    if (!Array.isArray(comments) || comments.length === 0) {
+      return undefined;
+    }
+
+    const existing = comments.find((comment) => comment.body?.includes(marker));
+    if (existing) {
+      return existing;
+    }
+
+    if (comments.length < 100) {
+      return undefined;
+    }
+  }
+
+  return undefined;
 }

@@ -54,5 +54,6 @@ describe("scanRepo", () => {
     const repo = await scanRepo({ repoRoot: root, diffSpec: "main...HEAD" });
 
     expect(repo.changedFiles).toEqual(["src/login.ts"]);
+    expect(repo.diffText).toContain("login = () => false");
   });
 });
