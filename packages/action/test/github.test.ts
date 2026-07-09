@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPullRequestIssueText, createGitHubClient, FIXMAP_REPORT_MARKER } from "../src/github.js";
+import { buildPullRequestIssueText, createGitHubClient, DEFAULT_COMMENT_AUTHOR, FIXMAP_REPORT_MARKER } from "../src/github.js";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -21,13 +21,10 @@ describe("GitHub Action helpers", () => {
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = String(input);
       calls.push({ url, method: init?.method ?? "GET" });
-      if (url.endsWith("/user")) {
-        return jsonResponse({ login: "github-actions[bot]" });
-      }
       if (url.includes("/comments?")) {
         return jsonResponse([
           { id: 10, body: FIXMAP_REPORT_MARKER, user: { login: "contributor" } },
-          { id: 11, body: `${FIXMAP_REPORT_MARKER}\nold report`, user: { login: "github-actions[bot]" } }
+          { id: 11, body: `${FIXMAP_REPORT_MARKER}\nold report`, user: { login: DEFAULT_COMMENT_AUTHOR } }
         ]);
       }
       return jsonResponse({ id: 11 });
@@ -54,9 +51,6 @@ describe("GitHub Action helpers", () => {
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = String(input);
       calls.push({ url, method: init?.method ?? "GET" });
-      if (url.endsWith("/user")) {
-        return jsonResponse({ login: "github-actions[bot]" });
-      }
       if (url.includes("/comments?")) {
         return jsonResponse([{ id: 10, body: FIXMAP_REPORT_MARKER, user: { login: "contributor" } }]);
       }
@@ -78,7 +72,7 @@ describe("GitHub Action helpers", () => {
     });
   });
 
-  it("reports a useful error when GitHub rejects a request", async () => {
+  it("reports a useful error when GitHub rejects comment lookup", async () => {
     const fetchImpl: typeof fetch = async () => new Response("Bad credentials", { status: 401, statusText: "Unauthorized" });
 
     await expect(createGitHubClient({ fetchImpl }).upsertPullRequestComment({
@@ -87,6 +81,6 @@ describe("GitHub Action helpers", () => {
       repo: "demo",
       issueNumber: 42,
       markdown: "# FixMap Report"
-    })).rejects.toThrow("FixMap could not identify the GitHub Action; GitHub returned 401 Unauthorized: Bad credentials");
+    })).rejects.toThrow("FixMap could not list pull request comments; GitHub returned 401 Unauthorized: Bad credentials");
   });
 });

@@ -48,8 +48,9 @@ if (process.env.GITHUB_STEP_SUMMARY) {
 }
 
 const token = readInput("github-token") || process.env.GITHUB_TOKEN;
+const commentAuthor = readInput("comment-author");
 if (token) {
-  await upsertPullRequestComment(token, event, markdown);
+  await upsertPullRequestComment(token, event, markdown, commentAuthor);
 }
 
 function readInput(name: string): string | undefined {
@@ -75,7 +76,8 @@ function readEvent(eventPath: string | undefined): import("./github.js").PullReq
 async function upsertPullRequestComment(
   token: string,
   event: import("./github.js").PullRequestEvent | undefined,
-  markdown: string
+  markdown: string,
+  commentAuthor: string | undefined
 ): Promise<void> {
   if (!event?.pull_request?.number || !process.env.GITHUB_REPOSITORY) {
     return;
@@ -91,6 +93,7 @@ async function upsertPullRequestComment(
     owner,
     repo: repoName,
     issueNumber: event.pull_request.number,
-    markdown
+    markdown,
+    commentAuthor
   });
 }

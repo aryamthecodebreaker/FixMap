@@ -20,6 +20,9 @@ inputs:
   github-token:
     description: Token used to upsert a pull request comment. If omitted, FixMap only writes the step summary.
     required: false
+  comment-author:
+    description: GitHub login that owns prior FixMap comments. Defaults to github-actions[bot].
+    required: false
 runs:
   using: node20
   main: dist/index.mjs
