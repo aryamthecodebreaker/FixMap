@@ -18,7 +18,7 @@ Use this before announcing FixMap anywhere beyond a quiet soft launch.
 - [ ] Create a `v0.1.0` tag after the public Action path is tested from another repository.
 - [ ] Add one short screen recording or GIF showing CLI output.
 - [ ] Add one real-world example from a non-trivial repository.
-- [ ] Confirm the GitHub Action can comment on a PR in a separate test repository.
+- [x] Confirm the GitHub Action can comment on a PR in a separate acceptance repository.
 
 ## Launch Copy
 
