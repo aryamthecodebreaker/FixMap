@@ -11,6 +11,7 @@ Use this before announcing FixMap anywhere beyond a quiet soft launch.
 - [x] Example input and sample output are included.
 - [x] Repository visibility is public.
 - [x] Repository topics are set: `ai-coding`, `developer-tools`, `github-actions`, `code-review`, `testing`, `repo-intelligence`.
+- [x] `main` requires the `test` status check, blocks force-pushes and deletions, and requires resolved conversations.
 
 ## First Release
 

@@ -71,7 +71,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The action will explain which files look central, which tests should run, and where review attention should go.
+The action uses the pull request title and body as its default context, then explains which files look central, which tests should run, and where review attention should go. Pass `issue` when you want to add extra context beyond the pull request.
 
 ## Why A Small Model Instead Of A Chatbot
 
@@ -182,10 +182,10 @@ FixMap is in early MVP development. The CLI can scan a JavaScript or TypeScript 
 
 ## Roadmap
 
-- [ ] Repository scanner for file tree, package scripts, tests, imports, and git history
-- [ ] CLI report generation in markdown and JSON
-- [ ] Baseline ranker for context files and test routes
-- [ ] GitHub Action for pull request comments
+- [x] Repository scanner for file tree, package scripts, tests, and git diffs
+- [x] CLI report generation in markdown and JSON
+- [x] Baseline ranker for context files and test routes
+- [x] GitHub Action for pull request comments
 - [ ] CPU-trainable ranking model from repository history
 - [x] Vercel-ready website and playground shell
 - [x] Minimal example repository and sample report
