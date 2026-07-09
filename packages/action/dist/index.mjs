@@ -333,8 +333,82 @@ function normalizePath(path) {
   return path.split(sep).join("/");
 }
 
+// packages/action/src/github.ts
+var FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
+function buildPullRequestIssueText(event2) {
+  const pullRequest = event2?.pull_request;
+  const parts = [pullRequest?.title, pullRequest?.body].filter((part) => Boolean(part?.trim())).map((part) => part.trim());
+  return parts.join("\n\n") || "Pull request review";
+}
+function createGitHubClient(options = {}) {
+  const apiBaseUrl = (options.apiBaseUrl ?? "https://api.github.com").replace(/\/$/, "");
+  const fetchImpl = options.fetchImpl ?? fetch;
+  return {
+    async upsertPullRequestComment(input) {
+      const headers = {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${input.token}`,
+        "content-type": "application/json",
+        "x-github-api-version": "2022-11-28"
+      };
+      const viewer = await requestJson(fetchImpl, `${apiBaseUrl}/user`, { headers }, "identify the GitHub Action");
+      if (!viewer.login) {
+        throw new Error("FixMap could not identify the GitHub Action account.");
+      }
+      const commentsUrl = `${apiBaseUrl}/repos/${input.owner}/${input.repo}/issues/${input.issueNumber}/comments`;
+      const existing = await findExistingComment(fetchImpl, commentsUrl, headers, viewer.login);
+      const body = `${FIXMAP_REPORT_MARKER}
+${input.markdown}`;
+      if (existing) {
+        await requestJson(fetchImpl, `${apiBaseUrl}/repos/${input.owner}/${input.repo}/issues/comments/${existing.id}`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ body })
+        }, "update the existing FixMap comment");
+        return "updated";
+      }
+      await requestJson(fetchImpl, commentsUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ body })
+      }, "create the FixMap comment");
+      return "created";
+    }
+  };
+}
+async function findExistingComment(fetchImpl, commentsUrl, headers, viewerLogin) {
+  for (let page = 1; page <= 10; page += 1) {
+    const comments = await requestJson(
+      fetchImpl,
+      `${commentsUrl}?per_page=100&page=${page}`,
+      { headers },
+      "list pull request comments"
+    );
+    const existing = comments.find(
+      (comment) => comment.user?.login === viewerLogin && comment.body?.includes(FIXMAP_REPORT_MARKER)
+    );
+    if (existing) {
+      return existing;
+    }
+    if (comments.length < 100) {
+      return void 0;
+    }
+  }
+  return void 0;
+}
+async function requestJson(fetchImpl, url, init, action) {
+  const response = await fetchImpl(url, init);
+  if (!response.ok) {
+    const detail = (await response.text()).replace(/\s+/g, " ").slice(0, 500);
+    const suffix = detail ? `: ${detail}` : "";
+    throw new Error(`FixMap could not ${action}; GitHub returned ${response.status} ${response.statusText}${suffix}`);
+  }
+  return response.json();
+}
+
 // packages/action/src/index.ts
-var issue = readInput("issue") || "Pull request review";
+var event = readEvent(process.env.GITHUB_EVENT_PATH);
+var issue = readInput("issue") || buildPullRequestIssueText(event);
 var targetRepo = process.cwd();
 var diffSpec = readInput("diff");
 var baseRef = readInput("base") || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : void 0);
@@ -367,7 +441,7 @@ if (process.env.GITHUB_STEP_SUMMARY) {
 }
 var token = readInput("github-token") || process.env.GITHUB_TOKEN;
 if (token) {
-  await upsertPullRequestComment(token, markdown);
+  await upsertPullRequestComment(token, event, markdown);
 }
 function readInput(name) {
   const githubName = `INPUT_${name.replace(/ /g, "_").toUpperCase()}`;
@@ -375,58 +449,30 @@ function readInput(name) {
   const value = process.env[githubName] || process.env[shellSafeName];
   return value?.trim() || void 0;
 }
-async function upsertPullRequestComment(token2, markdown2) {
-  if (!process.env.GITHUB_EVENT_PATH || !process.env.GITHUB_REPOSITORY) {
-    return;
+function readEvent(eventPath) {
+  if (!eventPath) {
+    return void 0;
   }
-  const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
-  const issueNumber = event.pull_request?.number;
-  if (!issueNumber) {
+  try {
+    return JSON.parse(readFileSync(eventPath, "utf8"));
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`FixMap could not read the GitHub event payload: ${detail}`);
+  }
+}
+async function upsertPullRequestComment(token2, event2, markdown2) {
+  if (!event2?.pull_request?.number || !process.env.GITHUB_REPOSITORY) {
     return;
   }
   const [owner, repoName] = process.env.GITHUB_REPOSITORY.split("/");
   if (!owner || !repoName) {
-    return;
+    throw new Error("FixMap requires GITHUB_REPOSITORY in owner/repository form to comment on a pull request.");
   }
-  const marker = "<!-- fixmap-report -->";
-  const body = `${marker}
-${markdown2}`;
-  const headers = {
-    accept: "application/vnd.github+json",
-    authorization: `Bearer ${token2}`,
-    "content-type": "application/json",
-    "x-github-api-version": "2022-11-28"
-  };
-  const commentsUrl = `https://api.github.com/repos/${owner}/${repoName}/issues/${issueNumber}/comments`;
-  const existing = await findExistingComment(commentsUrl, headers, marker);
-  if (existing) {
-    await fetch(`https://api.github.com/repos/${owner}/${repoName}/issues/comments/${existing.id}`, {
-      method: "PATCH",
-      headers,
-      body: JSON.stringify({ body })
-    });
-    return;
-  }
-  await fetch(commentsUrl, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ body })
+  await createGitHubClient().upsertPullRequestComment({
+    token: token2,
+    owner,
+    repo: repoName,
+    issueNumber: event2.pull_request.number,
+    markdown: markdown2
   });
-}
-async function findExistingComment(commentsUrl, headers, marker) {
-  for (let page = 1; page <= 10; page += 1) {
-    const response = await fetch(`${commentsUrl}?per_page=100&page=${page}`, { headers });
-    const comments = await response.json();
-    if (!Array.isArray(comments) || comments.length === 0) {
-      return void 0;
-    }
-    const existing = comments.find((comment) => comment.body?.includes(marker));
-    if (existing) {
-      return existing;
-    }
-    if (comments.length < 100) {
-      return void 0;
-    }
-  }
-  return void 0;
 }

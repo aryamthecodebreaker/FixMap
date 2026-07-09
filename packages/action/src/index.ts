@@ -9,8 +9,10 @@ import {
   scanRepo
 } from "@fixmap/core";
 import type { FixMapReport } from "@fixmap/core";
+import { buildPullRequestIssueText, createGitHubClient } from "./github.js";
 
-const issue = readInput("issue") || "Pull request review";
+const event = readEvent(process.env.GITHUB_EVENT_PATH);
+const issue = readInput("issue") || buildPullRequestIssueText(event);
 const targetRepo = process.cwd();
 const diffSpec = readInput("diff");
 const baseRef = readInput("base") || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : undefined);
@@ -47,7 +49,7 @@ if (process.env.GITHUB_STEP_SUMMARY) {
 
 const token = readInput("github-token") || process.env.GITHUB_TOKEN;
 if (token) {
-  await upsertPullRequestComment(token, markdown);
+  await upsertPullRequestComment(token, event, markdown);
 }
 
 function readInput(name: string): string | undefined {
@@ -57,72 +59,38 @@ function readInput(name: string): string | undefined {
   return value?.trim() || undefined;
 }
 
-async function upsertPullRequestComment(token: string, markdown: string): Promise<void> {
-  if (!process.env.GITHUB_EVENT_PATH || !process.env.GITHUB_REPOSITORY) {
-    return;
+function readEvent(eventPath: string | undefined): import("./github.js").PullRequestEvent | undefined {
+  if (!eventPath) {
+    return undefined;
   }
 
-  const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8")) as {
-    pull_request?: { number?: number };
-  };
-  const issueNumber = event.pull_request?.number;
-  if (!issueNumber) {
+  try {
+    return JSON.parse(readFileSync(eventPath, "utf8")) as import("./github.js").PullRequestEvent;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`FixMap could not read the GitHub event payload: ${detail}`);
+  }
+}
+
+async function upsertPullRequestComment(
+  token: string,
+  event: import("./github.js").PullRequestEvent | undefined,
+  markdown: string
+): Promise<void> {
+  if (!event?.pull_request?.number || !process.env.GITHUB_REPOSITORY) {
     return;
   }
 
   const [owner, repoName] = process.env.GITHUB_REPOSITORY.split("/");
   if (!owner || !repoName) {
-    return;
+    throw new Error("FixMap requires GITHUB_REPOSITORY in owner/repository form to comment on a pull request.");
   }
 
-  const marker = "<!-- fixmap-report -->";
-  const body = `${marker}\n${markdown}`;
-  const headers = {
-    accept: "application/vnd.github+json",
-    authorization: `Bearer ${token}`,
-    "content-type": "application/json",
-    "x-github-api-version": "2022-11-28"
-  };
-  const commentsUrl = `https://api.github.com/repos/${owner}/${repoName}/issues/${issueNumber}/comments`;
-  const existing = await findExistingComment(commentsUrl, headers, marker);
-
-  if (existing) {
-    await fetch(`https://api.github.com/repos/${owner}/${repoName}/issues/comments/${existing.id}`, {
-      method: "PATCH",
-      headers,
-      body: JSON.stringify({ body })
-    });
-    return;
-  }
-
-  await fetch(commentsUrl, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ body })
+  await createGitHubClient().upsertPullRequestComment({
+    token,
+    owner,
+    repo: repoName,
+    issueNumber: event.pull_request.number,
+    markdown
   });
-}
-
-async function findExistingComment(
-  commentsUrl: string,
-  headers: Record<string, string>,
-  marker: string
-): Promise<{ id: number; body?: string } | undefined> {
-  for (let page = 1; page <= 10; page += 1) {
-    const response = await fetch(`${commentsUrl}?per_page=100&page=${page}`, { headers });
-    const comments = await response.json() as Array<{ id: number; body?: string }>;
-    if (!Array.isArray(comments) || comments.length === 0) {
-      return undefined;
-    }
-
-    const existing = comments.find((comment) => comment.body?.includes(marker));
-    if (existing) {
-      return existing;
-    }
-
-    if (comments.length < 100) {
-      return undefined;
-    }
-  }
-
-  return undefined;
 }

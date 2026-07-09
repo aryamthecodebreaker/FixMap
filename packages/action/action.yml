@@ -4,7 +4,6 @@ inputs:
   issue:
     description: Issue, prompt, or review context for FixMap.
     required: false
-    default: Pull request review
   diff:
     description: Git diff spec, such as main...HEAD.
     required: false
