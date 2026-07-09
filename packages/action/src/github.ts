@@ -1,4 +1,5 @@
 export const FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
+export const DEFAULT_COMMENT_AUTHOR = "github-actions[bot]";
 
 export type PullRequestEvent = {
   pull_request?: {
@@ -39,6 +40,7 @@ export function createGitHubClient(options: GitHubClientOptions = {}) {
       repo: string;
       issueNumber: number;
       markdown: string;
+      commentAuthor?: string | undefined;
     }): Promise<"created" | "updated"> {
       const headers = {
         accept: "application/vnd.github+json",
@@ -46,13 +48,13 @@ export function createGitHubClient(options: GitHubClientOptions = {}) {
         "content-type": "application/json",
         "x-github-api-version": "2022-11-28"
       };
-      const viewer = await requestJson<{ login?: string }>(fetchImpl, `${apiBaseUrl}/user`, { headers }, "identify the GitHub Action");
-      if (!viewer.login) {
-        throw new Error("FixMap could not identify the GitHub Action account.");
-      }
-
       const commentsUrl = `${apiBaseUrl}/repos/${input.owner}/${input.repo}/issues/${input.issueNumber}/comments`;
-      const existing = await findExistingComment(fetchImpl, commentsUrl, headers, viewer.login);
+      const existing = await findExistingComment(
+        fetchImpl,
+        commentsUrl,
+        headers,
+        input.commentAuthor?.trim() || DEFAULT_COMMENT_AUTHOR
+      );
       const body = `${FIXMAP_REPORT_MARKER}\n${input.markdown}`;
 
       if (existing) {

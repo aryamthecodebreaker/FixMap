@@ -335,6 +335,7 @@ function normalizePath(path) {
 
 // packages/action/src/github.ts
 var FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
+var DEFAULT_COMMENT_AUTHOR = "github-actions[bot]";
 function buildPullRequestIssueText(event2) {
   const pullRequest = event2?.pull_request;
   const parts = [pullRequest?.title, pullRequest?.body].filter((part) => Boolean(part?.trim())).map((part) => part.trim());
@@ -351,12 +352,13 @@ function createGitHubClient(options = {}) {
         "content-type": "application/json",
         "x-github-api-version": "2022-11-28"
       };
-      const viewer = await requestJson(fetchImpl, `${apiBaseUrl}/user`, { headers }, "identify the GitHub Action");
-      if (!viewer.login) {
-        throw new Error("FixMap could not identify the GitHub Action account.");
-      }
       const commentsUrl = `${apiBaseUrl}/repos/${input.owner}/${input.repo}/issues/${input.issueNumber}/comments`;
-      const existing = await findExistingComment(fetchImpl, commentsUrl, headers, viewer.login);
+      const existing = await findExistingComment(
+        fetchImpl,
+        commentsUrl,
+        headers,
+        input.commentAuthor?.trim() || DEFAULT_COMMENT_AUTHOR
+      );
       const body = `${FIXMAP_REPORT_MARKER}
 ${input.markdown}`;
       if (existing) {
@@ -440,8 +442,9 @@ if (process.env.GITHUB_STEP_SUMMARY) {
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
 }
 var token = readInput("github-token") || process.env.GITHUB_TOKEN;
+var commentAuthor = readInput("comment-author");
 if (token) {
-  await upsertPullRequestComment(token, event, markdown);
+  await upsertPullRequestComment(token, event, markdown, commentAuthor);
 }
 function readInput(name) {
   const githubName = `INPUT_${name.replace(/ /g, "_").toUpperCase()}`;
@@ -460,7 +463,7 @@ function readEvent(eventPath) {
     throw new Error(`FixMap could not read the GitHub event payload: ${detail}`);
   }
 }
-async function upsertPullRequestComment(token2, event2, markdown2) {
+async function upsertPullRequestComment(token2, event2, markdown2, commentAuthor2) {
   if (!event2?.pull_request?.number || !process.env.GITHUB_REPOSITORY) {
     return;
   }
@@ -473,6 +476,7 @@ async function upsertPullRequestComment(token2, event2, markdown2) {
     owner,
     repo: repoName,
     issueNumber: event2.pull_request.number,
-    markdown: markdown2
+    markdown: markdown2,
+    commentAuthor: commentAuthor2
   });
 }
