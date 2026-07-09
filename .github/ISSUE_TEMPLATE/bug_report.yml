@@ -1,0 +1,47 @@
+name: Bug report
+description: Report behavior that is incorrect, confusing, or unexpectedly incomplete.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for helping improve FixMap. Please remove secrets and proprietary source before posting."
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and why it is incorrect.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How can we reproduce it?
+      description: Include the command, a minimal repository shape, and relevant output.
+      placeholder: |
+        1. Run ...
+        2. Change ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: FixMap version or commit
+      placeholder: v0.1.0
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did this happen?
+      options:
+        - CLI
+        - GitHub Action
+        - Web app
+        - Documentation
+        - Other
