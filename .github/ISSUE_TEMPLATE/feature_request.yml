@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest a focused improvement to FixMap.
+title: "feature: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: "FixMap stays useful by solving a narrow developer problem clearly."
+  - type: textarea
+    id: problem
+    attributes:
+      label: What developer problem would this solve?
+      description: Explain the workflow and the friction that exists today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like FixMap to do?
+      description: Describe the desired behavior, output, or integration.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What alternatives have you considered?
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface is most relevant?
+      options:
+        - CLI
+        - GitHub Action
+        - Ranking and test routing
+        - Web app
+        - Documentation
