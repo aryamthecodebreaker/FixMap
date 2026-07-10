@@ -13,7 +13,7 @@ describe("GitHub Action helpers", () => {
     expect(buildPullRequestIssueText({
       pull_request: { title: "Fix password reset", body: "Emails fail after a recent auth change." }
     })).toBe("Fix password reset\n\nEmails fail after a recent auth change.");
-    expect(buildPullRequestIssueText(undefined)).toBe("Pull request review");
+    expect(buildPullRequestIssueText(undefined)).toBe("");
   });
 
   it("updates only the Action's own marked comment", async () => {

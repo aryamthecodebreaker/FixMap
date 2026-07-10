@@ -7,8 +7,8 @@ import {
   renderJsonReport,
   renderMarkdownReport,
   scanRepo
-} from "@fixmap/core";
-import type { FixMapReport } from "@fixmap/core";
+} from "@aryamthecodebreaker/fixmap-core";
+import type { FixMapReport } from "@aryamthecodebreaker/fixmap-core";
 import { buildPullRequestIssueText, createGitHubClient } from "./github.js";
 
 const event = readEvent(process.env.GITHUB_EVENT_PATH);
@@ -18,6 +18,10 @@ const diffSpec = readInput("diff");
 const baseRef = readInput("base") || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : undefined);
 const headRef = readInput("head") || (process.env.GITHUB_HEAD_REF ? "HEAD" : undefined);
 const format = readInput("format") === "json" ? "json" : "markdown";
+
+if (!issue && !diffSpec && !baseRef) {
+  throw new Error("FixMap needs a pull_request event, an issue input, or a diff/base input to build a useful report.");
+}
 
 const repo = await scanRepo({
   repoRoot: targetRepo,
@@ -36,7 +40,8 @@ const report: FixMapReport = {
   contextFiles,
   testRoutes,
   risks: buildRiskNotes(contextPaths),
-  changedFiles: repo.changedFiles
+  changedFiles: repo.changedFiles,
+  diagnostics: repo.diagnostics
 };
 const markdown = renderMarkdownReport(report);
 const output = format === "json" ? renderJsonReport(report) : markdown;
@@ -45,6 +50,13 @@ process.stdout.write(output);
 
 if (process.env.GITHUB_STEP_SUMMARY) {
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
+}
+
+if (process.env.GITHUB_OUTPUT) {
+  const delimiter = `fixmap_${Date.now()}`;
+  appendFileSync(process.env.GITHUB_OUTPUT, `report<<${delimiter}\n${output}${delimiter}\n`);
+  appendFileSync(process.env.GITHUB_OUTPUT, `context-count=${contextFiles.length}\n`);
+  appendFileSync(process.env.GITHUB_OUTPUT, `test-route-count=${testRoutes.length}\n`);
 }
 
 const token = readInput("github-token") || process.env.GITHUB_TOKEN;

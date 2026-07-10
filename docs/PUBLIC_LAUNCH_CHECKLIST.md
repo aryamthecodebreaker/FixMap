@@ -13,12 +13,15 @@ Use this before announcing FixMap anywhere beyond a quiet soft launch.
 - [x] Repository topics are set: `ai-coding`, `developer-tools`, `github-actions`, `code-review`, `testing`, `repo-intelligence`.
 - [x] `main` requires the `test` status check, blocks force-pushes and deletions, and requires resolved conversations.
 
-## First Release
+## v0.2 launch
 
-- [ ] Create a `v0.1.0` tag after the public Action path is tested from another repository.
-- [ ] Add one short screen recording or GIF showing CLI output.
-- [ ] Add one real-world example from a non-trivial repository.
+- [x] Create a `v0.1.0` tag after the public Action path is tested from another repository.
+- [x] Add an interactive demo and README screenshot.
+- [x] Add a checked-in ranking evaluation gate with transparent cases and output.
 - [x] Confirm the GitHub Action can comment on a PR in a separate acceptance repository.
+- [ ] Publish the scoped CLI and core packages for the v0.2.0 release.
+- [ ] Create and test the `v0.2.0` release tag from protected `main`.
+- [ ] Expand evaluation to non-trivial external repositories before claiming broad accuracy.
 
 ## Launch Copy
 

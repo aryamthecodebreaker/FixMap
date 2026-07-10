@@ -30,11 +30,35 @@ describe("scanRepo", () => {
       "test/login.test.ts"
     ]);
     expect(repo.files.find((file) => file.path === "test/login.test.ts")?.isTest).toBe(true);
+    expect(repo.files.find((file) => file.path === "src/login.ts")?.kind).toBe("code");
     expect(repo.files.find((file) => file.path === "src/login.ts")?.textSample).toContain("login");
     expect(repo.packageScripts).toEqual([
-      { name: "test", command: "vitest run" },
-      { name: "typecheck", command: "tsc --noEmit" }
+      { name: "test", command: "vitest run", packageDir: "" },
+      { name: "typecheck", command: "tsc --noEmit", packageDir: "" }
     ]);
+  });
+
+  it("discovers workspace scripts and the package manager", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-workspace-"));
+    await mkdir(join(root, "apps", "api"), { recursive: true });
+    await writeFile(join(root, "package.json"), JSON.stringify({ scripts: { test: "vitest run" } }));
+    await writeFile(join(root, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+    await writeFile(join(root, "apps", "api", "package.json"), JSON.stringify({ scripts: { typecheck: "tsc --noEmit" } }));
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.packageManager).toBe("pnpm");
+    expect(repo.packageScripts).toContainEqual({ name: "typecheck", command: "tsc --noEmit", packageDir: "apps/api" });
+  });
+
+  it("reports an unresolved diff instead of silently returning no changes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-invalid-diff-"));
+    await writeFile(join(root, "package.json"), "{}");
+
+    const repo = await scanRepo({ repoRoot: root, diffSpec: "missing...HEAD" });
+
+    expect(repo.changedFiles).toEqual([]);
+    expect(repo.diagnostics[0]?.code).toBe("diff-unavailable");
   });
 
   it("discovers changed files from a git diff spec", { timeout: 30_000 }, async () => {

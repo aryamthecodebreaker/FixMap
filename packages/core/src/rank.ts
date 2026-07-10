@@ -4,7 +4,7 @@ import type { RankedFile, RepoMap } from "./types.js";
 export function rankContextFiles(
   repo: RepoMap,
   input: { issueText?: string | undefined; diffText?: string | undefined },
-  limit = 12
+  limit = 8
 ): RankedFile[] {
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
@@ -12,17 +12,25 @@ export function rankContextFiles(
     changedFiles: repo.changedFiles
   });
 
-  const candidates = repo.files.filter((file) => file.isSource && !file.isTest);
+  const taskTargetsEvaluation = hasAny(signals.tokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
+  const candidates = repo.files.filter((file) =>
+    file.isSource &&
+    !file.isTest &&
+    (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation)
+  );
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
+  const taskTargetsDocumentation = hasAny(signals.tokens, ["docs", "documentation", "readme", "guide", "copy"]);
+  const taskTargetsConfiguration = hasAny(signals.tokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
 
   return candidates
     .map((file) => {
       const reasons: string[] = [];
       let score = 0;
+      const isChanged = signals.changedFiles.has(file.path);
 
-      if (signals.changedFiles.has(file.path)) {
-        score += 10;
+      if (isChanged) {
+        score += 20;
         reasons.push("changed file");
       }
 
@@ -41,8 +49,22 @@ export function rankContextFiles(
       }
 
       if (isNearbyChangedFile(file.path, repo.changedFiles)) {
-        score += 3;
+        score += 2;
         reasons.push("near changed file");
+      }
+
+      if (file.kind === "code") {
+        score += 2;
+      } else if (file.kind === "documentation" && taskTargetsDocumentation) {
+        score += 8;
+        reasons.push("documentation-focused task");
+      } else if (file.kind === "documentation" && !taskTargetsDocumentation && !isChanged) {
+        score -= 6;
+      } else if (file.kind === "config" && taskTargetsConfiguration) {
+        score += 2;
+        reasons.push("configuration-focused task");
+      } else if (file.kind === "config" && !taskTargetsConfiguration && !isChanged) {
+        score -= 4;
       }
 
       if (pathTokens.has("auth") || pathTokens.has("login")) {
@@ -55,12 +77,23 @@ export function rankContextFiles(
       return {
         path: file.path,
         score,
+        confidence: confidenceForScore(score, isChanged),
         reasons: reasons.length > 0 ? reasons : ["source file baseline"]
       };
     })
-    .filter((file) => file.score > 0)
+    .filter((file) => file.score >= 4)
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
     .slice(0, limit);
+}
+
+function confidenceForScore(score: number, isChanged: boolean): RankedFile["confidence"] {
+  if (isChanged || score >= 14) return "high";
+  if (score >= 8) return "medium";
+  return "low";
+}
+
+function hasAny(tokens: Set<string>, values: string[]): boolean {
+  return values.some((value) => tokens.has(value));
 }
 
 function findCommonTokens(contentTokensByPath: Map<string, Set<string>>): Set<string> {

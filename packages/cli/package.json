@@ -1,18 +1,20 @@
 {
-  "name": "fixmap",
-  "version": "0.0.0",
+  "name": "@aryamthecodebreaker/fixmap",
+  "version": "0.2.0",
   "description": "CLI for mapping issues and diffs to relevant files, tests, and review risks.",
   "license": "MIT",
   "type": "module",
   "bin": {
     "fixmap": "dist/cli.js"
   },
+  "files": ["dist"],
+  "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@fixmap/core": "0.0.0"
+    "@aryamthecodebreaker/fixmap-core": "0.2.0"
   },
   "engines": {
     "node": ">=20.11"

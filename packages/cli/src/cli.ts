@@ -11,8 +11,8 @@ import {
   renderJsonReport,
   renderMarkdownReport,
   scanRepo
-} from "@fixmap/core";
-import type { FixMapReport } from "@fixmap/core";
+} from "@aryamthecodebreaker/fixmap-core";
+import type { FixMapReport } from "@aryamthecodebreaker/fixmap-core";
 
 type CliOptions = {
   command: string;
@@ -94,7 +94,8 @@ const report: FixMapReport = {
   contextFiles,
   testRoutes,
   risks: buildRiskNotes(contextPaths),
-  changedFiles: repo.changedFiles
+  changedFiles: repo.changedFiles,
+  diagnostics: repo.diagnostics
 };
 
 const rendered = options.format === "json" ? renderJsonReport(report) : renderMarkdownReport(report);

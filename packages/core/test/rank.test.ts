@@ -9,10 +9,12 @@ describe("rankContextFiles", () => {
       packageScripts: [],
       changedFiles: ["src/auth/reset-password.ts"],
       diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
       files: [
-        { path: "src/auth/reset-password.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, textSample: "export function resetPassword() {}" },
-        { path: "src/billing/invoice.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, textSample: "export function invoice() {}" },
-        { path: "test/auth/reset-password.test.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: true, textSample: "describe('reset password')" }
+        { path: "src/auth/reset-password.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export function resetPassword() {}" },
+        { path: "src/billing/invoice.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export function invoice() {}" },
+        { path: "test/auth/reset-password.test.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: true, kind: "code", textSample: "describe('reset password')" }
       ]
     };
 
@@ -31,9 +33,11 @@ describe("rankContextFiles", () => {
       packageScripts: [],
       changedFiles: [],
       diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
       files: [
-        { path: "src/services/UserAccount.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, textSample: "export async function sendPasswordResetEmail() {}" },
-        { path: "src/ui/Button.tsx", extension: ".tsx", sizeBytes: 100, isSource: true, isTest: false, textSample: "export function Button() {}" }
+        { path: "src/services/UserAccount.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export async function sendPasswordResetEmail() {}" },
+        { path: "src/ui/Button.tsx", extension: ".tsx", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export function Button() {}" }
       ]
     };
 
@@ -52,11 +56,13 @@ describe("rankContextFiles", () => {
       packageScripts: [],
       changedFiles: [],
       diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
       files: [
-        { path: "src/a.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, textSample: boilerplate },
-        { path: "src/b.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, textSample: boilerplate },
-        { path: "src/c.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, textSample: boilerplate },
-        { path: "src/d.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, textSample: `${boilerplate} export function resetPassword() {}` }
+        { path: "src/a.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: boilerplate },
+        { path: "src/b.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: boilerplate },
+        { path: "src/c.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: boilerplate },
+        { path: "src/d.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: `${boilerplate} export function resetPassword() {}` }
       ]
     };
 
@@ -66,5 +72,23 @@ describe("rankContextFiles", () => {
 
     expect(ranked.map((file) => file.path)).toEqual(["src/d.ts"]);
     expect(ranked[0]?.reasons.join(" ")).not.toContain("widget");
+  });
+
+  it("keeps documentation noise below matching code unless the task targets docs", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        { path: "README.md", extension: ".md", sizeBytes: 100, isSource: true, isTest: false, kind: "documentation", textSample: "password reset email troubleshooting guide" },
+        { path: "src/email/reset.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "send password reset email" }
+      ]
+    };
+
+    expect(rankContextFiles(repo, { issueText: "password reset email fails" })[0]?.path).toBe("src/email/reset.ts");
+    expect(rankContextFiles(repo, { issueText: "update password reset documentation guide" })[0]?.path).toBe("README.md");
   });
 });

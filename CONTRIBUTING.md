@@ -2,6 +2,8 @@
 
 Thanks for helping make AI-assisted development more grounded and reviewable.
 
+Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md). Usage questions belong in [Discussions](https://github.com/aryamthecodebreaker/FixMap/discussions); reproducible bugs and scoped feature work belong in Issues.
+
 ## Before You Start
 
 - Search existing issues and pull requests before opening a new one.
@@ -16,6 +18,8 @@ FixMap uses Node.js 20.11 or newer and npm workspaces.
 npm ci
 npm run ci
 ```
+
+The ranking evaluation cases live in `benchmarks/cases.json`. If a ranking change alters expected results, explain why and update the cases in the same pull request; do not weaken the thresholds merely to make CI pass.
 
 The CI command type-checks every workspace, runs tests, builds the CLI, Action, and web app, checks generated Action bundle drift, and runs smoke checks.
 

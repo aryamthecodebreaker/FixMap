@@ -1,0 +1,26 @@
+[
+  {
+    "task": "GitHub Action fails to update its pull request comment when GitHub rejects the token",
+    "expected": ["packages/action/src/github.ts"]
+  },
+  {
+    "task": "Show a warning when a git diff ref cannot be resolved instead of silently returning no changes",
+    "expected": ["packages/core/src/repo-scan.ts"]
+  },
+  {
+    "task": "Password reset emails fail for authentication users",
+    "expected": ["examples/tiny-auth-app/src/auth/reset-password.ts"]
+  },
+  {
+    "task": "The website demo should let visitors enter an issue and see ranked files",
+    "expected": ["apps/web/app/demo.tsx", "apps/web/app/page.tsx"]
+  },
+  {
+    "task": "Test routes should use the nearest workspace package script",
+    "expected": ["packages/core/src/report.ts"]
+  },
+  {
+    "task": "Improve the contributor setup guide and pull request instructions",
+    "expected": ["CONTRIBUTING.md"]
+  }
+]
