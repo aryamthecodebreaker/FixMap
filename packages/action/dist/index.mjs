@@ -6,15 +6,36 @@ import { appendFileSync, readFileSync } from "node:fs";
 // packages/core/dist/signals.js
 var TOKEN_SPLIT = /[^a-zA-Z0-9]+/g;
 var STOP_WORDS = /* @__PURE__ */ new Set([
+  "add",
   "and",
   "are",
   "but",
+  "const",
+  "default",
+  "export",
   "for",
   "from",
+  "function",
+  "github",
   "has",
+  "import",
+  "index",
+  "into",
+  "main",
+  "name",
+  "new",
+  "node",
+  "package",
+  "packages",
+  "return",
+  "run",
+  "src",
   "the",
   "this",
   "that",
+  "true",
+  "type",
+  "uses",
   "with",
   "when",
   "where"
@@ -33,27 +54,44 @@ function extractDiffContentLines(diffText) {
   return diffText.split(/\r?\n/).filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")).join("\n");
 }
 function tokenizeText(text) {
-  return new Set(text.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token2) => token2.trim()).filter((token2) => token2.length >= 3).filter((token2) => !STOP_WORDS.has(token2)));
+  return new Set(text.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token2) => normalizeToken(token2.trim())).filter((token2) => token2.length >= 3).filter((token2) => !STOP_WORDS.has(token2)));
+}
+function normalizeToken(token2) {
+  if (token2.length > 5 && token2.endsWith("ies"))
+    return `${token2.slice(0, -3)}y`;
+  if (token2.length > 5 && token2.endsWith("ing"))
+    return token2.slice(0, -3);
+  if (token2.length > 4 && token2.endsWith("ed"))
+    return token2.slice(0, -1);
+  if (token2.length > 4 && token2.endsWith("es"))
+    return token2.slice(0, -1);
+  if (token2.length > 3 && token2.endsWith("s"))
+    return token2.slice(0, -1);
+  return token2;
 }
 function tokenizePath(path) {
   return tokenizeText(path);
 }
 
 // packages/core/dist/rank.js
-function rankContextFiles(repo2, input, limit = 12) {
+function rankContextFiles(repo2, input, limit = 8) {
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
     diffText: input.diffText ?? "",
     changedFiles: repo2.changedFiles
   });
-  const candidates = repo2.files.filter((file) => file.isSource && !file.isTest);
+  const taskTargetsEvaluation = hasAny(signals.tokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
+  const candidates = repo2.files.filter((file) => file.isSource && !file.isTest && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
+  const taskTargetsDocumentation = hasAny(signals.tokens, ["docs", "documentation", "readme", "guide", "copy"]);
+  const taskTargetsConfiguration = hasAny(signals.tokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
   return candidates.map((file) => {
     const reasons = [];
     let score = 0;
-    if (signals.changedFiles.has(file.path)) {
-      score += 10;
+    const isChanged = signals.changedFiles.has(file.path);
+    if (isChanged) {
+      score += 20;
       reasons.push("changed file");
     }
     const pathTokens = tokenizePath(file.path);
@@ -69,8 +107,21 @@ function rankContextFiles(repo2, input, limit = 12) {
       reasons.push(`content matches task terms: ${contentOverlap.slice(0, 8).join(", ")}`);
     }
     if (isNearbyChangedFile(file.path, repo2.changedFiles)) {
-      score += 3;
+      score += 2;
       reasons.push("near changed file");
+    }
+    if (file.kind === "code") {
+      score += 2;
+    } else if (file.kind === "documentation" && taskTargetsDocumentation) {
+      score += 8;
+      reasons.push("documentation-focused task");
+    } else if (file.kind === "documentation" && !taskTargetsDocumentation && !isChanged) {
+      score -= 6;
+    } else if (file.kind === "config" && taskTargetsConfiguration) {
+      score += 2;
+      reasons.push("configuration-focused task");
+    } else if (file.kind === "config" && !taskTargetsConfiguration && !isChanged) {
+      score -= 4;
     }
     if (pathTokens.has("auth") || pathTokens.has("login")) {
       if (signals.tokens.has("auth") || signals.tokens.has("login") || signals.tokens.has("password")) {
@@ -81,9 +132,20 @@ function rankContextFiles(repo2, input, limit = 12) {
     return {
       path: file.path,
       score,
+      confidence: confidenceForScore(score, isChanged),
       reasons: reasons.length > 0 ? reasons : ["source file baseline"]
     };
-  }).filter((file) => file.score > 0).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, limit);
+  }).filter((file) => file.score >= 4).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, limit);
+}
+function confidenceForScore(score, isChanged) {
+  if (isChanged || score >= 14)
+    return "high";
+  if (score >= 8)
+    return "medium";
+  return "low";
+}
+function hasAny(tokens, values) {
+  return values.some((value) => tokens.has(value));
 }
 function findCommonTokens(contentTokensByPath) {
   const fileCount = contentTokensByPath.size;
@@ -109,23 +171,31 @@ function isNearbyChangedFile(path, changedFiles) {
 
 // packages/core/dist/report.js
 function buildTestRoutes(repo2, contextPaths2) {
-  const relatedTests = findRelatedTests(repo2, contextPaths2);
-  const routes = [];
-  const testScript = repo2.packageScripts.find((script) => script.name === "test");
-  const typecheckScript = repo2.packageScripts.find((script) => script.name === "typecheck");
-  if (testScript) {
-    routes.push({
-      command: `npm run ${testScript.name}`,
-      reason: relatedTests.length > 0 ? "package script named test; related tests ranked by path overlap" : "package script named test",
-      relatedFiles: relatedTests
-    });
+  const codeContextPaths = contextPaths2.filter((path) => repo2.files.find((file) => file.path === path)?.kind === "code");
+  if (codeContextPaths.length === 0) {
+    return [];
   }
-  if (typecheckScript) {
+  const relatedTests = findRelatedTests(repo2, contextPaths2);
+  const scriptPriority = /* @__PURE__ */ new Map([["test", 0], ["typecheck", 1], ["check", 2], ["lint", 3]]);
+  const candidates = repo2.packageScripts.filter((script) => scriptPriority.has(script.name)).map((script) => ({
+    script,
+    proximity: packageProximity(script.packageDir, codeContextPaths),
+    priority: scriptPriority.get(script.name) ?? 99
+  })).filter((candidate) => candidate.proximity >= 0).sort((a, b) => b.proximity - a.proximity || a.priority - b.priority || a.script.packageDir.localeCompare(b.script.packageDir));
+  const commands = /* @__PURE__ */ new Set();
+  const routes = [];
+  for (const { script } of candidates) {
+    const command = formatScriptCommand(repo2.packageManager, script.packageDir, script.name);
+    if (commands.has(command))
+      continue;
+    commands.add(command);
     routes.push({
-      command: `npm run ${typecheckScript.name}`,
-      reason: "package script named typecheck",
-      relatedFiles: contextPaths2
+      command,
+      reason: `${script.packageDir ? `nearest package (${script.packageDir})` : "repository root"} script named ${script.name}`,
+      relatedFiles: script.name === "test" ? relatedTests : codeContextPaths
     });
+    if (routes.length === 3)
+      break;
   }
   return routes;
 }
@@ -153,7 +223,33 @@ function buildRiskNotes(contextPaths2) {
       reason: "configuration or CI automation files may affect developer workflows"
     });
   }
+  if (tokens.has("migration") || tokens.has("schema") || tokens.has("database") || tokens.has("sql")) {
+    risks.push({ area: "data", severity: "high", reason: "database or schema-related files may affect stored data" });
+  }
+  if (tokens.has("api") || tokens.has("route") || tokens.has("public")) {
+    risks.push({ area: "public-api", severity: "medium", reason: "public interfaces or request handling may change" });
+  }
+  if (tokens.has("dependency") || tokens.has("lock") || tokens.has("package")) {
+    risks.push({ area: "dependencies", severity: "medium", reason: "dependency changes can affect build and supply-chain behavior" });
+  }
   return risks;
+}
+function packageProximity(packageDir, contextPaths2) {
+  if (!packageDir)
+    return 1;
+  const matches = contextPaths2.filter((path) => path === packageDir || path.startsWith(`${packageDir}/`));
+  return matches.length > 0 ? 10 + packageDir.split("/").length : -1;
+}
+function formatScriptCommand(manager, packageDir, script) {
+  if (!packageDir)
+    return `${manager} run ${script}`;
+  if (manager === "npm")
+    return `npm --prefix ${packageDir} run ${script}`;
+  if (manager === "pnpm")
+    return `pnpm --dir ${packageDir} run ${script}`;
+  if (manager === "yarn")
+    return `yarn --cwd ${packageDir} ${script}`;
+  return `bun --cwd ${packageDir} run ${script}`;
 }
 function findRelatedTests(repo2, contextPaths2) {
   const contextTokens = new Set(contextPaths2.flatMap((path) => [...tokenizePath(path)]));
@@ -176,7 +272,7 @@ function renderMarkdownReport(report2) {
     "",
     "## Context Files",
     "",
-    ...listOrEmpty(report2.contextFiles.map((file) => `- \`${file.path}\` (${file.score}): ${file.reasons.join("; ")}`)),
+    ...listOrEmpty(report2.contextFiles.map((file) => `- \`${file.path}\` (${file.confidence} confidence, score ${file.score}): ${file.reasons.join("; ")}`)),
     "",
     "## Test Route",
     "",
@@ -191,7 +287,11 @@ function renderMarkdownReport(report2) {
     "",
     "## Changed Files",
     "",
-    ...listOrEmpty(report2.changedFiles.map((path) => `- \`${path}\``))
+    ...listOrEmpty(report2.changedFiles.map((path) => `- \`${path}\``)),
+    "",
+    "## Diagnostics",
+    "",
+    ...listOrEmpty(report2.diagnostics.map((diagnostic) => `- **${diagnostic.severity}** ${diagnostic.message}`))
   ];
   return `${lines.join("\n")}
 `;
@@ -207,9 +307,25 @@ function listOrEmpty(lines) {
 // packages/core/dist/repo-scan.js
 import { execFile } from "node:child_process";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { extname, join, relative, sep } from "node:path";
+import { dirname, extname, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
-var IGNORED_DIRS = /* @__PURE__ */ new Set([".git", "node_modules", "dist", ".next", "coverage"]);
+var IGNORED_DIRS = /* @__PURE__ */ new Set([
+  ".cache",
+  ".git",
+  ".idea",
+  ".next",
+  ".nuxt",
+  ".output",
+  ".turbo",
+  ".venv",
+  ".vscode",
+  "build",
+  "coverage",
+  "dist",
+  "node_modules",
+  "target",
+  "vendor"
+]);
 var SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
   ".cjs",
   ".css",
@@ -229,26 +345,29 @@ var SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
 var TEST_PATTERNS = [/\.test\./, /\.spec\./, /(^|\/|\\)__tests__(\/|\\)/, /(^|\/|\\)tests?(\/|\\)/];
 var MAX_TEXT_SAMPLE_BYTES = 64e3;
 var MAX_DIFF_TEXT_CHARS = 2e5;
+var MAX_SCANNED_FILES = 25e3;
 var GIT_MAX_BUFFER = 10 * 1024 * 1024;
 var exec = promisify(execFile);
 async function scanRepo(input) {
-  const files = await walkFiles(input.repoRoot, input.repoRoot);
-  const packageScripts = await readPackageScripts(input.repoRoot);
+  const diagnostics = [];
+  const files = await walkFiles(input.repoRoot, input.repoRoot, diagnostics, { count: 0, limitReported: false });
+  const packageScripts = await readPackageScripts(input.repoRoot, files, diagnostics);
   const diffSpec2 = resolveDiffSpec(input);
-  const changedFiles = await readChangedFiles(input.repoRoot, diffSpec2);
-  const diffText = await readDiffText(input.repoRoot, diffSpec2);
+  const diff = await readDiff(input.repoRoot, diffSpec2, diagnostics);
   return {
     root: input.repoRoot,
     files,
     packageScripts,
-    changedFiles,
-    diffText
+    changedFiles: diff.changedFiles,
+    diffText: diff.diffText,
+    packageManager: detectPackageManager(files),
+    diagnostics
   };
 }
 function resolveDiffSpec(input) {
   return input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : void 0);
 }
-async function walkFiles(root, current) {
+async function walkFiles(root, current, diagnostics, state) {
   let entries;
   try {
     entries = await readdir(current, { withFileTypes: true });
@@ -257,11 +376,22 @@ async function walkFiles(root, current) {
   }
   const results = [];
   for (const entry of entries) {
+    if (state.count >= MAX_SCANNED_FILES) {
+      if (!state.limitReported) {
+        diagnostics.push({
+          code: "scan-limit-reached",
+          severity: "warning",
+          message: `Stopped scanning after ${MAX_SCANNED_FILES.toLocaleString()} files. Narrow the repository root for more precise results.`
+        });
+        state.limitReported = true;
+      }
+      break;
+    }
     if (entry.isDirectory()) {
       if (IGNORED_DIRS.has(entry.name)) {
         continue;
       }
-      results.push(...await walkFiles(root, join(current, entry.name)));
+      results.push(...await walkFiles(root, join(current, entry.name), diagnostics, state));
       continue;
     }
     if (!entry.isFile()) {
@@ -277,47 +407,85 @@ async function walkFiles(root, current) {
     }
     const extension = extname(entry.name);
     const isSource = SOURCE_EXTENSIONS.has(extension);
+    const kind = classifyFile(relativePath, extension);
     results.push({
       path: relativePath,
       extension,
       sizeBytes: fileStat.size,
       isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
       isSource,
+      kind,
       textSample: isSource ? await readTextSample(absolutePath, fileStat.size) : ""
     });
+    state.count += 1;
   }
   return results.sort((a, b) => a.path.localeCompare(b.path));
 }
-async function readPackageScripts(root) {
+async function readPackageScripts(root, files, diagnostics) {
+  const manifests = files.filter((file) => file.path === "package.json" || file.path.endsWith("/package.json"));
+  const scripts = [];
+  for (const manifest of manifests) {
+    try {
+      const raw = await readFile(join(root, manifest.path), "utf8");
+      const parsed = JSON.parse(raw);
+      const packageDir = normalizePath(dirname(manifest.path));
+      scripts.push(...Object.entries(parsed.scripts ?? {}).map(([name, command]) => ({
+        name,
+        command,
+        packageDir: packageDir === "." ? "" : packageDir
+      })));
+    } catch {
+      diagnostics.push({
+        code: "package-json-invalid",
+        severity: "warning",
+        message: `Could not parse ${manifest.path}; scripts from that package were skipped.`
+      });
+    }
+  }
+  return scripts;
+}
+async function readDiff(repoRoot, diffSpec2, diagnostics) {
+  if (!diffSpec2) {
+    return { changedFiles: [], diffText: "" };
+  }
   try {
-    const raw = await readFile(join(root, "package.json"), "utf8");
-    const parsed = JSON.parse(raw);
-    return Object.entries(parsed.scripts ?? {}).map(([name, command]) => ({ name, command }));
-  } catch {
-    return [];
+    const [{ stdout: names }, { stdout: diffText }] = await Promise.all([
+      exec("git", ["diff", "--name-only", diffSpec2], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", diffSpec2], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
+    ]);
+    return {
+      changedFiles: names.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath).sort((a, b) => a.localeCompare(b)),
+      diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS)
+    };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    diagnostics.push({
+      code: "diff-unavailable",
+      severity: "warning",
+      message: `Could not resolve git diff "${diffSpec2}": ${detail}. Results use the task text only.`
+    });
+    return { changedFiles: [], diffText: "" };
   }
 }
-async function readChangedFiles(repoRoot, diffSpec2) {
-  if (!diffSpec2) {
-    return [];
-  }
-  try {
-    const { stdout } = await exec("git", ["diff", "--name-only", diffSpec2], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER });
-    return stdout.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath).sort((a, b) => a.localeCompare(b));
-  } catch {
-    return [];
-  }
+function detectPackageManager(files) {
+  const paths = new Set(files.map((file) => file.path));
+  if (paths.has("pnpm-lock.yaml"))
+    return "pnpm";
+  if (paths.has("yarn.lock"))
+    return "yarn";
+  if (paths.has("bun.lock") || paths.has("bun.lockb"))
+    return "bun";
+  return "npm";
 }
-async function readDiffText(repoRoot, diffSpec2) {
-  if (!diffSpec2) {
-    return "";
-  }
-  try {
-    const { stdout } = await exec("git", ["diff", diffSpec2], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER });
-    return stdout.slice(0, MAX_DIFF_TEXT_CHARS);
-  } catch {
-    return "";
-  }
+function classifyFile(path, extension) {
+  const lower = path.toLowerCase();
+  if (extension === ".md" || lower.startsWith("docs/") || lower === "license")
+    return "documentation";
+  if (lower.startsWith(".github/") || [".json", ".yaml", ".yml"].includes(extension) || /(^|\/)([^/]+\.)?(config|rc)\.[^/]+$/.test(lower))
+    return "config";
+  if (SOURCE_EXTENSIONS.has(extension))
+    return "code";
+  return "other";
 }
 async function readTextSample(path, sizeBytes) {
   if (sizeBytes > MAX_TEXT_SAMPLE_BYTES) {
@@ -339,7 +507,7 @@ var DEFAULT_COMMENT_AUTHOR = "github-actions[bot]";
 function buildPullRequestIssueText(event2) {
   const pullRequest = event2?.pull_request;
   const parts = [pullRequest?.title, pullRequest?.body].filter((part) => Boolean(part?.trim())).map((part) => part.trim());
-  return parts.join("\n\n") || "Pull request review";
+  return parts.join("\n\n");
 }
 function createGitHubClient(options = {}) {
   const apiBaseUrl = (options.apiBaseUrl ?? "https://api.github.com").replace(/\/$/, "");
@@ -416,6 +584,9 @@ var diffSpec = readInput("diff");
 var baseRef = readInput("base") || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : void 0);
 var headRef = readInput("head") || (process.env.GITHUB_HEAD_REF ? "HEAD" : void 0);
 var format = readInput("format") === "json" ? "json" : "markdown";
+if (!issue && !diffSpec && !baseRef) {
+  throw new Error("FixMap needs a pull_request event, an issue input, or a diff/base input to build a useful report.");
+}
 var repo = await scanRepo({
   repoRoot: targetRepo,
   diffSpec,
@@ -433,13 +604,24 @@ var report = {
   contextFiles,
   testRoutes,
   risks: buildRiskNotes(contextPaths),
-  changedFiles: repo.changedFiles
+  changedFiles: repo.changedFiles,
+  diagnostics: repo.diagnostics
 };
 var markdown = renderMarkdownReport(report);
 var output = format === "json" ? renderJsonReport(report) : markdown;
 process.stdout.write(output);
 if (process.env.GITHUB_STEP_SUMMARY) {
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
+}
+if (process.env.GITHUB_OUTPUT) {
+  const delimiter = `fixmap_${Date.now()}`;
+  appendFileSync(process.env.GITHUB_OUTPUT, `report<<${delimiter}
+${output}${delimiter}
+`);
+  appendFileSync(process.env.GITHUB_OUTPUT, `context-count=${contextFiles.length}
+`);
+  appendFileSync(process.env.GITHUB_OUTPUT, `test-route-count=${testRoutes.length}
+`);
 }
 var token = readInput("github-token") || process.env.GITHUB_TOKEN;
 var commentAuthor = readInput("comment-author");

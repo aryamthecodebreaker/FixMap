@@ -33,4 +33,12 @@ describe("extractTaskSignals", () => {
     expect(signals.tokens.has("password")).toBe(true);
     expect(signals.tokens.has("email")).toBe(true);
   });
+
+  it("normalizes simple plural and verb forms", () => {
+    const signals = extractTaskSignals({ issueText: "Invoices are created for users" });
+
+    expect(signals.tokens.has("invoice")).toBe(true);
+    expect(signals.tokens.has("create")).toBe(true);
+    expect(signals.tokens.has("user")).toBe(true);
+  });
 });

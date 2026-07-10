@@ -26,7 +26,7 @@ export function buildPullRequestIssueText(event: PullRequestEvent | undefined): 
     .filter((part): part is string => Boolean(part?.trim()))
     .map((part) => part.trim());
 
-  return parts.join("\n\n") || "Pull request review";
+  return parts.join("\n\n");
 }
 
 export function createGitHubClient(options: GitHubClientOptions = {}) {

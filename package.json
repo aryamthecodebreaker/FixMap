@@ -1,6 +1,6 @@
 {
   "name": "fixmap-workspace",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Repo context, test routing, and review receipts for AI-assisted development.",
   "license": "MIT",
@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/aryamthecodebreaker/FixMap/issues"
   },
-  "homepage": "https://github.com/aryamthecodebreaker/FixMap#readme",
+  "homepage": "https://fixmap-flax.vercel.app",
   "keywords": [
     "ai-coding",
     "code-review",
@@ -27,13 +27,14 @@
   ],
   "scripts": {
     "build": "npm run build:core && npm run build:cli && npm run build:action && npm run build:web",
-    "build:core": "npm run build -w @fixmap/core",
-    "build:cli": "npm run build -w fixmap",
+    "build:core": "npm run build -w @aryamthecodebreaker/fixmap-core",
+    "build:cli": "npm run build -w @aryamthecodebreaker/fixmap",
     "build:action": "npm run build:core && esbuild packages/action/src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=packages/action/dist/index.mjs --banner:js=\"import { createRequire as __fixmapCreateRequire } from 'module'; const require = __fixmapCreateRequire(import.meta.url);\"",
     "build:web": "npm run build -w @fixmap/web",
     "check:action-bundle": "npm run build:action && git diff --exit-code packages/action/dist/index.mjs",
-    "ci": "npm run typecheck && npm test && npm run build && npm run check:action-bundle && npm run smoke",
-    "smoke": "node packages/cli/dist/cli.js plan --issue \"password reset fails\" --repo . --format json --output fixmap-report.json && node packages/action/dist/index.mjs",
+    "ci": "npm run typecheck && npm test && npm run lint && npm run build && npm run check:action-bundle && npm run smoke && npm run evaluate",
+    "evaluate": "npm run build:core && node scripts/evaluate.mjs",
+    "smoke": "node packages/cli/dist/cli.js plan --issue \"password reset fails\" --repo examples/tiny-auth-app --format json --output fixmap-report.json && node scripts/smoke-action.mjs",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run build:core && npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
@@ -42,11 +43,15 @@
     "node": ">=20.11"
   },
   "overrides": {
-    "postcss": "^8.5.10"
+    "next@16.2.10": {
+      "postcss": "8.5.16"
+    }
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "esbuild": "^0.28.1",
+    "next": "16.2.10",
+    "postcss": "8.5.16",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"
   }

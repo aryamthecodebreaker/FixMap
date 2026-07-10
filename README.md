@@ -1,52 +1,80 @@
+<div align="center">
+
 # FixMap
 
+**Give your coding agent a map before it starts editing.**
+
+Turn an issue or git diff into relevant files, test routes, risk notes, and an honest review receipt.
+
 [![CI](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml/badge.svg)](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/%40aryamthecodebreaker%2Ffixmap)](https://www.npmjs.com/package/@aryamthecodebreaker/fixmap)
+[![MIT](https://img.shields.io/badge/license-MIT-74f0ba)](LICENSE)
 
-FixMap is an open-source repo intelligence tool for developers using AI coding agents.
+[Live demo](https://fixmap-flax.vercel.app) · [Install](#quick-start) · [GitHub Action](#github-action) · [Contribute](CONTRIBUTING.md)
 
-It does not try to replace Codex, Cursor, Copilot, Claude Code, or other coding tools. It helps them start in the right place, read the right files, run the right checks, and leave a clearer review trail.
+</div>
 
-## The Problem
+![FixMap interactive demo on mobile](docs/assets/fixmap-demo.jpg)
 
-AI coding tools are fast at producing changes, but developers still lose time on the same failure modes:
+## Why FixMap?
 
-- the agent edits the wrong file because it lacks repo context
-- a fix looks plausible but misses the test that would catch it
-- reviewers cannot tell what was verified and what was guessed
-- maintainers receive AI-generated PRs with no useful risk summary
-- solo developers spend time re-explaining the same project structure to every tool
+Coding agents are fast once they have the right context. The expensive mistakes happen earlier:
 
-FixMap turns a repo, issue, prompt, diff, or pull request into a compact map of what matters.
+- reading a plausible file instead of the owning module
+- missing the test that would catch the regression
+- treating an unresolved git diff as “no changes”
+- leaving reviewers to guess what was actually verified
 
-## What FixMap Produces
+FixMap is a transparent routing layer for that gap. It works locally, needs no account or API key, and does not send repository source to a third-party service.
 
-For a given task, FixMap will produce:
+## Quick start
 
-- **Context Pack**: files and symbols an AI coding tool should inspect first
-- **Test Route**: commands and test files most likely to validate the change
-- **Risk Map**: areas that deserve human review before merge
-- **Review Receipt**: a markdown summary of what was checked, what changed, and what remains unverified
-- **Machine Output**: JSON for scripts, GitHub Actions, and other agents
-
-The goal is simple: make AI-assisted development less about guessing and more about grounded verification.
-
-## Who It Is For
-
-FixMap is built for two groups first.
-
-### Solo developers using AI coding tools
-
-Run FixMap before handing a task to an agent:
+Run from a JavaScript or TypeScript repository:
 
 ```bash
-fixmap plan --issue "Login works locally but fails in production"
+npx @aryamthecodebreaker/fixmap plan --issue "password reset emails fail"
 ```
 
-FixMap returns the files to read, commands to run, and risks to watch. You can paste the output into Codex, Cursor, Claude Code, Copilot, or any other coding assistant.
+Use a real branch diff:
 
-### Open-source maintainers reviewing AI-generated PRs
+```bash
+npx @aryamthecodebreaker/fixmap plan --diff main...HEAD
+```
 
-Use FixMap in GitHub Actions to comment on pull requests:
+Machine-readable output:
+
+```bash
+npx @aryamthecodebreaker/fixmap plan --base main --head HEAD --format json --output fixmap-report.json
+```
+
+Example result:
+
+```text
+## Context Files
+- src/auth/reset-password.ts (high confidence): path and content match
+- src/email/send-reset.ts (medium confidence): content match
+
+## Test Route
+- npm --prefix apps/api run test
+
+## Risk Map
+- high authentication: authentication-related files are affected
+```
+
+## Interactive demo
+
+The [live website](https://fixmap-flax.vercel.app) includes a browser-only sample repository: change the task and watch the context pack update. It is deliberately labeled as a sample; the CLI scans real local repositories.
+
+Run the site locally:
+
+```bash
+npm ci
+npm run dev -w @fixmap/web
+```
+
+## GitHub Action
+
+Add FixMap to pull requests with a versioned release:
 
 ```yaml
 name: FixMap
@@ -66,131 +94,71 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: aryamthecodebreaker/FixMap/packages/action@main
+      - id: fixmap
+        uses: aryamthecodebreaker/FixMap/packages/action@v0.2.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The action uses the pull request title and body as its default context, then explains which files look central, which tests should run, and where review attention should go. Pass `issue` when you want to add extra context beyond the pull request.
+The Action upserts one marked PR comment, writes Markdown to the step summary, and exposes `report`, `context-count`, and `test-route-count` outputs. On forked pull requests, GitHub may restrict comment permissions; the step summary still contains the report.
 
-## Why A Small Model Instead Of A Chatbot
+## What it uses
 
-FixMap is intentionally not another chatbot.
+The v0.2 ranker is deterministic and inspectable:
 
-A tiny chatbot would compete with much larger models and lose. A small repo-routing model can still be useful because the job is narrower:
+- task and identifier overlap in paths and file samples
+- real changed files from a resolved git diff
+- code, test, documentation, and configuration classification
+- nearby paths and workspace package boundaries
+- npm, pnpm, Yarn, and Bun script routing
+- explicit confidence and diagnostic messages
 
-> Given this repo and this change, what context and checks are most likely to matter?
+It intentionally does **not** claim correctness, execute suggested commands, or hide failed diff resolution.
 
-That makes the project realistic to train and run with normal developer infrastructure:
+## Evaluation
 
-- GitHub for source, CI, releases, issues, and Actions
-- Vercel for the website and playground
-- CPU-only training from git history, changed files, tests, and CI metadata
-- no hosted GPU requirement
-- no paid API requirement for the core open-source tool
+Ranking changes must pass a checked-in task-to-file evaluation gate in addition to unit tests:
 
-## Architecture
+```bash
+npm run evaluate
+```
 
-FixMap starts with a deterministic baseline and can grow into a small trainable ranking model once the report format and workflow prove useful.
+The current suite covers Action failures, invalid diffs, authentication, the web demo, workspace test routing, and contributor documentation. The cases and full ranked results are visible in [`benchmarks/`](benchmarks); broader cross-repository evaluation is tracked on the roadmap rather than presented as finished work.
+
+## Repository layout
 
 ```text
-issue / prompt / diff / PR
-        |
-        v
-repo scanner -> feature extractor -> file ranker -> test router
-        |                                  |
-        v                                  v
-repo map                           markdown + JSON report
+packages/core     scanner, ranking, routing, reports
+packages/cli      npx/CLI entry point
+packages/action   bundled GitHub Action
+apps/web          interactive Next.js product site
+benchmarks        transparent ranking evaluation cases
+examples          inspectable sample input and output
 ```
 
-The MVP ranks files and tests using lightweight features:
+## Development
 
-- path and symbol overlap with the task
-- test naming conventions
-- changed-file signals from real git diffs
-- content overlap from lightweight file samples
-- nearby test naming and path overlap
-
-Future releases can add dependency/import proximity, git co-change history, recent failures, and ownership or review hotspots.
-
-The model artifact should be a small JSON file that can be committed, released, or regenerated in CI.
-
-## CLI
+Requires Node.js 20.11 or newer.
 
 ```bash
-fixmap plan --issue "Users cannot reset passwords"
-fixmap plan --diff main...HEAD
-fixmap plan --base main --head HEAD --format json
-fixmap plan --issue "Users cannot reset passwords" --output fixmap-report.md
+npm ci
+npm run ci
 ```
 
-## MVP Usage
+`npm run ci` runs the complete test suite, typechecking, ESLint, production builds, Action bundle drift verification, CLI/Action smoke checks, and the ranking evaluation gate.
 
-Try the CLI locally from the repository root:
+## Status and roadmap
 
-```bash
-npm install
-npm run build
-node packages/cli/dist/cli.js plan --issue "Users cannot reset passwords" --diff main...HEAD --repo .
-node packages/cli/dist/cli.js plan --issue "Users cannot reset passwords" --format json --output fixmap-report.json
-```
+FixMap v0.2 is an early public release focused on JavaScript and TypeScript repositories. Near-term work:
 
-The MVP scans local repository files, reads package scripts, resolves real git diff specs, ranks likely context files, suggests test routes, and renders markdown or JSON output.
+- import/dependency graph proximity
+- git co-change and ownership signals
+- adapters and examples for popular monorepo layouts
+- a larger, reproducible cross-repository evaluation dataset
+- stable `v1` Action tag after wider acceptance testing
 
-## Example
-
-Run FixMap against the tiny auth example:
-
-```bash
-node packages/cli/dist/cli.js plan --issue "password reset emails fail" --repo examples/tiny-auth-app
-```
-
-You should see `src/auth/reset-password.ts` ranked as a context file, `test/auth/reset-password.test.ts` routed as a related test, and an authentication risk note. See [examples/reports/password-reset.md](examples/reports/password-reset.md) for a sample report.
-
-## GitHub Action
-
-The GitHub Action:
-
-1. inspect the pull request diff
-2. build or load the repo map
-3. rank related files and tests
-4. post a concise PR comment
-5. writes the same report to the step summary
-
-No source code will be sent to a third-party service by default.
-
-For the first public release, use the Action from `main` until a `v0.1.0` tag is cut:
-
-```yaml
-- uses: aryamthecodebreaker/FixMap/packages/action@main
-  with:
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-```
-
-## Project Principles
-
-- **Local first**: useful without accounts, keys, or external services
-- **Review focused**: make human review faster and more factual
-- **Agent compatible**: output should be easy to paste into any AI coding tool
-- **Transparent**: show why files and tests were recommended
-- **Small-model practical**: trainable on CPU and understandable by contributors
-- **No magic claims**: FixMap suggests context and checks; it does not prove correctness
-
-## Status
-
-FixMap is in early MVP development. The CLI can scan a JavaScript or TypeScript repository and produce a context/test/risk report from a prompt or diff.
-
-## Roadmap
-
-- [x] Repository scanner for file tree, package scripts, tests, and git diffs
-- [x] CLI report generation in markdown and JSON
-- [x] Baseline ranker for context files and test routes
-- [x] GitHub Action for pull request comments
-- [ ] CPU-trainable ranking model from repository history
-- [x] Vercel-ready website and playground shell
-- [x] Minimal example repository and sample report
-- [ ] Examples for popular repo types
+See [open issues](https://github.com/aryamthecodebreaker/FixMap/issues) for scoped work. Contributions are welcome.
 
 ## License
 
-FixMap is released under the MIT License. See [LICENSE](LICENSE).
+MIT © FixMap contributors.

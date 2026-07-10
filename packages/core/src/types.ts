@@ -13,12 +13,20 @@ export type RepoFile = {
   sizeBytes: number;
   isTest: boolean;
   isSource: boolean;
+  kind: "code" | "config" | "documentation" | "other";
   textSample: string;
 };
 
 export type PackageScript = {
   name: string;
   command: string;
+  packageDir: string;
+};
+
+export type ScanDiagnostic = {
+  code: "diff-unavailable" | "package-json-invalid" | "scan-limit-reached";
+  message: string;
+  severity: "warning";
 };
 
 export type RepoMap = {
@@ -27,11 +35,14 @@ export type RepoMap = {
   packageScripts: PackageScript[];
   changedFiles: string[];
   diffText: string;
+  packageManager: "npm" | "pnpm" | "yarn" | "bun";
+  diagnostics: ScanDiagnostic[];
 };
 
 export type RankedFile = {
   path: string;
   score: number;
+  confidence: "high" | "medium" | "low";
   reasons: string[];
 };
 
@@ -53,4 +64,5 @@ export type FixMapReport = {
   testRoutes: TestRoute[];
   risks: RiskNote[];
   changedFiles: string[];
+  diagnostics: ScanDiagnostic[];
 };

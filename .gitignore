@@ -3,6 +3,7 @@ dist/
 !packages/action/dist/
 !packages/action/dist/**
 .next/
+.vercel/
 coverage/
 .env
 .env.*

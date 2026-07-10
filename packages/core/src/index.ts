@@ -9,5 +9,6 @@ export type {
   RepoFile,
   RepoMap,
   RiskNote,
+  ScanDiagnostic,
   TestRoute
 } from "./types.js";

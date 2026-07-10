@@ -23,6 +23,13 @@ inputs:
   comment-author:
     description: GitHub login that owns prior FixMap comments. Defaults to github-actions[bot].
     required: false
+outputs:
+  report:
+    description: The complete FixMap report in the selected format.
+  context-count:
+    description: Number of context files returned.
+  test-route-count:
+    description: Number of test routes returned.
 runs:
   using: node20
   main: dist/index.mjs
