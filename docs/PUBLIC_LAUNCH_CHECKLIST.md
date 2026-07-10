@@ -19,12 +19,13 @@ Use this before announcing FixMap anywhere beyond a quiet soft launch.
 - [x] Add an interactive demo and README screenshot.
 - [x] Add a checked-in ranking evaluation gate with transparent cases and output.
 - [x] Confirm the GitHub Action can comment on a PR in a separate acceptance repository.
-- [ ] Publish `@aryam/fixmap` and `@aryam/fixmap-core` for the v0.2.1 patch release.
+- [x] Publish `@aryam/fixmap` and `@aryam/fixmap-core` for the v0.2.1 patch release.
 - [x] Create and test the `v0.2.0` release tag from protected `main`.
+- [x] Create `v0.2.1` from green protected `main` and verify the public `npx` install.
 - [ ] Expand evaluation to non-trivial external repositories before claiming broad accuracy.
 
 ## Launch Copy
 
-- [ ] Lead with the pain: AI coding agents waste time when they read the wrong files or skip the right tests.
-- [ ] Promise the narrow result: FixMap maps a prompt or diff to context files, tests, and risk notes.
-- [ ] Be honest about scope: deterministic MVP first, trainable ranking later.
+- [x] Lead with the pain: AI coding agents waste time when they read the wrong files or skip the right tests.
+- [x] Promise the narrow result: FixMap maps a prompt or diff to context files, tests, and risk notes.
+- [x] Be honest about scope: deterministic MVP first, trainable ranking later.
