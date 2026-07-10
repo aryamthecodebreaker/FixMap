@@ -1,6 +1,6 @@
 import { Demo } from "./demo";
 
-const installCommand = "npx @aryamthecodebreaker/fixmap plan --issue \"password reset fails\"";
+const installCommand = "npx @aryam/fixmap plan --issue \"password reset fails\"";
 
 export default function HomePage() {
   return (

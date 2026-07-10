@@ -11,8 +11,8 @@ import {
   renderJsonReport,
   renderMarkdownReport,
   scanRepo
-} from "@aryamthecodebreaker/fixmap-core";
-import type { FixMapReport } from "@aryamthecodebreaker/fixmap-core";
+} from "@aryam/fixmap-core";
+import type { FixMapReport } from "@aryam/fixmap-core";
 
 type CliOptions = {
   command: string;

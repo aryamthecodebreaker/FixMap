@@ -19,8 +19,8 @@ Use this before announcing FixMap anywhere beyond a quiet soft launch.
 - [x] Add an interactive demo and README screenshot.
 - [x] Add a checked-in ranking evaluation gate with transparent cases and output.
 - [x] Confirm the GitHub Action can comment on a PR in a separate acceptance repository.
-- [ ] Publish the scoped CLI and core packages for the v0.2.0 release.
-- [ ] Create and test the `v0.2.0` release tag from protected `main`.
+- [ ] Publish `@aryam/fixmap` and `@aryam/fixmap-core` for the v0.2.1 patch release.
+- [x] Create and test the `v0.2.0` release tag from protected `main`.
 - [ ] Expand evaluation to non-trivial external repositories before claiming broad accuracy.
 
 ## Launch Copy
