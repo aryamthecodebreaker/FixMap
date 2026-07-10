@@ -7,8 +7,8 @@ import {
   renderJsonReport,
   renderMarkdownReport,
   scanRepo
-} from "@aryamthecodebreaker/fixmap-core";
-import type { FixMapReport } from "@aryamthecodebreaker/fixmap-core";
+} from "@aryam/fixmap-core";
+import type { FixMapReport } from "@aryam/fixmap-core";
 import { buildPullRequestIssueText, createGitHubClient } from "./github.js";
 
 const event = readEvent(process.env.GITHUB_EVENT_PATH);

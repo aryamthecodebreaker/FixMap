@@ -7,7 +7,7 @@
 Turn an issue or git diff into relevant files, test routes, risk notes, and an honest review receipt.
 
 [![CI](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml/badge.svg)](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/%40aryamthecodebreaker%2Ffixmap)](https://www.npmjs.com/package/@aryamthecodebreaker/fixmap)
+[![npm](https://img.shields.io/npm/v/%40aryam%2Ffixmap)](https://www.npmjs.com/package/@aryam/fixmap)
 [![MIT](https://img.shields.io/badge/license-MIT-74f0ba)](LICENSE)
 
 [Live demo](https://fixmap-flax.vercel.app) · [Install](#quick-start) · [GitHub Action](#github-action) · [Contribute](CONTRIBUTING.md)
@@ -32,19 +32,19 @@ FixMap is a transparent routing layer for that gap. It works locally, needs no a
 Run from a JavaScript or TypeScript repository:
 
 ```bash
-npx @aryamthecodebreaker/fixmap plan --issue "password reset emails fail"
+npx @aryam/fixmap plan --issue "password reset emails fail"
 ```
 
 Use a real branch diff:
 
 ```bash
-npx @aryamthecodebreaker/fixmap plan --diff main...HEAD
+npx @aryam/fixmap plan --diff main...HEAD
 ```
 
 Machine-readable output:
 
 ```bash
-npx @aryamthecodebreaker/fixmap plan --base main --head HEAD --format json --output fixmap-report.json
+npx @aryam/fixmap plan --base main --head HEAD --format json --output fixmap-report.json
 ```
 
 Example result:

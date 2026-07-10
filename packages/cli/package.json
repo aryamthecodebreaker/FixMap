@@ -1,6 +1,6 @@
 {
-  "name": "@aryamthecodebreaker/fixmap",
-  "version": "0.2.0",
+  "name": "@aryam/fixmap",
+  "version": "0.2.1",
   "description": "CLI for mapping issues and diffs to relevant files, tests, and review risks.",
   "license": "MIT",
   "type": "module",
@@ -14,7 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@aryamthecodebreaker/fixmap-core": "0.2.0"
+    "@aryam/fixmap-core": "0.2.1"
   },
   "engines": {
     "node": ">=20.11"

@@ -2,6 +2,11 @@
 
 All notable changes to FixMap are documented here.
 
+## 0.2.1 - 2026-07-10
+
+- Publish the CLI and core packages under the verified npm account scope, `@aryam`.
+- Correct install commands and package links without changing v0.2 engine behavior.
+
 ## 0.2.0 - 2026-07-10
 
 ### Added
