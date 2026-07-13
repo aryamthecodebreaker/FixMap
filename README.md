@@ -120,7 +120,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap/packages/action@v0.2.0
+        uses: aryamthecodebreaker/FixMap/packages/action@v0.3.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
