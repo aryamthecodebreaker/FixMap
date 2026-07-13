@@ -90,6 +90,25 @@ describe("scanRepo", () => {
     expect(repo.diagnostics[0]?.code).toBe("diff-unavailable");
   });
 
+  it("includes untracked files as changed for working-tree diff specs", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-untracked-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, "api"), { recursive: true });
+    await writeFile(join(root, "src", "login.ts"), "export const login = () => true;\n");
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-m", "initial"], { cwd: root });
+    await writeFile(join(root, "src", "login.ts"), "export const login = () => false;\n");
+    await writeFile(join(root, "api", "index.ts"), "export default function handler() {}\n");
+
+    const repo = await scanRepo({ repoRoot: root, diffSpec: "HEAD" });
+
+    expect(repo.changedFiles).toContain("src/login.ts");
+    expect(repo.changedFiles).toContain("api/index.ts");
+  });
+
   it("discovers changed files from a git diff spec", { timeout: 30_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-diff-"));
     await mkdir(join(root, "src"), { recursive: true });

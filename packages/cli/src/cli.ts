@@ -94,6 +94,14 @@ async function runPlan(args: string[]): Promise<void> {
     headRef: options.headRef
   });
 
+  if (!options.issueText) {
+    const diffFailure = report.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
+    if (diffFailure) {
+      console.error(`${diffFailure.message}\nNo --issue text was provided to fall back to, so this report would be empty. Fix the ref or add --issue.`);
+      process.exit(1);
+    }
+  }
+
   const rendered = options.format === "json" ? renderJsonReport(report) : renderMarkdownReport(report);
 
   if (options.output) {

@@ -84,6 +84,20 @@ describe("fixmap mcp server", () => {
     expect(text).toContain("does not exist");
   });
 
+  it("rejects an unresolvable diff when no issue text can serve as a fallback", async () => {
+    const root = await createAuthFixture();
+    const client = await connectClient();
+
+    const result = await client.callTool({
+      name: "fixmap_plan",
+      arguments: { diff: "does-not-exist...HEAD", repo: root }
+    });
+
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
+    expect(text).toContain("Could not resolve git diff");
+  });
+
   it("rejects calls without a task signal instead of guessing", async () => {
     const client = await connectClient();
 

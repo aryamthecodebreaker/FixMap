@@ -80,6 +80,17 @@ export function createFixMapMcpServer(): Server {
       baseRef: args.base,
       headRef: args.head
     });
+
+    if (!args.issue) {
+      const diffFailure = report.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
+      if (diffFailure) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `${diffFailure.message} No issue text was provided to fall back to.` }]
+        };
+      }
+    }
+
     const text = args.format === "json" ? renderJsonReport(report) : renderMarkdownReport(report);
     return { content: [{ type: "text", text }] };
   });
