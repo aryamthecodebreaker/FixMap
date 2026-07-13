@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import type { FixMapInput, PackageScript, RepoFile, RepoMap } from "./types.js";
 
 const IGNORED_DIRS = new Set([
-  ".cache", ".git", ".idea", ".next", ".nuxt", ".output", ".turbo", ".venv", ".vscode",
+  ".cache", ".git", ".idea", ".netlify", ".next", ".nuxt", ".output", ".turbo", ".venv", ".vercel", ".vscode",
   "build", "coverage", "dist", "node_modules", "target", "vendor"
 ]);
 const SOURCE_EXTENSIONS = new Set([
@@ -33,8 +33,24 @@ const exec = promisify(execFile);
 type ScanState = { count: number; limitReported: boolean };
 
 export async function scanRepo(input: Pick<FixMapInput, "repoRoot" | "baseRef" | "headRef" | "diffSpec">): Promise<RepoMap> {
+  if (!(await isDirectory(input.repoRoot))) {
+    return {
+      root: input.repoRoot,
+      files: [],
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [{
+        code: "repo-root-missing",
+        severity: "error",
+        message: `Repository root "${input.repoRoot}" does not exist or is not a directory.`
+      }]
+    };
+  }
+
   const diagnostics: RepoMap["diagnostics"] = [];
-  const files = await walkFiles(input.repoRoot, input.repoRoot, diagnostics, { count: 0, limitReported: false });
+  const files = await listFiles(input.repoRoot, diagnostics);
   const packageScripts = await readPackageScripts(input.repoRoot, files, diagnostics);
   const diffSpec = resolveDiffSpec(input);
   const diff = await readDiff(input.repoRoot, diffSpec, diagnostics);
@@ -54,6 +70,56 @@ function resolveDiffSpec(input: Pick<FixMapInput, "baseRef" | "headRef" | "diffS
   return input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : undefined);
 }
 
+async function listFiles(root: string, diagnostics: RepoMap["diagnostics"]): Promise<RepoFile[]> {
+  const gitPaths = await listGitPaths(root);
+  if (gitPaths) {
+    return buildFilesFromPaths(root, gitPaths, diagnostics);
+  }
+
+  const files = await walkFiles(root, root, diagnostics, { count: 0, limitReported: false });
+  return files.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+async function listGitPaths(root: string): Promise<string[] | undefined> {
+  try {
+    const { stdout } = await exec(
+      "git",
+      ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+      { cwd: root, maxBuffer: GIT_MAX_BUFFER }
+    );
+    return [...new Set(stdout.split("\0").filter(Boolean))];
+  } catch {
+    return undefined;
+  }
+}
+
+async function buildFilesFromPaths(
+  root: string,
+  paths: string[],
+  diagnostics: RepoMap["diagnostics"]
+): Promise<RepoFile[]> {
+  const results: RepoFile[] = [];
+
+  for (const rawPath of paths) {
+    if (results.length >= MAX_SCANNED_FILES) {
+      reportScanLimit(diagnostics);
+      break;
+    }
+
+    const relativePath = normalizePath(rawPath);
+    if (isInIgnoredDir(relativePath)) {
+      continue;
+    }
+
+    const file = await toRepoFile(join(root, rawPath), relativePath);
+    if (file) {
+      results.push(file);
+    }
+  }
+
+  return results.sort((a, b) => a.path.localeCompare(b.path));
+}
+
 async function walkFiles(
   root: string,
   current: string,
@@ -71,11 +137,7 @@ async function walkFiles(
   for (const entry of entries) {
     if (state.count >= MAX_SCANNED_FILES) {
       if (!state.limitReported) {
-        diagnostics.push({
-          code: "scan-limit-reached",
-          severity: "warning",
-          message: `Stopped scanning after ${MAX_SCANNED_FILES.toLocaleString()} files. Narrow the repository root for more precise results.`
-        });
+        reportScanLimit(diagnostics);
         state.limitReported = true;
       }
       break;
@@ -93,30 +155,51 @@ async function walkFiles(
     }
 
     const absolutePath = join(current, entry.name);
-    const relativePath = normalizePath(relative(root, absolutePath));
-    let fileStat;
-    try {
-      fileStat = await stat(absolutePath);
-    } catch {
-      continue;
+    const file = await toRepoFile(absolutePath, normalizePath(relative(root, absolutePath)));
+    if (file) {
+      results.push(file);
+      state.count += 1;
     }
-    const extension = extname(entry.name);
-    const isSource = SOURCE_EXTENSIONS.has(extension);
-    const kind = classifyFile(relativePath, extension);
-
-    results.push({
-      path: relativePath,
-      extension,
-      sizeBytes: fileStat.size,
-      isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
-      isSource,
-      kind,
-      textSample: isSource ? await readTextSample(absolutePath, fileStat.size) : ""
-    });
-    state.count += 1;
   }
 
-  return results.sort((a, b) => a.path.localeCompare(b.path));
+  return results;
+}
+
+async function toRepoFile(absolutePath: string, relativePath: string): Promise<RepoFile | undefined> {
+  let fileStat;
+  try {
+    fileStat = await stat(absolutePath);
+  } catch {
+    return undefined;
+  }
+  if (!fileStat.isFile()) {
+    return undefined;
+  }
+
+  const extension = extname(relativePath);
+  const isSource = SOURCE_EXTENSIONS.has(extension);
+
+  return {
+    path: relativePath,
+    extension,
+    sizeBytes: fileStat.size,
+    isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
+    isSource,
+    kind: classifyFile(relativePath, extension),
+    textSample: isSource ? await readTextSample(absolutePath, fileStat.size) : ""
+  };
+}
+
+function isInIgnoredDir(relativePath: string): boolean {
+  return relativePath.split("/").slice(0, -1).some((segment) => IGNORED_DIRS.has(segment));
+}
+
+function reportScanLimit(diagnostics: RepoMap["diagnostics"]): void {
+  diagnostics.push({
+    code: "scan-limit-reached",
+    severity: "warning",
+    message: `Stopped scanning after ${MAX_SCANNED_FILES.toLocaleString()} files. Narrow the repository root for more precise results.`
+  });
 }
 
 async function readPackageScripts(root: string, files: RepoFile[], diagnostics: RepoMap["diagnostics"]): Promise<PackageScript[]> {
@@ -208,6 +291,14 @@ async function readTextSample(path: string, sizeBytes: number): Promise<string> 
     return await readFile(path, "utf8");
   } catch {
     return "";
+  }
+}
+
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
   }
 }
 

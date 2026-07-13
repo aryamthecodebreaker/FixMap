@@ -51,6 +51,35 @@ describe("scanRepo", () => {
     expect(repo.packageScripts).toContainEqual({ name: "typecheck", command: "tsc --noEmit", packageDir: "apps/api" });
   });
 
+  it("reports a missing repository root as an error instead of an empty success", async () => {
+    const missingRoot = join(tmpdir(), "fixmap-missing-root-does-not-exist");
+
+    const repo = await scanRepo({ repoRoot: missingRoot });
+
+    expect(repo.files).toEqual([]);
+    expect(repo.diagnostics[0]?.code).toBe("repo-root-missing");
+    expect(repo.diagnostics[0]?.severity).toBe("error");
+    expect(repo.diagnostics[0]?.message).toContain(missingRoot);
+  });
+
+  it("respects .gitignore in git repositories", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-gitignore-"));
+    await mkdir(join(root, ".vercel", "output"), { recursive: true });
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, ".gitignore"), ".vercel\n");
+    await writeFile(join(root, ".vercel", "output", "builds.json"), '{ "target": "production" }');
+    await writeFile(join(root, "vercel.json"), '{ "functions": {} }');
+    await writeFile(join(root, "src", "index.js"), "export const app = 1;\n");
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    const paths = repo.files.map((file) => file.path);
+    expect(paths).toContain("vercel.json");
+    expect(paths).toContain("src/index.js");
+    expect(paths).not.toContain(".vercel/output/builds.json");
+  });
+
   it("reports an unresolved diff instead of silently returning no changes", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-invalid-diff-"));
     await writeFile(join(root, "package.json"), "{}");

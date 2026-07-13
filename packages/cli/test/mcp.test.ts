@@ -71,6 +71,19 @@ describe("fixmap mcp server", () => {
     expect(report.contextFiles[0]?.path).toBe("src/auth/reset-password.ts");
   });
 
+  it("rejects a nonexistent repo path instead of returning an empty report", async () => {
+    const client = await connectClient();
+
+    const result = await client.callTool({
+      name: "fixmap_plan",
+      arguments: { issue: "chat fails", repo: join(tmpdir(), "fixmap-mcp-missing-root") }
+    });
+
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
+    expect(text).toContain("does not exist");
+  });
+
   it("rejects calls without a task signal instead of guessing", async () => {
     const client = await connectClient();
 

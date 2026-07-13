@@ -7,38 +7,104 @@ import { appendFileSync, readFileSync } from "node:fs";
 var TOKEN_SPLIT = /[^a-zA-Z0-9]+/g;
 var STOP_WORDS = /* @__PURE__ */ new Set([
   "add",
+  "all",
+  "also",
   "and",
+  "any",
   "are",
+  "been",
+  "being",
+  "both",
   "but",
+  "can",
+  "cannot",
   "const",
+  "could",
   "default",
+  "did",
+  "doe",
+  "does",
+  "down",
+  "each",
+  "even",
   "export",
   "for",
   "from",
   "function",
+  "get",
   "github",
+  "got",
+  "had",
   "has",
+  "have",
+  "her",
+  "him",
+  "his",
+  "how",
   "import",
   "index",
+  "instead",
   "into",
+  "its",
+  "just",
   "main",
+  "may",
+  "might",
+  "more",
+  "most",
+  "must",
   "name",
   "new",
   "node",
+  "not",
+  "now",
+  "off",
+  "only",
+  "other",
+  "our",
+  "out",
+  "over",
   "package",
   "packages",
   "return",
   "run",
+  "same",
+  "she",
+  "should",
+  "some",
   "src",
-  "the",
-  "this",
+  "still",
+  "such",
+  "than",
   "that",
+  "the",
+  "their",
+  "them",
+  "then",
+  "there",
+  "these",
+  "they",
+  "this",
+  "those",
   "true",
   "type",
+  "under",
   "uses",
-  "with",
+  "very",
+  "was",
+  "were",
+  "what",
   "when",
-  "where"
+  "where",
+  "which",
+  "while",
+  "who",
+  "why",
+  "will",
+  "with",
+  "would",
+  "you",
+  "your"
 ]);
 function extractTaskSignals(input) {
   const tokens = tokenizeText([input.issueText ?? "", extractDiffContentLines(input.diffText ?? "")].join("\n"));
@@ -54,7 +120,7 @@ function extractDiffContentLines(diffText) {
   return diffText.split(/\r?\n/).filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")).join("\n");
 }
 function tokenizeText(text) {
-  return new Set(text.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token2) => normalizeToken(token2.trim())).filter((token2) => token2.length >= 3).filter((token2) => !STOP_WORDS.has(token2)));
+  return new Set(text.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token2) => token2.trim()).filter((token2) => token2.length >= 3 && !STOP_WORDS.has(token2)).map((token2) => normalizeToken(token2)).filter((token2) => token2.length >= 3 && !STOP_WORDS.has(token2)));
 }
 function normalizeToken(token2) {
   if (token2.length > 5 && token2.endsWith("ies"))
@@ -74,6 +140,21 @@ function tokenizePath(path) {
 }
 
 // packages/core/dist/rank.js
+var DEPLOYMENT_TERMS = [
+  "deploy",
+  "deployment",
+  "vercel",
+  "netlify",
+  "docker",
+  "kubernetes",
+  "hosting",
+  "serverless",
+  "production",
+  "404",
+  "500",
+  "502"
+];
+var LOCKFILES = /* @__PURE__ */ new Set(["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock"]);
 function rankContextFiles(repo, input, limit = 8) {
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
@@ -81,11 +162,12 @@ function rankContextFiles(repo, input, limit = 8) {
     changedFiles: repo.changedFiles
   });
   const taskTargetsEvaluation = hasAny(signals.tokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
-  const candidates = repo.files.filter((file) => file.isSource && !file.isTest && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
+  const candidates = repo.files.filter((file) => file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
   const taskTargetsDocumentation = hasAny(signals.tokens, ["docs", "documentation", "readme", "guide", "copy"]);
   const taskTargetsConfiguration = hasAny(signals.tokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
+  const taskTargetsDeployment = hasAny(signals.tokens, DEPLOYMENT_TERMS);
   return candidates.map((file) => {
     const reasons = [];
     let score = 0;
@@ -117,11 +199,16 @@ function rankContextFiles(repo, input, limit = 8) {
       reasons.push("documentation-focused task");
     } else if (file.kind === "documentation" && !taskTargetsDocumentation && !isChanged) {
       score -= 6;
-    } else if (file.kind === "config" && taskTargetsConfiguration) {
+    } else if (file.kind === "config" && (taskTargetsConfiguration || taskTargetsDeployment)) {
       score += 2;
-      reasons.push("configuration-focused task");
-    } else if (file.kind === "config" && !taskTargetsConfiguration && !isChanged) {
+      reasons.push(taskTargetsConfiguration ? "configuration-focused task" : "deployment-focused task");
+    } else if (file.kind === "config" && !isChanged) {
       score -= 4;
+    }
+    const isDeploymentConfig = file.path === "package.json" || DEPLOYMENT_TERMS.some((term) => pathTokens.has(term));
+    if (taskTargetsDeployment && file.kind === "config" && !file.path.includes("/") && isDeploymentConfig) {
+      score += 5;
+      reasons.push("root configuration for a deployment-related task");
     }
     if (pathTokens.has("auth") || pathTokens.has("login")) {
       if (signals.tokens.has("auth") || signals.tokens.has("login") || signals.tokens.has("password")) {
@@ -313,11 +400,13 @@ var IGNORED_DIRS = /* @__PURE__ */ new Set([
   ".cache",
   ".git",
   ".idea",
+  ".netlify",
   ".next",
   ".nuxt",
   ".output",
   ".turbo",
   ".venv",
+  ".vercel",
   ".vscode",
   "build",
   "coverage",
@@ -349,8 +438,23 @@ var MAX_SCANNED_FILES = 25e3;
 var GIT_MAX_BUFFER = 10 * 1024 * 1024;
 var exec = promisify(execFile);
 async function scanRepo(input) {
+  if (!await isDirectory(input.repoRoot)) {
+    return {
+      root: input.repoRoot,
+      files: [],
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [{
+        code: "repo-root-missing",
+        severity: "error",
+        message: `Repository root "${input.repoRoot}" does not exist or is not a directory.`
+      }]
+    };
+  }
   const diagnostics = [];
-  const files = await walkFiles(input.repoRoot, input.repoRoot, diagnostics, { count: 0, limitReported: false });
+  const files = await listFiles(input.repoRoot, diagnostics);
   const packageScripts = await readPackageScripts(input.repoRoot, files, diagnostics);
   const diffSpec2 = resolveDiffSpec(input);
   const diff = await readDiff(input.repoRoot, diffSpec2, diagnostics);
@@ -367,6 +471,40 @@ async function scanRepo(input) {
 function resolveDiffSpec(input) {
   return input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : void 0);
 }
+async function listFiles(root, diagnostics) {
+  const gitPaths = await listGitPaths(root);
+  if (gitPaths) {
+    return buildFilesFromPaths(root, gitPaths, diagnostics);
+  }
+  const files = await walkFiles(root, root, diagnostics, { count: 0, limitReported: false });
+  return files.sort((a, b) => a.path.localeCompare(b.path));
+}
+async function listGitPaths(root) {
+  try {
+    const { stdout } = await exec("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER });
+    return [...new Set(stdout.split("\0").filter(Boolean))];
+  } catch {
+    return void 0;
+  }
+}
+async function buildFilesFromPaths(root, paths, diagnostics) {
+  const results = [];
+  for (const rawPath of paths) {
+    if (results.length >= MAX_SCANNED_FILES) {
+      reportScanLimit(diagnostics);
+      break;
+    }
+    const relativePath = normalizePath(rawPath);
+    if (isInIgnoredDir(relativePath)) {
+      continue;
+    }
+    const file = await toRepoFile(join(root, rawPath), relativePath);
+    if (file) {
+      results.push(file);
+    }
+  }
+  return results.sort((a, b) => a.path.localeCompare(b.path));
+}
 async function walkFiles(root, current, diagnostics, state) {
   let entries;
   try {
@@ -378,11 +516,7 @@ async function walkFiles(root, current, diagnostics, state) {
   for (const entry of entries) {
     if (state.count >= MAX_SCANNED_FILES) {
       if (!state.limitReported) {
-        diagnostics.push({
-          code: "scan-limit-reached",
-          severity: "warning",
-          message: `Stopped scanning after ${MAX_SCANNED_FILES.toLocaleString()} files. Narrow the repository root for more precise results.`
-        });
+        reportScanLimit(diagnostics);
         state.limitReported = true;
       }
       break;
@@ -398,28 +532,45 @@ async function walkFiles(root, current, diagnostics, state) {
       continue;
     }
     const absolutePath = join(current, entry.name);
-    const relativePath = normalizePath(relative(root, absolutePath));
-    let fileStat;
-    try {
-      fileStat = await stat(absolutePath);
-    } catch {
-      continue;
+    const file = await toRepoFile(absolutePath, normalizePath(relative(root, absolutePath)));
+    if (file) {
+      results.push(file);
+      state.count += 1;
     }
-    const extension = extname(entry.name);
-    const isSource = SOURCE_EXTENSIONS.has(extension);
-    const kind = classifyFile(relativePath, extension);
-    results.push({
-      path: relativePath,
-      extension,
-      sizeBytes: fileStat.size,
-      isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
-      isSource,
-      kind,
-      textSample: isSource ? await readTextSample(absolutePath, fileStat.size) : ""
-    });
-    state.count += 1;
   }
-  return results.sort((a, b) => a.path.localeCompare(b.path));
+  return results;
+}
+async function toRepoFile(absolutePath, relativePath) {
+  let fileStat;
+  try {
+    fileStat = await stat(absolutePath);
+  } catch {
+    return void 0;
+  }
+  if (!fileStat.isFile()) {
+    return void 0;
+  }
+  const extension = extname(relativePath);
+  const isSource = SOURCE_EXTENSIONS.has(extension);
+  return {
+    path: relativePath,
+    extension,
+    sizeBytes: fileStat.size,
+    isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
+    isSource,
+    kind: classifyFile(relativePath, extension),
+    textSample: isSource ? await readTextSample(absolutePath, fileStat.size) : ""
+  };
+}
+function isInIgnoredDir(relativePath) {
+  return relativePath.split("/").slice(0, -1).some((segment) => IGNORED_DIRS.has(segment));
+}
+function reportScanLimit(diagnostics) {
+  diagnostics.push({
+    code: "scan-limit-reached",
+    severity: "warning",
+    message: `Stopped scanning after ${MAX_SCANNED_FILES.toLocaleString()} files. Narrow the repository root for more precise results.`
+  });
 }
 async function readPackageScripts(root, files, diagnostics) {
   const manifests = files.filter((file) => file.path === "package.json" || file.path.endsWith("/package.json"));
@@ -495,6 +646,13 @@ async function readTextSample(path, sizeBytes) {
     return await readFile(path, "utf8");
   } catch {
     return "";
+  }
+}
+async function isDirectory(path) {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
   }
 }
 function normalizePath(path) {

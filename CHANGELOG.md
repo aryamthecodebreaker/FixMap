@@ -2,6 +2,14 @@
 
 All notable changes to FixMap are documented here.
 
+## 0.3.1 - 2026-07-13
+
+### Fixed
+
+- A nonexistent `--repo` path now fails with a clear error and nonzero exit instead of an empty success report; the MCP tool returns an error result for the same case (#21).
+- Repository scans respect `.gitignore` in git repositories via `git ls-files`, so ignored build output such as `.vercel/` no longer outranks source files; `.vercel` and `.netlify` are also hard-ignored in non-git scans (#23).
+- Common stop words ("not", "does") and stem fragments ("doe") no longer count as content matches, deployment-related tasks now rank root configuration files such as `vercel.json` and `package.json`, and lockfiles are excluded from context ranking (#22).
+
 ## 0.3.0 - 2026-07-13
 
 ### Added

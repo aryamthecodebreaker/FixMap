@@ -1,6 +1,11 @@
 import { extractTaskSignals, tokenizePath, tokenizeText } from "./signals.js";
 import type { RankedFile, RepoMap } from "./types.js";
 
+const DEPLOYMENT_TERMS = [
+  "deploy", "deployment", "vercel", "netlify", "docker", "kubernetes", "hosting", "serverless", "production", "404", "500", "502"
+];
+const LOCKFILES = new Set(["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock"]);
+
 export function rankContextFiles(
   repo: RepoMap,
   input: { issueText?: string | undefined; diffText?: string | undefined },
@@ -16,12 +21,14 @@ export function rankContextFiles(
   const candidates = repo.files.filter((file) =>
     file.isSource &&
     !file.isTest &&
+    !LOCKFILES.has(file.path.split("/").pop() ?? "") &&
     (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation)
   );
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
   const taskTargetsDocumentation = hasAny(signals.tokens, ["docs", "documentation", "readme", "guide", "copy"]);
   const taskTargetsConfiguration = hasAny(signals.tokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
+  const taskTargetsDeployment = hasAny(signals.tokens, DEPLOYMENT_TERMS);
 
   return candidates
     .map((file) => {
@@ -60,11 +67,18 @@ export function rankContextFiles(
         reasons.push("documentation-focused task");
       } else if (file.kind === "documentation" && !taskTargetsDocumentation && !isChanged) {
         score -= 6;
-      } else if (file.kind === "config" && taskTargetsConfiguration) {
+      } else if (file.kind === "config" && (taskTargetsConfiguration || taskTargetsDeployment)) {
         score += 2;
-        reasons.push("configuration-focused task");
-      } else if (file.kind === "config" && !taskTargetsConfiguration && !isChanged) {
+        reasons.push(taskTargetsConfiguration ? "configuration-focused task" : "deployment-focused task");
+      } else if (file.kind === "config" && !isChanged) {
         score -= 4;
+      }
+
+      const isDeploymentConfig =
+        file.path === "package.json" || DEPLOYMENT_TERMS.some((term) => pathTokens.has(term));
+      if (taskTargetsDeployment && file.kind === "config" && !file.path.includes("/") && isDeploymentConfig) {
+        score += 5;
+        reasons.push("root configuration for a deployment-related task");
       }
 
       if (pathTokens.has("auth") || pathTokens.has("login")) {

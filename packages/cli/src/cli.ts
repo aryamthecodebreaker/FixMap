@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
+import { stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildFixMapReport, renderJsonReport, renderMarkdownReport } from "@aryam/fixmap-core";
@@ -81,6 +81,11 @@ async function runPlan(args: string[]): Promise<void> {
     process.exit(1);
   }
 
+  if (!(await isDirectory(options.repoRoot))) {
+    console.error(`Repository root "${options.repoRoot}" does not exist or is not a directory. Check the --repo path.`);
+    process.exit(1);
+  }
+
   const report = await buildFixMapReport({
     repoRoot: options.repoRoot,
     issueText: options.issueText,
@@ -95,6 +100,14 @@ async function runPlan(args: string[]): Promise<void> {
     await writeFile(options.output, rendered, "utf8");
   } else {
     process.stdout.write(rendered);
+  }
+}
+
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
   }
 }
 
