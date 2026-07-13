@@ -1,14 +1,5 @@
 import { appendFileSync, readFileSync } from "node:fs";
-import {
-  buildRiskNotes,
-  buildSummary,
-  buildTestRoutes,
-  rankContextFiles,
-  renderJsonReport,
-  renderMarkdownReport,
-  scanRepo
-} from "@aryam/fixmap-core";
-import type { FixMapReport } from "@aryam/fixmap-core";
+import { buildFixMapReport, renderJsonReport, renderMarkdownReport } from "@aryam/fixmap-core";
 import { buildPullRequestIssueText, createGitHubClient } from "./github.js";
 
 const event = readEvent(process.env.GITHUB_EVENT_PATH);
@@ -23,26 +14,13 @@ if (!issue && !diffSpec && !baseRef) {
   throw new Error("FixMap needs a pull_request event, an issue input, or a diff/base input to build a useful report.");
 }
 
-const repo = await scanRepo({
+const report = await buildFixMapReport({
   repoRoot: targetRepo,
+  issueText: issue,
   diffSpec,
   baseRef,
   headRef
 });
-const contextFiles = rankContextFiles(repo, {
-  issueText: issue,
-  diffText: repo.diffText
-});
-const contextPaths = contextFiles.map((file) => file.path);
-const testRoutes = buildTestRoutes(repo, contextPaths);
-const report: FixMapReport = {
-  summary: buildSummary(contextFiles.length, testRoutes.length),
-  contextFiles,
-  testRoutes,
-  risks: buildRiskNotes(contextPaths),
-  changedFiles: repo.changedFiles,
-  diagnostics: repo.diagnostics
-};
 const markdown = renderMarkdownReport(report);
 const output = format === "json" ? renderJsonReport(report) : markdown;
 
@@ -55,8 +33,8 @@ if (process.env.GITHUB_STEP_SUMMARY) {
 if (process.env.GITHUB_OUTPUT) {
   const delimiter = `fixmap_${Date.now()}`;
   appendFileSync(process.env.GITHUB_OUTPUT, `report<<${delimiter}\n${output}${delimiter}\n`);
-  appendFileSync(process.env.GITHUB_OUTPUT, `context-count=${contextFiles.length}\n`);
-  appendFileSync(process.env.GITHUB_OUTPUT, `test-route-count=${testRoutes.length}\n`);
+  appendFileSync(process.env.GITHUB_OUTPUT, `context-count=${report.contextFiles.length}\n`);
+  appendFileSync(process.env.GITHUB_OUTPUT, `test-route-count=${report.testRoutes.length}\n`);
 }
 
 const token = readInput("github-token") || process.env.GITHUB_TOKEN;

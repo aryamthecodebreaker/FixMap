@@ -1,3 +1,4 @@
+export { buildFixMapReport } from "./plan.js";
 export { rankContextFiles } from "./rank.js";
 export { buildRiskNotes, buildSummary, buildTestRoutes, renderJsonReport, renderMarkdownReport } from "./report.js";
 export { scanRepo } from "./repo-scan.js";

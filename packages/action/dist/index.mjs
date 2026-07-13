@@ -74,14 +74,14 @@ function tokenizePath(path) {
 }
 
 // packages/core/dist/rank.js
-function rankContextFiles(repo2, input, limit = 8) {
+function rankContextFiles(repo, input, limit = 8) {
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
     diffText: input.diffText ?? "",
-    changedFiles: repo2.changedFiles
+    changedFiles: repo.changedFiles
   });
   const taskTargetsEvaluation = hasAny(signals.tokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
-  const candidates = repo2.files.filter((file) => file.isSource && !file.isTest && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
+  const candidates = repo.files.filter((file) => file.isSource && !file.isTest && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
   const taskTargetsDocumentation = hasAny(signals.tokens, ["docs", "documentation", "readme", "guide", "copy"]);
@@ -106,7 +106,7 @@ function rankContextFiles(repo2, input, limit = 8) {
       score += Math.min(contentOverlap.length, 8) * 2;
       reasons.push(`content matches task terms: ${contentOverlap.slice(0, 8).join(", ")}`);
     }
-    if (isNearbyChangedFile(file.path, repo2.changedFiles)) {
+    if (isNearbyChangedFile(file.path, repo.changedFiles)) {
       score += 2;
       reasons.push("near changed file");
     }
@@ -170,14 +170,14 @@ function isNearbyChangedFile(path, changedFiles) {
 }
 
 // packages/core/dist/report.js
-function buildTestRoutes(repo2, contextPaths2) {
-  const codeContextPaths = contextPaths2.filter((path) => repo2.files.find((file) => file.path === path)?.kind === "code");
+function buildTestRoutes(repo, contextPaths) {
+  const codeContextPaths = contextPaths.filter((path) => repo.files.find((file) => file.path === path)?.kind === "code");
   if (codeContextPaths.length === 0) {
     return [];
   }
-  const relatedTests = findRelatedTests(repo2, contextPaths2);
+  const relatedTests = findRelatedTests(repo, contextPaths);
   const scriptPriority = /* @__PURE__ */ new Map([["test", 0], ["typecheck", 1], ["check", 2], ["lint", 3]]);
-  const candidates = repo2.packageScripts.filter((script) => scriptPriority.has(script.name)).map((script) => ({
+  const candidates = repo.packageScripts.filter((script) => scriptPriority.has(script.name)).map((script) => ({
     script,
     proximity: packageProximity(script.packageDir, codeContextPaths),
     priority: scriptPriority.get(script.name) ?? 99
@@ -185,7 +185,7 @@ function buildTestRoutes(repo2, contextPaths2) {
   const commands = /* @__PURE__ */ new Set();
   const routes = [];
   for (const { script } of candidates) {
-    const command = formatScriptCommand(repo2.packageManager, script.packageDir, script.name);
+    const command = formatScriptCommand(repo.packageManager, script.packageDir, script.name);
     if (commands.has(command))
       continue;
     commands.add(command);
@@ -199,9 +199,9 @@ function buildTestRoutes(repo2, contextPaths2) {
   }
   return routes;
 }
-function buildRiskNotes(contextPaths2) {
+function buildRiskNotes(contextPaths) {
   const risks = [];
-  const tokens = new Set(contextPaths2.flatMap((path) => [...tokenizePath(path)]));
+  const tokens = new Set(contextPaths.flatMap((path) => [...tokenizePath(path)]));
   if (tokens.has("auth") || tokens.has("login") || tokens.has("password")) {
     risks.push({
       area: "authentication",
@@ -234,10 +234,10 @@ function buildRiskNotes(contextPaths2) {
   }
   return risks;
 }
-function packageProximity(packageDir, contextPaths2) {
+function packageProximity(packageDir, contextPaths) {
   if (!packageDir)
     return 1;
-  const matches = contextPaths2.filter((path) => path === packageDir || path.startsWith(`${packageDir}/`));
+  const matches = contextPaths.filter((path) => path === packageDir || path.startsWith(`${packageDir}/`));
   return matches.length > 0 ? 10 + packageDir.split("/").length : -1;
 }
 function formatScriptCommand(manager, packageDir, script) {
@@ -251,9 +251,9 @@ function formatScriptCommand(manager, packageDir, script) {
     return `yarn --cwd ${packageDir} ${script}`;
   return `bun --cwd ${packageDir} run ${script}`;
 }
-function findRelatedTests(repo2, contextPaths2) {
-  const contextTokens = new Set(contextPaths2.flatMap((path) => [...tokenizePath(path)]));
-  return repo2.files.filter((file) => file.isTest).map((file) => {
+function findRelatedTests(repo, contextPaths) {
+  const contextTokens = new Set(contextPaths.flatMap((path) => [...tokenizePath(path)]));
+  return repo.files.filter((file) => file.isTest).map((file) => {
     const testTokens = tokenizePath(file.path);
     const overlap = [...testTokens].filter((token2) => contextTokens.has(token2)).length;
     return { path: file.path, score: overlap };
@@ -501,6 +501,25 @@ function normalizePath(path) {
   return path.split(sep).join("/");
 }
 
+// packages/core/dist/plan.js
+async function buildFixMapReport(input) {
+  const repo = await scanRepo(input);
+  const contextFiles = rankContextFiles(repo, {
+    issueText: input.issueText,
+    diffText: repo.diffText
+  });
+  const contextPaths = contextFiles.map((file) => file.path);
+  const testRoutes = buildTestRoutes(repo, contextPaths);
+  return {
+    summary: buildSummary(contextFiles.length, testRoutes.length),
+    contextFiles,
+    testRoutes,
+    risks: buildRiskNotes(contextPaths),
+    changedFiles: repo.changedFiles,
+    diagnostics: repo.diagnostics
+  };
+}
+
 // packages/action/src/github.ts
 var FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
 var DEFAULT_COMMENT_AUTHOR = "github-actions[bot]";
@@ -587,26 +606,13 @@ var format = readInput("format") === "json" ? "json" : "markdown";
 if (!issue && !diffSpec && !baseRef) {
   throw new Error("FixMap needs a pull_request event, an issue input, or a diff/base input to build a useful report.");
 }
-var repo = await scanRepo({
+var report = await buildFixMapReport({
   repoRoot: targetRepo,
+  issueText: issue,
   diffSpec,
   baseRef,
   headRef
 });
-var contextFiles = rankContextFiles(repo, {
-  issueText: issue,
-  diffText: repo.diffText
-});
-var contextPaths = contextFiles.map((file) => file.path);
-var testRoutes = buildTestRoutes(repo, contextPaths);
-var report = {
-  summary: buildSummary(contextFiles.length, testRoutes.length),
-  contextFiles,
-  testRoutes,
-  risks: buildRiskNotes(contextPaths),
-  changedFiles: repo.changedFiles,
-  diagnostics: repo.diagnostics
-};
 var markdown = renderMarkdownReport(report);
 var output = format === "json" ? renderJsonReport(report) : markdown;
 process.stdout.write(output);
@@ -618,9 +624,9 @@ if (process.env.GITHUB_OUTPUT) {
   appendFileSync(process.env.GITHUB_OUTPUT, `report<<${delimiter}
 ${output}${delimiter}
 `);
-  appendFileSync(process.env.GITHUB_OUTPUT, `context-count=${contextFiles.length}
+  appendFileSync(process.env.GITHUB_OUTPUT, `context-count=${report.contextFiles.length}
 `);
-  appendFileSync(process.env.GITHUB_OUTPUT, `test-route-count=${testRoutes.length}
+  appendFileSync(process.env.GITHUB_OUTPUT, `test-route-count=${report.testRoutes.length}
 `);
 }
 var token = readInput("github-token") || process.env.GITHUB_TOKEN;

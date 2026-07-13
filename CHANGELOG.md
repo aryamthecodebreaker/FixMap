@@ -2,6 +2,13 @@
 
 All notable changes to FixMap are documented here.
 
+## 0.3.0 - 2026-07-13
+
+### Added
+
+- MCP server mode: `fixmap mcp` runs a Model Context Protocol server over stdio, exposing the `fixmap_plan` tool to Claude Code, Cursor, Windsurf, and other MCP clients.
+- `buildFixMapReport` in `@aryam/fixmap-core`: one call from task input to a complete report, now shared by the CLI, the GitHub Action, and the MCP server.
+
 ## 0.2.1 - 2026-07-10
 
 - Publish the CLI and core packages under the verified npm account scope, `@aryam`.

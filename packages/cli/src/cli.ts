@@ -3,16 +3,7 @@ import { readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  buildRiskNotes,
-  buildSummary,
-  buildTestRoutes,
-  rankContextFiles,
-  renderJsonReport,
-  renderMarkdownReport,
-  scanRepo
-} from "@aryam/fixmap-core";
-import type { FixMapReport } from "@aryam/fixmap-core";
+import { buildFixMapReport, renderJsonReport, renderMarkdownReport } from "@aryam/fixmap-core";
 
 type CliOptions = {
   command: string;
@@ -32,6 +23,11 @@ Usage:
   fixmap plan --issue "Users cannot reset passwords"
   fixmap plan --diff main...HEAD
   fixmap plan --base main --head HEAD --format json
+  fixmap mcp
+
+Commands:
+  plan                Generate a FixMap report for a task or diff
+  mcp                 Run FixMap as an MCP server over stdio for AI coding agents
 
 Options:
   --issue <text>      Issue, prompt, or task description
@@ -60,50 +56,46 @@ if (rawArgs[0] === "--version" || rawArgs[0] === "version") {
   process.exit(0);
 }
 
-const options = parseArgs(rawArgs);
-
-if (options.command !== "plan") {
-  console.error(`Unknown command: ${options.command || "(none)"}\n\n${USAGE}`);
-  process.exit(1);
-}
-
-if (options.unknownArgs.length > 0) {
-  console.error(`Unknown or incomplete option(s): ${options.unknownArgs.join(", ")}\n\n${USAGE}`);
-  process.exit(1);
-}
-
-if (!options.issueText && !options.diffSpec && !options.baseRef) {
-  console.error("Provide --issue, --diff, or --base/--head so FixMap has a task signal.");
-  process.exit(1);
-}
-
-const repo = await scanRepo({
-  repoRoot: options.repoRoot,
-  diffSpec: options.diffSpec,
-  baseRef: options.baseRef,
-  headRef: options.headRef
-});
-const contextFiles = rankContextFiles(repo, {
-  issueText: options.issueText,
-  diffText: repo.diffText
-});
-const contextPaths = contextFiles.map((file) => file.path);
-const testRoutes = buildTestRoutes(repo, contextPaths);
-const report: FixMapReport = {
-  summary: buildSummary(contextFiles.length, testRoutes.length),
-  contextFiles,
-  testRoutes,
-  risks: buildRiskNotes(contextPaths),
-  changedFiles: repo.changedFiles,
-  diagnostics: repo.diagnostics
-};
-
-const rendered = options.format === "json" ? renderJsonReport(report) : renderMarkdownReport(report);
-
-if (options.output) {
-  await writeFile(options.output, rendered, "utf8");
+if (rawArgs[0] === "mcp") {
+  const { runMcpServer } = await import("./mcp.js");
+  await runMcpServer();
 } else {
-  process.stdout.write(rendered);
+  await runPlan(rawArgs);
+}
+
+async function runPlan(args: string[]): Promise<void> {
+  const options = parseArgs(args);
+
+  if (options.command !== "plan") {
+    console.error(`Unknown command: ${options.command || "(none)"}\n\n${USAGE}`);
+    process.exit(1);
+  }
+
+  if (options.unknownArgs.length > 0) {
+    console.error(`Unknown or incomplete option(s): ${options.unknownArgs.join(", ")}\n\n${USAGE}`);
+    process.exit(1);
+  }
+
+  if (!options.issueText && !options.diffSpec && !options.baseRef) {
+    console.error("Provide --issue, --diff, or --base/--head so FixMap has a task signal.");
+    process.exit(1);
+  }
+
+  const report = await buildFixMapReport({
+    repoRoot: options.repoRoot,
+    issueText: options.issueText,
+    diffSpec: options.diffSpec,
+    baseRef: options.baseRef,
+    headRef: options.headRef
+  });
+
+  const rendered = options.format === "json" ? renderJsonReport(report) : renderMarkdownReport(report);
+
+  if (options.output) {
+    await writeFile(options.output, rendered, "utf8");
+  } else {
+    process.stdout.write(rendered);
+  }
 }
 
 function parseArgs(args: string[]): CliOptions {
