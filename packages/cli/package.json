@@ -1,7 +1,7 @@
 {
   "name": "@aryam/fixmap",
-  "version": "0.2.1",
-  "description": "CLI for mapping issues and diffs to relevant files, tests, and review risks.",
+  "version": "0.3.0",
+  "description": "CLI and MCP server for mapping issues and diffs to relevant files, tests, and review risks.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -11,10 +11,12 @@
   "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@aryam/fixmap-core": "0.2.1"
+    "@aryam/fixmap-core": "0.3.0",
+    "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "engines": {
     "node": ">=20.11"

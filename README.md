@@ -10,7 +10,7 @@ Turn an issue or git diff into relevant files, test routes, risk notes, and an h
 [![npm](https://img.shields.io/npm/v/%40aryam%2Ffixmap)](https://www.npmjs.com/package/@aryam/fixmap)
 [![MIT](https://img.shields.io/badge/license-MIT-74f0ba)](LICENSE)
 
-[Live demo](https://fixmap-flax.vercel.app) · [Install](#quick-start) · [GitHub Action](#github-action) · [Contribute](CONTRIBUTING.md)
+[Live demo](https://fixmap-flax.vercel.app) · [Install](#quick-start) · [MCP server](#mcp-server) · [GitHub Action](#github-action) · [Contribute](CONTRIBUTING.md)
 
 </div>
 
@@ -60,6 +60,31 @@ Example result:
 ## Risk Map
 - high authentication: authentication-related files are affected
 ```
+
+## MCP server
+
+FixMap ships as a Model Context Protocol server, so coding agents can request a plan themselves instead of you pasting reports around. One tool is exposed: `fixmap_plan`.
+
+Claude Code:
+
+```bash
+claude mcp add fixmap -- npx -y @aryam/fixmap mcp
+```
+
+Cursor, Windsurf, or any MCP client:
+
+```json
+{
+  "mcpServers": {
+    "fixmap": {
+      "command": "npx",
+      "args": ["-y", "@aryam/fixmap", "mcp"]
+    }
+  }
+}
+```
+
+The agent calls `fixmap_plan` with an issue description or a diff spec (`main...HEAD`) and receives the same report as the CLI: context files with confidence and reasons, test routes, risk notes, and diagnostics. Everything runs locally over stdio; no repository content leaves the machine.
 
 ## Interactive demo
 
@@ -129,7 +154,7 @@ The current suite covers Action failures, invalid diffs, authentication, the web
 
 ```text
 packages/core     scanner, ranking, routing, reports
-packages/cli      npx/CLI entry point
+packages/cli      npx/CLI entry point and MCP server
 packages/action   bundled GitHub Action
 apps/web          interactive Next.js product site
 benchmarks        transparent ranking evaluation cases
