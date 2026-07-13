@@ -242,13 +242,14 @@ async function readDiff(
       exec("git", ["diff", "--name-only", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
       exec("git", ["diff", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
     ]);
-    return {
-      changedFiles: names
+    const tracked = names
       .split(/\r?\n/)
       .map((path) => path.trim())
       .filter(Boolean)
-      .map(normalizePath)
-      .sort((a, b) => a.localeCompare(b)),
+      .map(normalizePath);
+    const untracked = diffSpec.includes("..") ? [] : await listUntrackedPaths(repoRoot);
+    return {
+      changedFiles: [...new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b)),
       diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS)
     };
   } catch (error) {
@@ -291,6 +292,19 @@ async function readTextSample(path: string, sizeBytes: number): Promise<string> 
     return await readFile(path, "utf8");
   } catch {
     return "";
+  }
+}
+
+async function listUntrackedPaths(repoRoot: string): Promise<string[]> {
+  try {
+    const { stdout } = await exec(
+      "git",
+      ["ls-files", "--others", "--exclude-standard", "-z"],
+      { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }
+    );
+    return stdout.split("\0").filter(Boolean).map(normalizePath);
+  } catch {
+    return [];
   }
 }
 
