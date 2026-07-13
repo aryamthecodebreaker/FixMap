@@ -1,0 +1,35 @@
+# Publishes @aryam/fixmap-core and @aryam/fixmap to npm.
+#
+# Uses npm trusted publishing (OIDC): no npm token or one-time password is
+# needed once each package is linked to this repository and workflow at
+# https://www.npmjs.com/package/<name>/access -> Trusted Publisher
+# (repository: aryamthecodebreaker/FixMap, workflow: publish.yml).
+#
+# Runs when a GitHub release is published, or manually from the Actions tab.
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run ci
+      - run: npm publish -w packages/core --provenance --access public
+      - run: npm publish -w packages/cli --provenance --access public
