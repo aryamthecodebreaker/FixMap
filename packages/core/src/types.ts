@@ -24,9 +24,9 @@ export type PackageScript = {
 };
 
 export type ScanDiagnostic = {
-  code: "diff-unavailable" | "package-json-invalid" | "scan-limit-reached";
+  code: "diff-unavailable" | "package-json-invalid" | "scan-limit-reached" | "repo-root-missing";
   message: string;
-  severity: "warning";
+  severity: "warning" | "error";
 };
 
 export type RepoMap = {

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -64,8 +65,16 @@ export function createFixMapMcpServer(): Server {
       };
     }
 
+    const repoRoot = args.repo ? resolve(args.repo) : process.cwd();
+    if (!(await isDirectory(repoRoot))) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: `Repository root "${repoRoot}" does not exist or is not a directory.` }]
+      };
+    }
+
     const report = await buildFixMapReport({
-      repoRoot: args.repo ? resolve(args.repo) : process.cwd(),
+      repoRoot,
       issueText: args.issue,
       diffSpec: args.diff,
       baseRef: args.base,
@@ -80,6 +89,14 @@ export function createFixMapMcpServer(): Server {
 
 export async function runMcpServer(): Promise<void> {
   await createFixMapMcpServer().connect(new StdioServerTransport());
+}
+
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function readVersion(): string {

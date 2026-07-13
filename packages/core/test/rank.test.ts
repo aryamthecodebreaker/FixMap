@@ -74,6 +74,36 @@ describe("rankContextFiles", () => {
     expect(ranked[0]?.reasons.join(" ")).not.toContain("widget");
   });
 
+  it("ranks root configuration files for deployment tasks instead of weak content matches", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        { path: "vercel.json", extension: ".json", sizeBytes: 100, isSource: true, isTest: false, kind: "config", textSample: '{ "functions": { "api/index.ts": {} } }' },
+        { path: "package.json", extension: ".json", sizeBytes: 100, isSource: true, isTest: false, kind: "config", textSample: '{ "scripts": { "dev": "fastify start" } }' },
+        { path: "package-lock.json", extension: ".json", sizeBytes: 100, isSource: true, isTest: false, kind: "config", textSample: '{ "lockfileVersion": 3 }' },
+        { path: "tsconfig.json", extension: ".json", sizeBytes: 100, isSource: true, isTest: false, kind: "config", textSample: '{ "compilerOptions": {} }' },
+        { path: "src/brain/memoryExtraction.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export const extract = () => 1; // it does not do anything else" }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "Deploying to Vercel succeeds but the site returns 404 and the API does not respond"
+    });
+
+    expect(ranked[0]?.path).toBe("vercel.json");
+    expect(ranked[0]?.reasons).toContain("root configuration for a deployment-related task");
+    expect(ranked.map((file) => file.path)).toContain("package.json");
+    expect(ranked.map((file) => file.path)).not.toContain("package-lock.json");
+    expect(ranked.map((file) => file.path)).not.toContain("tsconfig.json");
+    expect(ranked.map((file) => file.path)).not.toContain("src/brain/memoryExtraction.ts");
+    expect(ranked.flatMap((file) => file.reasons).join(" ")).not.toMatch(/\bnot\b|\bdoe\b/);
+  });
+
   it("keeps documentation noise below matching code unless the task targets docs", () => {
     const repo: RepoMap = {
       root: "/repo",

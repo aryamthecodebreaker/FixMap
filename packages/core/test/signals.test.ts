@@ -41,4 +41,18 @@ describe("extractTaskSignals", () => {
     expect(signals.tokens.has("create")).toBe(true);
     expect(signals.tokens.has("user")).toBe(true);
   });
+
+  it("drops stop words and stem fragments that would produce weak matches", () => {
+    const signals = extractTaskSignals({
+      issueText: "Deploying to Vercel succeeds but the site returns 404 and the API does not respond"
+    });
+
+    expect(signals.tokens.has("deploy")).toBe(true);
+    expect(signals.tokens.has("vercel")).toBe(true);
+    expect(signals.tokens.has("404")).toBe(true);
+    expect(signals.tokens.has("not")).toBe(false);
+    expect(signals.tokens.has("does")).toBe(false);
+    expect(signals.tokens.has("doe")).toBe(false);
+    expect(signals.tokens.has("but")).toBe(false);
+  });
 });
