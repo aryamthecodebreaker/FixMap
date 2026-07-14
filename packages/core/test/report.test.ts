@@ -77,6 +77,28 @@ describe("report rendering", () => {
     expect(auth?.reason).toBe("authentication-related files are affected");
   });
 
+  it("always includes changed test files in the test route's related files", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      changedFiles: ["tests/postgres.integration.test.ts", "tests/sandbox.integration.test.ts"],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      packageScripts: [{ name: "test", command: "vitest run", packageDir: "" }],
+      files: [
+        { path: "src/storage/postgres.ts", extension: ".ts", sizeBytes: 10, isSource: true, isTest: false, kind: "code", textSample: "" },
+        { path: "tests/postgres.integration.test.ts", extension: ".ts", sizeBytes: 10, isSource: true, isTest: true, kind: "code", textSample: "" },
+        { path: "tests/sandbox.integration.test.ts", extension: ".ts", sizeBytes: 10, isSource: true, isTest: true, kind: "code", textSample: "" },
+        { path: "tests/auth.test.ts", extension: ".ts", sizeBytes: 10, isSource: true, isTest: true, kind: "code", textSample: "" }
+      ]
+    };
+
+    const routes = buildTestRoutes(repo, ["src/storage/postgres.ts"]);
+
+    expect(routes[0]?.relatedFiles).toContain("tests/postgres.integration.test.ts");
+    expect(routes[0]?.relatedFiles).toContain("tests/sandbox.integration.test.ts");
+  });
+
   it("uses the nearest workspace command and skips tests for docs-only context", () => {
     const repo: RepoMap = {
       root: "/repo",
