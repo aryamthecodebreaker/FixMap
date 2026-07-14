@@ -120,19 +120,20 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap/packages/action@v0.3.0
+        uses: aryamthecodebreaker/FixMap/packages/action@v0.3.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The Action upserts one marked PR comment, writes Markdown to the step summary, and exposes `report`, `context-count`, and `test-route-count` outputs. On forked pull requests, GitHub may restrict comment permissions; the step summary still contains the report.
+Pin the Action to the latest [release tag](https://github.com/aryamthecodebreaker/FixMap/releases); a floating `v1` major tag is planned after wider acceptance testing. The Action upserts one marked PR comment, writes Markdown to the step summary, and exposes `report`, `context-count`, and `test-route-count` outputs. On forked pull requests, GitHub may restrict comment permissions; the step summary still contains the report.
 
 ## What it uses
 
-The v0.2 ranker is deterministic and inspectable:
+The ranker is deterministic and inspectable:
 
 - task and identifier overlap in paths and file samples
-- real changed files from a resolved git diff
+- real changed files from a resolved git diff, including untracked files in working-tree diffs
+- `.gitignore`-aware scanning, so generated output does not outrank source
 - code, test, documentation, and configuration classification
 - nearby paths and workspace package boundaries
 - npm, pnpm, Yarn, and Bun script routing
@@ -174,7 +175,7 @@ npm run ci
 
 ## Status and roadmap
 
-FixMap v0.2 is an early public release focused on JavaScript and TypeScript repositories. Near-term work:
+FixMap is an early public release focused on JavaScript and TypeScript repositories. The [changelog](CHANGELOG.md) records what each released version shipped, most recently the MCP server mode and scanner/ranking fixes in v0.3.x. Near-term work:
 
 - import/dependency graph proximity
 - git co-change and ownership signals
