@@ -7,19 +7,33 @@ const STOP_WORDS = new Set([
   "and",
   "any",
   "are",
+  "async",
+  "await",
   "been",
   "being",
   "both",
+  "break",
   "but",
   "can",
   "cannot",
+  "case",
+  "catch",
+  "class",
   "const",
+  "continue",
   "could",
+  "debugger",
   "default",
+  "delete",
   "did",
   "doe",
   "does",
   "down",
+  "else",
+  "enum",
+  "extends",
+  "false",
+  "finally",
   "each",
   "even",
   "export",
@@ -36,12 +50,16 @@ const STOP_WORDS = new Set([
   "him",
   "his",
   "how",
+  "implements",
   "import",
   "index",
+  "instanceof",
   "instead",
+  "interface",
   "into",
   "its",
   "just",
+  "let",
   "main",
   "may",
   "might",
@@ -49,10 +67,12 @@ const STOP_WORDS = new Set([
   "most",
   "must",
   "name",
+  "namespace",
   "new",
   "node",
   "not",
   "now",
+  "null",
   "off",
   "only",
   "other",
@@ -61,6 +81,10 @@ const STOP_WORDS = new Set([
   "over",
   "package",
   "packages",
+  "private",
+  "protected",
+  "public",
+  "readonly",
   "return",
   "run",
   "same",
@@ -68,8 +92,11 @@ const STOP_WORDS = new Set([
   "should",
   "some",
   "src",
+  "static",
   "still",
   "such",
+  "super",
+  "switch",
   "than",
   "that",
   "the",
@@ -81,11 +108,17 @@ const STOP_WORDS = new Set([
   "they",
   "this",
   "those",
+  "throw",
   "true",
+  "try",
   "type",
+  "typeof",
   "under",
+  "undefined",
   "uses",
+  "var",
   "very",
+  "void",
   "was",
   "were",
   "what",
@@ -98,13 +131,17 @@ const STOP_WORDS = new Set([
   "will",
   "with",
   "would",
+  "yield",
   "you",
   "your"
 ]);
 
+const FILE_MENTION_PATTERN = /[A-Za-z0-9_@$][A-Za-z0-9_.$/\\-]*\.[A-Za-z][A-Za-z0-9]*/g;
+
 export type TaskSignals = {
   tokens: Set<string>;
   changedFiles: Set<string>;
+  fileMentions: Set<string>;
 };
 
 export function extractTaskSignals(input: {
@@ -116,8 +153,22 @@ export function extractTaskSignals(input: {
 
   return {
     tokens,
-    changedFiles: new Set(input.changedFiles ?? [])
+    changedFiles: new Set(input.changedFiles ?? []),
+    fileMentions: extractFileMentions(input.issueText ?? "")
   };
+}
+
+export function extractFileMentions(text: string): Set<string> {
+  const mentions = new Set<string>();
+
+  for (const match of text.matchAll(FILE_MENTION_PATTERN)) {
+    const cleaned = match[0].replace(/\\/g, "/").replace(/^\.\.?\//, "");
+    if (cleaned.length >= 4) {
+      mentions.add(cleaned);
+    }
+  }
+
+  return mentions;
 }
 
 function extractDiffContentLines(diffText: string): string {

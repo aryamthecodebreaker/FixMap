@@ -12,19 +12,33 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "and",
   "any",
   "are",
+  "async",
+  "await",
   "been",
   "being",
   "both",
+  "break",
   "but",
   "can",
   "cannot",
+  "case",
+  "catch",
+  "class",
   "const",
+  "continue",
   "could",
+  "debugger",
   "default",
+  "delete",
   "did",
   "doe",
   "does",
   "down",
+  "else",
+  "enum",
+  "extends",
+  "false",
+  "finally",
   "each",
   "even",
   "export",
@@ -41,12 +55,16 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "him",
   "his",
   "how",
+  "implements",
   "import",
   "index",
+  "instanceof",
   "instead",
+  "interface",
   "into",
   "its",
   "just",
+  "let",
   "main",
   "may",
   "might",
@@ -54,10 +72,12 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "most",
   "must",
   "name",
+  "namespace",
   "new",
   "node",
   "not",
   "now",
+  "null",
   "off",
   "only",
   "other",
@@ -66,6 +86,10 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "over",
   "package",
   "packages",
+  "private",
+  "protected",
+  "public",
+  "readonly",
   "return",
   "run",
   "same",
@@ -73,8 +97,11 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "should",
   "some",
   "src",
+  "static",
   "still",
   "such",
+  "super",
+  "switch",
   "than",
   "that",
   "the",
@@ -86,11 +113,17 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "they",
   "this",
   "those",
+  "throw",
   "true",
+  "try",
   "type",
+  "typeof",
   "under",
+  "undefined",
   "uses",
+  "var",
   "very",
+  "void",
   "was",
   "were",
   "what",
@@ -103,15 +136,28 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "will",
   "with",
   "would",
+  "yield",
   "you",
   "your"
 ]);
+var FILE_MENTION_PATTERN = /[A-Za-z0-9_@$][A-Za-z0-9_.$/\\-]*\.[A-Za-z][A-Za-z0-9]*/g;
 function extractTaskSignals(input) {
   const tokens = tokenizeText([input.issueText ?? "", extractDiffContentLines(input.diffText ?? "")].join("\n"));
   return {
     tokens,
-    changedFiles: new Set(input.changedFiles ?? [])
+    changedFiles: new Set(input.changedFiles ?? []),
+    fileMentions: extractFileMentions(input.issueText ?? "")
   };
+}
+function extractFileMentions(text) {
+  const mentions = /* @__PURE__ */ new Set();
+  for (const match of text.matchAll(FILE_MENTION_PATTERN)) {
+    const cleaned = match[0].replace(/\\/g, "/").replace(/^\.\.?\//, "");
+    if (cleaned.length >= 4) {
+      mentions.add(cleaned);
+    }
+  }
+  return mentions;
 }
 function extractDiffContentLines(diffText) {
   if (!diffText) {
@@ -155,14 +201,16 @@ var DEPLOYMENT_TERMS = [
   "502"
 ];
 var LOCKFILES = /* @__PURE__ */ new Set(["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock"]);
+var MAX_FILES_PER_MENTION = 5;
 function rankContextFiles(repo, input, limit = 8) {
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
     diffText: input.diffText ?? "",
     changedFiles: repo.changedFiles
   });
+  const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path));
   const taskTargetsEvaluation = hasAny(signals.tokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
-  const candidates = repo.files.filter((file) => file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
+  const candidates = repo.files.filter((file) => mentionedPaths.has(file.path) || file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
   const taskTargetsDocumentation = hasAny(signals.tokens, ["docs", "documentation", "readme", "guide", "copy"]);
@@ -175,6 +223,10 @@ function rankContextFiles(repo, input, limit = 8) {
     if (isChanged) {
       score += 20;
       reasons.push("changed file");
+    }
+    if (mentionedPaths.has(file.path)) {
+      score += 12;
+      reasons.push("explicitly named in the task");
     }
     const pathTokens = tokenizePath(file.path);
     const pathOverlap = [...pathTokens].filter((token2) => signals.tokens.has(token2));
@@ -233,6 +285,18 @@ function confidenceForScore(score, isChanged) {
 }
 function hasAny(tokens, values) {
   return values.some((value) => tokens.has(value));
+}
+function matchMentionedPaths(mentions, repoPaths) {
+  const matched = /* @__PURE__ */ new Set();
+  for (const mention of mentions) {
+    const matches = repoPaths.filter((path) => path === mention || path.endsWith(`/${mention}`) || mention.endsWith(`/${path}`));
+    if (matches.length > 0 && matches.length <= MAX_FILES_PER_MENTION) {
+      for (const path of matches) {
+        matched.add(path);
+      }
+    }
+  }
+  return matched;
 }
 function findCommonTokens(contentTokensByPath) {
   const fileCount = contentTokensByPath.size;

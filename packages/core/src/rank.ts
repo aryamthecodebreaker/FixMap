@@ -5,6 +5,7 @@ const DEPLOYMENT_TERMS = [
   "deploy", "deployment", "vercel", "netlify", "docker", "kubernetes", "hosting", "serverless", "production", "404", "500", "502"
 ];
 const LOCKFILES = new Set(["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock"]);
+const MAX_FILES_PER_MENTION = 5;
 
 export function rankContextFiles(
   repo: RepoMap,
@@ -17,12 +18,14 @@ export function rankContextFiles(
     changedFiles: repo.changedFiles
   });
 
+  const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path));
   const taskTargetsEvaluation = hasAny(signals.tokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
   const candidates = repo.files.filter((file) =>
-    file.isSource &&
-    !file.isTest &&
-    !LOCKFILES.has(file.path.split("/").pop() ?? "") &&
-    (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation)
+    mentionedPaths.has(file.path) ||
+    (file.isSource &&
+      !file.isTest &&
+      !LOCKFILES.has(file.path.split("/").pop() ?? "") &&
+      (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation))
   );
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
@@ -39,6 +42,11 @@ export function rankContextFiles(
       if (isChanged) {
         score += 20;
         reasons.push("changed file");
+      }
+
+      if (mentionedPaths.has(file.path)) {
+        score += 12;
+        reasons.push("explicitly named in the task");
       }
 
       const pathTokens = tokenizePath(file.path);
@@ -108,6 +116,23 @@ function confidenceForScore(score: number, isChanged: boolean): RankedFile["conf
 
 function hasAny(tokens: Set<string>, values: string[]): boolean {
   return values.some((value) => tokens.has(value));
+}
+
+function matchMentionedPaths(mentions: Set<string>, repoPaths: string[]): Set<string> {
+  const matched = new Set<string>();
+
+  for (const mention of mentions) {
+    const matches = repoPaths.filter(
+      (path) => path === mention || path.endsWith(`/${mention}`) || mention.endsWith(`/${path}`)
+    );
+    if (matches.length > 0 && matches.length <= MAX_FILES_PER_MENTION) {
+      for (const path of matches) {
+        matched.add(path);
+      }
+    }
+  }
+
+  return matched;
 }
 
 function findCommonTokens(contentTokensByPath: Map<string, Set<string>>): Set<string> {
