@@ -34,6 +34,7 @@
     "check:action-bundle": "npm run build:action && git diff --exit-code packages/action/dist/index.mjs",
     "ci": "npm run typecheck && npm test && npm run lint && npm run build && npm run check:action-bundle && npm run smoke && npm run evaluate",
     "evaluate": "npm run build:core && node scripts/evaluate.mjs",
+    "evaluate:external": "npm run build:core && node scripts/evaluate-external.mjs",
     "smoke": "node packages/cli/dist/cli.js plan --issue \"password reset fails\" --repo examples/tiny-auth-app --format json --output fixmap-report.json && node scripts/smoke-action.mjs && node scripts/smoke-workspace.mjs",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run build:core && npm run typecheck --workspaces --if-present",

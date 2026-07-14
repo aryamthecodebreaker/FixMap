@@ -1,0 +1,79 @@
+{
+  "generatedAt": "2026-07-14",
+  "selectionRule": "Per repository: the most recent merged pull request (of the 50 most recent) that closes an issue whose body is at least 80 characters, is not a docs-titled change, and modifies 1-3 source files after excluding tests, docs, examples, configuration, and lockfiles. Expected files are exactly the fixing PR's source files and were verified to exist at the pinned base SHA. Cases were frozen before measuring FixMap's rankings and must not be edited to match ranking output.",
+  "cases": [
+    {
+      "slug": "expressjs/express",
+      "repo": "https://github.com/expressjs/express.git",
+      "license": "MIT",
+      "sha": "ba006766fb964571723138708eacaba0f55759cd",
+      "issue": 7365,
+      "pullRequest": 7366,
+      "task": "req.fresh returns false for QUERY requests, so 304 Not Modified is never sent\n\n## Environment information\n\n**Version**: `5.2.1` (also present on the `4.x` line — same `req.fresh` implementation)\n\n**Platform**: Microsoft Windows NT 10.0.26200.0 x64\n\n**Node.js version**: `v24.18.0` (QUERY requires Node >= 22, where `http.METHODS` includes `QUERY`)\n\n**Any other relevant information**:\n`req.fresh` (`lib/request.js`) short-circuits to `false` for any method other than `GET`/`HEAD`, so `res.send`/`res.json` never emit a `304 Not Modified` for a `QUERY` request even when the client sends a matching `If-None-Match`.\n\nAs far as I can tell, QUERY is a safe, idempotent, cacheable m",
+      "expected": [
+        "lib/request.js"
+      ]
+    },
+    {
+      "slug": "axios/axios",
+      "repo": "https://github.com/axios/axios.git",
+      "license": "MIT",
+      "sha": "ff60b43277c32a5b2f7589c917db16d8e043c0d4",
+      "issue": 6721,
+      "pullRequest": 11059,
+      "task": "Node AggregateError is being returned as ETIMEDOUT with no message\n\n### Describe the bug\n\nWe have an intermittent issue on a service making external HTTPS API calls.\nThe actual issue isn't particularly relevant, but our problem is that Axios swallowed most of the underlying AggregateError making diagnosis hard.\n\nNode was throwing an AggregateError combining a number of ETIMEDOUT and EHOSTUNREACH errors, contained in a `.errors` collection - but the parent AggregateError object had a code `ETIMEDOUT` (Node just uses the code of the first nested error), a _blank_ message, and a name `AggregateError`\n\nWe were logging just the message and the code (as our payloads",
+      "expected": [
+        "lib/core/AxiosError.js"
+      ]
+    },
+    {
+      "slug": "debug-js/debug",
+      "repo": "https://github.com/debug-js/debug.git",
+      "license": "MIT",
+      "sha": "d1616622e4d404863c5a98443f755b4006e971dc",
+      "issue": 746,
+      "pullRequest": 926,
+      "task": "DEBUG_DEPTH not working\n\n`DEBUG_DEPTH` env var has no effect. I tried values of `10`, `100`, `null`. No matter what I always get the following display:\n\n```\n2020-02-08T22:17:01.423Z SCOPE STRING [ { email: 'xxx@yyy.com', vars: [ [Object] ] } ]\n```\n\nMy invocation: \n```\ndebug('STRING', targetObj);\n```",
+      "expected": [
+        "src/node.js"
+      ]
+    },
+    {
+      "slug": "sindresorhus/ky",
+      "repo": "https://github.com/sindresorhus/ky.git",
+      "license": "MIT",
+      "sha": "4ba8c15feaca524b4a716413db21a481c494721b",
+      "issue": 857,
+      "pullRequest": 858,
+      "task": "2.0.0 breaking change for custom fetch e.g: expo/fetch\n\n## `instanceof globalThis.Response` guard breaks custom `fetch` returning non-standard Response implementations\n\n**ky version:** 2.0.0\n**Environment:** React Native with `expo/fetch` (Expo SDK 54+)\n\n### Problem\n\nky v2 added an `instanceof globalThis.Response` guard in the response processing pipeline that silently skips **all** response handling when the check fails:\n\n```js\n// core/Ky.js — _request()\nif (!(response instanceof globalThis.Response)) {\n    return response;\n}\n```\n\nThis bypasses:\n- `throwHttpErrors` — non-2xx responses are no longer thrown as `HTTPError`\n- `afterResponse` hooks\n- `",
+      "expected": [
+        "source/core/Ky.ts"
+      ]
+    },
+    {
+      "slug": "colinhacks/zod",
+      "repo": "https://github.com/colinhacks/zod.git",
+      "license": "MIT",
+      "sha": "1fb56a5c18c27102dbc92260a4007c7732a0ccca",
+      "issue": 5944,
+      "pullRequest": 5945,
+      "task": "cidrv6 JSON schema emits an incomplete pattern that rejects valid IPv6 CIDRs\n\n`z.string().cidrv6()` correctly validates IPv6 CIDRs at runtime using `new URL()`, but the `pattern` emitted by `z.toJSONSchema()` rejects many valid inputs.\n\n**Affected version:** 4.4.3 (current main)\n\n## What happens\n\n```ts\nimport { z } from \"zod\";\n\n// Runtime validation — correct\nz.string().cidrv6().safeParse(\"2001:db8::/32\").success;    // true\nz.string().cidrv6().safeParse(\"2001:db8:1::/48\").success;  // true\n\n// JSON schema — incorrect pattern\nz.toJSONSchema(z.string().cidrv6());\n// {\n//   \"$schema\": \"...\",\n//   \"type\": \"string\",\n//   \"format\": \"cidrv6\",\n//   \"pattern\": \"^(([0-9a-fA-F]{1",
+      "expected": [
+        "packages/zod/src/v4/core/regexes.ts"
+      ]
+    },
+    {
+      "slug": "pinojs/pino",
+      "repo": "https://github.com/pinojs/pino.git",
+      "license": "MIT",
+      "sha": "5a236d74a0861bba84eb69fdcea2e0e2b87653b2",
+      "issue": 1996,
+      "pullRequest": 2432,
+      "task": "`level` filter not work for transports\n\nHow to reproduce:\n\n```js\nimport pino from 'pino'\n\nconst transports = pino.transport({\n  targets: [{\n      level: 'error',\n      target: 'pino/file',\n      options: {\n        destination: '1' //stdout\n      }\n  }]\n})\n\nconst logger = pino({}, transports)\n\nlogger.debug('Debug')\nlogger.info('Info')\nlogger.warn('Warn')\nlogger.error('Error')\n```\n**Expected behavior:**\n\n```bash\nnode test \n\n{\"level\":50,\"time\":1719528510555,\"pid\":47437,\"hostname\":\"anime-desktop\",\"msg\":\"Error\"}\n```\n\n**Actual behavior:**\n\n```bash\nnode test \n\n{\"level\":30,\"time\":1719528510555,\"pid\":47437,\"hostname\":\"anime-desktop\",\"msg\":\"I",
+      "expected": [
+        "lib/transport.js",
+        "lib/worker.js"
+      ]
+    }
+  ]
+}
