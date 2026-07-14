@@ -30,6 +30,9 @@ outputs:
     description: Number of context files returned.
   test-route-count:
     description: Number of test routes returned.
+branding:
+  icon: map
+  color: green
 runs:
   using: node20
   main: dist/index.mjs
