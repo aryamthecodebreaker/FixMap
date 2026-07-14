@@ -26,5 +26,9 @@
   {
     "task": "packages/core/test/rank.test.ts fails because files explicitly named in the task drop out of context ranking",
     "expected": ["packages/core/test/rank.test.ts", "packages/core/src/rank.ts"]
+  },
+  {
+    "task": "packages/core/src/rank.ts gives boosted files the wrong confidence level",
+    "expected": ["packages/core/src/rank.ts", "packages/core/src/index.ts", "packages/core/src/plan.ts"]
   }
 ]

@@ -1,3 +1,5 @@
+import { buildImportGraph, findImportProximity } from "./import-graph.js";
+import type { ImportProximity } from "./import-graph.js";
 import { extractTaskSignals, tokenizePath, tokenizeText } from "./signals.js";
 import type { RankedFile, RepoMap } from "./types.js";
 
@@ -6,6 +8,10 @@ const DEPLOYMENT_TERMS = [
 ];
 const LOCKFILES = new Set(["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock"]);
 const MAX_FILES_PER_MENTION = 5;
+const MAX_PROXIMITY_SEEDS = 5;
+const IMPORT_PROXIMITY_BOOSTS: Record<ImportProximity["distance"], number> = { 1: 4, 2: 2 };
+
+type ScoredFile = { path: string; score: number; isChanged: boolean; reasons: string[] };
 
 export function rankContextFiles(
   repo: RepoMap,
@@ -33,7 +39,7 @@ export function rankContextFiles(
   const taskTargetsConfiguration = hasAny(signals.tokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
   const taskTargetsDeployment = hasAny(signals.tokens, DEPLOYMENT_TERMS);
 
-  return candidates
+  const scored: ScoredFile[] = candidates
     .map((file) => {
       const reasons: string[] = [];
       let score = 0;
@@ -96,16 +102,48 @@ export function rankContextFiles(
         }
       }
 
-      return {
-        path: file.path,
-        score,
-        confidence: confidenceForScore(score, isChanged),
-        reasons: reasons.length > 0 ? reasons : ["source file baseline"]
-      };
-    })
+      return { path: file.path, score, isChanged, reasons };
+    });
+
+  applyImportProximity(scored, repo);
+
+  return scored
+    .map((entry) => ({
+      path: entry.path,
+      score: entry.score,
+      confidence: confidenceForScore(entry.score, entry.isChanged),
+      reasons: entry.reasons.length > 0 ? entry.reasons : ["source file baseline"]
+    }))
     .filter((file) => file.score >= 4)
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
     .slice(0, limit);
+}
+
+function applyImportProximity(scored: ScoredFile[], repo: RepoMap): void {
+  const seeds = scored
+    .filter((entry) => confidenceForScore(entry.score, entry.isChanged) === "high")
+    .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
+    .slice(0, MAX_PROXIMITY_SEEDS)
+    .map((entry) => entry.path);
+  if (seeds.length === 0) {
+    return;
+  }
+
+  const proximity = findImportProximity(buildImportGraph(repo.files), seeds);
+  for (const entry of scored) {
+    const hit = proximity.get(entry.path);
+    if (hit) {
+      entry.score += IMPORT_PROXIMITY_BOOSTS[hit.distance];
+      entry.reasons.push(proximityReason(hit));
+    }
+  }
+}
+
+function proximityReason(hit: ImportProximity): string {
+  if (hit.distance === 2) {
+    return `within two import hops of ranked file ${hit.seed}`;
+  }
+  return hit.direction === "imported-by" ? `imported by ranked file ${hit.seed}` : `imports ranked file ${hit.seed}`;
 }
 
 function confidenceForScore(score: number, isChanged: boolean): RankedFile["confidence"] {
