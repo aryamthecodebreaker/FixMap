@@ -52,6 +52,29 @@ describe("report rendering", () => {
     expect(routes[0]?.relatedFiles).toEqual(["test/auth/reset-password.test.ts"]);
     expect(routes.map((route) => route.command)).toEqual(["npm run test", "npm run typecheck"]);
     expect(risks[0]?.area).toBe("authentication");
+    expect(risks[0]?.severity).toBe("high");
+  });
+
+  it("downgrades risks that come only from context ranking when a diff is present", () => {
+    const risks = buildRiskNotes(
+      ["src/http/routes/auth.ts", "generated-tools/clamp-number/tool.mjs"],
+      ["generated-tools/clamp-number/tool.mjs", "generated-tools/clamp-number/tool.test.mjs"]
+    );
+
+    const auth = risks.find((risk) => risk.area === "authentication");
+    expect(auth?.severity).toBe("low");
+    expect(auth?.reason).toContain("none of the changed files");
+  });
+
+  it("keeps full severity when a changed file triggers the risk area", () => {
+    const risks = buildRiskNotes(
+      ["src/auth/login.ts"],
+      ["src/auth/login.ts"]
+    );
+
+    const auth = risks.find((risk) => risk.area === "authentication");
+    expect(auth?.severity).toBe("high");
+    expect(auth?.reason).toBe("authentication-related files are affected");
   });
 
   it("uses the nearest workspace command and skips tests for docs-only context", () => {

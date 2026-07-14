@@ -18,7 +18,7 @@ export async function buildFixMapReport(
     summary: buildSummary(contextFiles.length, testRoutes.length),
     contextFiles,
     testRoutes,
-    risks: buildRiskNotes(contextPaths),
+    risks: buildRiskNotes(contextPaths, repo.changedFiles),
     changedFiles: repo.changedFiles,
     diagnostics: repo.diagnostics
   };
