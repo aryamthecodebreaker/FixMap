@@ -22,5 +22,9 @@
   {
     "task": "Improve the contributor setup guide and pull request instructions",
     "expected": ["CONTRIBUTING.md"]
+  },
+  {
+    "task": "packages/core/test/rank.test.ts fails because files explicitly named in the task drop out of context ranking",
+    "expected": ["packages/core/test/rank.test.ts", "packages/core/src/rank.ts"]
   }
 ]

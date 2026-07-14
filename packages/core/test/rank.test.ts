@@ -104,6 +104,104 @@ describe("rankContextFiles", () => {
     expect(ranked.flatMap((file) => file.reasons).join(" ")).not.toMatch(/\bnot\b|\bdoe\b/);
   });
 
+  it("ranks files explicitly named in the task, including test files", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        { path: "tests/auth.test.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: true, kind: "code", textSample: "it('hashes') // calls hashPassword" },
+        { path: "tests/orchestrator.test.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: true, kind: "code", textSample: "it('loads key')" },
+        { path: "src/auth/passwords.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export function verifyPassword() {}" },
+        { path: "scripts/smoke-gemini.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "const key = process.env.GEMINI_API_KEY;" }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText:
+        "tests/auth.test.ts fails because it calls hashPassword instead of verifyPassword; tests/orchestrator.test.ts fails because it loads GEMINI_API_KEY instead of using a fake backend"
+    });
+
+    const paths = ranked.map((file) => file.path);
+    expect(paths).toContain("tests/auth.test.ts");
+    expect(paths).toContain("tests/orchestrator.test.ts");
+    const authTest = ranked.find((file) => file.path === "tests/auth.test.ts");
+    expect(authTest?.reasons).toContain("explicitly named in the task");
+    expect(authTest?.confidence).toBe("high");
+  });
+
+  it("matches an explicit basename mention against its repository path", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        { path: "src/http/server.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export const server = 1;" },
+        { path: "src/http/routes/chat.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export const chat = 1;" }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "Cannot find module @fastify/rate-limit in server.ts"
+    });
+
+    expect(ranked[0]?.path).toBe("src/http/server.ts");
+    expect(ranked[0]?.reasons).toContain("explicitly named in the task");
+  });
+
+  it("ignores ambiguous bare-filename mentions that match many files", () => {
+    const files = Array.from({ length: 6 }, (_, index) => ({
+      path: `src/module-${index}/index.ts`,
+      extension: ".ts",
+      sizeBytes: 100,
+      isSource: true,
+      isTest: false,
+      kind: "code" as const,
+      textSample: "export {};"
+    }));
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "index.ts is broken" });
+
+    expect(ranked.flatMap((file) => file.reasons)).not.toContain("explicitly named in the task");
+  });
+
+  it("does not count generic code keywords as content matches", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        { path: "src/generated/clamp.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export async function clamp() { await tick(); throw new TypeError('x'); }" },
+        { path: "src/upload/retry.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export function retryUpload() {}" }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "upload retry fails: async handler does not await and throws"
+    });
+
+    expect(ranked[0]?.path).toBe("src/upload/retry.ts");
+    expect(ranked.flatMap((file) => file.reasons).join(" ")).not.toMatch(/\basync\b|\bawait\b|\bthrow\b/);
+  });
+
   it("keeps documentation noise below matching code unless the task targets docs", () => {
     const repo: RepoMap = {
       root: "/repo",
