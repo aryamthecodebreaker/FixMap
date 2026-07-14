@@ -21,3 +21,9 @@ Expected shape:
 - The report should include an authentication risk note.
 
 See `reports/password-reset.md` for a sample report.
+
+## pnpm + Turborepo Workspace
+
+`pnpm-turbo-workspace` is a two-package pnpm monorepo with Turborepo task wiring. It proves that test routing picks the nearest package script (`pnpm --dir packages/utils run test` or `pnpm --dir apps/api run test`) depending on the task, instead of always suggesting the root `turbo run test`.
+
+The input tasks and full expected reports are checked in; `npm run smoke` asserts the routing and fails on report drift. See [`pnpm-turbo-workspace/README.md`](pnpm-turbo-workspace/README.md).
