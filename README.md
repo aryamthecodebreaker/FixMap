@@ -177,7 +177,7 @@ npm ci
 npm run ci
 ```
 
-`npm run ci` runs the complete test suite, typechecking, ESLint, production builds, Action bundle drift verification, CLI/Action smoke checks, and the ranking evaluation gate.
+`npm run ci` runs the complete test suite, typechecking, ESLint, production builds, Action bundle drift verification, CLI/Action smoke checks, the ranking evaluation gate, and a deterministic scanner correctness check. Scanner performance at large repository sizes is measured by `npm run benchmark:scan` and published in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) — timing is never a CI assertion.
 
 ## Status and roadmap
 
