@@ -149,7 +149,9 @@ Ranking changes must pass a checked-in task-to-file evaluation gate in addition 
 npm run evaluate
 ```
 
-The current suite covers Action failures, invalid diffs, authentication, the web demo, workspace test routing, and contributor documentation. The cases and full ranked results are visible in [`benchmarks/`](benchmarks); broader cross-repository evaluation is tracked on the roadmap rather than presented as finished work.
+The current suite covers Action failures, invalid diffs, authentication, the web demo, workspace test routing, and contributor documentation. The cases and full ranked results are visible in [`benchmarks/`](benchmarks).
+
+A separate cross-repository evaluation runs FixMap against six real, already-fixed issues in permissively licensed repositories (Express, Axios, debug, ky, Zod, Pino) pinned to exact commits, and reports honest top-1/3/5 hit rates — currently 33% / 67% / 67%. The dataset, methodology, and results live in [`benchmarks/external/`](benchmarks/external); a scheduled workflow reruns it weekly.
 
 ## Repository layout
 
@@ -180,7 +182,7 @@ FixMap is an early public release focused on JavaScript and TypeScript repositor
 - import/dependency graph proximity
 - git co-change and ownership signals
 - adapters and examples for popular monorepo layouts
-- a larger, reproducible cross-repository evaluation dataset
+- growing the cross-repository evaluation dataset beyond six cases
 - stable `v1` Action tag after wider acceptance testing
 
 See [open issues](https://github.com/aryamthecodebreaker/FixMap/issues) for scoped work. Contributions are welcome.
