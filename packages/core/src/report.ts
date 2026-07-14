@@ -36,44 +36,37 @@ export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRout
   return routes;
 }
 
-export function buildRiskNotes(contextPaths: string[]): RiskNote[] {
+const RISK_RULES: { area: string; severity: RiskNote["severity"]; tokens: string[]; reason: string }[] = [
+  { area: "authentication", severity: "high", tokens: ["auth", "login", "password"], reason: "authentication-related files are affected" },
+  { area: "billing", severity: "high", tokens: ["billing", "payment", "invoice"], reason: "billing or payment-related files are affected" },
+  { area: "automation", severity: "medium", tokens: ["config", "workflow", "action"], reason: "configuration or CI automation files may affect developer workflows" },
+  { area: "data", severity: "high", tokens: ["migration", "schema", "database", "sql"], reason: "database or schema-related files may affect stored data" },
+  { area: "public-api", severity: "medium", tokens: ["api", "route", "public"], reason: "public interfaces or request handling may change" },
+  { area: "dependencies", severity: "medium", tokens: ["dependency", "lock", "package"], reason: "dependency changes can affect build and supply-chain behavior" }
+];
+
+export function buildRiskNotes(contextPaths: string[], changedFiles: string[] = []): RiskNote[] {
+  const contextTokens = new Set(contextPaths.flatMap((path) => [...tokenizePath(path)]));
+  const changedTokens = new Set(changedFiles.flatMap((path) => [...tokenizePath(path)]));
+  const diffPresent = changedFiles.length > 0;
   const risks: RiskNote[] = [];
-  const tokens = new Set(contextPaths.flatMap((path) => [...tokenizePath(path)]));
 
-  if (tokens.has("auth") || tokens.has("login") || tokens.has("password")) {
-    risks.push({
-      area: "authentication",
-      severity: "high",
-      reason: "authentication-related files are affected"
-    });
-  }
+  for (const rule of RISK_RULES) {
+    const inChanged = rule.tokens.some((token) => changedTokens.has(token));
+    const inContext = rule.tokens.some((token) => contextTokens.has(token));
+    if (!inChanged && !inContext) {
+      continue;
+    }
 
-  if (tokens.has("billing") || tokens.has("payment") || tokens.has("invoice")) {
-    risks.push({
-      area: "billing",
-      severity: "high",
-      reason: "billing or payment-related files are affected"
-    });
-  }
-
-  if (tokens.has("config") || tokens.has("workflow") || tokens.has("action")) {
-    risks.push({
-      area: "automation",
-      severity: "medium",
-      reason: "configuration or CI automation files may affect developer workflows"
-    });
-  }
-
-  if (tokens.has("migration") || tokens.has("schema") || tokens.has("database") || tokens.has("sql")) {
-    risks.push({ area: "data", severity: "high", reason: "database or schema-related files may affect stored data" });
-  }
-
-  if (tokens.has("api") || tokens.has("route") || tokens.has("public")) {
-    risks.push({ area: "public-api", severity: "medium", reason: "public interfaces or request handling may change" });
-  }
-
-  if (tokens.has("dependency") || tokens.has("lock") || tokens.has("package")) {
-    risks.push({ area: "dependencies", severity: "medium", reason: "dependency changes can affect build and supply-chain behavior" });
+    if (inChanged || !diffPresent) {
+      risks.push({ area: rule.area, severity: rule.severity, reason: rule.reason });
+    } else {
+      risks.push({
+        area: rule.area,
+        severity: "low",
+        reason: `context ranking surfaced ${rule.area}-related files, but none of the changed files touch this area`
+      });
+    }
   }
 
   return risks;
