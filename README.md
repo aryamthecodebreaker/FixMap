@@ -14,7 +14,8 @@ Turn an issue or git diff into relevant files, test routes, risk notes, and an h
 
 </div>
 
-![FixMap interactive demo on mobile](docs/assets/fixmap-demo.jpg)
+<!-- Reproducible recording: regenerate with `npm run build:cli && node scripts/render-demo.mjs` -->
+![Animated terminal recording: a single fixmap plan command on the checked-in tiny-auth example produces ranked context files with confidence and reasons, a test route with related tests, a high authentication risk note, and honest empty diagnostics — in about ten seconds.](docs/assets/fixmap-cli-demo.svg)
 
 ## Why FixMap?
 
@@ -89,6 +90,8 @@ The agent calls `fixmap_plan` with an issue description or a diff spec (`main...
 ## Interactive demo
 
 The [live website](https://fixmap-flax.vercel.app) includes a browser-only sample repository: change the task and watch the context pack update. It is deliberately labeled as a sample; the CLI scans real local repositories.
+
+![The FixMap website on a desktop viewport: a hero that reads "Give your coding agent a map before it starts editing" next to a terminal mock of a fixmap report with context, verify, and risk sections.](docs/assets/fixmap-site-desktop.png)
 
 Run the site locally:
 
