@@ -87,10 +87,16 @@ function formatScriptCommand(manager: RepoMap["packageManager"], packageDir: str
 }
 
 function findRelatedTests(repo: RepoMap, contextPaths: string[]): string[] {
+  const changedSet = new Set(repo.changedFiles);
+  const changedTests = repo.files
+    .filter((file) => file.isTest && changedSet.has(file.path))
+    .map((file) => file.path)
+    .sort((a, b) => a.localeCompare(b));
+  const changedTestSet = new Set(changedTests);
   const contextTokens = new Set(contextPaths.flatMap((path) => [...tokenizePath(path)]));
 
-  return repo.files
-    .filter((file) => file.isTest)
+  const overlapping = repo.files
+    .filter((file) => file.isTest && !changedTestSet.has(file.path))
     .map((file) => {
       const testTokens = tokenizePath(file.path);
       const overlap = [...testTokens].filter((token) => contextTokens.has(token)).length;
@@ -98,8 +104,9 @@ function findRelatedTests(repo: RepoMap, contextPaths: string[]): string[] {
     })
     .filter((file) => file.score > 0)
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
-    .slice(0, 8)
     .map((file) => file.path);
+
+  return [...changedTests, ...overlapping].slice(0, 8);
 }
 
 export function buildSummary(contextFileCount: number, testRouteCount: number): string {

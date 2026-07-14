@@ -1,6 +1,7 @@
 import { rankContextFiles } from "./rank.js";
 import { buildRiskNotes, buildSummary, buildTestRoutes } from "./report.js";
 import { scanRepo } from "./repo-scan.js";
+import { findGatedTestDiagnostics } from "./test-gates.js";
 import type { FixMapInput, FixMapReport } from "./types.js";
 
 export async function buildFixMapReport(
@@ -13,6 +14,7 @@ export async function buildFixMapReport(
   });
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
+  const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
 
   return {
     summary: buildSummary(contextFiles.length, testRoutes.length),
@@ -20,6 +22,6 @@ export async function buildFixMapReport(
     testRoutes,
     risks: buildRiskNotes(contextPaths, repo.changedFiles),
     changedFiles: repo.changedFiles,
-    diagnostics: repo.diagnostics
+    diagnostics: [...repo.diagnostics, ...findGatedTestDiagnostics(repo.files, routedTestPaths)]
   };
 }

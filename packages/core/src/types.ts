@@ -24,7 +24,7 @@ export type PackageScript = {
 };
 
 export type ScanDiagnostic = {
-  code: "diff-unavailable" | "package-json-invalid" | "scan-limit-reached" | "repo-root-missing";
+  code: "diff-unavailable" | "package-json-invalid" | "scan-limit-reached" | "repo-root-missing" | "gated-test-skipped";
   message: string;
   severity: "warning" | "error";
 };

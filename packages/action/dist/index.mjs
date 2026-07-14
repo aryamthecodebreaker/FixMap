@@ -399,12 +399,16 @@ function formatScriptCommand(manager, packageDir, script) {
   return `bun --cwd ${packageDir} run ${script}`;
 }
 function findRelatedTests(repo, contextPaths) {
+  const changedSet = new Set(repo.changedFiles);
+  const changedTests = repo.files.filter((file) => file.isTest && changedSet.has(file.path)).map((file) => file.path).sort((a, b) => a.localeCompare(b));
+  const changedTestSet = new Set(changedTests);
   const contextTokens = new Set(contextPaths.flatMap((path) => [...tokenizePath(path)]));
-  return repo.files.filter((file) => file.isTest).map((file) => {
+  const overlapping = repo.files.filter((file) => file.isTest && !changedTestSet.has(file.path)).map((file) => {
     const testTokens = tokenizePath(file.path);
     const overlap = [...testTokens].filter((token2) => contextTokens.has(token2)).length;
     return { path: file.path, score: overlap };
-  }).filter((file) => file.score > 0).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, 8).map((file) => file.path);
+  }).filter((file) => file.score > 0).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).map((file) => file.path);
+  return [...changedTests, ...overlapping].slice(0, 8);
 }
 function buildSummary(contextFileCount, testRouteCount) {
   const files = contextFileCount === 1 ? "context file" : "context files";
@@ -729,6 +733,42 @@ function normalizePath(path) {
   return path.split(sep).join("/");
 }
 
+// packages/core/dist/test-gates.js
+var GATE_PATTERN = /\.(skipIf|runIf)\s*\(/;
+var ENV_NAME_PATTERNS = [/process\.env\.([A-Z][A-Z0-9_]*)/g, /process\.env\[["']([A-Z][A-Z0-9_]*)["']\]/g];
+function findGatedTestDiagnostics(files, routedTestPaths) {
+  const routed = new Set(routedTestPaths);
+  const diagnostics = [];
+  for (const file of files) {
+    if (!file.isTest || !routed.has(file.path) || !GATE_PATTERN.test(file.textSample)) {
+      continue;
+    }
+    diagnostics.push({
+      code: "gated-test-skipped",
+      severity: "warning",
+      message: gateMessage(file.path, extractEnvNames(file.textSample))
+    });
+  }
+  return diagnostics;
+}
+function gateMessage(path, envNames) {
+  if (envNames.length === 0) {
+    return `${path} contains conditionally skipped suites; verify the suggested test command actually exercises it.`;
+  }
+  const condition = envNames.length === 1 ? `${envNames[0]} is set` : `${envNames.join(", ")} are set`;
+  return `${path} is skipped unless ${condition}; the suggested test command will not exercise it by default.`;
+}
+function extractEnvNames(textSample) {
+  const names = /* @__PURE__ */ new Set();
+  for (const pattern of ENV_NAME_PATTERNS) {
+    for (const match of textSample.matchAll(pattern)) {
+      names.add(match[1] ?? "");
+    }
+  }
+  names.delete("");
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+
 // packages/core/dist/plan.js
 async function buildFixMapReport(input) {
   const repo = await scanRepo(input);
@@ -738,13 +778,14 @@ async function buildFixMapReport(input) {
   });
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
+  const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
   return {
     summary: buildSummary(contextFiles.length, testRoutes.length),
     contextFiles,
     testRoutes,
     risks: buildRiskNotes(contextPaths, repo.changedFiles),
     changedFiles: repo.changedFiles,
-    diagnostics: repo.diagnostics
+    diagnostics: [...repo.diagnostics, ...findGatedTestDiagnostics(repo.files, routedTestPaths)]
   };
 }
 
