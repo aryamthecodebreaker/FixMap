@@ -1,0 +1,12 @@
+{
+  "name": "pnpm-turbo-workspace-example",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0"
+  }
+}
