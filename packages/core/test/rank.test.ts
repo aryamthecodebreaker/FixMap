@@ -202,6 +202,33 @@ describe("rankContextFiles", () => {
     expect(ranked.flatMap((file) => file.reasons).join(" ")).not.toMatch(/\basync\b|\bawait\b|\bthrow\b/);
   });
 
+  it("boosts files within two import hops of a high-confidence context file", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: ["src/auth/login.ts"],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        { path: "src/auth/login.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "import { readSession } from \"./session.js\";\nexport function login() {}" },
+        { path: "src/auth/session.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "import { fromStore } from \"./store.js\";\nexport function readSession() {}" },
+        { path: "src/auth/store.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export function fromStore() {}" },
+        { path: "src/ui/banner.tsx", extension: ".tsx", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export function Banner() {}" }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "login fails", diffText: "" });
+    const paths = ranked.map((file) => file.path);
+
+    expect(paths).toContain("src/auth/session.ts");
+    const session = ranked.find((file) => file.path === "src/auth/session.ts");
+    expect(session?.reasons).toContain("imported by ranked file src/auth/login.ts");
+    const store = ranked.find((file) => file.path === "src/auth/store.ts");
+    expect(store?.reasons).toContain("within two import hops of ranked file src/auth/login.ts");
+    expect(paths).not.toContain("src/ui/banner.tsx");
+  });
+
   it("keeps documentation noise below matching code unless the task targets docs", () => {
     const repo: RepoMap = {
       root: "/repo",
