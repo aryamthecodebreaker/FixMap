@@ -134,6 +134,7 @@ The ranker is deterministic and inspectable:
 - task and identifier overlap in paths and file samples
 - real changed files from a resolved git diff, including untracked files in working-tree diffs
 - `.gitignore`-aware scanning, so generated output does not outrank source
+- static JavaScript/TypeScript import-graph proximity to high-confidence files
 - code, test, documentation, and configuration classification
 - nearby paths and workspace package boundaries
 - npm, pnpm, Yarn, and Bun script routing
@@ -177,7 +178,6 @@ npm run ci
 
 FixMap is an early public release focused on JavaScript and TypeScript repositories. The [changelog](CHANGELOG.md) records what each released version shipped, most recently the MCP server mode and scanner/ranking fixes in v0.3.x. Near-term work:
 
-- import/dependency graph proximity
 - git co-change and ownership signals
 - adapters and examples for popular monorepo layouts
 - a larger, reproducible cross-repository evaluation dataset

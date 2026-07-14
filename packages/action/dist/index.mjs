@@ -3,6 +3,138 @@ import { createRequire as __fixmapCreateRequire } from 'module'; const require =
 // packages/action/src/index.ts
 import { appendFileSync, readFileSync } from "node:fs";
 
+// packages/core/dist/import-graph.js
+var JS_EXTENSIONS = /* @__PURE__ */ new Set([".cjs", ".cts", ".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"]);
+var RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+var COMPILED_TO_SOURCE = {
+  ".js": [".ts", ".tsx"],
+  ".mjs": [".mts"],
+  ".cjs": [".cts"]
+};
+var SPECIFIER_PATTERNS = [
+  /\bimport\s+[^'"()]*?from\s*["']([^"'\n]+)["']/g,
+  /\bimport\s*["']([^"'\n]+)["']/g,
+  /\bexport\s+[^'"()]*?from\s*["']([^"'\n]+)["']/g,
+  /\brequire\s*\(\s*["']([^"'\n]+)["']\s*\)/g,
+  /\bimport\s*\(\s*["']([^"'\n]+)["']\s*\)/g
+];
+var MAX_GRAPH_FILES = 5e3;
+var MAX_EDGES_PER_FILE = 200;
+function buildImportGraph(files) {
+  const parseable = files.filter((file) => JS_EXTENSIONS.has(file.extension) && file.textSample.length > 0).slice(0, MAX_GRAPH_FILES);
+  const repoPaths = new Set(files.map((file) => file.path));
+  const imports = /* @__PURE__ */ new Map();
+  const importedBy = /* @__PURE__ */ new Map();
+  for (const file of parseable) {
+    let edges = 0;
+    for (const specifier of extractSpecifiers(file.textSample)) {
+      if (edges >= MAX_EDGES_PER_FILE) {
+        break;
+      }
+      const target = resolveSpecifier(file.path, specifier, repoPaths);
+      if (!target || target === file.path) {
+        continue;
+      }
+      addEdge(imports, file.path, target);
+      addEdge(importedBy, target, file.path);
+      edges += 1;
+    }
+  }
+  return { imports, importedBy };
+}
+function findImportProximity(graph, seedPaths) {
+  const seeds = new Set(seedPaths);
+  const proximity = /* @__PURE__ */ new Map();
+  const sortedSeeds = [...seeds].sort((a, b) => a.localeCompare(b));
+  for (const seed of sortedSeeds) {
+    for (const neighbor of neighborsOf(graph, seed)) {
+      if (!seeds.has(neighbor.path) && !proximity.has(neighbor.path)) {
+        proximity.set(neighbor.path, { distance: 1, seed, direction: neighbor.direction });
+      }
+    }
+  }
+  const firstHop = [...proximity.keys()].sort((a, b) => a.localeCompare(b));
+  for (const mid of firstHop) {
+    const seed = proximity.get(mid)?.seed ?? mid;
+    for (const neighbor of neighborsOf(graph, mid)) {
+      if (!seeds.has(neighbor.path) && !proximity.has(neighbor.path)) {
+        proximity.set(neighbor.path, { distance: 2, seed, direction: neighbor.direction });
+      }
+    }
+  }
+  return proximity;
+}
+function neighborsOf(graph, path) {
+  const neighbors = [];
+  for (const imported of [...graph.imports.get(path) ?? []].sort((a, b) => a.localeCompare(b))) {
+    neighbors.push({ path: imported, direction: "imported-by" });
+  }
+  for (const importer of [...graph.importedBy.get(path) ?? []].sort((a, b) => a.localeCompare(b))) {
+    neighbors.push({ path: importer, direction: "imports" });
+  }
+  return neighbors;
+}
+function extractSpecifiers(textSample) {
+  const specifiers = /* @__PURE__ */ new Set();
+  for (const pattern of SPECIFIER_PATTERNS) {
+    for (const match of textSample.matchAll(pattern)) {
+      const specifier = match[1];
+      if (specifier && specifier.startsWith(".")) {
+        specifiers.add(specifier);
+      }
+    }
+  }
+  return specifiers;
+}
+function resolveSpecifier(fromPath, specifier, repoPaths) {
+  const baseDir = fromPath.split("/").slice(0, -1).join("/");
+  const joined = normalizeSegments(baseDir ? `${baseDir}/${specifier}` : specifier);
+  if (joined === void 0 || joined === "") {
+    return void 0;
+  }
+  const candidates = [joined];
+  const lastSegment = joined.split("/").pop() ?? "";
+  const dot = lastSegment.lastIndexOf(".");
+  const extension = dot > 0 ? lastSegment.slice(dot) : "";
+  for (const sourceExtension of COMPILED_TO_SOURCE[extension] ?? []) {
+    candidates.push(`${joined.slice(0, -extension.length)}${sourceExtension}`);
+  }
+  if (!extension) {
+    for (const resolveExtension of RESOLVE_EXTENSIONS) {
+      candidates.push(`${joined}${resolveExtension}`);
+    }
+  }
+  for (const resolveExtension of RESOLVE_EXTENSIONS) {
+    candidates.push(`${joined}/index${resolveExtension}`);
+  }
+  return candidates.find((candidate) => repoPaths.has(candidate));
+}
+function normalizeSegments(path) {
+  const segments = [];
+  for (const segment of path.split("/")) {
+    if (segment === "" || segment === ".") {
+      continue;
+    }
+    if (segment === "..") {
+      if (segments.length === 0) {
+        return void 0;
+      }
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+  return segments.join("/");
+}
+function addEdge(edges, from, to) {
+  const existing = edges.get(from);
+  if (existing) {
+    existing.add(to);
+  } else {
+    edges.set(from, /* @__PURE__ */ new Set([to]));
+  }
+}
+
 // packages/core/dist/signals.js
 var TOKEN_SPLIT = /[^a-zA-Z0-9]+/g;
 var STOP_WORDS = /* @__PURE__ */ new Set([
@@ -202,6 +334,8 @@ var DEPLOYMENT_TERMS = [
 ];
 var LOCKFILES = /* @__PURE__ */ new Set(["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock"]);
 var MAX_FILES_PER_MENTION = 5;
+var MAX_PROXIMITY_SEEDS = 5;
+var IMPORT_PROXIMITY_BOOSTS = { 1: 4, 2: 2 };
 function rankContextFiles(repo, input, limit = 8) {
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
@@ -216,7 +350,7 @@ function rankContextFiles(repo, input, limit = 8) {
   const taskTargetsDocumentation = hasAny(signals.tokens, ["docs", "documentation", "readme", "guide", "copy"]);
   const taskTargetsConfiguration = hasAny(signals.tokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
   const taskTargetsDeployment = hasAny(signals.tokens, DEPLOYMENT_TERMS);
-  return candidates.map((file) => {
+  const scored = candidates.map((file) => {
     const reasons = [];
     let score = 0;
     const isChanged = signals.changedFiles.has(file.path);
@@ -268,13 +402,35 @@ function rankContextFiles(repo, input, limit = 8) {
         reasons.push("auth-related task signal");
       }
     }
-    return {
-      path: file.path,
-      score,
-      confidence: confidenceForScore(score, isChanged),
-      reasons: reasons.length > 0 ? reasons : ["source file baseline"]
-    };
-  }).filter((file) => file.score >= 4).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, limit);
+    return { path: file.path, score, isChanged, reasons };
+  });
+  applyImportProximity(scored, repo);
+  return scored.map((entry) => ({
+    path: entry.path,
+    score: entry.score,
+    confidence: confidenceForScore(entry.score, entry.isChanged),
+    reasons: entry.reasons.length > 0 ? entry.reasons : ["source file baseline"]
+  })).filter((file) => file.score >= 4).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, limit);
+}
+function applyImportProximity(scored, repo) {
+  const seeds = scored.filter((entry) => confidenceForScore(entry.score, entry.isChanged) === "high").sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, MAX_PROXIMITY_SEEDS).map((entry) => entry.path);
+  if (seeds.length === 0) {
+    return;
+  }
+  const proximity = findImportProximity(buildImportGraph(repo.files), seeds);
+  for (const entry of scored) {
+    const hit = proximity.get(entry.path);
+    if (hit) {
+      entry.score += IMPORT_PROXIMITY_BOOSTS[hit.distance];
+      entry.reasons.push(proximityReason(hit));
+    }
+  }
+}
+function proximityReason(hit) {
+  if (hit.distance === 2) {
+    return `within two import hops of ranked file ${hit.seed}`;
+  }
+  return hit.direction === "imported-by" ? `imported by ranked file ${hit.seed}` : `imports ranked file ${hit.seed}`;
 }
 function confidenceForScore(score, isChanged) {
   if (isChanged || score >= 14)
