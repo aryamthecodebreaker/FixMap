@@ -37,7 +37,7 @@ export default function HomePage() {
         <div className="hero-terminal" aria-label="Example FixMap report">
           <div className="terminal-bar"><span /><span /><span /><code>fixmap report</code></div>
           <div className="terminal-body">
-            <p className="terminal-command">$ fixmap plan --issue &quot;reset emails fail&quot;</p>
+            <p className="terminal-command">fixmap plan --issue &quot;reset emails fail&quot;</p>
             <p className="terminal-label">CONTEXT</p>
             <p><strong>01</strong> src/auth/reset-password.ts <b>high</b></p>
             <p><strong>02</strong> src/email/send-reset.ts <i>medium</i></p>
