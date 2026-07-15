@@ -2,6 +2,28 @@
 
 All notable changes to FixMap are documented here.
 
+## 0.4.0 - 2026-07-15
+
+### Added
+
+- Static JavaScript/TypeScript import-graph proximity: files one or two import edges from a high-confidence context file are boosted with inspectable reasons such as `imported by ranked file <path>` (#12).
+- Gated-test visibility: changed test files always appear in the test route's related files, and env-gated suites (`describe.skipIf(...)`) emit a `gated-test-skipped` diagnostic naming the enabling environment variable (#33).
+- A pnpm + Turborepo workspace example proving nearest-package script routing, guarded by a report-drift smoke check in CI (#14).
+- A deterministic scanner performance benchmark with published baselines in `docs/BENCHMARKS.md`; CI asserts scan correctness only, never wall-clock timing (#15).
+- A reproducible cross-repository ranking evaluation: six real fixed issues in permissively licensed repositories pinned to exact commits, honest top-1/3/5 hit rates, and a weekly workflow (#13).
+- A reproducible animated CLI demo at the top of the README, rendered from live CLI output on the checked-in example (#17), plus a desktop screenshot of the live site (#39).
+- Marketplace branding metadata for the GitHub Action (#16).
+
+### Fixed
+
+- Files explicitly named in the task text now rank into context files, including test files, with an `explicitly named in the task` reason; JavaScript/TypeScript reserved words no longer count as content matches (#22).
+- Diff risk severity is grounded in the files actually changed: risk areas matched only by ranked context report low severity with explicit wording instead of a false high-severity claim (#35).
+- The GitHub Action stays green when comment permissions are read-only, as on forked pull requests: it warns, keeps the report in the step summary and outputs, and only fails on unexpected errors (#16).
+
+### Changed
+
+- README versioned prose is now version-neutral with changelog pointers, and the Action example pins the latest release tag (#34).
+
 ## 0.3.1 - 2026-07-13
 
 ### Fixed
