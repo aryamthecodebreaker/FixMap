@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildPullRequestIssueText, createGitHubClient, DEFAULT_COMMENT_AUTHOR, FIXMAP_REPORT_MARKER } from "../src/github.js";
+import {
+  buildPullRequestIssueText,
+  createGitHubClient,
+  DEFAULT_COMMENT_AUTHOR,
+  FIXMAP_REPORT_MARKER,
+  isPermissionDeniedError
+} from "../src/github.js";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -82,5 +88,18 @@ describe("GitHub Action helpers", () => {
       issueNumber: 42,
       markdown: "# FixMap Report"
     })).rejects.toThrow("FixMap could not list pull request comments; GitHub returned 401 Unauthorized: Bad credentials");
+  });
+
+  it("classifies read-only token rejections as permission errors", async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response("Resource not accessible by integration", { status: 403, statusText: "Forbidden" });
+
+    const failure = await createGitHubClient({ fetchImpl })
+      .upsertPullRequestComment({ token: "t", owner: "octo", repo: "demo", issueNumber: 42, markdown: "# r" })
+      .catch((error: unknown) => error);
+
+    expect(isPermissionDeniedError(failure)).toBe(true);
+    expect(isPermissionDeniedError(new Error("FixMap could not create the FixMap comment; GitHub returned 500 Server Error"))).toBe(false);
+    expect(isPermissionDeniedError(new Error("network down"))).toBe(false);
   });
 });

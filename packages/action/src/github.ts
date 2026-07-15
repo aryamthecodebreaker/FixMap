@@ -104,6 +104,10 @@ async function findExistingComment(
   return undefined;
 }
 
+export function isPermissionDeniedError(error: unknown): boolean {
+  return error instanceof Error && /GitHub returned (401|403|404)\b/.test(error.message);
+}
+
 async function requestJson<T>(
   fetchImpl: typeof fetch,
   url: string,

@@ -1010,6 +1010,9 @@ async function findExistingComment(fetchImpl, commentsUrl, headers, viewerLogin)
   }
   return void 0;
 }
+function isPermissionDeniedError(error) {
+  return error instanceof Error && /GitHub returned (401|403|404)\b/.test(error.message);
+}
 async function requestJson(fetchImpl, url, init, action) {
   const response = await fetchImpl(url, init);
   if (!response.ok) {
@@ -1057,7 +1060,18 @@ ${output}${delimiter}
 var token = readInput("github-token") || process.env.GITHUB_TOKEN;
 var commentAuthor = readInput("comment-author");
 if (token) {
-  await upsertPullRequestComment(token, event, markdown, commentAuthor);
+  try {
+    await upsertPullRequestComment(token, event, markdown, commentAuthor);
+  } catch (error) {
+    if (!isPermissionDeniedError(error)) {
+      throw error;
+    }
+    const detail = error instanceof Error ? error.message : String(error);
+    process.stdout.write(
+      `::warning::FixMap could not comment on the pull request, which is expected when the token is read-only (for example on forked pull requests). The full report is in the step summary and the report output. ${detail}
+`
+    );
+  }
 }
 function readInput(name) {
   const githubName = `INPUT_${name.replace(/ /g, "_").toUpperCase()}`;

@@ -128,7 +128,13 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-Pin the Action to the latest [release tag](https://github.com/aryamthecodebreaker/FixMap/releases); a floating `v1` major tag is planned after wider acceptance testing. The Action upserts one marked PR comment, writes Markdown to the step summary, and exposes `report`, `context-count`, and `test-route-count` outputs. On forked pull requests, GitHub may restrict comment permissions; the step summary still contains the report.
+Pin the Action to the latest [release tag](https://github.com/aryamthecodebreaker/FixMap/releases); a floating `v1` major tag is planned after wider acceptance testing. The Action upserts one marked PR comment, writes Markdown to the step summary, and exposes `report`, `context-count`, and `test-route-count` outputs.
+
+### Permissions and forked pull requests
+
+The workflow above grants `pull-requests: write` so FixMap can upsert its comment. On pull requests from forks, GitHub hands the workflow a read-only `GITHUB_TOKEN` regardless of that permissions block. FixMap detects the rejected comment call, emits a warning instead of failing, and keeps the job green — the full report is still in the step summary and the `report` output.
+
+Do **not** switch the trigger to `pull_request_target` and check out the fork's head to restore commenting: that pattern runs untrusted pull-request code with a write-scoped token and is a well-known secret-exfiltration vector. If comments on fork PRs matter, keep this workflow read-only and post the comment from a separate trusted `workflow_run` job — or simply rely on the step summary.
 
 ## What it uses
 
