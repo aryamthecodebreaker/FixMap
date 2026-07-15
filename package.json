@@ -29,7 +29,7 @@
     "build": "npm run build:core && npm run build:cli && npm run build:action && npm run build:web",
     "build:core": "npm run build -w @aryam/fixmap-core",
     "build:cli": "npm run build -w @aryam/fixmap",
-    "build:action": "npm run build:core && esbuild packages/action/src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=packages/action/dist/index.mjs --banner:js=\"import { createRequire as __fixmapCreateRequire } from 'module'; const require = __fixmapCreateRequire(import.meta.url);\"",
+    "build:action": "npm run build:core && esbuild packages/action/src/index.ts --bundle --platform=node --target=node24 --format=esm --outfile=packages/action/dist/index.mjs --banner:js=\"import { createRequire as __fixmapCreateRequire } from 'module'; const require = __fixmapCreateRequire(import.meta.url);\"",
     "build:web": "npm run build -w @fixmap/web",
     "check:action-bundle": "npm run build:action && git diff --exit-code packages/action/dist/index.mjs",
     "benchmark:scan": "npm run build:core && node scripts/benchmark-scan.mjs",
