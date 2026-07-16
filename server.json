@@ -1,0 +1,27 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.aryamthecodebreaker/fixmap",
+  "description": "Deterministic repo context for coding agents: ranked files with reasons, test routes, risk notes.",
+  "repository": {
+    "url": "https://github.com/aryamthecodebreaker/FixMap",
+    "source": "github"
+  },
+  "version": "0.4.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@aryam/fixmap",
+      "version": "0.4.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeHint": "npx",
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ]
+    }
+  ]
+}

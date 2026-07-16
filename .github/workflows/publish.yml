@@ -49,3 +49,16 @@ jobs:
           else
             npm publish -w packages/cli --provenance --access public
           fi
+      - name: Install mcp-publisher
+        run: curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+      # OIDC authenticates this repository for the io.github.aryamthecodebreaker/* namespace.
+      - name: Publish to the MCP Registry
+        run: |
+          VERSION=$(node -p "require('./packages/cli/package.json').version")
+          if curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.aryamthecodebreaker/fixmap" | grep -q "\"version\": *\"${VERSION}\""; then
+            echo "MCP Registry already has ${VERSION}; skipping."
+          else
+            jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp && mv server.tmp server.json
+            ./mcp-publisher login github-oidc
+            ./mcp-publisher publish
+          fi
