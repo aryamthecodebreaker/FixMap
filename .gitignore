@@ -11,3 +11,5 @@ coverage/
 *.tsbuildinfo
 fixmap-report.json
 fixmap-report.md
+
+.vercel

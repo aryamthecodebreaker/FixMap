@@ -3,6 +3,11 @@
   "version": "0.4.0",
   "description": "CLI and MCP server for mapping issues and diffs to relevant files, tests, and review risks.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aryamthecodebreaker/FixMap.git",
+    "directory": "packages/cli"
+  },
   "type": "module",
   "bin": {
     "fixmap": "dist/cli.js"
