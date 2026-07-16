@@ -1,6 +1,6 @@
 {
   "name": "@aryam/fixmap-core",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Core repository scanner, ranker, and report renderer for FixMap.",
   "license": "MIT",
   "repository": {
