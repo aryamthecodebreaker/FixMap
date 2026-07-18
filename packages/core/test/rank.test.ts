@@ -155,6 +155,82 @@ describe("rankContextFiles", () => {
     expect(ranked[0]?.reasons).toContain("explicitly named in the task");
   });
 
+  it("matches a compiled JavaScript path mention to its TypeScript source file", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "source/core/Ky.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export class Ky {}"
+        },
+        {
+          path: "source/errors/HTTPError.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export class HTTPError {}"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "The response guard in core/Ky.js skips HTTP error handling"
+    });
+
+    expect(ranked[0]?.path).toBe("source/core/Ky.ts");
+    expect(ranked[0]?.reasons).toContain("explicitly named in the task");
+  });
+
+  it("prefers an exact mention before considering compatible source extensions", () => {
+    const files = [
+      {
+        path: "src/index.js",
+        extension: ".js",
+        sizeBytes: 100,
+        isSource: true,
+        isTest: false,
+        kind: "code" as const,
+        textSample: "export const exact = true;"
+      },
+      ...Array.from({ length: 6 }, (_, index) => ({
+        path: `pkg-${index}/src/index.ts`,
+        extension: ".ts",
+        sizeBytes: 100,
+        isSource: true,
+        isTest: false,
+        kind: "code" as const,
+        textSample: "export const fallback = true;"
+      }))
+    ];
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "src/index.js is broken" });
+
+    expect(ranked[0]?.path).toBe("src/index.js");
+    expect(ranked[0]?.reasons).toContain("explicitly named in the task");
+    expect(ranked.filter((file) => file.reasons.includes("explicitly named in the task"))).toHaveLength(1);
+  });
+
   it("ignores ambiguous bare-filename mentions that match many files", () => {
     const files = Array.from({ length: 6 }, (_, index) => ({
       path: `src/module-${index}/index.ts`,
@@ -227,6 +303,124 @@ describe("rankContextFiles", () => {
     const store = ranked.find((file) => file.path === "src/auth/store.ts");
     expect(store?.reasons).toContain("within two import hops of ranked file src/auth/login.ts");
     expect(paths).not.toContain("src/ui/banner.tsx");
+  });
+
+  it("does not let an import-neighbor boost overtake the seed that supplied the evidence", () => {
+    const issueTerms = [
+      "alpha beta gamma delta epsilon zeta",
+      "hotel india juliet kilo lima mike",
+      "november oscar papa quebec romeo sierra",
+      "tango uniform victor whiskey xray yankee",
+      "amber bronze copper denim emerald fuchsia"
+    ];
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "src/seed.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "import './z-neighbor.js';"
+        },
+        ...issueTerms.slice(0, 4).map((textSample, index) => ({
+          path: `src/${String.fromCharCode(97 + index)}.ts`,
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code" as const,
+          textSample
+        })),
+        {
+          path: "src/z-neighbor.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: issueTerms[4] ?? ""
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: `seed.ts ${issueTerms.join(" ")}`
+    });
+
+    expect(ranked[0]?.path).toBe("src/seed.ts");
+    const neighbor = ranked.find((file) => file.path === "src/z-neighbor.ts");
+    expect(neighbor?.score).toBeLessThan(ranked[0]?.score ?? 0);
+    expect(neighbor?.reasons).toContain("imported by ranked file src/seed.ts");
+  });
+
+  it("deprioritizes example and declaration files for runtime tasks", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "lib/transport.js",
+          extension: ".js",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function filterTransportLevel() {}"
+        },
+        {
+          path: "examples/transport.js",
+          extension: ".js",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function filterTransportLevel() {}"
+        },
+        {
+          path: "transport.d.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export declare function filterTransportLevel(): void"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "transport level filter fails at runtime"
+    });
+
+    expect(ranked[0]?.path).toBe("lib/transport.js");
+    expect(ranked.find((file) => file.path === "examples/transport.js")?.reasons)
+      .toContain("example or demo code deprioritized for an implementation task");
+    expect(ranked.find((file) => file.path === "transport.d.ts")?.reasons)
+      .toContain("type declaration deprioritized for a runtime task");
+
+    const exampleTask = rankContextFiles(repo, {
+      issueText: "update the transport example"
+    });
+    expect(exampleTask.find((file) => file.path === "examples/transport.js")?.reasons)
+      .not.toContain("example or demo code deprioritized for an implementation task");
+
+    const declarationTask = rankContextFiles(repo, {
+      issueText: "the TypeScript declaration for the transport filter is wrong"
+    });
+    expect(declarationTask.find((file) => file.path === "transport.d.ts")?.reasons)
+      .not.toContain("type declaration deprioritized for a runtime task");
   });
 
   it("keeps documentation noise below matching code unless the task targets docs", () => {

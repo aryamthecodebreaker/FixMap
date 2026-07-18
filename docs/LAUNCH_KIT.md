@@ -1,141 +1,192 @@
-# Launch Kit — v0.4.0
+# FixMap 5,000-star growth kit
 
-Copy-paste material for the 1k-star push. Post these yourself from your own accounts; adjust tone freely. Updated for v0.4.0 (2026-07-16).
+This is an evidence-based operating kit for earning adoption, not a forecast that any post will produce a fixed number of stars. Recheck every version, command, benchmark result, and platform rule immediately before using it.
 
-## The strategy in three sentences
+## The hook
 
-1k stars comes from **one front-page moment compounding**, not from posting everywhere: a Show HN that lands drives 300–800 stars in 48 hours, that velocity puts the repo on **GitHub Trending (TypeScript)**, and Trending brings the next wave for free. That only works if the launch is **concentrated into 24–48 hours** — HN, Reddit, and X on the same day — instead of dripped over weeks. The MCP directories and newsletters are the long tail that carries you from a few hundred to 1k over the following month.
+Let a developer try FixMap on a real public repository in one command, without cloning, creating an account, or supplying an API key:
 
-**The differentiator to lead with everywhere:** the checked-in, reproducible evaluation. Every AI tool claims magic; FixMap publishes unflattering numbers about itself (top-1 33%, top-5 67% on six real bugs in Express/Axios/debug/ky/Zod/Pino, pinned to exact commits so the results can't be gamed). Honesty is the hook — especially on HN.
+```bash
+npx -y @aryam/fixmap@latest plan \
+  --repo https://github.com/aryamthecodebreaker/FixMap \
+  --issue "the external ranking evaluation regressed"
+```
 
-## Prerequisites (all done as of v0.4.0)
+The report ranks likely files with reasons, suggests test routes, and names risks and diagnostics. Public URL analysis is issue-only; diff analysis still requires a local checkout.
 
-- [x] `@aryam/fixmap@0.4.0` + `@aryam/fixmap-core@0.4.0` on npm with signed provenance.
-- [x] `v0.4.0` tag + GitHub release published.
-- [x] Cross-repository evaluation with honest published results (`benchmarks/external/`).
-- [x] Animated CLI demo at the top of the README; refined site at fixmap-flax.vercel.app.
-- [x] Action validated on read-only fork-PR tokens; Marketplace branding in place.
-- [x] `mcp` + `mcp-server` repository topics set.
-- [x] `npx -y @aryam/fixmap@latest mcp` verified: MCP initialize handshake returns `serverInfo { name: "fixmap", version: "0.4.0" }` outside the repo.
-- [ ] For X: record a short MP4/GIF of the CLI demo (X does not animate SVGs; screen-record the README demo or the site).
+## Proof worth leading with
 
-## Launch-day sequence (pick a Tue/Wed/Thu)
+- MIT licensed, deterministic, local-first analysis with no model call or account.
+- CLI, MCP server, and GitHub Action share the same core ranker.
+- Public GitHub repositories work through an isolated anonymous shallow checkout that is removed after analysis.
+- A frozen external evaluation uses six real fixed issues at pinned pre-fix commits.
+- Current checked-in result: top-1 `3/6` (50%), top-3 `5/6` (83%), top-5 `5/6` (83%).
+- The remaining Zod miss and every ranked output are public in [`benchmarks/external/`](../benchmarks/external/).
+- A release cannot publish unless the local CI suite and external evaluation gate pass.
 
-| Time (UTC) | Action |
+The six-case result is evidence about those six cases, not a general “83% accurate” claim.
+
+## Truth guardrails
+
+Do not say:
+
+- “FixMap is 83% accurate” or “finds the right file 83% of the time.”
+- “FixMap runs or verifies the tests.” It suggests test routes; it does not execute them.
+- “Any GitHub URL works.” Only canonical public `https://github.com/owner/repository` inputs are supported.
+- “Your code never leaves your machine” without the remote-mode nuance: FixMap downloads public source from GitHub, but does not upload analyzed source to a FixMap service.
+- “5,000 stars is expected.” It is the goal, not a promised outcome.
+
+Keep the documented miss visible. If a scheduled evaluation regresses, pause promotion, fix or explain the regression, and update the published result before resuming.
+
+## Release gate before any campaign
+
+- [ ] The latest GitHub release, npm CLI, npm core package, and official MCP Registry entry show the same version.
+- [ ] `npx -y @aryam/fixmap@latest --version` returns that version from a fresh cache outside the repository.
+- [ ] The public GitHub URL command above succeeds from a fresh cache.
+- [ ] Main CI and the manual external-evaluation workflow are green at the release commit.
+- [ ] The production site shows the public URL command and current product language.
+- [ ] The README, changelog, benchmark page, Action pin, and release notes agree.
+- [ ] The root Action metadata is present before attempting a Marketplace listing.
+
+## Measure a baseline
+
+Record this immediately before each distribution experiment:
+
+| Metric | Source |
 | --- | --- |
-| ~14:00–15:30 | Submit **Show HN** (8–10am US Eastern). Post the prepared first comment immediately. |
-| +15 min | Post **r/LocalLLaMA** and **r/ClaudeAI** (different drafts below — never the same text twice). |
-| +30 min | Post the **X thread** with the demo video. |
-| All day | Reply to every HN/Reddit comment within minutes — response speed visibly drives HN ranking. Concede valid criticism instantly; the honest-numbers positioning only works if the author acts the same way. |
-| Day 2–3 | MCP directory submissions, awesome-list PRs, newsletter submissions (below) while star velocity is visible. |
-| Week 2 | Dev.to write-up on the evaluation; Product Hunt if energy remains. |
+| Stars and forks | GitHub repository |
+| Unique visitors and views | GitHub Insights → Traffic |
+| Clones | GitHub Insights → Traffic |
+| Top referring sites and paths | GitHub Insights → Traffic |
+| npm CLI downloads | npm downloads API/package page |
+| Issues, discussions, and external PRs | GitHub |
+| External-evaluation result | `external-eval` workflow |
 
-If Show HN doesn't front-page (most don't), it's allowed to retry once after a week or two with a different title — many successful launches were second attempts.
+GitHub traffic and referral data is a rolling 14-day view, so save a dated snapshot rather than relying on memory.
 
-## Show HN draft
+For every experiment, log:
 
-**Title:** Show HN: FixMap – maps a bug report to the files to edit (right 67% of the time)
+| Date/time UTC | Channel | Link or post ID | Stars before | Stars +24h | Stars +72h | Unique visitors | npm downloads | Qualified feedback |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+|  |  |  |  |  |  |  |  |  |
 
-**Body:**
+A “qualified” result is a real install, issue, discussion, PR, integration, or technically specific comment—not raw impressions.
 
-AI coding agents are fast once they have the right context. The expensive mistakes happen before the first edit: reading a plausible file instead of the owning module, missing the test that would catch the regression, or treating an unresolved git diff as "no changes".
+## Growth loop
 
-FixMap is a small open-source tool that maps an issue, prompt, or git diff to: the files worth reading first (with confidence scores and reasons), the test commands most likely to validate the change, and risk notes for review. It is deterministic and inspectable — no model calls, no account, nothing leaves your machine.
+### 1. Convert repository visitors
 
-Because "it finds the right files" is easy to claim, the repo ships a reproducible evaluation against six real, already-fixed bugs in Express, Axios, debug, ky, Zod, and Pino, each pinned to the commit where the bug existed. Current honest numbers: the fix file is ranked #1 in 33% of cases and in the top 5 in 67%. The dataset selection rule was frozen before measuring, and cases must not be edited to match output, so I can't quietly game it.
+- Put the one-command public repository trial above the fold.
+- Keep the animated result, live site, npm version, license, and CI status visible.
+- Make the first screen answer: what it does, how to try it, why to trust it, and where it still misses.
+- Give each release a short user-facing body with a working command and links to npm, MCP, and the benchmark.
+- Make the GitHub Action installable from the repository root and list it in Marketplace once the owner accepts the Marketplace terms.
 
-Three ways to use it:
+### 2. Run one channel at a time
 
-- CLI: `npx @aryam/fixmap plan --issue "password reset emails fail"`
-- MCP server: `claude mcp add fixmap -- npx -y @aryam/fixmap mcp` — the agent calls `fixmap_plan` itself
-- GitHub Action: comments a context/test/risk report on every PR (stays green on fork PRs where the token is read-only)
+Use a distinct angle and measure the 24/72-hour result before deciding whether to repeat it:
 
-The ranker is intentionally simple: token/path overlap, real git diff signals, static import-graph proximity, workspace boundaries. Every recommendation carries a reason string. A trainable model may come later, but only after the transparent version stops improving.
+1. Show HN: local deterministic tooling, one-command trial, and the public miss.
+2. Local-model communities: zero-token context routing before an agent starts searching.
+3. Claude Code/Cursor communities: MCP setup and a concrete before/after workflow.
+4. TypeScript/Node communities: transparent ranking and monorepo-aware test routing.
+5. Maintainer communities: Action output, fork-PR safety, and contribution opportunities.
 
-Repo: https://github.com/aryamthecodebreaker/FixMap
-Eval methodology and results: https://github.com/aryamthecodebreaker/FixMap/tree/main/benchmarks/external
-Live demo: https://fixmap-flax.vercel.app
+Do not paste the same copy across communities, coordinate votes, or ask friends to boost a submission.
 
-Honest scope: JavaScript/TypeScript repositories today. I'd love feedback on the eval methodology and what signals you'd want next.
+### 3. Turn feedback into public proof
 
-**Prepared first comment (post immediately after submitting):**
+- Label small, well-scoped contributor issues.
+- Answer reproducible bug reports quickly and link the fix to a release.
+- Add new external evaluation cases by a frozen selection rule, never by choosing examples FixMap already wins.
+- Publish short engineering notes about misses, fixes, and benchmark movement.
+- Highlight external integrations and contributor PRs with permission.
 
-Author here. The part I'd most like feedback on is the evaluation: six cases is obviously small, and I picked "most recent qualifying merged PR per repo" to avoid cherry-picking, but I'm sure there are failure modes I haven't thought of. The two misses are instructive — in Zod the fix lived in a regex constants file while FixMap surfaced the JSON-schema modules that consume it, and in Pino it surfaced `examples/transport.js` over `lib/transport.js`. Import-graph proximity was added specifically because of misses like these, and the eval reruns weekly in CI so regressions are visible.
+### 4. Repeat what converts
 
-## r/LocalLLaMA draft
+Continue a channel when it produces qualified feedback, installs, or repository traffic that converts to stars. Stop or change the angle when it produces only impressions. The path to 5,000 is a series of measured loops, not one manufactured spike.
 
-**Title:** Local, deterministic repo-context tool for coding agents — with published (unflattering) accuracy numbers
+## Show HN maintainer outline
 
-**Body:**
+Hacker News says a Show HN must be something people can try, should avoid signup barriers, must not solicit votes, and should be discussed by the maker. Its current guidelines also say not to post generated or AI-edited text. Therefore, use these facts to write the submission in your own words; do not paste an assistant-written body.
 
-FixMap turns an issue or git diff into ranked context files, test commands, and risk notes for a coding agent — CLI, MCP server, or GitHub Action. Everything runs locally: no API key, no model calls, no telemetry, nothing leaves your machine. The ranking is deterministic and every result carries a human-readable reason.
+Possible factual title:
 
-Since this sub is rightly allergic to benchmark theater: the repo ships a reproducible eval against six real fixed bugs in Express/Axios/debug/ky/Zod/Pino at pinned commits. Top-1 33%, top-5 67%, misses documented, dataset frozen before measurement. It's a routing layer, not magic — but a deterministic 67% top-5 for zero tokens before your agent starts grepping is a decent trade.
+> Show HN: FixMap – map a GitHub issue to likely files without an API key
 
-Setup for any MCP client: `npx -y @aryam/fixmap mcp`. MIT, JS/TS repos for now. https://github.com/aryamthecodebreaker/FixMap
+Points for the maintainer to explain personally:
 
-## r/ClaudeAI · r/cursor draft
+1. The recurring problem that made you build it: agents lose time before the first edit because they start in the wrong module or miss the owning test.
+2. The one-sentence solution: deterministic repo context—ranked files, test routes, risks, and diagnostics.
+3. The fastest trial: include the public GitHub URL command.
+4. The technical mechanism: path/content signals, real git diff signals, bounded static import proximity, file-kind priors, and workspace boundaries.
+5. The honest evidence: six frozen real bugs, `3/6` top-1 and `5/6` top-3/top-5, with the Zod miss linked.
+6. The scope: JavaScript/TypeScript today; remote URLs are issue-only; suggested tests are not executed.
+7. What changed because the benchmark caught a regression: the floor failed at `2/6` top-3, the thresholds stayed fixed, and general ranking rules lifted it to `5/6`.
+8. Ask for technical criticism of the evaluation and useful next signals.
 
-**Title:** I built an MCP server that hands your agent a repo map before it edits anything
+Before submitting:
 
-**Body:**
+- [ ] Read the current [Show HN rules](https://news.ycombinator.com/showhn.html) and [HN guidelines](https://news.ycombinator.com/newsguidelines.html).
+- [ ] Write the post yourself in your normal voice.
+- [ ] Use the repository or live product as the original link.
+- [ ] Be free to answer technical questions for the rest of the day.
+- [ ] Never solicit upvotes, comments, or booster posts.
 
-Every agent session starts the same way: it greps around, opens a plausible-looking file, and starts editing. Sometimes it picks right. When it doesn't, you burn tokens and review time.
+## Community-specific briefs
 
-FixMap is a free, local MCP server (also a CLI and GitHub Action) that turns a task description or git diff into ranked context files with reasons, the test commands most likely to matter, and risk notes. Deterministic — no LLM inside, no API key, nothing leaves your machine. And instead of claiming accuracy, it ships a checked-in eval against real bugs in Express/Axios/Zod/etc. with honest numbers (top-5 67%).
+These are angles and evidence, not identical copy to syndicate.
 
-Claude Code setup: `claude mcp add fixmap -- npx -y @aryam/fixmap mcp`
+### Local-model communities
 
-MIT licensed, JS/TS repos for now. Feedback and issues welcome: https://github.com/aryamthecodebreaker/FixMap
+- Problem: agents spend context and tokens discovering where to start.
+- Demo: run FixMap first on a public repository, then hand the report to the agent.
+- Evidence: deterministic, zero model calls, inspectable reasons, `5/6` top-5 on the frozen set.
+- Honest caveat: it is a routing aid, not semantic code understanding or a correctness oracle.
 
-## X/Twitter thread
+### Claude Code and Cursor communities
 
-1/ Coding agents don't fail at writing code. They fail at knowing where to start.
+Setup:
 
-FixMap gives any agent a map of your repo before it edits: ranked files with reasons, test routes, risk notes. Local, deterministic, no API key.
+```bash
+claude mcp add fixmap -- npx -y @aryam/fixmap@latest mcp
+```
 
-[attach demo video]
+- Show the `fixmap_plan` tool returning ranked files and test routes.
+- Use a real repository/task pair and include the exact report.
+- Explain that the MCP process runs locally over stdio.
+- Ask which client workflow or output field would make it more useful.
 
-2/ Instead of claiming accuracy, the repo ships a reproducible eval: six real fixed bugs in Express, Axios, debug, ky, Zod, Pino — pinned to the commits where the bugs existed.
+### TypeScript and Node communities
 
-Honest numbers: top-1 33%, top-5 67%. Dataset frozen before measuring. It reruns weekly in CI.
+- Lead with the ranking-engine postmortem: `.js` issue paths can map to `.ts` source, example/declaration noise is deprioritized, and import neighbors cannot outrank their evidence seed.
+- Link the unit tests and frozen external result.
+- Invite additional repository layouts and externally selected benchmark cases.
 
-3/ Three ways in:
-- `npx @aryam/fixmap plan --issue "..."`
-- MCP server for Claude Code / Cursor: `claude mcp add fixmap -- npx -y @aryam/fixmap mcp`
-- GitHub Action that leaves a context/test/risk report on every PR
+### Short-form post structure
 
-4/ No model inside. Token overlap, git diff signals, static import-graph proximity, workspace boundaries — every recommendation with a reason string, every ranking change gated by evals.
+1. One pain sentence.
+2. The public repository command.
+3. A screenshot or short terminal video of the real output.
+4. One evidence sentence: six pinned bugs, `3/6` top-1 and `5/6` top-5, one public miss.
+5. Repository link and a specific feedback question.
 
-MIT. JS/TS today. https://github.com/aryamthecodebreaker/FixMap
+Avoid generic feature lists and unsupported superlatives.
 
-## Directory + newsletter submissions (day 2–3)
+## Distribution checklist
 
-MCP directories — submit `@aryam/fixmap` (command: `npx -y @aryam/fixmap mcp`):
+- [ ] Official MCP Registry metadata is current; downstream directories can ingest the canonical entry.
+- [ ] GitHub Marketplace listing is enabled from a root `action.yml`.
+- [ ] Relevant awesome-list submissions follow each list's current contribution rules and add a genuinely missing category entry.
+- [ ] Release notes contain the one-command trial and benchmark delta.
+- [ ] A short demo video is rendered from real output for platforms that do not animate the README SVG.
+- [ ] Repository topics, description, homepage, and social preview use the current product language.
+- [ ] GitHub Discussions has a clear “show how you use FixMap” prompt after there are real users to answer it.
 
-- [ ] PulseMCP — pulsemcp.com/submit
-- [ ] mcp.so — submit form on site
-- [ ] Glama — glama.ai/mcp/servers (GitHub sign-in, add server)
-- [ ] Smithery — smithery.ai (add server)
-- [ ] PR to `modelcontextprotocol/servers` community list
-- [ ] PR to `punkpeye/awesome-mcp-servers` (follow contributing rules)
+## Decision rules
 
-Newsletters (all have submission forms; free):
-
-- [ ] Console.dev — console.dev/submit (dev-tool of the week format, good fit)
-- [ ] TLDR — tldr.tech advertise/submit link for community submissions
-- [ ] Node Weekly / JavaScript Weekly — cooperpress.com contact form
-- [ ] Changelog News — changelog.com/news tips
-
-Awesome lists:
-
-- [ ] awesome-claude-code, awesome-ai-tools, awesome-code-review (read each list's PR rules first)
-
-## Expectations, honestly
-
-- A Show HN that reaches the front page: 300–800 stars in 48h, plus Trending compounding. Most Show HNs don't front-page on the first try; the retry is part of the plan.
-- Reddit posts: 20–150 stars each when they land with the right framing for the sub.
-- MCP directories: a steady 5–20/week of exactly the right users, indefinitely.
-- Newsletters: 50–200 stars per feature, weeks later.
-
-What compounds after launch week: answer issues fast, merge small PRs generously, post a short changelog thread per release. Stars follow momentum, not one spike — but the spike is what starts the momentum.
+- If visitors rise but stars and installs do not, fix the README/release conversion path before adding channels.
+- If installs rise but issues report poor rankings, expand the evaluation and ranker before promoting harder.
+- If a channel produces real integrations or PRs, invest in that community even if raw star growth is modest.
+- If the benchmark turns red, stop the campaign until the public evidence is coherent again.
+- Revisit the 5,000-star goal monthly with measured deltas; never rewrite history or benchmark inputs to make the chart look better.

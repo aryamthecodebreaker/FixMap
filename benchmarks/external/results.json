@@ -1,0 +1,116 @@
+{
+  "cases": 6,
+  "top1HitRate": 0.5,
+  "top3HitRate": 0.833,
+  "top5HitRate": 0.833,
+  "floors": {
+    "top1": 0.3,
+    "top3": 0.5,
+    "top5": 0.5
+  },
+  "results": [
+    {
+      "slug": "expressjs/express",
+      "issue": 7365,
+      "expected": [
+        "lib/request.js"
+      ],
+      "top5": [
+        "lib/request.js",
+        "lib/response.js",
+        "lib/application.js",
+        "lib/utils.js",
+        "lib/express.js"
+      ],
+      "top1": true,
+      "top3": true,
+      "top5Hit": true
+    },
+    {
+      "slug": "axios/axios",
+      "issue": 6721,
+      "expected": [
+        "lib/core/AxiosError.js"
+      ],
+      "top5": [
+        "lib/adapters/http.js",
+        "lib/core/AxiosError.js",
+        "lib/adapters/xhr.js",
+        "lib/core/AxiosHeaders.js",
+        "lib/adapters/fetch.js"
+      ],
+      "top1": false,
+      "top3": true,
+      "top5Hit": true
+    },
+    {
+      "slug": "debug-js/debug",
+      "issue": 746,
+      "expected": [
+        "src/node.js"
+      ],
+      "top5": [
+        "src/node.js",
+        "README.md",
+        "src/browser.js",
+        "src/common.js",
+        "test.js"
+      ],
+      "top1": true,
+      "top3": true,
+      "top5Hit": true
+    },
+    {
+      "slug": "sindresorhus/ky",
+      "issue": 857,
+      "expected": [
+        "source/core/Ky.ts"
+      ],
+      "top5": [
+        "source/core/Ky.ts",
+        "source/errors/HTTPError.ts",
+        "source/types/ResponsePromise.ts",
+        "source/utils/type-guards.ts",
+        "source/index.ts"
+      ],
+      "top1": true,
+      "top3": true,
+      "top5Hit": true
+    },
+    {
+      "slug": "colinhacks/zod",
+      "issue": 5944,
+      "expected": [
+        "packages/zod/src/v4/core/regexes.ts"
+      ],
+      "top5": [
+        "packages/zod/src/v4/classic/from-json-schema.ts",
+        "packages/zod/src/v4/core/json-schema-processors.ts",
+        "packages/zod/src/v4/core/to-json-schema.ts",
+        "packages/zod/src/v4/core/checks.ts",
+        "packages/zod/src/v4/core/json-schema.ts"
+      ],
+      "top1": false,
+      "top3": false,
+      "top5Hit": false
+    },
+    {
+      "slug": "pinojs/pino",
+      "issue": 1996,
+      "expected": [
+        "lib/transport.js",
+        "lib/worker.js"
+      ],
+      "top5": [
+        "pino.js",
+        "lib/worker.js",
+        "examples/transport.js",
+        "lib/transport.js",
+        "browser.js"
+      ],
+      "top1": false,
+      "top3": true,
+      "top5Hit": true
+    }
+  ]
+}

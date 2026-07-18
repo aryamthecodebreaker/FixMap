@@ -58,9 +58,9 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
 export function findImportProximity(graph: ImportGraph, seedPaths: string[]): Map<string, ImportProximity> {
   const seeds = new Set(seedPaths);
   const proximity = new Map<string, ImportProximity>();
-  const sortedSeeds = [...seeds].sort((a, b) => a.localeCompare(b));
+  const orderedSeeds = [...seeds];
 
-  for (const seed of sortedSeeds) {
+  for (const seed of orderedSeeds) {
     for (const neighbor of neighborsOf(graph, seed)) {
       if (!seeds.has(neighbor.path) && !proximity.has(neighbor.path)) {
         proximity.set(neighbor.path, { distance: 1, seed, direction: neighbor.direction });
@@ -68,7 +68,7 @@ export function findImportProximity(graph: ImportGraph, seedPaths: string[]): Ma
     }
   }
 
-  const firstHop = [...proximity.keys()].sort((a, b) => a.localeCompare(b));
+  const firstHop = [...proximity.keys()];
   for (const mid of firstHop) {
     const seed = proximity.get(mid)?.seed ?? mid;
     for (const neighbor of neighborsOf(graph, mid)) {

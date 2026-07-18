@@ -30,6 +30,8 @@ const summary = {
 
 process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
 if (top1HitRate < summary.thresholds.top1 || top3HitRate < summary.thresholds.top3) {
-  process.stderr.write(`FixMap evaluation failed: top-1 ${top1HitRate.toFixed(1)}%, top-3 ${top3HitRate.toFixed(1)}%.\n`);
+  process.stderr.write(
+    `FixMap evaluation failed: top-1 ${(top1HitRate * 100).toFixed(1)}%, top-3 ${(top3HitRate * 100).toFixed(1)}%.\n`
+  );
   process.exit(1);
 }

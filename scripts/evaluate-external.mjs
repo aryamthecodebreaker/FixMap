@@ -9,7 +9,7 @@
 // so this is a scheduled/manual workflow rather than part of `npm run ci`.
 
 import { spawnSync } from "node:child_process";
-import { readFile, stat, mkdir } from "node:fs/promises";
+import { readFile, stat, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
@@ -77,11 +77,40 @@ const summary = {
   floors: FLOORS,
   results
 };
-process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+const renderedSummary = `${JSON.stringify(summary, null, 2)}\n`;
+const recordedResultsPath = join(repoRoot, "benchmarks", "external", "results.json");
+process.stdout.write(renderedSummary);
 
-if (process.argv.includes("--gate")) {
-  if (summary.top1HitRate < FLOORS.top1 || summary.top3HitRate < FLOORS.top3 || summary.top5HitRate < FLOORS.top5) {
-    process.stderr.write("External evaluation fell below regression floors.\n");
-    process.exit(1);
+if (process.argv.includes("--record")) {
+  await writeFile(recordedResultsPath, renderedSummary, "utf8");
+}
+
+let failed = false;
+if (process.argv.includes("--check-recorded")) {
+  let recordedResults = "";
+  try {
+    recordedResults = await readFile(recordedResultsPath, "utf8");
+  } catch {
+    // The mismatch message below covers a missing or unreadable artifact.
   }
+  if (recordedResults !== renderedSummary) {
+    process.stderr.write(
+      "External evaluation differs from benchmarks/external/results.json; rerun with --record and review the change.\n"
+    );
+    failed = true;
+  }
+}
+
+if (
+  process.argv.includes("--gate") &&
+  (summary.top1HitRate < FLOORS.top1 ||
+    summary.top3HitRate < FLOORS.top3 ||
+    summary.top5HitRate < FLOORS.top5)
+) {
+  process.stderr.write("External evaluation fell below regression floors.\n");
+  failed = true;
+}
+
+if (failed) {
+  process.exit(1);
 }
