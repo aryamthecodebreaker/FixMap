@@ -4,7 +4,7 @@
 
 **Give your coding agent a map before it starts editing.**
 
-Turn an issue or git diff into relevant files, test routes, risk notes, and an honest review receipt.
+Turn an issue or git diff into relevant files, test routes, risk notes, and clear diagnostics.
 
 [![CI](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml/badge.svg)](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/%40aryam%2Ffixmap)](https://www.npmjs.com/package/@aryam/fixmap)
@@ -24,13 +24,21 @@ Coding agents are fast once they have the right context. The expensive mistakes 
 - reading a plausible file instead of the owning module
 - missing the test that would catch the regression
 - treating an unresolved git diff as “no changes”
-- leaving reviewers to guess what was actually verified
+- leaving reviewers without a clear map of what should be verified
 
-FixMap is a transparent routing layer for that gap. It works locally, needs no account or API key, and does not send repository source to a third-party service.
+FixMap is a transparent routing layer for that gap. It needs no account or API key and never uploads repository source to a third-party service.
 
 ## Quick start
 
-Run from a JavaScript or TypeScript repository:
+Try FixMap on any public GitHub repository without cloning it first:
+
+```bash
+npx -y @aryam/fixmap plan \
+  --issue "support public GitHub repository inputs" \
+  --repo https://github.com/aryamthecodebreaker/FixMap
+```
+
+Or run it from a local JavaScript or TypeScript repository:
 
 ```bash
 npx @aryam/fixmap plan --issue "password reset emails fail"
@@ -47,6 +55,12 @@ Machine-readable output:
 ```bash
 npx @aryam/fixmap plan --base main --head HEAD --format json --output fixmap-report.json
 ```
+
+### Public GitHub repository inputs
+
+CLI and MCP users can pass a canonical `https://github.com/owner/repository` URL to `--repo` / `repo`. FixMap anonymously shallow-clones the default branch into an isolated OS temporary directory, disables credentials, hooks, submodules, symlinks, and LFS smudging, scans without running install/build/test scripts, and removes the checkout before returning the report.
+
+Remote URL mode is deliberately issue-only in this first release. Clone the repository locally when you need `--diff`, `--base`, or `--head`. Paths and test commands in a remote report are informational because the temporary checkout no longer exists after analysis.
 
 Example result:
 
@@ -85,11 +99,11 @@ Cursor, Windsurf, or any MCP client:
 }
 ```
 
-The agent calls `fixmap_plan` with an issue description or a diff spec (`main...HEAD`) and receives the same report as the CLI: context files with confidence and reasons, test routes, risk notes, and diagnostics. Everything runs locally over stdio; no repository content leaves the machine.
+The agent calls `fixmap_plan` with an issue description or a diff spec (`main...HEAD`) and receives the same report as the CLI: context files with confidence and reasons, test routes, risk notes, and diagnostics. The `repo` argument accepts either a local path or a public GitHub HTTPS URL. Analysis runs locally over stdio; source is never uploaded by FixMap.
 
 ## Interactive demo
 
-The [live website](https://fixmap-flax.vercel.app) includes a browser-only sample repository: change the task and watch the context pack update. It is deliberately labeled as a sample; the CLI scans real local repositories.
+The [live website](https://fixmap-flax.vercel.app) includes a browser-only sample repository: change the task and watch the context pack update. It is deliberately labeled as a sample; the CLI scans real local repositories or isolated temporary checkouts of public GitHub repositories.
 
 ![The FixMap website on a desktop viewport: a hero that reads "Give your coding agent a map before it starts editing" next to a terminal mock of a fixmap report with context, verify, and risk sections.](docs/assets/fixmap-site-desktop.png)
 
@@ -123,7 +137,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap/packages/action@v0.4.0
+        uses: aryamthecodebreaker/FixMap/packages/action@v0.5.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -187,7 +201,7 @@ npm run ci
 
 ## Status and roadmap
 
-FixMap is an early public release focused on JavaScript and TypeScript repositories. The [changelog](CHANGELOG.md) records what each released version shipped, most recently the MCP server mode and scanner/ranking fixes in v0.3.x. Near-term work:
+FixMap is an early public release focused on JavaScript and TypeScript repositories. The [changelog](CHANGELOG.md) records what each release shipped, including cross-repository evaluation, MCP support, and one-command public GitHub repository analysis. Near-term work:
 
 - git co-change and ownership signals
 - adapters and examples for popular monorepo layouts

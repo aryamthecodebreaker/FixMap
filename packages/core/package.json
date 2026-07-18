@@ -1,6 +1,6 @@
 {
   "name": "@aryam/fixmap-core",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Core repository scanner, ranker, and report renderer for FixMap.",
   "license": "MIT",
   "repository": {
@@ -8,6 +8,22 @@
     "url": "git+https://github.com/aryamthecodebreaker/FixMap.git",
     "directory": "packages/core"
   },
+  "homepage": "https://fixmap-flax.vercel.app",
+  "bugs": {
+    "url": "https://github.com/aryamthecodebreaker/FixMap/issues"
+  },
+  "keywords": [
+    "ai-agents",
+    "code-analysis",
+    "coding-agent",
+    "developer-tools",
+    "local-first",
+    "repo-map",
+    "repo-intelligence",
+    "repository-context",
+    "test-routing",
+    "typescript"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,7 +33,7 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": ["dist", "LICENSE"],
   "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsc -p tsconfig.json",

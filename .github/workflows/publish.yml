@@ -1,64 +1,309 @@
-# Publishes @aryam/fixmap-core and @aryam/fixmap to npm.
+# Publishes @aryam/fixmap-core, @aryam/fixmap, and the FixMap MCP server.
 #
-# Uses npm trusted publishing (OIDC): no npm token or one-time password is
-# needed once each package is linked to this repository and workflow at
-# https://www.npmjs.com/package/<name>/access -> Trusted Publisher
-# (repository: aryamthecodebreaker/FixMap, workflow: publish.yml).
+# Release procedure:
+# 1. Create and push a stable v* tag for a commit already on main.
+# 2. Manually dispatch this workflow from that tag in the Actions tab.
+# 3. This workflow validates the tag and all version metadata, publishes and
+#    verifies npm and MCP Registry artifacts, then creates the GitHub release.
 #
-# Runs when a GitHub release is published, or manually from the Actions tab.
+# npm and MCP publication use trusted publishing (OIDC). Each package must be
+# linked to this repository and workflow in its registry publisher settings.
 name: Publish
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
+
+concurrency:
+  group: fixmap-release
+  cancel-in-progress: false
+
+env:
+  MCP_PUBLISHER_VERSION: v1.8.0
+  MCP_SERVER_NAME: io.github.aryamthecodebreaker/fixmap
+  MCP_REGISTRY_URL: https://registry.modelcontextprotocol.io/v0/servers
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
+      - name: Validate selected release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" != "tag" ]] ||
+             [[ ! "${GITHUB_REF_NAME}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Dispatch this workflow from a stable tag such as v0.5.0, not from a branch or prerelease tag."
+            exit 1
+          fi
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Validate tag commit and release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_COMMIT=$(git rev-list -n 1 "$GITHUB_REF_NAME")
+          HEAD_COMMIT=$(git rev-parse HEAD)
+          if [[ "$TAG_COMMIT" != "$HEAD_COMMIT" ]]; then
+            echo "::error::Checked-out commit ${HEAD_COMMIT} does not match ${GITHUB_REF_NAME} (${TAG_COMMIT})."
+            exit 1
+          fi
+
+          git fetch origin main:refs/remotes/origin/main --no-tags
+          if ! git merge-base --is-ancestor "$HEAD_COMMIT" origin/main; then
+            echo "::error::Release tag ${GITHUB_REF_NAME} must point to a commit already on origin/main."
+            exit 1
+          fi
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
+          const expected = process.env.VERSION;
+          const root = readJson("package.json");
+          const core = readJson("packages/core/package.json");
+          const cli = readJson("packages/cli/package.json");
+          const action = readJson("packages/action/package.json");
+          const lock = readJson("package-lock.json");
+          const server = readJson("server.json");
+
+          const checks = [
+            ["package.json version", root.version],
+            ["packages/core/package.json version", core.version],
+            ["packages/cli/package.json version", cli.version],
+            ["packages/action/package.json version", action.version],
+            ["package-lock.json version", lock.version],
+            ["package-lock.json root version", lock.packages?.[""]?.version],
+            ["package-lock.json core version", lock.packages?.["packages/core"]?.version],
+            ["package-lock.json CLI version", lock.packages?.["packages/cli"]?.version],
+            ["package-lock.json Action version", lock.packages?.["packages/action"]?.version],
+            ["CLI core dependency", cli.dependencies?.["@aryam/fixmap-core"]],
+            ["Action core dependency", action.dependencies?.["@aryam/fixmap-core"]],
+            ["server.json version", server.version],
+          ];
+
+          const errors = checks
+            .filter(([, actual]) => actual !== expected)
+            .map(([label, actual]) => `${label}: expected ${expected}, received ${String(actual)}`);
+
+          if (cli.mcpName !== process.env.MCP_SERVER_NAME) {
+            errors.push(
+              `CLI mcpName: expected ${process.env.MCP_SERVER_NAME}, received ${String(cli.mcpName)}`,
+            );
+          }
+          if (server.name !== process.env.MCP_SERVER_NAME) {
+            errors.push(
+              `server.json name: expected ${process.env.MCP_SERVER_NAME}, received ${String(server.name)}`,
+            );
+          }
+
+          const npmPackage = server.packages?.find(
+            (entry) =>
+              entry.registryType === "npm" &&
+              entry.identifier === "@aryam/fixmap",
+          );
+          if (!npmPackage) {
+            errors.push("server.json must contain the @aryam/fixmap npm package");
+          } else if (npmPackage.version !== expected) {
+            errors.push(
+              `server.json npm package version: expected ${expected}, received ${String(npmPackage.version)}`,
+            );
+          }
+
+          if (errors.length > 0) {
+            for (const error of errors) {
+              console.error(`::error::${error}`);
+            }
+            process.exit(1);
+          }
+
+          console.log(`Validated ${process.env.GITHUB_REF_NAME} at ${process.env.GITHUB_SHA}.`);
+          NODE
+
+      - name: Require an unpublished GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          RESPONSE=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}" 2>&1)
+          STATUS=$?
+          set -e
+
+          if [[ "$STATUS" -eq 0 ]]; then
+            echo "::error::A GitHub release already exists for ${GITHUB_REF_NAME}; npm and MCP must be verified before the release becomes public."
+            exit 1
+          fi
+          if ! grep -q "HTTP 404" <<<"$RESPONSE"; then
+            printf '%s\n' "$RESPONSE"
+            exit "$STATUS"
+          fi
+
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
           registry-url: https://registry.npmjs.org
+
       - run: npm ci
       - run: npm run ci
-      # Skip versions that are already on npm so a manual dispatch followed by
-      # the release-published trigger cannot fail on a republish.
+
       - name: Publish @aryam/fixmap-core
+        shell: bash
         run: |
-          VERSION=$(node -p "require('./packages/core/package.json').version")
-          if npm view "@aryam/fixmap-core@${VERSION}" version >/dev/null 2>&1; then
+          set -euo pipefail
+          set +e
+          VIEW_OUTPUT=$(npm view "@aryam/fixmap-core@${VERSION}" version 2>&1)
+          VIEW_STATUS=$?
+          set -e
+
+          if [[ "$VIEW_STATUS" -eq 0 ]]; then
+            if [[ "$VIEW_OUTPUT" != "$VERSION" ]]; then
+              echo "::error::npm returned unexpected core version: ${VIEW_OUTPUT}"
+              exit 1
+            fi
             echo "@aryam/fixmap-core@${VERSION} is already published; skipping."
-          else
+          elif grep -q "E404" <<<"$VIEW_OUTPUT"; then
             npm publish -w packages/core --provenance --access public
+          else
+            printf '%s\n' "$VIEW_OUTPUT"
+            exit "$VIEW_STATUS"
           fi
+
       - name: Publish @aryam/fixmap
+        shell: bash
         run: |
-          VERSION=$(node -p "require('./packages/cli/package.json').version")
-          if npm view "@aryam/fixmap@${VERSION}" version >/dev/null 2>&1; then
+          set -euo pipefail
+          set +e
+          VIEW_OUTPUT=$(npm view "@aryam/fixmap@${VERSION}" version 2>&1)
+          VIEW_STATUS=$?
+          set -e
+
+          if [[ "$VIEW_STATUS" -eq 0 ]]; then
+            if [[ "$VIEW_OUTPUT" != "$VERSION" ]]; then
+              echo "::error::npm returned unexpected CLI version: ${VIEW_OUTPUT}"
+              exit 1
+            fi
             echo "@aryam/fixmap@${VERSION} is already published; skipping."
-          else
+          elif grep -q "E404" <<<"$VIEW_OUTPUT"; then
             npm publish -w packages/cli --provenance --access public
-          fi
-      - name: Install mcp-publisher
-        run: curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
-      # OIDC authenticates this repository for the io.github.aryamthecodebreaker/* namespace.
-      - name: Publish to the MCP Registry
-        run: |
-          VERSION=$(node -p "require('./packages/cli/package.json').version")
-          if curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.aryamthecodebreaker/fixmap" | grep -q "\"version\": *\"${VERSION}\""; then
-            echo "MCP Registry already has ${VERSION}; skipping."
           else
-            jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp && mv server.tmp server.json
+            printf '%s\n' "$VIEW_OUTPUT"
+            exit "$VIEW_STATUS"
+          fi
+
+      - name: Verify npm packages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          verify_npm_version() {
+            local package_name=$1
+            local published=""
+            for attempt in 1 2 3 4 5 6; do
+              if published=$(npm view "${package_name}@${VERSION}" version 2>/dev/null) &&
+                 [[ "$published" == "$VERSION" ]]; then
+                echo "Verified ${package_name}@${VERSION} on npm."
+                return 0
+              fi
+              sleep 10
+            done
+            echo "::error::Could not verify ${package_name}@${VERSION} on npm; received ${published:-no version}."
+            return 1
+          }
+
+          verify_npm_version "@aryam/fixmap-core"
+          verify_npm_version "@aryam/fixmap"
+
+          PUBLISHED_CORE_DEPENDENCY=$(npm view \
+            "@aryam/fixmap@${VERSION}" \
+            dependencies.@aryam/fixmap-core)
+          if [[ "$PUBLISHED_CORE_DEPENDENCY" != "$VERSION" ]]; then
+            echo "::error::Published CLI depends on core ${PUBLISHED_CORE_DEPENDENCY}, expected ${VERSION}."
+            exit 1
+          fi
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL --retry 3 \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" |
+            tar xz mcp-publisher
+
+      - name: Publish and verify the exact MCP Registry version
+        shell: bash
+        run: |
+          set -euo pipefail
+          REGISTRY_RESPONSE="${RUNNER_TEMP}/fixmap-mcp-registry.json"
+
+          fetch_registry() {
+            curl --fail --silent --show-error --retry 3 \
+              --get \
+              --data-urlencode "search=${MCP_SERVER_NAME}" \
+              "$MCP_REGISTRY_URL" \
+              --output "$REGISTRY_RESPONSE"
+          }
+
+          has_exact_registry_version() {
+            jq -e \
+              --arg name "$MCP_SERVER_NAME" \
+              --arg version "$VERSION" \
+              'any(
+                .servers[]?;
+                .server.name == $name
+                and .server.version == $version
+                and any(
+                  .server.packages[]?;
+                  .registryType == "npm"
+                  and .identifier == "@aryam/fixmap"
+                  and .version == $version
+                )
+              )' \
+              "$REGISTRY_RESPONSE" >/dev/null
+          }
+
+          fetch_registry
+          if has_exact_registry_version; then
+            echo "${MCP_SERVER_NAME}@${VERSION} is already published; skipping."
+          else
             ./mcp-publisher login github-oidc
             ./mcp-publisher publish
           fi
+
+          VERIFIED=false
+          for attempt in 1 2 3 4 5 6; do
+            fetch_registry
+            if has_exact_registry_version; then
+              VERIFIED=true
+              break
+            fi
+            sleep 10
+          done
+
+          if [[ "$VERIFIED" != "true" ]]; then
+            echo "::error::Could not verify ${MCP_SERVER_NAME}@${VERSION} in the MCP Registry."
+            exit 1
+          fi
+          echo "Verified ${MCP_SERVER_NAME}@${VERSION} in the MCP Registry."
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "FixMap ${GITHUB_REF_NAME}" \
+            --generate-notes

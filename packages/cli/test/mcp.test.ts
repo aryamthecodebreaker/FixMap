@@ -5,6 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 import { createFixMapMcpServer } from "../src/mcp.js";
+import type { RepositorySourceDependencies } from "../src/repository-source.js";
 
 async function createAuthFixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "fixmap-mcp-"));
@@ -19,9 +20,9 @@ async function createAuthFixture(): Promise<string> {
   return root;
 }
 
-async function connectClient() {
+async function connectClient(repositorySourceDependencies: RepositorySourceDependencies = {}) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const server = createFixMapMcpServer();
+  const server = createFixMapMcpServer(repositorySourceDependencies);
   const client = new Client({ name: "fixmap-test-client", version: "0.0.0" });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
   return client;
@@ -39,6 +40,7 @@ describe("fixmap mcp server", () => {
     expect(Object.keys(plan?.inputSchema.properties ?? {})).toEqual(
       expect.arrayContaining(["issue", "diff", "base", "head", "repo", "format"])
     );
+    expect(plan?.inputSchema.properties?.repo?.description).toContain("public GitHub HTTPS");
   });
 
   it("returns a markdown report for an issue", async () => {
@@ -69,6 +71,92 @@ describe("fixmap mcp server", () => {
     const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
     const report = JSON.parse(text) as { contextFiles: Array<{ path: string }> };
     expect(report.contextFiles[0]?.path).toBe("src/auth/reset-password.ts");
+  });
+
+  it("analyzes a public GitHub URL through an isolated temporary checkout", async () => {
+    const client = await connectClient({
+      clonePublicRepository: async (_url, destination) => {
+        await mkdir(join(destination, "src", "auth"), { recursive: true });
+        await writeFile(
+          join(destination, "package.json"),
+          JSON.stringify({ scripts: { test: "vitest run" } })
+        );
+        await writeFile(
+          join(destination, "src", "auth", "reset-password.ts"),
+          "export function sendResetEmail(email: string) { return email; }\n"
+        );
+        return {
+          ref: "main",
+          revision: "0123456789abcdef0123456789abcdef01234567"
+        };
+      }
+    });
+
+    const result = await client.callTool({
+      name: "fixmap_plan",
+      arguments: {
+        issue: "password reset emails fail",
+        repo: "https://github.com/owner/repository",
+        format: "json"
+      }
+    });
+
+    expect(result.isError).toBeFalsy();
+    const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
+    const report = JSON.parse(text) as {
+      contextFiles: Array<{ path: string }>;
+      diagnostics: Array<{ code: string; severity: string }>;
+    };
+    expect(report.contextFiles[0]?.path).toBe("src/auth/reset-password.ts");
+    expect(report.diagnostics[0]).toMatchObject({
+      code: "remote-repo-fetched",
+      severity: "info"
+    });
+  });
+
+  it("rejects diff options for GitHub URLs before attempting a clone", async () => {
+    let cloneCalled = false;
+    const client = await connectClient({
+      clonePublicRepository: async () => {
+        cloneCalled = true;
+        throw new Error("should not clone");
+      }
+    });
+
+    const result = await client.callTool({
+      name: "fixmap_plan",
+      arguments: {
+        issue: "password reset emails fail",
+        diff: "main...HEAD",
+        repo: "https://github.com/owner/repository"
+      }
+    });
+
+    expect(result.isError).toBe(true);
+    expect(cloneCalled).toBe(false);
+    const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
+    expect(text).toContain("Git diff options are not supported");
+  });
+
+  it("returns a sanitized error when a public repository cannot be fetched", async () => {
+    const client = await connectClient({
+      clonePublicRepository: async () => {
+        throw new Error("repository not found");
+      }
+    });
+
+    const result = await client.callTool({
+      name: "fixmap_plan",
+      arguments: {
+        issue: "password reset emails fail",
+        repo: "https://github.com/owner/missing"
+      }
+    });
+
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
+    expect(text).toContain("Could not fetch public GitHub repository");
+    expect(text).toContain("repository was not found or is not publicly accessible");
   });
 
   it("rejects a nonexistent repo path instead of returning an empty report", async () => {

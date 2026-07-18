@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
-import { stat, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildFixMapReport, renderJsonReport, renderMarkdownReport } from "@aryam/fixmap-core";
+import { renderJsonReport, renderMarkdownReport, type FixMapReport } from "@aryam/fixmap-core";
+import { buildReportForRepository } from "./repository-source.js";
 
 type CliOptions = {
   command: string;
   issueText: string;
-  repoRoot: string;
+  repo: string;
   diffSpec?: string | undefined;
   baseRef?: string | undefined;
   headRef?: string | undefined;
@@ -21,6 +22,7 @@ const USAGE = `FixMap maps an issue, prompt, or diff to context files, test rout
 
 Usage:
   fixmap plan --issue "Users cannot reset passwords"
+  fixmap plan --issue "Fix login" --repo https://github.com/owner/repository
   fixmap plan --diff main...HEAD
   fixmap plan --base main --head HEAD --format json
   fixmap mcp
@@ -34,7 +36,7 @@ Options:
   --diff <spec>       Git diff spec, such as main...HEAD
   --base <ref>        Base ref for diffing when --diff is not given
   --head <ref>        Head ref for diffing (defaults to HEAD)
-  --repo <path>       Repository root to scan (defaults to current directory)
+  --repo <source>     Local path or public GitHub HTTPS URL (defaults to current directory)
   --format <fmt>      Output format: markdown (default) or json
   --output <file>     Write the report to a file instead of stdout
   --help, -h          Show this help
@@ -81,18 +83,19 @@ async function runPlan(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  if (!(await isDirectory(options.repoRoot))) {
-    console.error(`Repository root "${options.repoRoot}" does not exist or is not a directory. Check the --repo path.`);
+  let report: FixMapReport;
+  try {
+    report = await buildReportForRepository({
+      repo: options.repo,
+      issueText: options.issueText,
+      diffSpec: options.diffSpec,
+      baseRef: options.baseRef,
+      headRef: options.headRef
+    });
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
-
-  const report = await buildFixMapReport({
-    repoRoot: options.repoRoot,
-    issueText: options.issueText,
-    diffSpec: options.diffSpec,
-    baseRef: options.baseRef,
-    headRef: options.headRef
-  });
 
   if (!options.issueText) {
     const diffFailure = report.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
@@ -111,18 +114,10 @@ async function runPlan(args: string[]): Promise<void> {
   }
 }
 
-async function isDirectory(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
 function parseArgs(args: string[]): CliOptions {
   const command = args[0] ?? "";
   let issueText = "";
-  let repoRoot = process.cwd();
+  let repo = process.cwd();
   let diffSpec: string | undefined;
   let baseRef: string | undefined;
   let headRef: string | undefined;
@@ -155,7 +150,7 @@ function parseArgs(args: string[]): CliOptions {
       headRef = nextValue;
       index += consumedNext ? 1 : 0;
     } else if (arg === "--repo" && nextValue) {
-      repoRoot = resolve(nextValue);
+      repo = nextValue;
       index += consumedNext ? 1 : 0;
     } else if (arg === "--format" && (nextValue === "markdown" || nextValue === "json")) {
       format = nextValue;
@@ -171,7 +166,7 @@ function parseArgs(args: string[]): CliOptions {
   return {
     command,
     issueText,
-    repoRoot,
+    repo,
     diffSpec,
     baseRef,
     headRef,
