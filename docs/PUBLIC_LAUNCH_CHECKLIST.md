@@ -34,9 +34,9 @@ Validated 2026-07-15 in the private acceptance repository `FixMap-Action-Accepta
 - [x] Full report present in the job log and step summary; `0` comments created on the PR.
 - [x] Comment write path (default write permissions) was already validated in this repository during the v0.2 acceptance round.
 - [x] README documents safe options for fork PRs and explicitly warns against `pull_request_target` with untrusted checkout.
-- [x] `action.yml` carries Marketplace `branding` metadata (map icon, green).
+- [x] Root `action.yml` carries Marketplace `branding` metadata (map icon, green) and points at the checked-in Action bundle.
 
-Remaining before a Marketplace listing (owner actions): create the stable `v1` tag from a green `main` and submit the listing from the releases UI.
+Remaining before a Marketplace listing (owner action): accept the Marketplace Developer Agreement if needed, then publish the Action from the release UI. This legal agreement must be accepted by the repository owner; it is not automated by the release workflow.
 
 ## Launch Copy
 

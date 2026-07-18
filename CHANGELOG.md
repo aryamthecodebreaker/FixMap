@@ -2,6 +2,26 @@
 
 All notable changes to FixMap are documented here.
 
+## 0.5.1 - 2026-07-18
+
+### Added
+
+- Root GitHub Action metadata enables the shorter `uses: aryamthecodebreaker/FixMap@v0.5.1` install path and makes the repository eligible for a Marketplace listing.
+
+### Fixed
+
+- File mentions now bridge JavaScript build paths to their TypeScript source equivalents, so a task naming `core/Ky.js` can rank `source/core/Ky.ts` as explicit context.
+- Import-graph proximity can no longer boost a neighbor above the higher-scoring seed that supplied the evidence.
+- Example/demo files and TypeScript declaration files are deprioritized for runtime implementation tasks, while tasks that explicitly target them keep the normal ranking behavior.
+- Evaluation failures now print hit rates as real percentages instead of decimal fractions followed by a percent sign.
+
+### Changed
+
+- The frozen six-repository evaluation now measures 50% top-1, 83% top-3, and 83% top-5, up from 33% / 33% / 67% on v0.5.0. Zod #5944 remains the documented miss.
+- Exact per-case external rankings are now checked in, and scheduled/release runs fail if live output drifts from that reviewed artifact.
+- Package and MCP descriptions now lead with deterministic local-first analysis and public GitHub URL support.
+- Release publishing now gates on the external evaluation and builds the GitHub release body from the matching changelog section.
+
 ## 0.5.0 - 2026-07-18
 
 ### Added

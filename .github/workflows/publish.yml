@@ -158,6 +158,8 @@ jobs:
 
       - run: npm ci
       - run: npm run ci
+      - name: Gate release on the cross-repository evaluation
+        run: node scripts/evaluate-external.mjs --gate --check-recorded
 
       - name: Publish @aryam/fixmap-core
         shell: bash
@@ -302,8 +304,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          RELEASE_NOTES="${RUNNER_TEMP}/fixmap-release-notes.md"
+          awk -v version="$VERSION" '
+            index($0, "## " version " - ") == 1 { capture = 1; next }
+            capture && /^## / { exit }
+            capture { print }
+          ' CHANGELOG.md > "$RELEASE_NOTES"
+          if [[ ! -s "$RELEASE_NOTES" ]]; then
+            echo "::error::CHANGELOG.md has no release notes for ${VERSION}."
+            exit 1
+          fi
+
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --title "FixMap ${GITHUB_REF_NAME}" \
-            --generate-notes
+            --notes-file "$RELEASE_NOTES"

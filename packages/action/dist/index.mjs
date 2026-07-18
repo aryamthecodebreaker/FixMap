@@ -45,15 +45,15 @@ function buildImportGraph(files) {
 function findImportProximity(graph, seedPaths) {
   const seeds = new Set(seedPaths);
   const proximity = /* @__PURE__ */ new Map();
-  const sortedSeeds = [...seeds].sort((a, b) => a.localeCompare(b));
-  for (const seed of sortedSeeds) {
+  const orderedSeeds = [...seeds];
+  for (const seed of orderedSeeds) {
     for (const neighbor of neighborsOf(graph, seed)) {
       if (!seeds.has(neighbor.path) && !proximity.has(neighbor.path)) {
         proximity.set(neighbor.path, { distance: 1, seed, direction: neighbor.direction });
       }
     }
   }
-  const firstHop = [...proximity.keys()].sort((a, b) => a.localeCompare(b));
+  const firstHop = [...proximity.keys()];
   for (const mid of firstHop) {
     const seed = proximity.get(mid)?.seed ?? mid;
     for (const neighbor of neighborsOf(graph, mid)) {
@@ -333,9 +333,18 @@ var DEPLOYMENT_TERMS = [
   "502"
 ];
 var LOCKFILES = /* @__PURE__ */ new Set(["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock"]);
+var AUXILIARY_CODE_DIRS = /* @__PURE__ */ new Set(["demo", "demos", "example", "examples", "sample", "samples"]);
+var COMPILED_TO_SOURCE_MENTION_EXTENSIONS = {
+  ".js": [".ts", ".tsx"],
+  ".jsx": [".tsx"],
+  ".mjs": [".mts"],
+  ".cjs": [".cts"]
+};
 var MAX_FILES_PER_MENTION = 5;
 var MAX_PROXIMITY_SEEDS = 5;
 var IMPORT_PROXIMITY_BOOSTS = { 1: 4, 2: 2 };
+var EXAMPLE_CODE_PENALTY = 2;
+var TYPE_DECLARATION_PENALTY = 4;
 function rankContextFiles(repo, input, limit = 8) {
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
@@ -350,6 +359,9 @@ function rankContextFiles(repo, input, limit = 8) {
   const taskTargetsDocumentation = hasAny(signals.tokens, ["docs", "documentation", "readme", "guide", "copy"]);
   const taskTargetsConfiguration = hasAny(signals.tokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
   const taskTargetsDeployment = hasAny(signals.tokens, DEPLOYMENT_TERMS);
+  const taskText = [input.issueText ?? "", input.diffText ?? ""].join("\n");
+  const taskTargetsExamples = /\b(?:demos?|examples?|samples?)\b/i.test(taskText.replace(/\bfor example\b/gi, ""));
+  const taskTargetsTypeDeclarations = /\b(?:typescript|type definitions?|declarations?|typings?|\.d\.(?:ts|mts|cts))\b/i.test(taskText);
   const scored = candidates.map((file) => {
     const reasons = [];
     let score = 0;
@@ -396,6 +408,14 @@ function rankContextFiles(repo, input, limit = 8) {
       score += 5;
       reasons.push("root configuration for a deployment-related task");
     }
+    if (file.kind === "code" && isAuxiliaryCodePath(file.path) && !taskTargetsExamples && !isChanged && !mentionedPaths.has(file.path)) {
+      score -= EXAMPLE_CODE_PENALTY;
+      reasons.push("example or demo code deprioritized for an implementation task");
+    }
+    if (isTypeDeclarationPath(file.path) && !taskTargetsTypeDeclarations && !isChanged && !mentionedPaths.has(file.path)) {
+      score -= TYPE_DECLARATION_PENALTY;
+      reasons.push("type declaration deprioritized for a runtime task");
+    }
     if (pathTokens.has("auth") || pathTokens.has("login")) {
       if (signals.tokens.has("auth") || signals.tokens.has("login") || signals.tokens.has("password")) {
         score += 2;
@@ -413,15 +433,23 @@ function rankContextFiles(repo, input, limit = 8) {
   })).filter((file) => file.score >= 4).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, limit);
 }
 function applyImportProximity(scored, repo) {
-  const seeds = scored.filter((entry) => confidenceForScore(entry.score, entry.isChanged) === "high").sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, MAX_PROXIMITY_SEEDS).map((entry) => entry.path);
-  if (seeds.length === 0) {
+  const seedEntries = scored.filter((entry) => confidenceForScore(entry.score, entry.isChanged) === "high").sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, MAX_PROXIMITY_SEEDS);
+  if (seedEntries.length === 0) {
     return;
   }
+  const seeds = seedEntries.map((entry) => entry.path);
+  const seedScores = new Map(seedEntries.map((entry) => [entry.path, entry.score]));
   const proximity = findImportProximity(buildImportGraph(repo.files), seeds);
   for (const entry of scored) {
     const hit = proximity.get(entry.path);
     if (hit) {
-      entry.score += IMPORT_PROXIMITY_BOOSTS[hit.distance];
+      const seedScore = seedScores.get(hit.seed);
+      const availableBoost = seedScore === void 0 ? 0 : Math.max(0, seedScore - entry.score - 1);
+      const boost = Math.min(IMPORT_PROXIMITY_BOOSTS[hit.distance], availableBoost);
+      if (boost === 0) {
+        continue;
+      }
+      entry.score += boost;
       entry.reasons.push(proximityReason(hit));
     }
   }
@@ -445,14 +473,44 @@ function hasAny(tokens, values) {
 function matchMentionedPaths(mentions, repoPaths) {
   const matched = /* @__PURE__ */ new Set();
   for (const mention of mentions) {
-    const matches = repoPaths.filter((path) => path === mention || path.endsWith(`/${mention}`) || mention.endsWith(`/${path}`));
-    if (matches.length > 0 && matches.length <= MAX_FILES_PER_MENTION) {
-      for (const path of matches) {
+    const exactMatches = repoPaths.filter((path) => pathMatchesMention(path, mention));
+    if (exactMatches.length > 0) {
+      if (exactMatches.length <= MAX_FILES_PER_MENTION) {
+        for (const path of exactMatches) {
+          matched.add(path);
+        }
+      }
+      continue;
+    }
+    const fallbackVariants = compiledSourcePathVariants(mention);
+    const fallbackMatches = repoPaths.filter((path) => fallbackVariants.some((variant) => pathMatchesMention(path, variant)));
+    if (fallbackMatches.length > 0 && fallbackMatches.length <= MAX_FILES_PER_MENTION) {
+      for (const path of fallbackMatches) {
         matched.add(path);
       }
     }
   }
   return matched;
+}
+function pathMatchesMention(path, mention) {
+  return path === mention || path.endsWith(`/${mention}`) || mention.endsWith(`/${path}`);
+}
+function compiledSourcePathVariants(path) {
+  const lowerPath = path.toLowerCase();
+  for (const [compiledExtension, sourceExtensions] of Object.entries(COMPILED_TO_SOURCE_MENTION_EXTENSIONS)) {
+    if (!lowerPath.endsWith(compiledExtension)) {
+      continue;
+    }
+    const stem = path.slice(0, -compiledExtension.length);
+    return sourceExtensions.map((extension) => `${stem}${extension}`);
+  }
+  return [];
+}
+function isAuxiliaryCodePath(path) {
+  return path.split("/").slice(0, -1).some((segment) => AUXILIARY_CODE_DIRS.has(segment.toLowerCase()));
+}
+function isTypeDeclarationPath(path) {
+  return /\.d\.(?:ts|mts|cts)$/i.test(path);
 }
 function findCommonTokens(contentTokensByPath) {
   const fileCount = contentTokensByPath.size;

@@ -1,5 +1,6 @@
 {
   "generatedAt": "2026-07-14",
+  "taskTextRule": "Issue title plus the first 600 characters of the issue body. The fixed character cap can end mid-token and does not guarantee that late file-path hints are retained.",
   "selectionRule": "Per repository: the most recent merged pull request (of the 50 most recent) that closes an issue whose body is at least 80 characters, is not a docs-titled change, and modifies 1-3 source files after excluding tests, docs, examples, configuration, and lockfiles. Expected files are exactly the fixing PR's source files and were verified to exist at the pinned base SHA. Cases were frozen before measuring FixMap's rankings and must not be edited to match ranking output.",
   "cases": [
     {

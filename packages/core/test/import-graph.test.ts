@@ -69,4 +69,27 @@ describe("findImportProximity", () => {
 
     expect(findImportProximity(graph, []).size).toBe(0);
   });
+
+  it("uses caller-provided seed priority when multiple seeds share a neighbor", () => {
+    const graph = buildImportGraph([
+      codeFile("src/a.ts", "import { shared } from './shared.js';"),
+      codeFile("src/z.ts", "import { shared } from './shared.js';"),
+      codeFile("src/shared.ts", "export const shared = 1;")
+    ]);
+
+    expect(findImportProximity(graph, ["src/z.ts", "src/a.ts"]).get("src/shared.ts")?.seed).toBe("src/z.ts");
+  });
+
+  it("preserves seed priority when two second-hop paths meet", () => {
+    const graph = buildImportGraph([
+      codeFile("src/a-low.ts", "import { aMid } from './a-mid.js';"),
+      codeFile("src/a-mid.ts", "import { shared } from './shared.js';"),
+      codeFile("src/z-high.ts", "import { zMid } from './z-mid.js';"),
+      codeFile("src/z-mid.ts", "import { shared } from './shared.js';"),
+      codeFile("src/shared.ts", "export const shared = 1;")
+    ]);
+
+    expect(findImportProximity(graph, ["src/z-high.ts", "src/a-low.ts"]).get("src/shared.ts"))
+      .toEqual({ distance: 2, seed: "src/z-high.ts", direction: "imported-by" });
+  });
 });

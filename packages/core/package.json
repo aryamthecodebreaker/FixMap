@@ -1,7 +1,7 @@
 {
   "name": "@aryam/fixmap-core",
-  "version": "0.5.0",
-  "description": "Core repository scanner, ranker, and report renderer for FixMap.",
+  "version": "0.5.1",
+  "description": "Deterministic local-first repository scanner, context ranker, and report renderer for coding agents.",
   "license": "MIT",
   "repository": {
     "type": "git",
