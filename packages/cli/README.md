@@ -2,11 +2,19 @@
 
 **Give your coding agent a map before it starts editing.**
 
-FixMap turns an issue, prompt, or git diff into ranked context files, test routes, and risk notes — locally, with no account or API key. Nothing leaves your machine.
+FixMap turns an issue, prompt, or git diff into ranked context files, test routes, and risk notes — with no account or API key and no source upload.
 
 ## Quick start
 
-Run from a JavaScript or TypeScript repository:
+Try a public GitHub repository without cloning it first:
+
+```bash
+npx -y @aryam/fixmap plan \
+  --issue "support public GitHub repository inputs" \
+  --repo https://github.com/aryamthecodebreaker/FixMap
+```
+
+Or run from a local JavaScript or TypeScript repository:
 
 ```bash
 npx @aryam/fixmap plan --issue "password reset emails fail"
@@ -23,6 +31,8 @@ Machine-readable output:
 ```bash
 npx @aryam/fixmap plan --base main --head HEAD --format json --output fixmap-report.json
 ```
+
+Public GitHub URL mode is available in the CLI and MCP server for issue-only analysis. FixMap anonymously shallow-clones the default branch into an isolated temporary directory, disables credentials and repository execution surfaces, and removes the checkout before returning. Clone locally to use `--diff`, `--base`, or `--head`.
 
 ## MCP server
 
@@ -57,7 +67,7 @@ fixmap mcp             Run FixMap as an MCP server over stdio
 --diff <spec>          Git diff spec, such as main...HEAD
 --base <ref>           Base ref for diffing when --diff is not given
 --head <ref>           Head ref for diffing (defaults to HEAD)
---repo <path>          Repository root to scan (defaults to current directory)
+--repo <source>        Local path or public GitHub HTTPS URL
 --format <fmt>         Output format: markdown (default) or json
 --output <file>        Write the report to a file instead of stdout
 ```

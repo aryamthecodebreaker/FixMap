@@ -2,6 +2,31 @@
 
 All notable changes to FixMap are documented here.
 
+## 0.5.0 - 2026-07-18
+
+### Added
+
+- One-command public GitHub repository analysis in the CLI and MCP server: pass a canonical `https://github.com/owner/repository` URL as the repository input and FixMap will scan an anonymous depth-one temporary checkout (#54).
+- An informational `remote-repo-fetched` diagnostic records the canonical source URL, default branch, and fetched commit so remote reports remain reproducible.
+
+### Security
+
+- Remote inputs accept only credential-free HTTPS URLs on `github.com`. Git credential and askpass helpers, inherited Git configuration and tokens, hooks, submodules, symlinks, and LFS smudging are disabled for the temporary checkout.
+- Temporary checkouts are removed on success, clone failure, or analysis failure. Cleanup failure is a hard error rather than a successful report with source left on disk.
+
+### Changed
+
+- Remote URL mode is explicitly issue-only; diff analysis continues to require a local checkout with the requested refs.
+- Published package metadata now includes homepage, issue tracker, and discovery keywords.
+- Release publishing now validates the selected tag and every version field, verifies npm and MCP Registry artifacts before creating the public GitHub release, and includes the MIT license in both npm packages.
+- Public copy describes FixMap output as an explainable report rather than claiming checks were executed as a review receipt.
+
+## 0.4.1 - 2026-07-16
+
+### Added
+
+- Official MCP Registry metadata and OIDC publication, allowing MCP directories to discover `io.github.aryamthecodebreaker/fixmap`.
+
 ## 0.4.0 - 2026-07-15
 
 ### Added

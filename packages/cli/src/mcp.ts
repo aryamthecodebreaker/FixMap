@@ -1,11 +1,18 @@
 import { readFileSync } from "node:fs";
-import { stat } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { buildFixMapReport, renderJsonReport, renderMarkdownReport } from "@aryam/fixmap-core";
+import {
+  renderJsonReport,
+  renderMarkdownReport,
+  type FixMapReport
+} from "@aryam/fixmap-core";
+import {
+  buildReportForRepository,
+  type RepositorySourceDependencies
+} from "./repository-source.js";
 
 type PlanArguments = {
   issue?: string;
@@ -33,7 +40,9 @@ const PLAN_TOOL = {
       head: { type: "string", description: "Head git ref, defaults to HEAD" },
       repo: {
         type: "string",
-        description: "Absolute path to the repository root, defaults to the server working directory"
+        description:
+          "Local path or public GitHub HTTPS repository URL, defaults to the server working directory. " +
+          "GitHub URLs support issue-only analysis and are removed after scanning."
       },
       format: {
         type: "string",
@@ -44,7 +53,9 @@ const PLAN_TOOL = {
   }
 };
 
-export function createFixMapMcpServer(): Server {
+export function createFixMapMcpServer(
+  repositorySourceDependencies: RepositorySourceDependencies = {}
+): Server {
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [PLAN_TOOL] }));
@@ -65,21 +76,21 @@ export function createFixMapMcpServer(): Server {
       };
     }
 
-    const repoRoot = args.repo ? resolve(args.repo) : process.cwd();
-    if (!(await isDirectory(repoRoot))) {
+    let report: FixMapReport;
+    try {
+      report = await buildReportForRepository({
+        repo: args.repo ?? process.cwd(),
+        issueText: args.issue,
+        diffSpec: args.diff,
+        baseRef: args.base,
+        headRef: args.head
+      }, repositorySourceDependencies);
+    } catch (error) {
       return {
         isError: true,
-        content: [{ type: "text", text: `Repository root "${repoRoot}" does not exist or is not a directory.` }]
+        content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }]
       };
     }
-
-    const report = await buildFixMapReport({
-      repoRoot,
-      issueText: args.issue,
-      diffSpec: args.diff,
-      baseRef: args.base,
-      headRef: args.head
-    });
 
     if (!args.issue) {
       const diffFailure = report.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
@@ -100,14 +111,6 @@ export function createFixMapMcpServer(): Server {
 
 export async function runMcpServer(): Promise<void> {
   await createFixMapMcpServer().connect(new StdioServerTransport());
-}
-
-async function isDirectory(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isDirectory();
-  } catch {
-    return false;
-  }
 }
 
 function readVersion(): string {

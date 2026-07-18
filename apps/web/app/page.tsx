@@ -1,6 +1,7 @@
 import { Demo } from "./demo";
 
-const installCommand = "npx @aryam/fixmap plan --issue \"password reset fails\"";
+const installCommand =
+  "npx -y @aryam/fixmap plan --issue \"support public GitHub inputs\" --repo https://github.com/aryamthecodebreaker/FixMap";
 
 export default function HomePage() {
   return (
@@ -31,6 +32,7 @@ export default function HomePage() {
           <div className="proof-row" aria-label="Product properties">
             <span>Deterministic explanations</span>
             <span>Markdown + JSON</span>
+            <span>MCP server</span>
             <span>GitHub Action</span>
           </div>
         </div>
@@ -66,7 +68,7 @@ export default function HomePage() {
         <div className="steps">
           <article><span>01</span><h3>Scan locally</h3><p>Read repository shape, workspace scripts, tests, and the requested git diff without uploading source.</p></article>
           <article><span>02</span><h3>Rank with reasons</h3><p>Combine task terms, changed files, file type, path proximity, and repository structure.</p></article>
-          <article><span>03</span><h3>Leave a receipt</h3><p>Return context, commands, risks, confidence, and diagnostics as Markdown or machine-readable JSON.</p></article>
+          <article><span>03</span><h3>Explain the route</h3><p>Return context, commands, risks, confidence, and diagnostics as Markdown or machine-readable JSON.</p></article>
         </div>
       </section>
 
@@ -74,7 +76,7 @@ export default function HomePage() {
         <div>
           <p className="kicker">Thirty-second start</p>
           <h2>One command. No account. No API key.</h2>
-          <p>Run it from the root of a JavaScript or TypeScript repository.</p>
+          <p>Point it at a public GitHub repository, or run it from a local JavaScript or TypeScript checkout.</p>
         </div>
         <pre><code>{installCommand}</code></pre>
         <div className="quick-links">

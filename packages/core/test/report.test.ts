@@ -29,6 +29,25 @@ describe("report rendering", () => {
     expect(JSON.parse(json)).toEqual(report);
   });
 
+  it("renders informational diagnostics", () => {
+    const report: FixMapReport = {
+      summary: "FixMap found 0 context files and generated 0 test routes.",
+      changedFiles: [],
+      contextFiles: [],
+      testRoutes: [],
+      risks: [],
+      diagnostics: [{
+        code: "remote-repo-fetched",
+        severity: "info",
+        message: "Fetched a public repository into an isolated temporary checkout."
+      }]
+    };
+
+    expect(renderMarkdownReport(report)).toContain(
+      "**info** Fetched a public repository into an isolated temporary checkout."
+    );
+  });
+
   it("routes nearby tests by path overlap and adds risk notes", () => {
     const repo: RepoMap = {
       root: "/repo",
