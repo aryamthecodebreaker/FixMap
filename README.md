@@ -17,6 +17,12 @@ Turn an issue or git diff into relevant files, test routes, risk notes, and clea
 <!-- Reproducible recording: regenerate with `npm run build:cli && node scripts/render-demo.mjs` -->
 ![Animated terminal recording: a single fixmap plan command on the checked-in tiny-auth example produces ranked context files with confidence and reasons, a test route with related tests, a high authentication risk note, and honest empty diagnostics — in about ten seconds.](docs/assets/fixmap-cli-demo.svg)
 
+### Watch FixMap in 24 seconds
+
+[![FixMap launch film preview: a terminal report showing the ranked reset-password context file, its related test route, and a high authentication risk note.](apps/web/public/fixmap-launch-poster.jpg)](https://fixmap-flax.vercel.app/#launch-film)
+
+[Play the launch film](https://fixmap-flax.vercel.app/fixmap-launch.mp4) · [Explore the live experience](https://fixmap-flax.vercel.app/#launch-film) · [View the GitHub repository](https://github.com/aryamthecodebreaker/FixMap)
+
 ## Why FixMap?
 
 Coding agents are fast once they have the right context. The expensive mistakes happen earlier:

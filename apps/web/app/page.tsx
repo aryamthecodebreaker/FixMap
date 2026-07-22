@@ -12,6 +12,7 @@ export default function HomePage() {
           <span>FixMap</span>
         </a>
         <div className="nav-links">
+          <a href="#launch-film">Film</a>
           <a href="#demo">Demo</a>
           <a href="#how-it-works">How it works</a>
           <a className="nav-github" href="https://github.com/aryamthecodebreaker/FixMap">GitHub ↗</a>
@@ -27,7 +28,8 @@ export default function HomePage() {
           </p>
           <div className="hero-actions">
             <a className="button primary" href="#quickstart">Try the CLI</a>
-            <a className="button secondary" href="#demo">Explore a live sample</a>
+            <a className="button secondary" href="#launch-film">Watch the launch film</a>
+            <a className="button github-button" href="https://github.com/aryamthecodebreaker/FixMap">View on GitHub ↗</a>
           </div>
           <div className="proof-row" aria-label="Product properties">
             <span>Deterministic explanations</span>
@@ -49,6 +51,35 @@ export default function HomePage() {
             <p><strong>!</strong> authentication · high severity</p>
           </div>
         </div>
+      </section>
+
+      <section className="film-section" id="launch-film">
+        <div className="film-copy">
+          <p className="kicker">23-second product film</p>
+          <h2>See the handoff before the first edit.</h2>
+          <p id="launch-film-description">
+            The film moves from the wrong-file problem to a ranked context file, a test route, and an explicit risk note—the core FixMap workflow in one short pass.
+          </p>
+          <div className="film-links">
+            <a className="button primary" href="https://github.com/aryamthecodebreaker/FixMap">Explore the GitHub repo ↗</a>
+            <a className="button secondary" href="/fixmap-launch.mp4">Open the video</a>
+          </div>
+          <p className="film-note">Original product film · 1280×720 · sound on · current release v0.6.2</p>
+        </div>
+        <figure className="film-frame">
+          <video
+            controls
+            playsInline
+            preload="metadata"
+            poster="/fixmap-launch-poster.jpg"
+            aria-label="FixMap launch film"
+            aria-describedby="launch-film-description"
+          >
+            <source src="/fixmap-launch.mp4" type="video/mp4" />
+            Your browser does not support embedded video. <a href="/fixmap-launch.mp4">Open the MP4 instead.</a>
+          </video>
+          <figcaption>FixMap turns a task into explainable context, verification routes, and reviewable risk.</figcaption>
+        </figure>
       </section>
 
       <section className="demo-section" id="demo">
