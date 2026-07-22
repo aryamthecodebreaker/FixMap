@@ -55,4 +55,24 @@ describe("extractTaskSignals", () => {
     expect(signals.tokens.has("doe")).toBe(false);
     expect(signals.tokens.has("but")).toBe(false);
   });
+
+  it("keeps bounded code-shaped identifiers and an unterminated exact literal", () => {
+    const signals = extractTaskSignals({
+      issueText: 'cidrv6 fails after safeParse(); ignore generic `level`\n// "pattern": "^(([0-9a-fA-F]{1'
+    });
+
+    expect(signals.identifiers).toContain("cidrv6");
+    expect(signals.identifiers).toContain("safeParse");
+    expect(signals.identifiers).not.toContain("level");
+    expect(signals.exactFragments).toContain("^(([0-9a-fA-F]{1");
+  });
+
+  it("caps definition signals for large task descriptions", () => {
+    const identifiers = Array.from({ length: 40 }, (_, index) => `signalName${index}`).join(" ");
+    const fragments = Array.from({ length: 20 }, (_, index) => `"^literal-${index}$"`).join(" ");
+    const signals = extractTaskSignals({ issueText: `${identifiers}\n${fragments}` });
+
+    expect(signals.identifiers.size).toBe(24);
+    expect(signals.exactFragments).toHaveLength(8);
+  });
 });

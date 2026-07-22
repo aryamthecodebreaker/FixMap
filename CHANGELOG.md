@@ -2,6 +2,17 @@
 
 All notable changes to FixMap are documented here.
 
+## 0.7.0 - 2026-07-22
+
+### Added
+
+- Added bounded, explainable definition-site ranking for distinctive task identifiers and exact code or literal fragments, including truncated literals from issue excerpts.
+- Added focused regressions for exact literal extraction, generic-identifier noise, and definition-site ranking.
+
+### Changed
+
+- Improved the frozen six-repository evaluation from 50% / 83% / 83% top-1/3/5 to 67% / 100% / 100%. The unchanged Zod #5944 case now ranks its fixing `regexes.ts` file first.
+
 ## 0.6.2 - 2026-07-22
 
 ### Security

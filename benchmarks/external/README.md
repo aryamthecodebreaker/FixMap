@@ -35,16 +35,16 @@ The first run shallow-clones each repository at its pinned SHA into the OS temp 
 
 ## Results
 
-Measured 2026-07-18 on the dataset above (FixMap v0.5.1, Node v24, `rankContextFiles` with a top-5 window):
+Measured 2026-07-22 on the dataset above (FixMap v0.7.0, Node v24, `rankContextFiles` with a top-5 window):
 
 | Metric | Hit rate |
 | --- | --- |
-| top-1 | 3/6 (50%) |
-| top-3 | 5/6 (83%) |
-| top-5 | 5/6 (83%) |
+| top-1 | 4/6 (67%) |
+| top-3 | 6/6 (100%) |
+| top-5 | 6/6 (100%) |
 
-Remaining miss: zod #5944 (fix lives in `regexes.ts`; the 600-character task excerpt ends inside the reported pattern, and ranking surfaces the JSON-schema modules that consume it).
+The v0.7.0 ranker adds bounded definition-site evidence for distinctive task identifiers and exact code or literal fragments. That general signal moves the frozen Zod #5944 fixing file, `regexes.ts`, from outside the top five to top one without changing the task, expected path, or selection rule.
 
-The exact per-case top-five rankings are checked in at [`results.json`](results.json).
+The exact per-case top-five rankings are checked in at [`results.json`](results.json). Six cases are useful regression evidence, not a general claim that FixMap is 100% accurate.
 
 The `--gate` floors (top-1 ≥ 0.3, top-3 ≥ 0.5, top-5 ≥ 0.5) exist only to catch ranking collapses in the scheduled run. They are deliberately below measured performance and are not accuracy claims or targets.

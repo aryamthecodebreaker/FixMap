@@ -151,7 +151,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.6.2
+        uses: aryamthecodebreaker/FixMap@v0.7.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -189,7 +189,7 @@ npm run evaluate
 
 The current suite covers Action failures, invalid diffs, authentication, the web demo, workspace test routing, and contributor documentation. The cases and full ranked results are visible in [`benchmarks/`](benchmarks).
 
-A separate cross-repository evaluation runs FixMap against six real, already-fixed issues in permissively licensed repositories (Express, Axios, debug, ky, Zod, Pino) pinned to exact commits, and reports honest top-1/3/5 hit rates — currently 50% / 83% / 83%. The dataset, methodology, ranked outputs, and remaining Zod miss live in [`benchmarks/external/`](benchmarks/external); a scheduled workflow reruns it weekly.
+A separate cross-repository evaluation runs FixMap against six real, already-fixed issues in permissively licensed repositories (Express, Axios, debug, ky, Zod, Pino) pinned to exact commits, and reports honest top-1/3/5 hit rates — currently 67% / 100% / 100%. The frozen dataset, methodology, and every ranked output live in [`benchmarks/external/`](benchmarks/external); a scheduled workflow reruns it weekly.
 
 ## Repository layout
 

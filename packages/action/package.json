@@ -1,6 +1,6 @@
 {
   "name": "@fixmap/action",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "GitHub Action wrapper for FixMap pull request reports.",
   "private": true,
   "license": "MIT",
@@ -10,6 +10,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@aryam/fixmap-core": "0.6.2"
+    "@aryam/fixmap-core": "0.7.0"
   }
 }

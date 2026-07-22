@@ -19,23 +19,23 @@ The report ranks likely files with reasons, suggests test routes, and names risk
 - CLI, MCP server, and GitHub Action share the same core ranker.
 - Public GitHub issue URLs supply both task context and the repository in one input; source is scanned in an isolated anonymous shallow checkout that is removed after analysis.
 - A frozen external evaluation uses six real fixed issues at pinned pre-fix commits.
-- Current checked-in result: top-1 `3/6` (50%), top-3 `5/6` (83%), top-5 `5/6` (83%).
-- The remaining Zod miss and every ranked output are public in [`benchmarks/external/`](../benchmarks/external/).
+- Current checked-in result: top-1 `4/6` (67%), top-3 `6/6` (100%), top-5 `6/6` (100%).
+- Every ranked output and the frozen selection rule are public in [`benchmarks/external/`](../benchmarks/external/).
 - A release cannot publish unless the local CI suite and external evaluation gate pass.
 
-The six-case result is evidence about those six cases, not a general “83% accurate” claim.
+The six-case result is evidence about those six cases, not a general accuracy claim.
 
 ## Truth guardrails
 
 Do not say:
 
-- “FixMap is 83% accurate” or “finds the right file 83% of the time.”
+- “FixMap is 100% accurate” or “always finds the right file.”
 - “FixMap runs or verifies the tests.” It suggests test routes; it does not execute them.
 - “Any GitHub URL works.” Only canonical public repository and issue URLs are supported.
 - “Your code never leaves your machine” without the remote-mode nuance: FixMap downloads public source from GitHub, but does not upload analyzed source to a FixMap service.
 - “5,000 stars is expected.” It is the goal, not a promised outcome.
 
-Keep the documented miss visible. If a scheduled evaluation regresses, pause promotion, fix or explain the regression, and update the published result before resuming.
+Keep every per-case result and any future miss visible. If a scheduled evaluation regresses, pause promotion, fix or explain the regression, and update the published result before resuming.
 
 ## Release gate before any campaign
 
@@ -119,7 +119,7 @@ Points for the maintainer to explain personally:
 2. The one-sentence solution: deterministic repo context—ranked files, test routes, risks, and diagnostics.
 3. The fastest trial: include the one-input public GitHub issue URL command.
 4. The technical mechanism: path/content signals, real git diff signals, bounded static import proximity, file-kind priors, and workspace boundaries.
-5. The honest evidence: six frozen real bugs, `3/6` top-1 and `5/6` top-3/top-5, with the Zod miss linked.
+5. The honest evidence: six frozen real bugs, `4/6` top-1 and `6/6` top-3/top-5, with every per-case ranking linked.
 6. The scope: JavaScript/TypeScript today; remote URLs are issue-only; suggested tests are not executed.
 7. What changed because the benchmark caught a regression: the floor failed at `2/6` top-3, the thresholds stayed fixed, and general ranking rules lifted it to `5/6`.
 8. Ask for technical criticism of the evaluation and useful next signals.
@@ -140,7 +140,7 @@ These are angles and evidence, not identical copy to syndicate.
 
 - Problem: agents spend context and tokens discovering where to start.
 - Demo: run FixMap first on a public repository, then hand the report to the agent.
-- Evidence: deterministic, zero model calls, inspectable reasons, `5/6` top-5 on the frozen set.
+- Evidence: deterministic, zero model calls, inspectable reasons, `6/6` top-5 on the frozen set.
 - Honest caveat: it is a routing aid, not semantic code understanding or a correctness oracle.
 
 ### Claude Code and Cursor communities
@@ -167,7 +167,7 @@ claude mcp add fixmap -- npx -y @aryam/fixmap@latest mcp
 1. One pain sentence.
 2. The public repository command.
 3. A screenshot or short terminal video of the real output.
-4. One evidence sentence: six pinned bugs, `3/6` top-1 and `5/6` top-5, one public miss.
+4. One evidence sentence: six pinned bugs, `4/6` top-1 and `6/6` top-5, with the full result public.
 5. Repository link and a specific feedback question.
 
 Avoid generic feature lists and unsupported superlatives.
@@ -191,10 +191,10 @@ The latest work includes:
 - a shared CLI, MCP server, and GitHub Action workflow
 - a GitHub Marketplace listing for the Action
 - a production dependency audit gate with no high or critical findings
-- 119 automated tests, production builds, smoke tests, and a frozen cross-repository evaluation gate
+- 122 automated tests, production builds, smoke tests, and a frozen cross-repository evaluation gate
 - a new 24-second product film on the README and live site
 
-The evaluation is intentionally public and modest: across six pinned real bugs, FixMap currently ranks an expected file in the top 1 for 3/6 cases and in the top 3 for 5/6. The miss is published too.
+The evaluation is intentionally public and modest: across six pinned real bugs, FixMap now ranks an expected file in the top 1 for 4/6 cases and in the top 3 for 6/6. Every per-case ranking is published, and six cases are not a general accuracy claim.
 
 Watch the film and try the live experience: https://fixmap-flax.vercel.app/#launch-film
 
@@ -204,7 +204,7 @@ Marketplace: https://github.com/marketplace/actions/fixmap
 
 npm: https://www.npmjs.com/package/@aryam/fixmap
 
-Release: https://github.com/aryamthecodebreaker/FixMap/releases/tag/v0.6.2
+Release: https://github.com/aryamthecodebreaker/FixMap/releases/tag/v0.7.0
 
 I would especially value feedback on the ranking explanations and which repository signals would make FixMap more useful before an agent starts editing.
 

@@ -137,11 +137,16 @@ const STOP_WORDS = new Set([
 ]);
 
 const FILE_MENTION_PATTERN = /[A-Za-z0-9_@$][A-Za-z0-9_.$/\\-]*\.[A-Za-z][A-Za-z0-9]*/g;
+const IDENTIFIER_PATTERN = /[A-Za-z_$][A-Za-z0-9_$]{4,}/g;
+const MAX_EXACT_FRAGMENTS = 8;
+const MAX_IDENTIFIERS = 24;
 
 export type TaskSignals = {
   tokens: Set<string>;
   changedFiles: Set<string>;
   fileMentions: Set<string>;
+  exactFragments: string[];
+  identifiers: Set<string>;
 };
 
 export function extractTaskSignals(input: {
@@ -149,13 +154,116 @@ export function extractTaskSignals(input: {
   diffText?: string | undefined;
   changedFiles?: string[];
 }): TaskSignals {
-  const tokens = tokenizeText([input.issueText ?? "", extractDiffContentLines(input.diffText ?? "")].join("\n"));
+  const taskText = [input.issueText ?? "", extractDiffContentLines(input.diffText ?? "")].join("\n");
+  const tokens = tokenizeText(taskText);
 
   return {
     tokens,
     changedFiles: new Set(input.changedFiles ?? []),
-    fileMentions: extractFileMentions(input.issueText ?? "")
+    fileMentions: extractFileMentions(input.issueText ?? ""),
+    exactFragments: extractExactFragments(taskText),
+    identifiers: extractIdentifiers(taskText)
   };
+}
+
+export function extractExactFragments(text: string): string[] {
+  const fragments = new Set<string>();
+
+  for (const quoted of scanQuotedFragments(text)) {
+    const fragment = quoted.value.trim();
+    if (isDistinctiveFragment(fragment)) {
+      fragments.add(fragment);
+      if (fragments.size >= MAX_EXACT_FRAGMENTS) {
+        break;
+      }
+    }
+  }
+
+  return [...fragments];
+}
+
+export function extractIdentifiers(text: string): Set<string> {
+  const identifiers = new Set<string>();
+
+  for (const match of text.matchAll(IDENTIFIER_PATTERN)) {
+    const identifier = match[0];
+    if (isDistinctiveIdentifier(identifier)) {
+      addIdentifier(identifiers, identifier);
+    }
+  }
+
+  for (const quoted of scanQuotedFragments(text)) {
+    if (quoted.delimiter !== "`") {
+      continue;
+    }
+    const fragment = quoted.value.trim();
+    if (!/^[$A-Za-z_][$A-Za-z0-9_]*$/.test(fragment.trim())) {
+      continue;
+    }
+    if (!isDistinctiveIdentifier(fragment) && fragment.length < 8) {
+      continue;
+    }
+    for (const match of fragment.matchAll(IDENTIFIER_PATTERN)) {
+      addIdentifier(identifiers, match[0]);
+    }
+  }
+
+  return identifiers;
+}
+
+function addIdentifier(identifiers: Set<string>, identifier: string): void {
+  if (identifiers.size >= MAX_IDENTIFIERS || STOP_WORDS.has(identifier.toLowerCase())) {
+    return;
+  }
+  identifiers.add(identifier);
+}
+
+function isDistinctiveIdentifier(identifier: string): boolean {
+  return /[0-9_$]/.test(identifier) || /[a-z][A-Z]/.test(identifier);
+}
+
+function isDistinctiveFragment(fragment: string): boolean {
+  if (fragment.length < 6 || fragment.length > 96 || /\s/.test(fragment)) {
+    return false;
+  }
+  const punctuationCount = [...fragment].filter((character) => /[^A-Za-z0-9_$]/.test(character)).length;
+  return punctuationCount >= 2 && /[A-Za-z0-9]/.test(fragment);
+}
+
+function scanQuotedFragments(text: string): Array<{ delimiter: string; value: string }> {
+  const fragments: Array<{ delimiter: string; value: string }> = [];
+
+  for (const line of text.split(/\r?\n/)) {
+    let cursor = 0;
+    while (cursor < line.length) {
+      const delimiter = line[cursor];
+      if (delimiter !== '"' && delimiter !== "'" && delimiter !== "`") {
+        cursor += 1;
+        continue;
+      }
+
+      let end = cursor + 1;
+      while (end < line.length) {
+        if (line[end] === delimiter && !isEscaped(line, end)) {
+          break;
+        }
+        end += 1;
+      }
+
+      fragments.push({ delimiter, value: line.slice(cursor + 1, end) });
+      cursor = end < line.length ? end + 1 : line.length;
+    }
+  }
+
+  return fragments;
+}
+
+function isEscaped(text: string, index: number): boolean {
+  let backslashes = 0;
+  for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor -= 1) {
+    backslashes += 1;
+  }
+  return backslashes % 2 === 1;
 }
 
 export function extractFileMentions(text: string): Set<string> {
