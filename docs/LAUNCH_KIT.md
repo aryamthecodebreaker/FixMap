@@ -172,13 +172,51 @@ claude mcp add fixmap -- npx -y @aryam/fixmap@latest mcp
 
 Avoid generic feature lists and unsupported superlatives.
 
+## Ready-to-post LinkedIn update
+
+Coding agents are fast once they know where to work. The expensive mistakes happen before the first edit: opening the wrong module, missing the owning test, or overlooking a risky change.
+
+I have been building FixMap to make that handoff explicit.
+
+Give it a public GitHub issue URL and it returns ranked context files with reasons, suggested test routes, risk notes, and diagnostics—without an account or API key:
+
+```text
+npx -y @aryam/fixmap@latest plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/59
+```
+
+The latest work includes:
+
+- one-command analysis of public GitHub issue URLs
+- safer isolated repository fetching with bounded inputs and no credentials, hooks, submodules, or executed repository scripts
+- a shared CLI, MCP server, and GitHub Action workflow
+- a GitHub Marketplace listing for the Action
+- a production dependency audit gate with no high or critical findings
+- 119 automated tests, production builds, smoke tests, and a frozen cross-repository evaluation gate
+- a new 24-second product film on the README and live site
+
+The evaluation is intentionally public and modest: across six pinned real bugs, FixMap currently ranks an expected file in the top 1 for 3/6 cases and in the top 3 for 5/6. The miss is published too.
+
+Watch the film and try the live experience: https://fixmap-flax.vercel.app/#launch-film
+
+GitHub: https://github.com/aryamthecodebreaker/FixMap
+
+Marketplace: https://github.com/marketplace/actions/fixmap
+
+npm: https://www.npmjs.com/package/@aryam/fixmap
+
+Release: https://github.com/aryamthecodebreaker/FixMap/releases/tag/v0.6.2
+
+I would especially value feedback on the ranking explanations and which repository signals would make FixMap more useful before an agent starts editing.
+
+#opensource #devtools #githubactions #mcp #typescript #aicoding
+
 ## Distribution checklist
 
 - [ ] Official MCP Registry metadata is current; downstream directories can ingest the canonical entry.
-- [ ] GitHub Marketplace listing is enabled from a root `action.yml`.
+- [x] GitHub Marketplace listing is enabled from a root `action.yml`.
 - [ ] Relevant awesome-list submissions follow each list's current contribution rules and add a genuinely missing category entry.
 - [ ] Release notes contain the one-command trial and benchmark delta.
-- [ ] A short demo video is rendered from real output for platforms that do not animate the README SVG.
+- [x] A short demo video is rendered from real output for platforms that do not animate the README SVG.
 - [ ] Repository topics, description, homepage, and social preview use the current product language.
 - [ ] GitHub Discussions has a clear “show how you use FixMap” prompt after there are real users to answer it.
 
