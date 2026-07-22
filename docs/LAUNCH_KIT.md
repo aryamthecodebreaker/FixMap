@@ -8,8 +8,7 @@ Let a developer try FixMap on a real public repository in one command, without c
 
 ```bash
 npx -y @aryam/fixmap@latest plan \
-  --repo https://github.com/aryamthecodebreaker/FixMap \
-  --issue "the external ranking evaluation regressed"
+  --issue https://github.com/aryamthecodebreaker/FixMap/issues/59
 ```
 
 The report ranks likely files with reasons, suggests test routes, and names risks and diagnostics. Public URL analysis is issue-only; diff analysis still requires a local checkout.
@@ -18,7 +17,7 @@ The report ranks likely files with reasons, suggests test routes, and names risk
 
 - MIT licensed, deterministic, local-first analysis with no model call or account.
 - CLI, MCP server, and GitHub Action share the same core ranker.
-- Public GitHub repositories work through an isolated anonymous shallow checkout that is removed after analysis.
+- Public GitHub issue URLs supply both task context and the repository in one input; source is scanned in an isolated anonymous shallow checkout that is removed after analysis.
 - A frozen external evaluation uses six real fixed issues at pinned pre-fix commits.
 - Current checked-in result: top-1 `3/6` (50%), top-3 `5/6` (83%), top-5 `5/6` (83%).
 - The remaining Zod miss and every ranked output are public in [`benchmarks/external/`](../benchmarks/external/).
@@ -32,7 +31,7 @@ Do not say:
 
 - “FixMap is 83% accurate” or “finds the right file 83% of the time.”
 - “FixMap runs or verifies the tests.” It suggests test routes; it does not execute them.
-- “Any GitHub URL works.” Only canonical public `https://github.com/owner/repository` inputs are supported.
+- “Any GitHub URL works.” Only canonical public repository and issue URLs are supported.
 - “Your code never leaves your machine” without the remote-mode nuance: FixMap downloads public source from GitHub, but does not upload analyzed source to a FixMap service.
 - “5,000 stars is expected.” It is the goal, not a promised outcome.
 
@@ -42,7 +41,7 @@ Keep the documented miss visible. If a scheduled evaluation regresses, pause pro
 
 - [ ] The latest GitHub release, npm CLI, npm core package, and official MCP Registry entry show the same version.
 - [ ] `npx -y @aryam/fixmap@latest --version` returns that version from a fresh cache outside the repository.
-- [ ] The public GitHub URL command above succeeds from a fresh cache.
+- [ ] The public GitHub issue URL command above succeeds from a fresh cache.
 - [ ] Main CI and the manual external-evaluation workflow are green at the release commit.
 - [ ] The production site shows the public URL command and current product language.
 - [ ] The README, changelog, benchmark page, Action pin, and release notes agree.
@@ -118,7 +117,7 @@ Points for the maintainer to explain personally:
 
 1. The recurring problem that made you build it: agents lose time before the first edit because they start in the wrong module or miss the owning test.
 2. The one-sentence solution: deterministic repo context—ranked files, test routes, risks, and diagnostics.
-3. The fastest trial: include the public GitHub URL command.
+3. The fastest trial: include the one-input public GitHub issue URL command.
 4. The technical mechanism: path/content signals, real git diff signals, bounded static import proximity, file-kind priors, and workspace boundaries.
 5. The honest evidence: six frozen real bugs, `3/6` top-1 and `5/6` top-3/top-5, with the Zod miss linked.
 6. The scope: JavaScript/TypeScript today; remote URLs are issue-only; suggested tests are not executed.

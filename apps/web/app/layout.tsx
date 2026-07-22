@@ -15,7 +15,7 @@ const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variab
 export const metadata: Metadata = {
   metadataBase: new URL("https://fixmap-flax.vercel.app"),
   title: "FixMap — Repo maps for coding agents",
-  description: "Turn an issue or git diff into ranked files, test routes, risk notes, and explainable diagnostics. Local-first and open source.",
+  description: "Paste a public GitHub issue URL and get ranked files, test routes, risk notes, and explainable diagnostics. Local-first and open source.",
   keywords: [
     "AI coding agents",
     "developer tools",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
   openGraph: {
     title: "FixMap — Give coding agents a map before they edit",
-    description: "Local-first repository context, test routing, and explainable diagnostics for coding agents.",
+    description: "Paste a GitHub issue URL and get local-first repository context, test routes, and explainable diagnostics.",
     siteName: "FixMap",
     url: "/",
     type: "website"
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "FixMap — Give coding agents a map before they edit",
-    description: "Local-first repository context, test routing, and explainable diagnostics for coding agents."
+    description: "Paste a GitHub issue URL and get local-first repository context, test routes, and explainable diagnostics."
   }
 };
 

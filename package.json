@@ -1,8 +1,8 @@
 {
   "name": "fixmap-workspace",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "private": true,
-  "description": "Local-first repo context for coding agents: ranked files, test routes, risks, and public GitHub URL analysis.",
+  "description": "Local-first repo context for coding agents: paste a GitHub issue URL to get ranked files, test routes, and risks.",
   "license": "MIT",
   "type": "module",
   "repository": {

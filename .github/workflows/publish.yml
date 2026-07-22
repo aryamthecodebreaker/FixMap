@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
           if [[ "${GITHUB_REF_TYPE}" != "tag" ]] ||
              [[ ! "${GITHUB_REF_NAME}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo "::error::Dispatch this workflow from a stable tag such as v0.5.0, not from a branch or prerelease tag."
+            echo "::error::Dispatch this workflow from a stable tag such as v1.2.3, not from a branch or prerelease tag."
             exit 1
           fi
           echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"

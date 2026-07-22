@@ -30,6 +30,7 @@ export type ScanDiagnostic = {
     | "scan-limit-reached"
     | "repo-root-missing"
     | "gated-test-skipped"
+    | "remote-issue-fetched"
     | "remote-repo-fetched";
   message: string;
   severity: "info" | "warning" | "error";

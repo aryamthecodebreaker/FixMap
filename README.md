@@ -10,7 +10,7 @@ Turn an issue or git diff into relevant files, test routes, risk notes, and clea
 [![npm](https://img.shields.io/npm/v/%40aryam%2Ffixmap)](https://www.npmjs.com/package/@aryam/fixmap)
 [![MIT](https://img.shields.io/badge/license-MIT-74f0ba)](LICENSE)
 
-[Live demo](https://fixmap-flax.vercel.app) · [Install](#quick-start) · [MCP server](#mcp-server) · [GitHub Action](#github-action) · [Contribute](CONTRIBUTING.md)
+[Live demo](https://fixmap-flax.vercel.app) · [Install](#quick-start) · [MCP server](#mcp-server) · [GitHub Action](#github-action) · [Contribute](CONTRIBUTING.md) · [Star FixMap](https://github.com/aryamthecodebreaker/FixMap)
 
 </div>
 
@@ -30,15 +30,21 @@ FixMap is a transparent routing layer for that gap. It needs no account or API k
 
 ## Quick start
 
-Try FixMap on any public GitHub repository without cloning it first:
+Paste a public GitHub issue URL. FixMap fetches its title and body, infers the repository, and returns a repo map without making you clone anything first:
+
+```bash
+npx -y @aryam/fixmap plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/59
+```
+
+Or describe a task and point FixMap at any public GitHub repository:
 
 ```bash
 npx -y @aryam/fixmap plan \
-  --issue "support public GitHub repository inputs" \
+  --issue "support public GitHub issue URLs" \
   --repo https://github.com/aryamthecodebreaker/FixMap
 ```
 
-Or run it from a local JavaScript or TypeScript repository:
+For private source or working-tree changes, run it from a local JavaScript or TypeScript repository:
 
 ```bash
 npx @aryam/fixmap plan --issue "password reset emails fail"
@@ -56,9 +62,11 @@ Machine-readable output:
 npx @aryam/fixmap plan --base main --head HEAD --format json --output fixmap-report.json
 ```
 
-### Public GitHub repository inputs
+### Public GitHub issue and repository inputs
 
-CLI and MCP users can pass a canonical `https://github.com/owner/repository` URL to `--repo` / `repo`. FixMap anonymously shallow-clones the default branch into an isolated OS temporary directory, disables credentials, hooks, submodules, symlinks, and LFS smudging, scans without running install/build/test scripts, and removes the checkout before returning the report.
+CLI and MCP users can pass a canonical `https://github.com/owner/repository/issues/123` URL as the issue. FixMap anonymously fetches the public issue title and body and infers the matching repository when `--repo` / `repo` is omitted. A separately supplied public repository URL must match the issue; an explicit local checkout is allowed.
+
+Repository inputs use the canonical `https://github.com/owner/repository` form. FixMap anonymously shallow-clones the default branch into an isolated OS temporary directory, disables credentials, hooks, submodules, symlinks, and LFS smudging, scans without running install/build/test scripts, and removes the checkout before returning the report. Issue fetches use GitHub's fixed public API host with no redirects or credentials, a 15-second timeout, bounded response and task sizes, and a clear anonymous rate-limit error.
 
 Remote URL mode is deliberately issue-only in this first release. Clone the repository locally when you need `--diff`, `--base`, or `--head`. Paths and test commands in a remote report are informational because the temporary checkout no longer exists after analysis.
 
@@ -137,7 +145,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.5.1
+        uses: aryamthecodebreaker/FixMap@v0.6.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -201,7 +209,7 @@ npm run ci
 
 ## Status and roadmap
 
-FixMap is an early public release focused on JavaScript and TypeScript repositories. The [changelog](CHANGELOG.md) records what each release shipped, including cross-repository evaluation, MCP support, and one-command public GitHub repository analysis. Near-term work:
+FixMap is an early public release focused on JavaScript and TypeScript repositories. The [changelog](CHANGELOG.md) records what each release shipped, including cross-repository evaluation, MCP support, and one-command public GitHub issue analysis. Near-term work:
 
 - git co-change and ownership signals
 - adapters and examples for popular monorepo layouts

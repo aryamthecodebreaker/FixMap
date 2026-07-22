@@ -6,15 +6,21 @@ FixMap turns an issue, prompt, or git diff into ranked context files, test route
 
 ## Quick start
 
-Try a public GitHub repository without cloning it first:
+Paste a public GitHub issue URL; FixMap fetches its task context and infers the repository:
+
+```bash
+npx -y @aryam/fixmap plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/59
+```
+
+Or supply your own task and public repository:
 
 ```bash
 npx -y @aryam/fixmap plan \
-  --issue "support public GitHub repository inputs" \
+  --issue "support public GitHub issue URLs" \
   --repo https://github.com/aryamthecodebreaker/FixMap
 ```
 
-Or run from a local JavaScript or TypeScript repository:
+For private source or working-tree changes, run from a local JavaScript or TypeScript repository:
 
 ```bash
 npx @aryam/fixmap plan --issue "password reset emails fail"
@@ -32,7 +38,7 @@ Machine-readable output:
 npx @aryam/fixmap plan --base main --head HEAD --format json --output fixmap-report.json
 ```
 
-Public GitHub URL mode is available in the CLI and MCP server for issue-only analysis. FixMap anonymously shallow-clones the default branch into an isolated temporary directory, disables credentials and repository execution surfaces, and removes the checkout before returning. Clone locally to use `--diff`, `--base`, or `--head`.
+Public GitHub issue and repository URL modes are available in the CLI and MCP server for issue-only analysis. FixMap fetches issue context anonymously, shallow-clones the default branch into an isolated temporary directory, disables credentials and repository execution surfaces, and removes the checkout before returning. Clone locally to use `--diff`, `--base`, or `--head`.
 
 ## MCP server
 
@@ -63,7 +69,7 @@ Cursor, Windsurf, or any MCP client:
 fixmap plan            Generate a FixMap report for a task or diff
 fixmap mcp             Run FixMap as an MCP server over stdio
 
---issue <text>         Issue, prompt, or task description
+--issue <text|url>     Issue text, task description, or public GitHub issue URL
 --diff <spec>          Git diff spec, such as main...HEAD
 --base <ref>           Base ref for diffing when --diff is not given
 --head <ref>           Head ref for diffing (defaults to HEAD)
