@@ -2,6 +2,22 @@
 
 All notable changes to FixMap are documented here.
 
+## 0.6.0 - 2026-07-22
+
+### Added
+
+- CLI and MCP users can paste a canonical public GitHub issue URL as the issue input. FixMap anonymously fetches its title and body and infers the matching repository when no repository is supplied.
+- A `remote-issue-fetched` diagnostic records the exact issue source and whether its body was truncated before ranking.
+
+### Security
+
+- Issue URL inputs accept only credential-free canonical HTTPS URLs on `github.com`; queries, fragments, encoded separators, and mismatched explicit repository URLs are rejected.
+- Issue content is fetched only from the fixed `api.github.com` endpoint without redirects or credentials, with a 15-second timeout, a bounded API response, a 20,000-character body cap, stable rate-limit errors, and explicit pull-request rejection.
+
+### Changed
+
+- The README, npm package page, MCP tool description, growth kit, and production quick start now lead with the single-input public issue workflow.
+
 ## 0.5.1 - 2026-07-18
 
 ### Added

@@ -9,7 +9,7 @@ import { buildReportForRepository } from "./repository-source.js";
 type CliOptions = {
   command: string;
   issueText: string;
-  repo: string;
+  repo?: string | undefined;
   diffSpec?: string | undefined;
   baseRef?: string | undefined;
   headRef?: string | undefined;
@@ -22,6 +22,7 @@ const USAGE = `FixMap maps an issue, prompt, or diff to context files, test rout
 
 Usage:
   fixmap plan --issue "Users cannot reset passwords"
+  fixmap plan --issue https://github.com/owner/repository/issues/123
   fixmap plan --issue "Fix login" --repo https://github.com/owner/repository
   fixmap plan --diff main...HEAD
   fixmap plan --base main --head HEAD --format json
@@ -32,7 +33,7 @@ Commands:
   mcp                 Run FixMap as an MCP server over stdio for AI coding agents
 
 Options:
-  --issue <text>      Issue, prompt, or task description
+  --issue <text|url>  Issue text, task description, or public GitHub issue URL
   --diff <spec>       Git diff spec, such as main...HEAD
   --base <ref>        Base ref for diffing when --diff is not given
   --head <ref>        Head ref for diffing (defaults to HEAD)
@@ -117,7 +118,7 @@ async function runPlan(args: string[]): Promise<void> {
 function parseArgs(args: string[]): CliOptions {
   const command = args[0] ?? "";
   let issueText = "";
-  let repo = process.cwd();
+  let repo: string | undefined;
   let diffSpec: string | undefined;
   let baseRef: string | undefined;
   let headRef: string | undefined;

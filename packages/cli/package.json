@@ -1,8 +1,8 @@
 {
   "name": "@aryam/fixmap",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "mcpName": "io.github.aryamthecodebreaker/fixmap",
-  "description": "Local-first CLI and MCP server mapping issues, diffs, and public GitHub URLs to ranked files, tests, and risks.",
+  "description": "Local-first CLI and MCP server mapping GitHub issue URLs, tasks, and diffs to ranked files, tests, and risks.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -40,7 +40,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@aryam/fixmap-core": "0.5.1",
+    "@aryam/fixmap-core": "0.6.0",
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "engines": {

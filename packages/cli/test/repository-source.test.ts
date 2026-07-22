@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildIsolatedGitEnvironment,
   buildReportForRepository,
+  fetchPublicGitHubIssue,
+  parseGitHubIssueSource,
   parseRepositorySource,
   withRepositorySource,
   type ClonedRepository
@@ -78,6 +80,135 @@ describe("repository source parsing", () => {
 
   it("keeps Windows drive paths in the local-path branch", () => {
     expect(parseRepositorySource("C:\\work\\repository").kind).toBe("local");
+  });
+});
+
+describe("GitHub issue source parsing", () => {
+  it.each([
+    "https://github.com/owner/repository/issues/123",
+    "https://github.com/owner/repository/issues/123/"
+  ])("accepts a canonical public GitHub issue URL: %s", (input) => {
+    expect(parseGitHubIssueSource(input)).toEqual({
+      owner: "owner",
+      repository: "repository",
+      number: 123,
+      displayUrl: "https://github.com/owner/repository/issues/123",
+      repositoryUrl: "https://github.com/owner/repository"
+    });
+  });
+
+  it.each([
+    "password reset emails fail",
+    "https://example.com/owner/repository/issues/123",
+    "https://github.com/owner/repository",
+    "https://github.com/owner/repository/pull/123"
+  ])("leaves non-issue task text unchanged: %s", (input) => {
+    expect(parseGitHubIssueSource(input)).toBeUndefined();
+  });
+
+  it.each([
+    "http://github.com/owner/repository/issues/123",
+    "https://github.com/owner/repository/issues/0",
+    "https://github.com/owner/repository/issues/not-a-number",
+    "https://github.com/owner/repository/issues/123/comments",
+    "https://github.com/owner/repository/issues/123?notification_referrer_id=1",
+    "https://github.com/owner/repository/issues/123#issuecomment-1",
+    "https://user:secret@github.com/owner/repository/issues/123",
+    "https://github.com/owner/repository/issues%2F123",
+    "https://github.com/owner\\repository\\issues\\123",
+    "https://github.com/owner/repository/issues/123\n"
+  ])("rejects unsupported or unsafe issue input: %s", (input) => {
+    expect(() => parseGitHubIssueSource(input)).toThrow();
+  });
+});
+
+describe("GitHub issue fetching", () => {
+  const source = {
+    owner: "owner",
+    repository: "repository",
+    number: 123,
+    displayUrl: "https://github.com/owner/repository/issues/123",
+    repositoryUrl: "https://github.com/owner/repository"
+  };
+
+  it("fetches issue title and body from the fixed GitHub API host", async () => {
+    const fetchImplementation = vi.fn(async () =>
+      new Response(JSON.stringify({
+        title: "Reset emails fail",
+        body: "Users cannot reset their passwords."
+      }), { status: 200 })
+    ) as unknown as typeof fetch;
+
+    await expect(fetchPublicGitHubIssue(source, fetchImplementation)).resolves.toEqual({
+      title: "Reset emails fail",
+      body: "Users cannot reset their passwords."
+    });
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      "https://api.github.com/repos/owner/repository/issues/123",
+      expect.objectContaining({
+        redirect: "error",
+        headers: expect.objectContaining({
+          Accept: "application/vnd.github+json",
+          "User-Agent": "fixmap-cli"
+        })
+      })
+    );
+  });
+
+  it.each([
+    {
+      response: new Response("", { status: 404 }),
+      expected: "not found or is not publicly accessible"
+    },
+    {
+      response: new Response("", {
+        status: 403,
+        headers: { "x-ratelimit-remaining": "0" }
+      }),
+      expected: "anonymous API rate limit is exhausted"
+    },
+    {
+      response: new Response("", { status: 502 }),
+      expected: "HTTP 502"
+    },
+    {
+      response: new Response("{not json", { status: 200 }),
+      expected: "invalid response"
+    },
+    {
+      response: new Response(JSON.stringify({
+        title: "Pull request",
+        body: "Not an issue",
+        pull_request: {}
+      }), { status: 200 }),
+      expected: "resolves to a pull request"
+    }
+  ])("returns a stable issue fetch error: $expected", async ({ response, expected }) => {
+    const fetchImplementation = vi.fn(async () => response) as unknown as typeof fetch;
+    await expect(fetchPublicGitHubIssue(source, fetchImplementation)).rejects.toThrow(expected);
+  });
+
+  it("rejects an oversized API response before parsing it", async () => {
+    const fetchImplementation = vi.fn(async () =>
+      new Response("x".repeat(1_000_001), { status: 200 })
+    ) as unknown as typeof fetch;
+
+    await expect(fetchPublicGitHubIssue(source, fetchImplementation)).rejects.toThrow(
+      "response exceeded the safe size limit"
+    );
+  });
+
+  it("returns a stable timeout error without exposing fetch internals", async () => {
+    const fetchImplementation = vi.fn(async () => {
+      throw Object.assign(new Error("socket detail"), { name: "TimeoutError" });
+    }) as unknown as typeof fetch;
+
+    await expect(fetchPublicGitHubIssue(source, fetchImplementation)).rejects.toThrow(
+      "request exceeded the 15-second timeout"
+    );
+    await expect(fetchPublicGitHubIssue(source, fetchImplementation)).rejects.not.toThrow(
+      "socket detail"
+    );
   });
 });
 
@@ -167,6 +298,99 @@ describe("repository acquisition", () => {
     });
     expect(report.diagnostics[0]?.message).toContain(`main@${REVISION}`);
     await expect(stat(dirname(checkoutRoot))).rejects.toThrow();
+  });
+
+  it("fetches a GitHub issue URL and infers its repository", async () => {
+    let checkoutRoot = "";
+    const fetchPublicIssue = vi.fn(async () => ({
+      title: "Reset emails fail",
+      body: "Users cannot reset their passwords."
+    }));
+
+    const report = await buildReportForRepository({
+      issueText: "https://github.com/owner/repository/issues/123"
+    }, {
+      fetchPublicIssue,
+      clonePublicRepository: async (url, destination) => {
+        checkoutRoot = destination;
+        expect(url).toBe("https://github.com/owner/repository.git");
+        return fixtureClone(url, destination);
+      }
+    });
+
+    expect(fetchPublicIssue).toHaveBeenCalledWith({
+      owner: "owner",
+      repository: "repository",
+      number: 123,
+      displayUrl: "https://github.com/owner/repository/issues/123",
+      repositoryUrl: "https://github.com/owner/repository"
+    });
+    expect(report.contextFiles[0]?.path).toBe("src/auth/reset-password.ts");
+    expect(report.diagnostics.slice(0, 2).map((diagnostic) => diagnostic.code)).toEqual([
+      "remote-issue-fetched",
+      "remote-repo-fetched"
+    ]);
+    await expect(stat(dirname(checkoutRoot))).rejects.toThrow();
+  });
+
+  it("allows a GitHub issue URL to supply task context for an explicit local checkout", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-local-issue-source-"));
+    localFixtures.push(root);
+    await createFixture(root);
+    const clonePublicRepository = vi.fn(fixtureClone);
+
+    const report = await buildReportForRepository({
+      repo: root,
+      issueText: "https://github.com/owner/repository/issues/123"
+    }, {
+      fetchPublicIssue: async () => ({
+        title: "Reset emails fail",
+        body: "Users cannot reset their passwords."
+      }),
+      clonePublicRepository
+    });
+
+    expect(report.contextFiles[0]?.path).toBe("src/auth/reset-password.ts");
+    expect(report.diagnostics[0]?.code).toBe("remote-issue-fetched");
+    expect(report.diagnostics.some((diagnostic) => diagnostic.code === "remote-repo-fetched")).toBe(false);
+    expect(clonePublicRepository).not.toHaveBeenCalled();
+  });
+
+  it("rejects a mismatched explicit GitHub repository before fetching or cloning", async () => {
+    const fetchPublicIssue = vi.fn(async () => ({
+      title: "Reset emails fail",
+      body: "Users cannot reset their passwords."
+    }));
+    const clonePublicRepository = vi.fn(fixtureClone);
+
+    await expect(buildReportForRepository({
+      repo: "https://github.com/other/repository",
+      issueText: "https://github.com/owner/repository/issues/123"
+    }, {
+      fetchPublicIssue,
+      clonePublicRepository
+    })).rejects.toThrow("belongs to https://github.com/owner/repository");
+
+    expect(fetchPublicIssue).not.toHaveBeenCalled();
+    expect(clonePublicRepository).not.toHaveBeenCalled();
+  });
+
+  it("reports when a fetched issue body is truncated to the bounded task size", async () => {
+    const report = await buildReportForRepository({
+      issueText: "https://github.com/owner/repository/issues/123"
+    }, {
+      fetchPublicIssue: async () => ({
+        title: "Reset emails fail",
+        body: `Users cannot reset passwords. ${"x".repeat(21_000)}`
+      }),
+      clonePublicRepository: fixtureClone
+    });
+
+    expect(report.diagnostics[0]).toMatchObject({
+      code: "remote-issue-fetched",
+      severity: "info"
+    });
+    expect(report.diagnostics[0]?.message).toContain("truncated to 20,000 characters");
   });
 
   it("rejects remote diff analysis before cloning", async () => {

@@ -41,6 +41,7 @@ describe("fixmap mcp server", () => {
       expect.arrayContaining(["issue", "diff", "base", "head", "repo", "format"])
     );
     expect(plan?.inputSchema.properties?.repo?.description).toContain("public GitHub HTTPS");
+    expect(plan?.inputSchema.properties?.issue?.description).toContain("GitHub issue URL");
   });
 
   it("returns a markdown report for an issue", async () => {
@@ -112,6 +113,51 @@ describe("fixmap mcp server", () => {
       code: "remote-repo-fetched",
       severity: "info"
     });
+  });
+
+  it("fetches a GitHub issue URL and infers the repository when repo is omitted", async () => {
+    const client = await connectClient({
+      fetchPublicIssue: async () => ({
+        title: "Reset emails fail",
+        body: "Users cannot reset their passwords."
+      }),
+      clonePublicRepository: async (url, destination) => {
+        expect(url).toBe("https://github.com/owner/repository.git");
+        await mkdir(join(destination, "src", "auth"), { recursive: true });
+        await writeFile(
+          join(destination, "package.json"),
+          JSON.stringify({ scripts: { test: "vitest run" } })
+        );
+        await writeFile(
+          join(destination, "src", "auth", "reset-password.ts"),
+          "export function sendResetEmail(email: string) { return email; }\n"
+        );
+        return {
+          ref: "main",
+          revision: "0123456789abcdef0123456789abcdef01234567"
+        };
+      }
+    });
+
+    const result = await client.callTool({
+      name: "fixmap_plan",
+      arguments: {
+        issue: "https://github.com/owner/repository/issues/123",
+        format: "json"
+      }
+    });
+
+    expect(result.isError).toBeFalsy();
+    const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
+    const report = JSON.parse(text) as {
+      contextFiles: Array<{ path: string }>;
+      diagnostics: Array<{ code: string }>;
+    };
+    expect(report.contextFiles[0]?.path).toBe("src/auth/reset-password.ts");
+    expect(report.diagnostics.slice(0, 2).map((diagnostic) => diagnostic.code)).toEqual([
+      "remote-issue-fetched",
+      "remote-repo-fetched"
+    ]);
   });
 
   it("rejects diff options for GitHub URLs before attempting a clone", async () => {

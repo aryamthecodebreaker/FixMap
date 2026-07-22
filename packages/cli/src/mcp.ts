@@ -34,7 +34,12 @@ const PLAN_TOOL = {
   inputSchema: {
     type: "object" as const,
     properties: {
-      issue: { type: "string", description: "Issue, prompt, or task description" },
+      issue: {
+        type: "string",
+        description:
+          "Issue text, task description, or public GitHub issue URL. " +
+          "A GitHub issue URL supplies the task and infers repo when repo is omitted."
+      },
       diff: { type: "string", description: "Git diff spec, such as main...HEAD" },
       base: { type: "string", description: "Base git ref to diff against when diff is not given" },
       head: { type: "string", description: "Head git ref, defaults to HEAD" },
@@ -79,7 +84,7 @@ export function createFixMapMcpServer(
     let report: FixMapReport;
     try {
       report = await buildReportForRepository({
-        repo: args.repo ?? process.cwd(),
+        repo: args.repo,
         issueText: args.issue,
         diffSpec: args.diff,
         baseRef: args.base,

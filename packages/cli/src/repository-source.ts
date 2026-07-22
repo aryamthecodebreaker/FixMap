@@ -12,12 +12,15 @@ import {
 const exec = promisify(execFile);
 const GIT_MAX_BUFFER = 10 * 1024 * 1024;
 const CLONE_TIMEOUT_MS = 120_000;
+const ISSUE_FETCH_TIMEOUT_MS = 15_000;
+const MAX_GITHUB_API_RESPONSE_CHARS = 1_000_000;
+const MAX_GITHUB_ISSUE_BODY_CHARS = 20_000;
 const URL_SCHEME = /^[a-z][a-z\d+.-]*:\/\//i;
 const SCP_STYLE_REMOTE = /^[^\\/@\s]+@[^:]+:/;
 const GITHUB_NAME = /^[a-z\d._-]+$/i;
 
 export type RepositoryPlanInput = {
-  repo: string;
+  repo?: string | undefined;
   issueText?: string | undefined;
   diffSpec?: string | undefined;
   baseRef?: string | undefined;
@@ -35,6 +38,7 @@ export type RepositorySourceDependencies = {
     destination: string,
     hooksDirectory: string
   ) => Promise<ClonedRepository>;
+  fetchPublicIssue?: (source: ParsedGitHubIssueSource) => Promise<PublicGitHubIssue>;
   makeTemporaryDirectory?: (prefix: string) => Promise<string>;
   removeTemporaryDirectory?: (path: string) => Promise<void>;
 };
@@ -42,6 +46,19 @@ export type RepositorySourceDependencies = {
 export type ParsedRepositorySource =
   | { kind: "local"; repoRoot: string }
   | { kind: "github"; cloneUrl: string; displayUrl: string };
+
+export type ParsedGitHubIssueSource = {
+  owner: string;
+  repository: string;
+  number: number;
+  displayUrl: string;
+  repositoryUrl: string;
+};
+
+export type PublicGitHubIssue = {
+  title: string;
+  body: string;
+};
 
 type ResolvedRepositorySource = {
   kind: "local" | "github";
@@ -51,6 +68,168 @@ type ResolvedRepositorySource = {
 
 export class RepositorySourceError extends Error {
   override name = "RepositorySourceError";
+}
+
+export function parseGitHubIssueSource(input: string): ParsedGitHubIssueSource | undefined {
+  const trimmed = input.trim();
+  const looksLikeGitHubIssue =
+    /^https?:\/\/(?:[^/@\s]+@)?github\.com[\\/]/i.test(trimmed) &&
+    /[\\/]issues(?:[\\/]|%(?:2f|5c))/i.test(trimmed);
+  if (!looksLikeGitHubIssue) {
+    return undefined;
+  }
+  if (
+    /[\u0000-\u001f\u007f]/.test(input) ||
+    trimmed.includes("\\") ||
+    /%(?:2f|5c)/i.test(trimmed)
+  ) {
+    throw new RepositorySourceError(
+      'GitHub issue URLs must use the canonical form "https://github.com/owner/repository/issues/123".'
+    );
+  }
+
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new RepositorySourceError(
+      'GitHub issue URLs must use the form "https://github.com/owner/repository/issues/123".'
+    );
+  }
+
+  if (
+    url.protocol !== "https:" ||
+    url.hostname.toLowerCase() !== "github.com" ||
+    url.port ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  ) {
+    throw new RepositorySourceError(
+      'Only canonical public GitHub issue URLs are supported: "https://github.com/owner/repository/issues/123".'
+    );
+  }
+
+  const segments = url.pathname.split("/").filter(Boolean);
+  const owner = segments[0] ?? "";
+  const repository = segments[1] ?? "";
+  const issueSegment = segments[2] ?? "";
+  const rawNumber = segments[3] ?? "";
+  const number = Number(rawNumber);
+  if (
+    segments.length !== 4 ||
+    issueSegment.toLowerCase() !== "issues" ||
+    !GITHUB_NAME.test(owner) ||
+    !GITHUB_NAME.test(repository) ||
+    !/^[1-9]\d*$/.test(rawNumber) ||
+    !Number.isSafeInteger(number)
+  ) {
+    throw new RepositorySourceError(
+      'GitHub issue URLs must use the form "https://github.com/owner/repository/issues/123".'
+    );
+  }
+
+  const repositoryUrl = `https://github.com/${owner}/${repository}`;
+  return {
+    owner,
+    repository,
+    number,
+    displayUrl: `${repositoryUrl}/issues/${number}`,
+    repositoryUrl
+  };
+}
+
+export async function fetchPublicGitHubIssue(
+  source: ParsedGitHubIssueSource,
+  fetchImplementation: typeof fetch = fetch
+): Promise<PublicGitHubIssue> {
+  const apiUrl =
+    `https://api.github.com/repos/${encodeURIComponent(source.owner)}/` +
+    `${encodeURIComponent(source.repository)}/issues/${source.number}`;
+  let response: Response;
+  try {
+    response = await fetchImplementation(apiUrl, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "fixmap-cli",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      redirect: "error",
+      signal: AbortSignal.timeout(ISSUE_FETCH_TIMEOUT_MS)
+    });
+  } catch (error) {
+    const timedOut =
+      (error as { name?: unknown }).name === "AbortError" ||
+      (error as { name?: unknown }).name === "TimeoutError";
+    throw new RepositorySourceError(
+      `Could not fetch public GitHub issue "${source.displayUrl}": ` +
+      (timedOut
+        ? `the request exceeded the ${ISSUE_FETCH_TIMEOUT_MS / 1000}-second timeout.`
+        : "the GitHub API request failed.")
+    );
+  }
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new RepositorySourceError(
+        `Could not fetch public GitHub issue "${source.displayUrl}": ` +
+        "issue was not found or is not publicly accessible."
+      );
+    }
+    if (
+      response.status === 403 &&
+      response.headers.get("x-ratelimit-remaining") === "0"
+    ) {
+      throw new RepositorySourceError(
+        `Could not fetch public GitHub issue "${source.displayUrl}": ` +
+        "GitHub's anonymous API rate limit is exhausted; retry later or paste the issue text directly."
+      );
+    }
+    throw new RepositorySourceError(
+      `Could not fetch public GitHub issue "${source.displayUrl}": ` +
+      `GitHub API returned HTTP ${response.status}.`
+    );
+  }
+
+  const rawPayload = await response.text();
+  if (rawPayload.length > MAX_GITHUB_API_RESPONSE_CHARS) {
+    throw new RepositorySourceError(
+      `Could not fetch public GitHub issue "${source.displayUrl}": ` +
+      "GitHub API response exceeded the safe size limit."
+    );
+  }
+
+  let payload: {
+    title?: unknown;
+    body?: unknown;
+    pull_request?: unknown;
+  };
+  try {
+    payload = JSON.parse(rawPayload) as typeof payload;
+  } catch {
+    throw new RepositorySourceError(
+      `Could not fetch public GitHub issue "${source.displayUrl}": ` +
+      "GitHub API returned an invalid response."
+    );
+  }
+  if (payload.pull_request) {
+    throw new RepositorySourceError(
+      `"${source.displayUrl}" resolves to a pull request, not an issue. ` +
+      "Use --diff on a local checkout or paste the pull request description."
+    );
+  }
+  if (typeof payload.title !== "string" || !payload.title.trim()) {
+    throw new RepositorySourceError(
+      `Could not fetch public GitHub issue "${source.displayUrl}": ` +
+      "GitHub API response did not include an issue title."
+    );
+  }
+
+  return {
+    title: payload.title.trim(),
+    body: typeof payload.body === "string" ? payload.body.trim() : ""
+  };
 }
 
 export function buildIsolatedGitEnvironment(
@@ -167,7 +346,21 @@ export async function buildReportForRepository(
   input: RepositoryPlanInput,
   dependencies: RepositorySourceDependencies = {}
 ): Promise<FixMapReport> {
-  const source = parseRepositorySource(input.repo);
+  const issueSource = input.issueText
+    ? parseGitHubIssueSource(input.issueText)
+    : undefined;
+  const repoInput = input.repo ?? issueSource?.repositoryUrl ?? process.cwd();
+  const source = parseRepositorySource(repoInput);
+  if (
+    issueSource &&
+    source.kind === "github" &&
+    source.displayUrl.toLowerCase() !== issueSource.repositoryUrl.toLowerCase()
+  ) {
+    throw new RepositorySourceError(
+      `GitHub issue "${issueSource.displayUrl}" belongs to ${issueSource.repositoryUrl}, ` +
+      `but --repo points to ${source.displayUrl}. Remove --repo or use the matching repository.`
+    );
+  }
   if (
     source.kind === "github" &&
     (input.diffSpec !== undefined || input.baseRef !== undefined || input.headRef !== undefined)
@@ -178,17 +371,39 @@ export async function buildReportForRepository(
     );
   }
 
+  let issueText = input.issueText;
+  let issueDiagnostic: ScanDiagnostic | undefined;
+  if (issueSource) {
+    const fetchPublicIssue = dependencies.fetchPublicIssue ?? fetchPublicGitHubIssue;
+    const issue = await fetchPublicIssue(issueSource);
+    const truncated = issue.body.length > MAX_GITHUB_ISSUE_BODY_CHARS;
+    const body = issue.body.slice(0, MAX_GITHUB_ISSUE_BODY_CHARS);
+    issueText = [issue.title, body].filter(Boolean).join("\n\n");
+    issueDiagnostic = {
+      code: "remote-issue-fetched",
+      severity: "info",
+      message:
+        `Fetched ${issueSource.displayUrl} anonymously and used its title` +
+        (body ? " and body" : "") +
+        " as task context" +
+        (truncated
+          ? `; the body was truncated to ${MAX_GITHUB_ISSUE_BODY_CHARS.toLocaleString("en-US")} characters.`
+          : ".")
+    };
+  }
+
   return withRepositorySource(source, async (resolvedSource) => {
     const report = await buildFixMapReport({
       repoRoot: resolvedSource.repoRoot,
-      issueText: input.issueText,
+      issueText,
       diffSpec: input.diffSpec,
       baseRef: input.baseRef,
       headRef: input.headRef
     });
-    if (resolvedSource.diagnostic) {
-      report.diagnostics.unshift(resolvedSource.diagnostic);
-    }
+    const sourceDiagnostics = [issueDiagnostic, resolvedSource.diagnostic].filter(
+      (diagnostic): diagnostic is ScanDiagnostic => diagnostic !== undefined
+    );
+    report.diagnostics.unshift(...sourceDiagnostics);
     return report;
   }, dependencies);
 }

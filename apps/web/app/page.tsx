@@ -1,7 +1,7 @@
 import { Demo } from "./demo";
 
 const installCommand =
-  "npx -y @aryam/fixmap plan --issue \"support public GitHub inputs\" --repo https://github.com/aryamthecodebreaker/FixMap";
+  "npx -y @aryam/fixmap plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/59";
 
 export default function HomePage() {
   return (
@@ -76,7 +76,7 @@ export default function HomePage() {
         <div>
           <p className="kicker">Thirty-second start</p>
           <h2>One command. No account. No API key.</h2>
-          <p>Point it at a public GitHub repository, or run it from a local JavaScript or TypeScript checkout.</p>
+          <p>Paste a public GitHub issue URL. FixMap fetches the task, infers the repository, and maps where to start.</p>
         </div>
         <pre><code>{installCommand}</code></pre>
         <div className="quick-links">
