@@ -104,6 +104,15 @@ jobs:
               `server.json name: expected ${process.env.MCP_SERVER_NAME}, received ${String(server.name)}`,
             );
           }
+          if (
+            typeof server.description !== "string" ||
+            server.description.trim().length === 0 ||
+            server.description.length > 100
+          ) {
+            errors.push(
+              `server.json description must contain 1-100 characters; received ${String(server.description).length}`,
+            );
+          }
 
           const npmPackage = server.packages?.find(
             (entry) =>

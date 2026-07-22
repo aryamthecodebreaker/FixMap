@@ -2,6 +2,13 @@
 
 All notable changes to FixMap are documented here.
 
+## 0.6.1 - 2026-07-22
+
+### Fixed
+
+- Shortened the MCP Registry description to its 100-character limit so the official registry publication can complete.
+- Added a repository CI check and release preflight validation for MCP server metadata, preventing registry-only constraints from failing after npm packages have already published.
+
 ## 0.6.0 - 2026-07-22
 
 ### Added
