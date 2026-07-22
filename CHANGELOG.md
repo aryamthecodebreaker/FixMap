@@ -2,6 +2,13 @@
 
 All notable changes to FixMap are documented here.
 
+## 0.6.2 - 2026-07-22
+
+### Security
+
+- Updated Next.js to 16.2.11 and pinned patched Sharp/libvips and `fast-uri` releases, clearing all high-severity production audit findings.
+- Added a production audit gate that fails CI on high or critical advisories. The remaining two moderate findings come from the MCP SDK's unused HTTP static-file adapter; FixMap exposes only the SDK's stdio transport and does not import or run that adapter.
+
 ## 0.6.1 - 2026-07-22
 
 ### Fixed
