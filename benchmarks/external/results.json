@@ -1,8 +1,8 @@
 {
   "cases": 6,
-  "top1HitRate": 0.5,
-  "top3HitRate": 0.833,
-  "top5HitRate": 0.833,
+  "top1HitRate": 0.667,
+  "top3HitRate": 1,
+  "top5HitRate": 1,
   "floors": {
     "top1": 0.3,
     "top3": 0.5,
@@ -84,15 +84,15 @@
         "packages/zod/src/v4/core/regexes.ts"
       ],
       "top5": [
+        "packages/zod/src/v4/core/regexes.ts",
         "packages/zod/src/v4/classic/from-json-schema.ts",
         "packages/zod/src/v4/core/json-schema-processors.ts",
-        "packages/zod/src/v4/core/to-json-schema.ts",
-        "packages/zod/src/v4/core/checks.ts",
-        "packages/zod/src/v4/core/json-schema.ts"
+        "packages/zod/src/v4/mini/schemas.ts",
+        "packages/zod/src/v4/core/to-json-schema.ts"
       ],
-      "top1": false,
-      "top3": false,
-      "top5Hit": false
+      "top1": true,
+      "top3": true,
+      "top5Hit": true
     },
     {
       "slug": "pinojs/pino",

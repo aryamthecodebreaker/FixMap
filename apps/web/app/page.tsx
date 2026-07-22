@@ -64,7 +64,7 @@ export default function HomePage() {
             <a className="button primary" href="https://github.com/aryamthecodebreaker/FixMap">Explore the GitHub repo ↗</a>
             <a className="button secondary" href="/fixmap-launch.mp4">Open the video</a>
           </div>
-          <p className="film-note">Original product film · 1280×720 · sound on · current release v0.6.2</p>
+          <p className="film-note">Original product film · 1280×720 · sound on · current release v0.7.0</p>
         </div>
         <figure className="film-frame">
           <video

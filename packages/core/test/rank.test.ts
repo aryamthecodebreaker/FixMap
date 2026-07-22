@@ -49,6 +49,45 @@ describe("rankContextFiles", () => {
     expect(ranked[0]?.reasons.some((reason) => reason.startsWith("content matches task terms"))).toBe(true);
   });
 
+  it("boosts an exact literal at the definition of a task identifier", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "src/schema-consumer.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function toJsonSchema() { return { format: 'cidrv6', pattern: cidrPattern }; }"
+        },
+        {
+          path: "src/regexes.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export const cidrv6: RegExp =\n  /^(([0-9a-fA-F]{1,4}:){7})$/;"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: 'cidrv6 JSON schema emits the wrong pattern: "^(([0-9a-fA-F]{1"'
+    });
+
+    expect(ranked[0]?.path).toBe("src/regexes.ts");
+    expect(ranked[0]?.reasons).toContain("defines task identifiers: cidrv6");
+    expect(ranked[0]?.reasons.some((reason) => reason.startsWith("exact task literal at definition"))).toBe(true);
+  });
+
   it("ignores tokens that appear in most files in the repo", () => {
     const boilerplate = "import { widget } from 'widget';";
     const repo: RepoMap = {

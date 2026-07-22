@@ -273,13 +273,103 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "your"
 ]);
 var FILE_MENTION_PATTERN = /[A-Za-z0-9_@$][A-Za-z0-9_.$/\\-]*\.[A-Za-z][A-Za-z0-9]*/g;
+var IDENTIFIER_PATTERN = /[A-Za-z_$][A-Za-z0-9_$]{4,}/g;
+var MAX_EXACT_FRAGMENTS = 8;
+var MAX_IDENTIFIERS = 24;
 function extractTaskSignals(input) {
-  const tokens = tokenizeText([input.issueText ?? "", extractDiffContentLines(input.diffText ?? "")].join("\n"));
+  const taskText = [input.issueText ?? "", extractDiffContentLines(input.diffText ?? "")].join("\n");
+  const tokens = tokenizeText(taskText);
   return {
     tokens,
     changedFiles: new Set(input.changedFiles ?? []),
-    fileMentions: extractFileMentions(input.issueText ?? "")
+    fileMentions: extractFileMentions(input.issueText ?? ""),
+    exactFragments: extractExactFragments(taskText),
+    identifiers: extractIdentifiers(taskText)
   };
+}
+function extractExactFragments(text) {
+  const fragments = /* @__PURE__ */ new Set();
+  for (const quoted of scanQuotedFragments(text)) {
+    const fragment = quoted.value.trim();
+    if (isDistinctiveFragment(fragment)) {
+      fragments.add(fragment);
+      if (fragments.size >= MAX_EXACT_FRAGMENTS) {
+        break;
+      }
+    }
+  }
+  return [...fragments];
+}
+function extractIdentifiers(text) {
+  const identifiers = /* @__PURE__ */ new Set();
+  for (const match of text.matchAll(IDENTIFIER_PATTERN)) {
+    const identifier = match[0];
+    if (isDistinctiveIdentifier(identifier)) {
+      addIdentifier(identifiers, identifier);
+    }
+  }
+  for (const quoted of scanQuotedFragments(text)) {
+    if (quoted.delimiter !== "`") {
+      continue;
+    }
+    const fragment = quoted.value.trim();
+    if (!/^[$A-Za-z_][$A-Za-z0-9_]*$/.test(fragment.trim())) {
+      continue;
+    }
+    if (!isDistinctiveIdentifier(fragment) && fragment.length < 8) {
+      continue;
+    }
+    for (const match of fragment.matchAll(IDENTIFIER_PATTERN)) {
+      addIdentifier(identifiers, match[0]);
+    }
+  }
+  return identifiers;
+}
+function addIdentifier(identifiers, identifier) {
+  if (identifiers.size >= MAX_IDENTIFIERS || STOP_WORDS.has(identifier.toLowerCase())) {
+    return;
+  }
+  identifiers.add(identifier);
+}
+function isDistinctiveIdentifier(identifier) {
+  return /[0-9_$]/.test(identifier) || /[a-z][A-Z]/.test(identifier);
+}
+function isDistinctiveFragment(fragment) {
+  if (fragment.length < 6 || fragment.length > 96 || /\s/.test(fragment)) {
+    return false;
+  }
+  const punctuationCount = [...fragment].filter((character) => /[^A-Za-z0-9_$]/.test(character)).length;
+  return punctuationCount >= 2 && /[A-Za-z0-9]/.test(fragment);
+}
+function scanQuotedFragments(text) {
+  const fragments = [];
+  for (const line of text.split(/\r?\n/)) {
+    let cursor = 0;
+    while (cursor < line.length) {
+      const delimiter = line[cursor];
+      if (delimiter !== '"' && delimiter !== "'" && delimiter !== "`") {
+        cursor += 1;
+        continue;
+      }
+      let end = cursor + 1;
+      while (end < line.length) {
+        if (line[end] === delimiter && !isEscaped(line, end)) {
+          break;
+        }
+        end += 1;
+      }
+      fragments.push({ delimiter, value: line.slice(cursor + 1, end) });
+      cursor = end < line.length ? end + 1 : line.length;
+    }
+  }
+  return fragments;
+}
+function isEscaped(text, index) {
+  let backslashes = 0;
+  for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor -= 1) {
+    backslashes += 1;
+  }
+  return backslashes % 2 === 1;
 }
 function extractFileMentions(text) {
   const mentions = /* @__PURE__ */ new Set();
@@ -345,6 +435,9 @@ var MAX_PROXIMITY_SEEDS = 5;
 var IMPORT_PROXIMITY_BOOSTS = { 1: 4, 2: 2 };
 var EXAMPLE_CODE_PENALTY = 2;
 var TYPE_DECLARATION_PENALTY = 4;
+var DEFINITION_IDENTIFIER_BOOST = 4;
+var DEFINITION_LITERAL_BOOST = 8;
+var MAX_DEFINITION_IDENTIFIERS = 2;
 function rankContextFiles(repo, input, limit = 8) {
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
@@ -356,6 +449,7 @@ function rankContextFiles(repo, input, limit = 8) {
   const candidates = repo.files.filter((file) => mentionedPaths.has(file.path) || file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
+  const definitionSignals = buildDefinitionSignals(signals.identifiers);
   const taskTargetsDocumentation = hasAny(signals.tokens, ["docs", "documentation", "readme", "guide", "copy"]);
   const taskTargetsConfiguration = hasAny(signals.tokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
   const taskTargetsDeployment = hasAny(signals.tokens, DEPLOYMENT_TERMS);
@@ -385,6 +479,16 @@ function rankContextFiles(repo, input, limit = 8) {
     if (contentOverlap.length > 0) {
       score += Math.min(contentOverlap.length, 8) * 2;
       reasons.push(`content matches task terms: ${contentOverlap.slice(0, 8).join(", ")}`);
+    }
+    const definedIdentifiers = findDefinedIdentifiers(file.textSample, definitionSignals).slice(0, MAX_DEFINITION_IDENTIFIERS);
+    if (definedIdentifiers.length > 0) {
+      score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
+      reasons.push(`defines task identifiers: ${definedIdentifiers.join(", ")}`);
+    }
+    const definitionFragment = signals.exactFragments.find((fragment) => hasExactFragmentAtDefinition(file.textSample, fragment, definedIdentifiers));
+    if (definitionFragment) {
+      score += DEFINITION_LITERAL_BOOST;
+      reasons.push(`exact task literal at definition: ${previewFragment(definitionFragment)}`);
     }
     if (isNearbyChangedFile(file.path, repo.changedFiles)) {
       score += 2;
@@ -511,6 +615,34 @@ function isAuxiliaryCodePath(path) {
 }
 function isTypeDeclarationPath(path) {
   return /\.d\.(?:ts|mts|cts)$/i.test(path);
+}
+function buildDefinitionSignals(identifiers) {
+  return [...identifiers].sort((a, b) => a.localeCompare(b)).map((identifier) => ({
+    identifier,
+    pattern: new RegExp(`\\b(?:export\\s+)?(?:async\\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\\s+${escapeRegExp(identifier)}\\b`)
+  }));
+}
+function findDefinedIdentifiers(text, signals) {
+  return signals.filter((signal) => signal.pattern.test(text)).map((signal) => signal.identifier);
+}
+function hasExactFragmentAtDefinition(text, fragment, definedIdentifiers) {
+  let index = text.indexOf(fragment);
+  while (index !== -1) {
+    const prefix = text.slice(Math.max(0, index - 240), index);
+    const namesNearby = definedIdentifiers.some((identifier) => prefix.includes(identifier));
+    const assignmentNearby = /\b(?:const|let|var)\s+[$A-Za-z_][$A-Za-z0-9_]*(?:\s*:[^=\r\n]+)?\s*=\s*[/("'`]?\s*$/.test(prefix);
+    if (namesNearby || assignmentNearby) {
+      return true;
+    }
+    index = text.indexOf(fragment, index + fragment.length);
+  }
+  return false;
+}
+function previewFragment(fragment) {
+  return fragment.length <= 40 ? fragment : `${fragment.slice(0, 37)}...`;
+}
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function findCommonTokens(contentTokensByPath) {
   const fileCount = contentTokensByPath.size;
