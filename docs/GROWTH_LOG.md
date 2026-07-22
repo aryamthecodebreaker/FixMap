@@ -23,8 +23,11 @@ Package and clone activity is materially higher than human repository traffic. T
 
 ## Experiments
 
-| Date/time UTC | Channel/change | Stars before | Stars +24h | Stars +72h | Unique visitors | npm downloads | Qualified feedback |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| 2026-07-22 10:50 | v0.7.0 definition-site ranking and 6/6 Top-5 proof | 4 | — | — | 14 baseline | 652 weekly | #59 implementation |
+| Date/time UTC | Channel/change | Link or post ID | Stars before | Stars +24h | Stars +72h | Unique visitors | npm downloads | Qualified feedback |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| 2026-07-22 10:50 | v0.7.0 definition-site ranking and 6/6 Top-5 proof | [v0.7.0 release](https://github.com/aryamthecodebreaker/FixMap/releases/tag/v0.7.0) | 4 | — | — | 14 baseline | 652 weekly | #59 implementation |
+| 2026-07-22 11:22 | LinkedIn launch post with the product film and v0.7.0 benchmark delta | [LinkedIn post](https://www.linkedin.com/posts/aryamg_opensource-devtools-githubactions-ugcPost-7485655556637147136-E1t9/) | 4 | Due 2026-07-23 11:22 | Due 2026-07-25 11:22 | 14 at 11:25 | 652 weekly at 11:25 | Pending |
 
 Only record real installs, issues, discussions, pull requests, integrations, or technically specific comments as qualified feedback. Never coordinate votes or manufacture engagement.
+
+For the LinkedIn experiment, capture LinkedIn impressions, reactions, comments, reposts, and profile views separately at each checkpoint. Repository outcomes remain the decision metrics: stars, unique visitors, npm downloads, and qualified feedback.
