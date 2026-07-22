@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.aryamthecodebreaker/fixmap",
-  "description": "Deterministic local-first repo context for coding agents, including one-command public GitHub issue analysis.",
+  "description": "Deterministic local-first repo context for coding agents with one-command GitHub issue analysis.",
   "repository": {
     "url": "https://github.com/aryamthecodebreaker/FixMap",
     "source": "github"
   },
-  "version": "0.6.0",
+  "version": "0.6.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@aryam/fixmap",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "transport": {
         "type": "stdio"
       },
