@@ -1,6 +1,6 @@
 {
   "name": "fixmap-workspace",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "private": true,
   "description": "Local-first repo context for coding agents: paste a GitHub issue URL to get ranked files, test routes, and risks.",
   "license": "MIT",
@@ -44,9 +44,10 @@
     "check:action-bundle": "npm run build:action && git diff --exit-code packages/action/dist/index.mjs",
     "check:action-metadata": "node scripts/check-action-metadata.mjs",
     "check:server-manifest": "node scripts/check-server-manifest.mjs",
+    "audit:production": "npm audit --omit=dev --audit-level=high",
     "benchmark:scan": "npm run build:core && node scripts/benchmark-scan.mjs",
     "benchmark:check": "npm run build:core && node scripts/benchmark-scan.mjs --tier 1000 --check",
-    "ci": "npm run typecheck && npm test && npm run lint && npm run build && npm run check:action-metadata && npm run check:server-manifest && npm run check:action-bundle && npm run smoke && npm run evaluate && npm run benchmark:check",
+    "ci": "npm run typecheck && npm test && npm run audit:production && npm run lint && npm run build && npm run check:action-metadata && npm run check:server-manifest && npm run check:action-bundle && npm run smoke && npm run evaluate && npm run benchmark:check",
     "evaluate": "npm run build:core && node scripts/evaluate.mjs",
     "evaluate:external": "npm run build:core && node scripts/evaluate-external.mjs",
     "evaluate:external:record": "npm run build:core && node scripts/evaluate-external.mjs --record",
@@ -59,14 +60,16 @@
     "node": ">=20.11"
   },
   "overrides": {
-    "next@16.2.10": {
+    "next@16.2.11": {
       "postcss": "8.5.16"
-    }
+    },
+    "fast-uri": "3.1.4",
+    "sharp": "0.35.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "esbuild": "^0.28.1",
-    "next": "16.2.10",
+    "next": "16.2.11",
     "postcss": "8.5.16",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"

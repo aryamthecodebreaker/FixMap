@@ -145,7 +145,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.6.1
+        uses: aryamthecodebreaker/FixMap@v0.6.2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
