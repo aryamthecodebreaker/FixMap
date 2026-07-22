@@ -2,135 +2,111 @@
 
 # FixMap
 
-**Give your coding agent a map before it starts editing.**
+### Know where to edit before the first edit.
 
-Turn an issue or git diff into relevant files, test routes, risk notes, and clear diagnostics.
+Paste a GitHub issue URL, describe a task, or point at a diff. FixMap returns ranked context files, test routes, risk notes, and explainable diagnostics—without an account, API key, or model call.
 
 [![CI](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml/badge.svg)](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/%40aryam%2Ffixmap)](https://www.npmjs.com/package/@aryam/fixmap)
+[![GitHub release](https://img.shields.io/github/v/release/aryamthecodebreaker/FixMap)](https://github.com/aryamthecodebreaker/FixMap/releases/latest)
+[![Marketplace](https://img.shields.io/badge/GitHub_Marketplace-FixMap-2ea44f?logo=github)](https://github.com/marketplace/actions/fixmap)
 [![MIT](https://img.shields.io/badge/license-MIT-74f0ba)](LICENSE)
 
-[Live demo](https://fixmap-flax.vercel.app) · [Install](#quick-start) · [MCP server](#mcp-server) · [GitHub Action](#github-action) · [Contribute](CONTRIBUTING.md) · [Star FixMap](https://github.com/aryamthecodebreaker/FixMap)
+[Try one command](#one-command-start) · [Watch the 24-second film](https://fixmap-flax.vercel.app/#launch-film) · [Install the Action](https://github.com/marketplace/actions/fixmap) · [Connect MCP](#mcp-server) · [Contribute](CONTRIBUTING.md)
 
 </div>
 
-<!-- Reproducible recording: regenerate with `npm run build:cli && node scripts/render-demo.mjs` -->
-![Animated terminal recording: a single fixmap plan command on the checked-in tiny-auth example produces ranked context files with confidence and reasons, a test route with related tests, a high authentication risk note, and honest empty diagnostics — in about ten seconds.](docs/assets/fixmap-cli-demo.svg)
+## One-command start
 
-### Watch FixMap in 24 seconds
-
-[![FixMap launch film preview: a terminal report showing the ranked reset-password context file, its related test route, and a high authentication risk note.](apps/web/public/fixmap-launch-poster.jpg)](https://fixmap-flax.vercel.app/#launch-film)
-
-[Play the launch film](https://fixmap-flax.vercel.app/fixmap-launch.mp4) · [Explore the live experience](https://fixmap-flax.vercel.app/#launch-film) · [View the GitHub repository](https://github.com/aryamthecodebreaker/FixMap)
-
-## Why FixMap?
-
-Coding agents are fast once they have the right context. The expensive mistakes happen earlier:
-
-- reading a plausible file instead of the owning module
-- missing the test that would catch the regression
-- treating an unresolved git diff as “no changes”
-- leaving reviewers without a clear map of what should be verified
-
-FixMap is a transparent routing layer for that gap. It needs no account or API key and never uploads repository source to a third-party service.
-
-## Quick start
-
-Paste a public GitHub issue URL. FixMap fetches its title and body, infers the repository, and returns a repo map without making you clone anything first:
+Give FixMap a public GitHub issue. It fetches the task, infers the repository, scans an isolated temporary checkout, and removes that checkout when the report is complete:
 
 ```bash
-npx -y @aryam/fixmap plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/59
+npx -y @aryam/fixmap@latest plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/59
 ```
 
-Or describe a task and point FixMap at any public GitHub repository:
+No clone, signup, configuration, or source upload is required.
+
+<!-- Reproducible recording: regenerate with `npm run build:cli && node scripts/render-demo.mjs` -->
+![Animated FixMap terminal recording: one command produces ranked context files with confidence and reasons, a related test route, a high authentication risk note, and honest diagnostics.](docs/assets/fixmap-cli-demo.svg)
+
+## The problem FixMap solves
+
+Coding agents are fast after they find the right context. The expensive mistakes happen before the first edit:
+
+- opening a plausible file instead of the definition that owns the behavior
+- missing the nearest test or workspace-specific test command
+- treating an unresolved diff as “no changes”
+- reviewing a change without an explicit map of affected code and risks
+
+FixMap adds a deterministic routing step before an agent starts searching. Its output is evidence, not a correctness claim:
+
+| Output | What it tells you |
+| --- | --- |
+| Ranked context files | Where to start, with confidence and inspectable reasons |
+| Test routes | Which package command and related tests are likely to verify the change |
+| Risk map | Which sensitive areas are touched and why |
+| Diagnostics | Missing refs, scan limits, remote-fetch details, and other uncertainty |
+| Markdown or JSON | A human handoff or machine-readable input for the next tool |
+
+## Use FixMap your way
+
+### CLI
+
+Analyze a task against any public GitHub repository:
 
 ```bash
-npx -y @aryam/fixmap plan \
+npx -y @aryam/fixmap@latest plan \
   --issue "support public GitHub issue URLs" \
   --repo https://github.com/aryamthecodebreaker/FixMap
 ```
 
-For private source or working-tree changes, run it from a local JavaScript or TypeScript repository:
+Analyze private source or working-tree changes locally:
 
 ```bash
-npx @aryam/fixmap plan --issue "password reset emails fail"
+npx -y @aryam/fixmap@latest plan --issue "password reset emails fail"
+npx -y @aryam/fixmap@latest plan --diff main...HEAD
 ```
 
-Use a real branch diff:
+Write machine-readable output:
 
 ```bash
-npx @aryam/fixmap plan --diff main...HEAD
+npx -y @aryam/fixmap@latest plan \
+  --base main \
+  --head HEAD \
+  --format json \
+  --output fixmap-report.json
 ```
 
-Machine-readable output:
+Remote repository mode is issue-only. Clone the repository locally when you need `--diff`, `--base`, or `--head`.
 
-```bash
-npx @aryam/fixmap plan --base main --head HEAD --format json --output fixmap-report.json
-```
+### MCP server
 
-### Public GitHub issue and repository inputs
-
-CLI and MCP users can pass a canonical `https://github.com/owner/repository/issues/123` URL as the issue. FixMap anonymously fetches the public issue title and body and infers the matching repository when `--repo` / `repo` is omitted. A separately supplied public repository URL must match the issue; an explicit local checkout is allowed.
-
-Repository inputs use the canonical `https://github.com/owner/repository` form. FixMap anonymously shallow-clones the default branch into an isolated OS temporary directory, disables credentials, hooks, submodules, symlinks, and LFS smudging, scans without running install/build/test scripts, and removes the checkout before returning the report. Issue fetches use GitHub's fixed public API host with no redirects or credentials, a 15-second timeout, bounded response and task sizes, and a clear anonymous rate-limit error.
-
-Remote URL mode is deliberately issue-only in this first release. Clone the repository locally when you need `--diff`, `--base`, or `--head`. Paths and test commands in a remote report are informational because the temporary checkout no longer exists after analysis.
-
-Example result:
-
-```text
-## Context Files
-- src/auth/reset-password.ts (high confidence): path and content match
-- src/email/send-reset.ts (medium confidence): content match
-
-## Test Route
-- npm --prefix apps/api run test
-
-## Risk Map
-- high authentication: authentication-related files are affected
-```
-
-## MCP server
-
-FixMap ships as a Model Context Protocol server, so coding agents can request a plan themselves instead of you pasting reports around. One tool is exposed: `fixmap_plan`.
+FixMap exposes one stdio tool, `fixmap_plan`, so an agent can request the same report directly.
 
 Claude Code:
 
 ```bash
-claude mcp add fixmap -- npx -y @aryam/fixmap mcp
+claude mcp add fixmap -- npx -y @aryam/fixmap@latest mcp
 ```
 
-Cursor, Windsurf, or any MCP client:
+Cursor, Windsurf, or another MCP client:
 
 ```json
 {
   "mcpServers": {
     "fixmap": {
       "command": "npx",
-      "args": ["-y", "@aryam/fixmap", "mcp"]
+      "args": ["-y", "@aryam/fixmap@latest", "mcp"]
     }
   }
 }
 ```
 
-The agent calls `fixmap_plan` with an issue description or a diff spec (`main...HEAD`) and receives the same report as the CLI: context files with confidence and reasons, test routes, risk notes, and diagnostics. The `repo` argument accepts either a local path or a public GitHub HTTPS URL. Analysis runs locally over stdio; source is never uploaded by FixMap.
+The official MCP Registry identifier is `io.github.aryamthecodebreaker/fixmap`. Analysis runs locally over stdio; FixMap does not send repository source to a hosted model or service.
 
-## Interactive demo
+### GitHub Action
 
-The [live website](https://fixmap-flax.vercel.app) includes a browser-only sample repository: change the task and watch the context pack update. It is deliberately labeled as a sample; the CLI scans real local repositories or isolated temporary checkouts of public GitHub repositories.
-
-![The FixMap website on a desktop viewport: a hero that reads "Give your coding agent a map before it starts editing" next to a terminal mock of a fixmap report with context, verify, and risk sections.](docs/assets/fixmap-site-desktop.png)
-
-Run the site locally:
-
-```bash
-npm ci
-npm run dev -w @fixmap/web
-```
-
-## GitHub Action
-
-Add FixMap to pull requests with a versioned release:
+Install [FixMap from GitHub Marketplace](https://github.com/marketplace/actions/fixmap), or add the versioned Action directly:
 
 ```yaml
 name: FixMap
@@ -156,40 +132,65 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-Pin the Action to the latest [release tag](https://github.com/aryamthecodebreaker/FixMap/releases); a floating `v1` major tag is planned after wider acceptance testing. The Action upserts one marked PR comment, writes Markdown to the step summary, and exposes `report`, `context-count`, and `test-route-count` outputs.
+The Action upserts one marked pull-request comment, writes the complete report to the step summary, and exposes `report`, `context-count`, and `test-route-count` outputs. Pin a [release tag](https://github.com/aryamthecodebreaker/FixMap/releases); a floating `v1` tag will follow wider acceptance testing.
 
-### Permissions and forked pull requests
+On forked pull requests, GitHub supplies a read-only token. FixMap warns instead of failing and keeps the full report in the step summary and outputs. Do not switch to `pull_request_target` while checking out untrusted fork code just to restore comments.
 
-The workflow above grants `pull-requests: write` so FixMap can upsert its comment. On pull requests from forks, GitHub hands the workflow a read-only `GITHUB_TOKEN` regardless of that permissions block. FixMap detects the rejected comment call, emits a warning instead of failing, and keeps the job green — the full report is still in the step summary and the `report` output.
+## Why trust the output?
 
-Do **not** switch the trigger to `pull_request_target` and check out the fork's head to restore commenting: that pattern runs untrusted pull-request code with a write-scoped token and is a well-known secret-exfiltration vector. If comments on fork PRs matter, keep this workflow read-only and post the comment from a separate trusted `workflow_run` job — or simply rely on the step summary.
+FixMap is deliberately inspectable:
 
-## What it uses
+- **Deterministic:** the same task, repository, and diff produce the same ranking—there is no hidden model call.
+- **Explainable:** every ranked file includes reasons such as path matches, content matches, exact definitions, changed-file evidence, or import proximity.
+- **Local-first:** local repositories stay local; public URLs use an anonymous temporary checkout.
+- **Non-executing:** FixMap never installs dependencies or runs repository build, test, hook, or package scripts.
+- **Git-aware:** scans respect `.gitignore`, include untracked files in working-tree diffs, and surface unresolved refs as errors.
+- **Monorepo-aware:** test routing understands npm, pnpm, Yarn, Bun, and workspace package boundaries.
+- **Bounded:** file counts, text samples, issue bodies, network responses, and remote-fetch time are capped with explicit diagnostics.
 
-The ranker is deterministic and inspectable:
+Public repository inputs accept only canonical credential-free `https://github.com/owner/repository` URLs. FixMap disables credential helpers, inherited Git configuration, hooks, submodules, symlinks, and LFS smudging, then removes the checkout on success or failure. Public issue fetching uses GitHub’s fixed API host without credentials or redirects.
 
-- task and identifier overlap in paths and file samples
-- real changed files from a resolved git diff, including untracked files in working-tree diffs
-- `.gitignore`-aware scanning, so generated output does not outrank source
-- static JavaScript/TypeScript import-graph proximity to high-confidence files
-- code, test, documentation, and configuration classification
-- nearby paths and workspace package boundaries
-- npm, pnpm, Yarn, and Bun script routing
-- explicit confidence and diagnostic messages
+## Evidence, not hype
 
-It intentionally does **not** claim correctness, execute suggested commands, or hide failed diff resolution.
+Ranking changes must pass both the internal evaluation gate and a frozen cross-repository evaluation built from six real, already-fixed issues in permissively licensed projects.
 
-## Evaluation
+| v0.7.0 external evaluation | Result |
+| --- | ---: |
+| Expected fixing file ranked Top-1 | 4 / 6 (67%) |
+| Expected fixing file ranked Top-3 | 6 / 6 (100%) |
+| Expected fixing file ranked Top-5 | 6 / 6 (100%) |
 
-Ranking changes must pass a checked-in task-to-file evaluation gate in addition to unit tests:
+The dataset covers Express, Axios, debug, ky, Zod, and Pino at exact commits. Every input and ranked output is checked into [`benchmarks/external/`](benchmarks/external), and a scheduled workflow reruns it weekly. Six cases are useful regression evidence—not a general accuracy claim.
 
-```bash
-npm run evaluate
-```
+The v0.7.0 release also passed 122 automated tests, typechecking, linting, production builds, package and Action smoke tests, the internal evaluation gate, the frozen external evaluation, a production dependency audit gate, and a deterministic 1,000-file scanner check.
 
-The current suite covers Action failures, invalid diffs, authentication, the web demo, workspace test routing, and contributor documentation. The cases and full ranked results are visible in [`benchmarks/`](benchmarks).
+Read the full [benchmark methodology and scanner measurements](docs/BENCHMARKS.md).
 
-A separate cross-repository evaluation runs FixMap against six real, already-fixed issues in permissively licensed repositories (Express, Axios, debug, ky, Zod, Pino) pinned to exact commits, and reports honest top-1/3/5 hit rates — currently 67% / 100% / 100%. The frozen dataset, methodology, and every ranked output live in [`benchmarks/external/`](benchmarks/external); a scheduled workflow reruns it weekly.
+## What changed in v0.7.0
+
+FixMap now recognizes distinctive identifiers and exact code or literal fragments in task text, then boosts the nearby definition site instead of merely rewarding repeated words. That moved the frozen Zod #5944 fixing file from outside the Top-5 to Top-1 while keeping the dataset unchanged.
+
+[Read the v0.7.0 release notes](https://github.com/aryamthecodebreaker/FixMap/releases/tag/v0.7.0) · [Inspect the changelog](CHANGELOG.md) · [See every external ranking](benchmarks/external/README.md)
+
+## Watch it work
+
+[![FixMap launch film preview: a terminal report showing the ranked reset-password context file, its related test route, and a high authentication risk note.](apps/web/public/fixmap-launch-poster.jpg)](https://fixmap-flax.vercel.app/#launch-film)
+
+[Play the launch film](https://fixmap-flax.vercel.app/fixmap-launch.mp4) · [Explore the browser demo](https://fixmap-flax.vercel.app/#demo) · [Open the repository](https://github.com/aryamthecodebreaker/FixMap)
+
+The website demo runs against a small browser-only sample. The CLI, MCP server, and Action scan real repositories.
+
+## How ranking works
+
+FixMap combines bounded, visible signals rather than one opaque score:
+
+1. Normalize the issue, task text, repository input, and optional git diff.
+2. Scan code, tests, documentation, and configuration while respecting ignore rules.
+3. Rank path/content overlap, distinctive definition sites, changed files, import-graph proximity, nearby paths, and workspace ownership.
+4. Route the closest package-level test command and related test files.
+5. Report risk areas and diagnostics without executing the suggested commands.
+
+The implementation lives in [`packages/core`](packages/core), shared by every interface.
 
 ## Repository layout
 
@@ -202,27 +203,29 @@ benchmarks        transparent ranking evaluation cases
 examples          inspectable sample input and output
 ```
 
-## Development
+## Develop locally
 
-Requires Node.js 20.11 or newer.
+FixMap requires Node.js 20.11 or newer.
 
 ```bash
 npm ci
 npm run ci
 ```
 
-`npm run ci` runs the complete test suite, typechecking, ESLint, production builds, Action bundle drift verification, CLI/Action smoke checks, the ranking evaluation gate, and a deterministic scanner correctness check. Scanner performance at large repository sizes is measured by `npm run benchmark:scan` and published in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) — timing is never a CI assertion.
+`npm run ci` covers typechecking, tests, a high/critical production audit gate, linting, production builds, Action and MCP metadata, bundle drift, smoke tests, evaluations, and scanner correctness. Use `npm run benchmark:scan` for the non-gating performance benchmark.
 
-## Status and roadmap
+## Current scope
 
-FixMap is an early public release focused on JavaScript and TypeScript repositories. The [changelog](CHANGELOG.md) records what each release shipped, including cross-repository evaluation, MCP support, and one-command public GitHub issue analysis. Near-term work:
+FixMap is focused on JavaScript and TypeScript repositories. It does not claim that a ranked file is correct, execute suggested commands, or hide failed diff resolution.
 
-- git co-change and ownership signals
-- adapters and examples for popular monorepo layouts
-- growing the cross-repository evaluation dataset beyond six cases
-- stable `v1` Action tag after wider acceptance testing
+Next priorities include:
 
-See [open issues](https://github.com/aryamthecodebreaker/FixMap/issues) for scoped work. Contributions are welcome.
+- expanding the frozen cross-repository dataset beyond six cases
+- adding co-change and ownership signals
+- publishing more monorepo adapters and examples
+- promoting a stable `v1` Action tag after wider acceptance testing
+
+See [open issues](https://github.com/aryamthecodebreaker/FixMap/issues) for scoped work, or start with [CONTRIBUTING.md](CONTRIBUTING.md). Security reports belong in the process described by [SECURITY.md](SECURITY.md).
 
 ## License
 
