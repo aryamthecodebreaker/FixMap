@@ -31,7 +31,8 @@ export type ScanDiagnostic = {
     | "repo-root-missing"
     | "gated-test-skipped"
     | "remote-issue-fetched"
-    | "remote-repo-fetched";
+    | "remote-repo-fetched"
+    | "remote-checkout-cleanup-failed";
   message: string;
   severity: "info" | "warning" | "error";
 };

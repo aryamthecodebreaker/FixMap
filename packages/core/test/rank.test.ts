@@ -3,6 +3,42 @@ import { rankContextFiles } from "../src/rank.js";
 import type { RepoMap } from "../src/types.js";
 
 describe("rankContextFiles", () => {
+  it("prioritizes definitions whose compound name matches multiple task terms", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      files: [
+        {
+          path: "src/report.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function buildTestRoutes() { return []; }"
+        },
+        {
+          path: "src/demo.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "import { buildTestRoutes } from './report.js'; console.log(buildTestRoutes());"
+        }
+      ],
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: []
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "Test routes should use the nearest workspace script" });
+
+    expect(ranked[0]?.path).toBe("src/report.ts");
+    expect(ranked[0]?.reasons).toContain("defines symbols matching task terms: buildTestRoutes");
+  });
+
   it("prioritizes files whose paths overlap the issue text and changed files", () => {
     const repo: RepoMap = {
       root: "/repo",

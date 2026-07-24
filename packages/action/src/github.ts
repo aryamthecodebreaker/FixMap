@@ -1,5 +1,4 @@
 export const FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
-export const DEFAULT_COMMENT_AUTHOR = "github-actions[bot]";
 
 export type PullRequestEvent = {
   pull_request?: {
@@ -53,7 +52,7 @@ export function createGitHubClient(options: GitHubClientOptions = {}) {
         fetchImpl,
         commentsUrl,
         headers,
-        input.commentAuthor?.trim() || DEFAULT_COMMENT_AUTHOR
+        input.commentAuthor?.trim()
       );
       const body = `${FIXMAP_REPORT_MARKER}\n${input.markdown}`;
 
@@ -80,9 +79,9 @@ async function findExistingComment(
   fetchImpl: typeof fetch,
   commentsUrl: string,
   headers: Record<string, string>,
-  viewerLogin: string
+  commentAuthor: string | undefined
 ): Promise<GitHubComment | undefined> {
-  for (let page = 1; page <= 10; page += 1) {
+  for (let page = 1; ; page += 1) {
     const comments = await requestJson<GitHubComment[]>(
       fetchImpl,
       `${commentsUrl}?per_page=100&page=${page}`,
@@ -90,7 +89,9 @@ async function findExistingComment(
       "list pull request comments"
     );
     const existing = comments.find(
-      (comment) => comment.user?.login === viewerLogin && comment.body?.includes(FIXMAP_REPORT_MARKER)
+      (comment) =>
+        comment.body?.includes(FIXMAP_REPORT_MARKER) &&
+        (!commentAuthor || comment.user?.login === commentAuthor)
     );
     if (existing) {
       return existing;
@@ -100,8 +101,6 @@ async function findExistingComment(
       return undefined;
     }
   }
-
-  return undefined;
 }
 
 export function isPermissionDeniedError(error: unknown): boolean {

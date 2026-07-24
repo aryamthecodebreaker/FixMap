@@ -61,17 +61,19 @@
   },
   "overrides": {
     "next@16.2.11": {
-      "postcss": "8.5.16"
+      "postcss": "8.5.23"
     },
     "fast-uri": "3.1.4",
     "sharp": "0.35.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "eslint": "9.39.4",
     "esbuild": "^0.28.1",
     "next": "16.2.11",
-    "postcss": "8.5.16",
+    "postcss": "8.5.23",
     "typescript": "^6.0.3",
+    "typescript-eslint": "8.63.0",
     "vitest": "^4.1.9"
   }
 }

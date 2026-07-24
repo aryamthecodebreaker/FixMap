@@ -128,4 +128,31 @@ describe("scanRepo", () => {
     expect(repo.changedFiles).toEqual(["src/login.ts"]);
     expect(repo.diffText).toContain("login = () => false");
   });
+
+  it("uses the scanned subdirectory as the path base for diff results", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-subdirectory-diff-"));
+    const packageRoot = join(root, "packages", "core");
+    await mkdir(join(packageRoot, "src"), { recursive: true });
+    await writeFile(join(root, "package.json"), JSON.stringify({ private: true }));
+    await writeFile(join(packageRoot, "package.json"), JSON.stringify({ name: "@example/core" }));
+    await writeFile(join(packageRoot, "src", "plan.ts"), "export const plan = 1;\n");
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-m", "initial"], { cwd: root });
+    await exec("git", ["checkout", "-b", "change-plan"], { cwd: root });
+    await writeFile(join(root, "package.json"), JSON.stringify({ private: true, changed: true }));
+    await writeFile(join(packageRoot, "src", "plan.ts"), "export const plan = 2;\n");
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-m", "change plan"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: packageRoot, diffSpec: "main...HEAD" });
+
+    expect(repo.files.map((file) => file.path)).toContain("src/plan.ts");
+    expect(repo.changedFiles).toEqual(["src/plan.ts"]);
+    expect(repo.changedFiles.every((path) => repo.files.some((file) => file.path === path))).toBe(true);
+    expect(repo.diffText).toContain("plan = 2");
+    expect(repo.diffText).not.toContain("package.json");
+  });
 });

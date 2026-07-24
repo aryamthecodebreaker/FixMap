@@ -22,6 +22,7 @@ const TYPE_DECLARATION_PENALTY = 4;
 const DEFINITION_IDENTIFIER_BOOST = 4;
 const DEFINITION_LITERAL_BOOST = 8;
 const MAX_DEFINITION_IDENTIFIERS = 2;
+const TASK_MATCHED_DEFINITION_BOOST = 4;
 
 type ScoredFile = { path: string; score: number; isChanged: boolean; reasons: string[] };
 type DefinitionSignal = { identifier: string; pattern: RegExp };
@@ -94,6 +95,16 @@ export function rankContextFiles(
       if (definedIdentifiers.length > 0) {
         score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
         reasons.push(`defines task identifiers: ${definedIdentifiers.join(", ")}`);
+      }
+
+      const taskMatchedDefinitions = signals.exactFragments.length === 0
+        ? findTaskMatchedDefinitions(file.textSample, signals.tokens)
+          .filter((identifier) => !definedIdentifiers.includes(identifier))
+          .slice(0, MAX_DEFINITION_IDENTIFIERS)
+        : [];
+      if (taskMatchedDefinitions.length > 0) {
+        score += taskMatchedDefinitions.length * TASK_MATCHED_DEFINITION_BOOST;
+        reasons.push(`defines symbols matching task terms: ${taskMatchedDefinitions.join(", ")}`);
       }
 
       const definitionFragment = signals.exactFragments.find((fragment) =>
@@ -286,6 +297,24 @@ function buildDefinitionSignals(identifiers: Set<string>): DefinitionSignal[] {
 
 function findDefinedIdentifiers(text: string, signals: DefinitionSignal[]): string[] {
   return signals.filter((signal) => signal.pattern.test(text)).map((signal) => signal.identifier);
+}
+
+function findTaskMatchedDefinitions(text: string, taskTokens: Set<string>): string[] {
+  const definitions = new Set<string>();
+  const pattern =
+    /\b(?:export\s+)?(?:async\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\s+([$A-Za-z_][$A-Za-z0-9_]*)\b/g;
+
+  for (const match of text.matchAll(pattern)) {
+    const identifier = match[1];
+    if (!identifier) {
+      continue;
+    }
+    const overlap = [...tokenizeText(identifier)].filter((token) => taskTokens.has(token));
+    if (overlap.length >= 2) {
+      definitions.add(identifier);
+    }
+  }
+  return [...definitions];
 }
 
 function hasExactFragmentAtDefinition(text: string, fragment: string, definedIdentifiers: string[]): boolean {

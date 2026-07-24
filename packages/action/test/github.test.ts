@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildPullRequestIssueText,
   createGitHubClient,
-  DEFAULT_COMMENT_AUTHOR,
   FIXMAP_REPORT_MARKER,
   isPermissionDeniedError
 } from "../src/github.js";
@@ -22,7 +21,7 @@ describe("GitHub Action helpers", () => {
     expect(buildPullRequestIssueText(undefined)).toBe("");
   });
 
-  it("updates only the Action's own marked comment", async () => {
+  it("updates an existing marked comment regardless of token identity", async () => {
     const calls: Array<{ url: string; method: string }> = [];
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = String(input);
@@ -30,7 +29,7 @@ describe("GitHub Action helpers", () => {
       if (url.includes("/comments?")) {
         return jsonResponse([
           { id: 10, body: FIXMAP_REPORT_MARKER, user: { login: "contributor" } },
-          { id: 11, body: `${FIXMAP_REPORT_MARKER}\nold report`, user: { login: DEFAULT_COMMENT_AUTHOR } }
+          { id: 11, body: `${FIXMAP_REPORT_MARKER}\nold report`, user: { login: "github-actions[bot]" } }
         ]);
       }
       return jsonResponse({ id: 11 });
@@ -46,21 +45,59 @@ describe("GitHub Action helpers", () => {
 
     expect(result).toBe("updated");
     expect(calls).toContainEqual({
-      url: "https://api.github.com/repos/octo/demo/issues/comments/11",
+      url: "https://api.github.com/repos/octo/demo/issues/comments/10",
       method: "PATCH"
     });
     expect(calls.some((call) => call.method === "POST")).toBe(false);
   });
 
-  it("creates a new comment when the marker only appears in another user's comment", async () => {
+  it("uses an explicit author as a tiebreaker", async () => {
     const calls: Array<{ url: string; method: string }> = [];
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = String(input);
       calls.push({ url, method: init?.method ?? "GET" });
       if (url.includes("/comments?")) {
-        return jsonResponse([{ id: 10, body: FIXMAP_REPORT_MARKER, user: { login: "contributor" } }]);
+        return jsonResponse([
+          { id: 10, body: FIXMAP_REPORT_MARKER, user: { login: "contributor" } },
+          { id: 11, body: FIXMAP_REPORT_MARKER, user: { login: "fixmap-app[bot]" } }
+        ]);
       }
       return jsonResponse({ id: 12 }, 201);
+    };
+
+    const result = await createGitHubClient({ fetchImpl }).upsertPullRequestComment({
+      token: "test-token",
+      owner: "octo",
+      repo: "demo",
+      issueNumber: 42,
+      markdown: "# FixMap Report",
+      commentAuthor: "fixmap-app[bot]"
+    });
+
+    expect(result).toBe("updated");
+    expect(calls).toContainEqual({
+      url: "https://api.github.com/repos/octo/demo/issues/comments/11",
+      method: "PATCH"
+    });
+  });
+
+  it("keeps paginating past ten full pages", async () => {
+    const calls: string[] = [];
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes("/comments?")) {
+        const page = Number(new URL(url).searchParams.get("page"));
+        if (page === 11) {
+          return jsonResponse([{ id: 1101, body: FIXMAP_REPORT_MARKER, user: { login: "fixmap-app[bot]" } }]);
+        }
+        return jsonResponse(Array.from({ length: 100 }, (_, index) => ({
+          id: page * 100 + index,
+          body: "ordinary comment",
+          user: { login: "contributor" }
+        })));
+      }
+      return jsonResponse({ id: 1101 });
     };
 
     const result = await createGitHubClient({ fetchImpl }).upsertPullRequestComment({
@@ -71,11 +108,8 @@ describe("GitHub Action helpers", () => {
       markdown: "# FixMap Report"
     });
 
-    expect(result).toBe("created");
-    expect(calls).toContainEqual({
-      url: "https://api.github.com/repos/octo/demo/issues/42/comments",
-      method: "POST"
-    });
+    expect(result).toBe("updated");
+    expect(calls.some((url) => url.includes("page=11"))).toBe(true);
   });
 
   it("reports a useful error when GitHub rejects comment lookup", async () => {

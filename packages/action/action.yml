@@ -21,7 +21,7 @@ inputs:
     description: Token used to upsert a pull request comment. If neither this input nor GITHUB_TOKEN is set, FixMap only writes the step summary.
     required: false
   comment-author:
-    description: GitHub login that owns prior FixMap comments. Defaults to github-actions[bot].
+    description: Optional GitHub login used to disambiguate prior FixMap comments when multiple marked comments exist.
     required: false
 outputs:
   report:

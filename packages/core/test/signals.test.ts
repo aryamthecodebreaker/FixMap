@@ -37,9 +37,22 @@ describe("extractTaskSignals", () => {
   it("normalizes simple plural and verb forms", () => {
     const signals = extractTaskSignals({ issueText: "Invoices are created for users" });
 
-    expect(signals.tokens.has("invoice")).toBe(true);
-    expect(signals.tokens.has("create")).toBe(true);
+    expect(signals.tokens.has("invoic")).toBe(true);
+    expect(signals.tokens.has("creat")).toBe(true);
     expect(signals.tokens.has("user")).toBe(true);
+  });
+
+  it.each([
+    ["failed", "fail"],
+    ["boxes", "box"],
+    ["routing", "route"],
+    ["parsing", "parse"],
+    ["running", "run"]
+  ])("normalizes %s to the same token as %s", (inflected, base) => {
+    const inflectedSignals = extractTaskSignals({ issueText: inflected });
+    const baseSignals = extractTaskSignals({ issueText: base });
+
+    expect(inflectedSignals.tokens).toEqual(baseSignals.tokens);
   });
 
   it("drops stop words and stem fragments that would produce weak matches", () => {

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
-import { createFixMapMcpServer } from "../src/mcp.js";
+import { createFixMapMcpServer, parsePlanArguments } from "../src/mcp.js";
 import type { RepositorySourceDependencies } from "../src/repository-source.js";
 
 async function createAuthFixture(): Promise<string> {
@@ -29,6 +29,25 @@ async function connectClient(repositorySourceDependencies: RepositorySourceDepen
 }
 
 describe("fixmap mcp server", () => {
+  it("rejects malformed runtime arguments before repository work begins", () => {
+    expect(parsePlanArguments({ issue: 42 })).toEqual({
+      success: false,
+      message: '"issue" must be a string.'
+    });
+    expect(parsePlanArguments({ issue: "task", format: "yaml" })).toEqual({
+      success: false,
+      message: '"format" must be either "markdown" or "json".'
+    });
+    expect(parsePlanArguments({ issue: "task", surprise: true })).toEqual({
+      success: false,
+      message: "unknown argument: surprise."
+    });
+    expect(parsePlanArguments(["task"])).toEqual({
+      success: false,
+      message: "tool arguments must be an object."
+    });
+  });
+
   it("advertises the fixmap_plan tool", async () => {
     const client = await connectClient();
 
