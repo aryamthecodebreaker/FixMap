@@ -2,12 +2,10 @@ import { execFile } from "node:child_process";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, extname, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
+import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS } from "./paths.js";
 import type { FixMapInput, PackageScript, RepoFile, RepoMap } from "./types.js";
 
-const IGNORED_DIRS = new Set([
-  ".cache", ".git", ".idea", ".netlify", ".next", ".nuxt", ".output", ".turbo", ".venv", ".vercel", ".vscode",
-  "build", "coverage", "dist", "node_modules", "target", "vendor"
-]);
+const WALK_IGNORED_DIRS = new Set([...ALWAYS_IGNORED_DIRS, ...GENERATED_DIRS]);
 const SOURCE_EXTENSIONS = new Set([
   ".cjs",
   ".css",
@@ -107,7 +105,7 @@ async function buildFilesFromPaths(
     }
 
     const relativePath = normalizePath(rawPath);
-    if (isInIgnoredDir(relativePath)) {
+    if (isInAlwaysIgnoredDir(relativePath)) {
       continue;
     }
 
@@ -143,7 +141,7 @@ async function walkFiles(
       break;
     }
     if (entry.isDirectory()) {
-      if (IGNORED_DIRS.has(entry.name)) {
+      if (WALK_IGNORED_DIRS.has(entry.name)) {
         continue;
       }
       results.push(...await walkFiles(root, join(current, entry.name), diagnostics, state));
@@ -190,8 +188,8 @@ async function toRepoFile(absolutePath: string, relativePath: string): Promise<R
   };
 }
 
-function isInIgnoredDir(relativePath: string): boolean {
-  return relativePath.split("/").slice(0, -1).some((segment) => IGNORED_DIRS.has(segment));
+function isInAlwaysIgnoredDir(relativePath: string): boolean {
+  return relativePath.split("/").slice(0, -1).some((segment) => ALWAYS_IGNORED_DIRS.has(segment));
 }
 
 function reportScanLimit(diagnostics: RepoMap["diagnostics"]): void {

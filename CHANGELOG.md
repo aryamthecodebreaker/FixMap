@@ -2,6 +2,24 @@
 
 All notable changes to FixMap are documented here.
 
+## Unreleased
+
+### Fixed
+
+- Scanning a git checkout no longer discards first-party source that happens to sit in a conventionally generated directory. `git ls-files --exclude-standard` already applies `.gitignore`, so re-applying a hardcoded directory blocklist on top only removed files the author had deliberately committed. Asked to route `handle chalk color detection on windows terminals`, FixMap missed `source/vendor/supports-color/index.js` — chalk's only implementation of that behavior — and reported no diagnostic explaining the omission. It now ranks first. Directory walks outside a git checkout have no `.gitignore` to consult and still skip those directories.
+- A term is treated as repository-wide boilerplate only when at least 85% of files carry it, rather than half. The old cutoff mistook subject matter for boilerplate: chalk names "color" in 55% of its files, so a color-detection task had its only search term suppressed and returned nothing.
+- Generated output is excluded from ranking when the source it was built from is present, because the next build overwrites any edit made there. A committed bundle no longer crowds out the module it was produced from. Vendored code with no maintained counterpart stays rankable, and naming a build artifact explicitly still surfaces it.
+- Backup directories and tool-left duplicate filenames are deprioritized, so an agent is not routed into a retired copy. A `.bak`, `conflicted copy`, or `quarantine/` snapshot no longer outranks the file still in use.
+
+### Added
+
+- An empty report now explains itself instead of printing "Diagnostics: None found". FixMap distinguishes task text that produced no searchable term from terms that matched no file, and names the terms it searched for.
+
+### Changed
+
+- Improved the frozen six-repository evaluation from 83% / 83% / 100% to 83% / 100% / 100% top-1/3/5. The pino #1996 transport case now ranks `lib/transport.js` first. The eight-case internal evaluation is unchanged at 62.5% / 87.5%.
+- Re-recorded `benchmarks/external/results.json`, which had drifted from what the committed ranker produces.
+
 ## 0.7.0 - 2026-07-22
 
 ### Added

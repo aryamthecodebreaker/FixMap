@@ -515,4 +515,231 @@ describe("rankContextFiles", () => {
     expect(rankContextFiles(repo, { issueText: "password reset email fails" })[0]?.path).toBe("src/email/reset.ts");
     expect(rankContextFiles(repo, { issueText: "update password reset documentation guide" })[0]?.path).toBe("README.md");
   });
+
+  it("ranks maintained source above an identical copy kept in a backup directory", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "components/ChatInterface.tsx",
+          extension: ".tsx",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function ChatInterface() { return streamResponse(); }"
+        },
+        {
+          path: "untracked quarantine/20260626-121031/components/ChatInterface.tsx",
+          extension: ".tsx",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function ChatInterface() { return streamResponse(); }"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "ChatInterface fails to stream the response" });
+
+    expect(ranked[0]?.path).toBe("components/ChatInterface.tsx");
+    expect(ranked.find((file) => file.path.startsWith("untracked quarantine/"))?.reasons)
+      .toContain("backup or archived copy deprioritized");
+  });
+
+  it("ranks maintained source above an editor or sync conflict copy", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "src/uploader.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function uploadAvatar() { return retryUpload(); }"
+        },
+        {
+          path: "src/uploader (Aryams conflicted copy 2026-06-26).ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function uploadAvatar() { return retryUpload(); }"
+        },
+        {
+          path: "src/uploader.ts.bak",
+          extension: ".bak",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function uploadAvatar() { return retryUpload(); }"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "avatar upload retry fails" });
+
+    expect(ranked[0]?.path).toBe("src/uploader.ts");
+  });
+
+  it("ranks first-party source above a build output copy of the same module", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "src/color-support.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function detectColorSupport() { return isWindowsTerminal(); }"
+        },
+        {
+          path: "dist/color-support.js",
+          extension: ".js",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function detectColorSupport() { return isWindowsTerminal(); }"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "color support detection fails on windows terminal" });
+
+    // The build output is not a place to edit while its source is present: the next build
+    // overwrites it, so it is left out of the report entirely.
+    expect(ranked.map((file) => file.path)).toEqual(["src/color-support.ts"]);
+  });
+
+  it("still ranks a build output copy that the task names explicitly", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "src/color-support.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function detectColorSupport() { return isWindowsTerminal(); }"
+        },
+        {
+          path: "dist/color-support.js",
+          extension: ".js",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function detectColorSupport() { return isWindowsTerminal(); }"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "dist/color-support.js is stale and disagrees with the source"
+    });
+
+    expect(ranked.map((file) => file.path)).toContain("dist/color-support.js");
+  });
+
+  it("still credits a task term that most of a focused repository mentions", () => {
+    // A term shared by half the files is normally boilerplate, but in a small
+    // single-purpose repository it is the subject: chalk mentions "color" everywhere.
+    // Suppressing it outright left chalk with no signal for a color-detection task.
+    const file = (path: string, textSample: string) => ({
+      path,
+      extension: ".js",
+      sizeBytes: 100,
+      isSource: true,
+      isTest: false,
+      kind: "code" as const,
+      textSample
+    });
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        file("source/detect.js", "export function detectColor() { return windowsTerminal(); }"),
+        file("source/palette.js", "export const palette = colorNames;"),
+        file("source/style.js", "export const style = colorCodes;"),
+        file("source/billing.js", "export const invoice = 1;")
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "color detect on windows" });
+    const paths = ranked.map((entry) => entry.path);
+
+    expect(paths[0]).toBe("source/detect.js");
+    expect(paths).toContain("source/palette.js");
+    expect(ranked.find((entry) => entry.path === "source/palette.js")?.reasons)
+      .toContain("content matches task terms: color");
+  });
+
+  it("keeps a vendored directory rankable when nothing else answers the task", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "source/index.js",
+          extension: ".js",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export const chalk = createChalk();"
+        },
+        {
+          path: "source/vendor/supports-color/index.js",
+          extension: ".js",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function supportsColor() { return detectWindowsTerminal(); }"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "color detection on windows terminals" });
+
+    expect(ranked[0]?.path).toBe("source/vendor/supports-color/index.js");
+  });
 });

@@ -38,4 +38,36 @@ describe("buildFixMapReport", () => {
     expect(report.changedFiles).toEqual([]);
     expect(report.diagnostics[0]?.code).toBe("diff-unavailable");
   });
+
+  it("explains an empty report when the task text yields no searchable terms", async () => {
+    const root = await createAuthFixture();
+
+    const report = await buildFixMapReport({ repoRoot: root, issueText: "the and or but if" });
+
+    expect(report.contextFiles).toEqual([]);
+    const diagnostic = report.diagnostics.find((entry) => entry.code === "no-task-terms");
+    expect(diagnostic?.severity).toBe("warning");
+    expect(diagnostic?.message).toContain("common word");
+  });
+
+  it("explains an empty report when task terms match nothing in the repository", async () => {
+    const root = await createAuthFixture();
+
+    const report = await buildFixMapReport({ repoRoot: root, issueText: "flurbulator telemetry pipeline" });
+
+    expect(report.contextFiles).toEqual([]);
+    const diagnostic = report.diagnostics.find((entry) => entry.code === "no-context-match");
+    expect(diagnostic?.severity).toBe("warning");
+    expect(diagnostic?.message).toContain("flurbulator");
+  });
+
+  it("does not report a term diagnostic when context files are found", async () => {
+    const root = await createAuthFixture();
+
+    const report = await buildFixMapReport({ repoRoot: root, issueText: "password reset emails fail" });
+
+    expect(report.contextFiles.length).toBeGreaterThan(0);
+    expect(report.diagnostics.map((entry) => entry.code)).not.toContain("no-task-terms");
+    expect(report.diagnostics.map((entry) => entry.code)).not.toContain("no-context-match");
+  });
 });

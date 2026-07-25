@@ -155,4 +155,63 @@ describe("scanRepo", () => {
     expect(repo.diffText).toContain("plan = 2");
     expect(repo.diffText).not.toContain("package.json");
   });
+
+  it("scans first-party source that git tracks inside a conventionally generated directory", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-vendored-source-"));
+    await mkdir(join(root, "source", "vendor", "supports-color"), { recursive: true });
+    await mkdir(join(root, "dist"), { recursive: true });
+    await writeFile(join(root, "package.json"), JSON.stringify({ scripts: { test: "vitest run" } }));
+    await writeFile(join(root, ".gitignore"), "dist/\n");
+    await writeFile(join(root, "source", "index.js"), "export const chalk = 1;\n");
+    await writeFile(
+      join(root, "source", "vendor", "supports-color", "index.js"),
+      "export function supportsColor() { return process.platform === 'win32'; }\n"
+    );
+    await writeFile(join(root, "dist", "bundle.js"), "export const bundled = 1;\n");
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: root });
+    const paths = repo.files.map((file) => file.path);
+
+    expect(paths).toContain("source/vendor/supports-color/index.js");
+    expect(paths).not.toContain("dist/bundle.js");
+  });
+
+  it("still excludes conventionally generated directories outside a git checkout", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-nogit-generated-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, "dist"), { recursive: true });
+    await mkdir(join(root, "node_modules", "left-pad"), { recursive: true });
+    await writeFile(join(root, "src", "index.ts"), "export const app = 1;\n");
+    await writeFile(join(root, "dist", "bundle.js"), "export const bundled = 1;\n");
+    await writeFile(join(root, "node_modules", "left-pad", "index.js"), "module.exports = 1;\n");
+
+    const repo = await scanRepo({ repoRoot: root });
+    const paths = repo.files.map((file) => file.path);
+
+    expect(paths).toContain("src/index.ts");
+    expect(paths).not.toContain("dist/bundle.js");
+    expect(paths).not.toContain("node_modules/left-pad/index.js");
+  });
+
+  it("never scans dependency directories even when git reports them as untracked", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-untracked-modules-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, "node_modules", "left-pad"), { recursive: true });
+    await writeFile(join(root, "src", "index.ts"), "export const app = 1;\n");
+    await writeFile(join(root, "node_modules", "left-pad", "index.js"), "module.exports = 1;\n");
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: root });
+    const paths = repo.files.map((file) => file.path);
+
+    expect(paths).toContain("src/index.ts");
+    expect(paths).not.toContain("node_modules/left-pad/index.js");
+  });
 });

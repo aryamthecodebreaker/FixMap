@@ -136,6 +136,68 @@ function addEdge(edges, from, to) {
   }
 }
 
+// packages/core/dist/paths.js
+var ALWAYS_IGNORED_DIRS = /* @__PURE__ */ new Set([".cache", ".git", ".venv", "node_modules"]);
+var GENERATED_DIRS = /* @__PURE__ */ new Set([
+  ".idea",
+  ".netlify",
+  ".next",
+  ".nuxt",
+  ".output",
+  ".turbo",
+  ".vercel",
+  ".vscode",
+  "build",
+  "coverage",
+  "dist",
+  "target",
+  "vendor"
+]);
+var BACKUP_SEGMENT_WORDS = /* @__PURE__ */ new Set([
+  "archive",
+  "archived",
+  "archives",
+  "backup",
+  "backups",
+  "bak",
+  "deprecated",
+  "legacy",
+  "old",
+  "quarantine"
+]);
+var BACKUP_FILE_PATTERNS = [
+  /\.(?:bak|orig|rej|old|save|swp)$/i,
+  /~$/,
+  /\bconflicted copy\b/i,
+  /\bconflict(?:ed)?[-_ ]copy\b/i,
+  /[-_ ]copy(?:\s*\(\d+\))?\.[^.]+$/i,
+  /\s\(\d+\)\.[^.]+$/
+];
+function segmentWords(segment) {
+  return segment.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+function directorySegments(path) {
+  return path.split("/").slice(0, -1);
+}
+function isGeneratedPath(path) {
+  return directorySegments(path).some((segment) => GENERATED_DIRS.has(segment.toLowerCase()));
+}
+var SOURCE_ROOT_DIRS = /* @__PURE__ */ new Set(["lib", "source", "src"]);
+function moduleStem(path) {
+  return path.replace(/\.[^./]+$/, "").split("/").filter((segment) => {
+    const normalized = segment.toLowerCase();
+    return !GENERATED_DIRS.has(normalized) && !SOURCE_ROOT_DIRS.has(normalized);
+  }).join("/");
+}
+function isBackupPath(path) {
+  const inBackupDirectory = directorySegments(path).some((segment) => segmentWords(segment).some((word) => BACKUP_SEGMENT_WORDS.has(word)));
+  if (inBackupDirectory) {
+    return true;
+  }
+  const fileName = path.split("/").pop() ?? "";
+  return BACKUP_FILE_PATTERNS.some((pattern) => pattern.test(fileName));
+}
+
 // packages/core/dist/signals.js
 var TOKEN_SPLIT = /[^a-zA-Z0-9]+/g;
 var STOP_WORDS = /* @__PURE__ */ new Set([
@@ -443,6 +505,8 @@ var MAX_PROXIMITY_SEEDS = 5;
 var IMPORT_PROXIMITY_BOOSTS = { 1: 4, 2: 2 };
 var EXAMPLE_CODE_PENALTY = 2;
 var TYPE_DECLARATION_PENALTY = 4;
+var BACKUP_COPY_PENALTY = 10;
+var WIDESPREAD_TOKEN_SHARE = 0.85;
 var DEFINITION_IDENTIFIER_BOOST = 4;
 var DEFINITION_LITERAL_BOOST = 8;
 var MAX_DEFINITION_IDENTIFIERS = 2;
@@ -455,7 +519,9 @@ function rankContextFiles(repo, input, limit = 8) {
   });
   const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path));
   const taskTargetsEvaluation = hasAny(signals.tokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
-  const candidates = repo.files.filter((file) => mentionedPaths.has(file.path) || file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
+  const scannable = repo.files.filter((file) => mentionedPaths.has(file.path) || file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
+  const maintainedStems = new Set(scannable.filter((file) => !isGeneratedPath(file.path) && !isBackupPath(file.path)).map((file) => moduleStem(file.path)));
+  const candidates = scannable.filter((file) => mentionedPaths.has(file.path) || signals.changedFiles.has(file.path) || !isGeneratedPath(file.path) || !maintainedStems.has(moduleStem(file.path)));
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
   const definitionSignals = buildDefinitionSignals(signals.identifiers);
@@ -533,6 +599,10 @@ function rankContextFiles(repo, input, limit = 8) {
     if (isTypeDeclarationPath(file.path) && !taskTargetsTypeDeclarations && !isChanged && !mentionedPaths.has(file.path)) {
       score -= TYPE_DECLARATION_PENALTY;
       reasons.push("type declaration deprioritized for a runtime task");
+    }
+    if (isBackupPath(file.path) && !isChanged && !mentionedPaths.has(file.path)) {
+      score -= BACKUP_COPY_PENALTY;
+      reasons.push("backup or archived copy deprioritized");
     }
     if (pathTokens.has("auth") || pathTokens.has("login")) {
       if (signals.tokens.has("auth") || signals.tokens.has("login") || signals.tokens.has("password")) {
@@ -678,7 +748,7 @@ function findCommonTokens(contentTokensByPath) {
   if (fileCount < 4) {
     return /* @__PURE__ */ new Set();
   }
-  const threshold = Math.ceil(fileCount / 2);
+  const threshold = Math.ceil(fileCount * WIDESPREAD_TOKEN_SHARE);
   const frequency = /* @__PURE__ */ new Map();
   for (const tokens of contentTokensByPath.values()) {
     for (const token of tokens) {
@@ -835,25 +905,7 @@ import { execFile } from "node:child_process";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, extname, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
-var IGNORED_DIRS = /* @__PURE__ */ new Set([
-  ".cache",
-  ".git",
-  ".idea",
-  ".netlify",
-  ".next",
-  ".nuxt",
-  ".output",
-  ".turbo",
-  ".venv",
-  ".vercel",
-  ".vscode",
-  "build",
-  "coverage",
-  "dist",
-  "node_modules",
-  "target",
-  "vendor"
-]);
+var WALK_IGNORED_DIRS = /* @__PURE__ */ new Set([...ALWAYS_IGNORED_DIRS, ...GENERATED_DIRS]);
 var SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
   ".cjs",
   ".css",
@@ -934,7 +986,7 @@ async function buildFilesFromPaths(root, paths, diagnostics) {
       break;
     }
     const relativePath = normalizePath(rawPath);
-    if (isInIgnoredDir(relativePath)) {
+    if (isInAlwaysIgnoredDir(relativePath)) {
       continue;
     }
     const file = await toRepoFile(join(root, rawPath), relativePath);
@@ -961,7 +1013,7 @@ async function walkFiles(root, current, diagnostics, state) {
       break;
     }
     if (entry.isDirectory()) {
-      if (IGNORED_DIRS.has(entry.name)) {
+      if (WALK_IGNORED_DIRS.has(entry.name)) {
         continue;
       }
       results.push(...await walkFiles(root, join(current, entry.name), diagnostics, state));
@@ -1001,8 +1053,8 @@ async function toRepoFile(absolutePath, relativePath) {
     textSample: isSource ? await readTextSample(absolutePath, fileStat.size) : ""
   };
 }
-function isInIgnoredDir(relativePath) {
-  return relativePath.split("/").slice(0, -1).some((segment) => IGNORED_DIRS.has(segment));
+function isInAlwaysIgnoredDir(relativePath) {
+  return relativePath.split("/").slice(0, -1).some((segment) => ALWAYS_IGNORED_DIRS.has(segment));
 }
 function reportScanLimit(diagnostics) {
   diagnostics.push({
@@ -1145,6 +1197,7 @@ function extractEnvNames(textSample) {
 }
 
 // packages/core/dist/plan.js
+var MAX_REPORTED_TERMS = 8;
 async function buildFixMapReport(input) {
   const repo = await scanRepo(input);
   const contextFiles = rankContextFiles(repo, {
@@ -1160,8 +1213,37 @@ async function buildFixMapReport(input) {
     testRoutes,
     risks: buildRiskNotes(contextPaths, repo.changedFiles),
     changedFiles: repo.changedFiles,
-    diagnostics: [...repo.diagnostics, ...findGatedTestDiagnostics(repo.files, routedTestPaths)]
+    diagnostics: [
+      ...repo.diagnostics,
+      ...findGatedTestDiagnostics(repo.files, routedTestPaths),
+      ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "")
+    ]
   };
+}
+function findEmptyResultDiagnostics(repo, contextFiles, issueText) {
+  if (contextFiles.length > 0 || repo.files.length === 0) {
+    return [];
+  }
+  const signals = extractTaskSignals({
+    issueText,
+    diffText: repo.diffText,
+    changedFiles: repo.changedFiles
+  });
+  const terms = [...signals.tokens].sort();
+  if (terms.length === 0 && signals.identifiers.size === 0 && signals.fileMentions.size === 0) {
+    return [{
+      code: "no-task-terms",
+      severity: "warning",
+      message: "No context files: the task text contained no searchable term. Every word was a common word, a language keyword, or shorter than three characters. Name the failing behavior, a symbol, or a file path."
+    }];
+  }
+  const preview = terms.slice(0, MAX_REPORTED_TERMS).join(", ");
+  const remainder = terms.length > MAX_REPORTED_TERMS ? ` (+${terms.length - MAX_REPORTED_TERMS} more)` : "";
+  return [{
+    code: "no-context-match",
+    severity: "warning",
+    message: `No context files: no file in the ${repo.files.length} scanned matched the task terms ${preview}${remainder}. The repository may not contain this behavior, or it may name it differently.`
+  }];
 }
 
 // packages/action/src/github.ts
