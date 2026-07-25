@@ -1,6 +1,6 @@
 {
   "cases": 6,
-  "top1HitRate": 0.667,
+  "top1HitRate": 0.833,
   "top3HitRate": 1,
   "top5HitRate": 1,
   "floors": {
@@ -17,10 +17,10 @@
       ],
       "top5": [
         "lib/request.js",
-        "lib/response.js",
         "lib/application.js",
-        "lib/utils.js",
-        "lib/express.js"
+        "lib/response.js",
+        "lib/express.js",
+        "lib/utils.js"
       ],
       "top1": true,
       "top3": true,
@@ -33,13 +33,13 @@
         "lib/core/AxiosError.js"
       ],
       "top5": [
-        "lib/adapters/http.js",
         "lib/core/AxiosError.js",
-        "lib/adapters/xhr.js",
-        "lib/core/AxiosHeaders.js",
+        "lib/adapters/http.js",
+        "lib/helpers/HttpStatusCode.js",
+        "index.d.ts",
         "lib/adapters/fetch.js"
       ],
-      "top1": false,
+      "top1": true,
       "top3": true,
       "top5Hit": true
     },
@@ -51,10 +51,10 @@
       ],
       "top5": [
         "src/node.js",
-        "README.md",
-        "src/browser.js",
         "src/common.js",
-        "test.js"
+        "src/browser.js",
+        "test.js",
+        "README.md"
       ],
       "top1": true,
       "top3": true,
@@ -68,10 +68,10 @@
       ],
       "top5": [
         "source/core/Ky.ts",
+        "source/types/hooks.ts",
         "source/errors/HTTPError.ts",
-        "source/types/ResponsePromise.ts",
-        "source/utils/type-guards.ts",
-        "source/index.ts"
+        "source/core/constants.ts",
+        "source/errors/ForceRetryError.ts"
       ],
       "top1": true,
       "top3": true,
@@ -88,7 +88,7 @@
         "packages/zod/src/v4/classic/from-json-schema.ts",
         "packages/zod/src/v4/core/json-schema-processors.ts",
         "packages/zod/src/v4/mini/schemas.ts",
-        "packages/zod/src/v4/core/to-json-schema.ts"
+        "packages/zod/src/v4/core/json-schema-generator.ts"
       ],
       "top1": true,
       "top3": true,
@@ -102,11 +102,11 @@
         "lib/worker.js"
       ],
       "top5": [
-        "pino.js",
-        "lib/worker.js",
-        "examples/transport.js",
+        "pino.d.ts",
+        "lib/multistream.js",
         "lib/transport.js",
-        "browser.js"
+        "pino.js",
+        "lib/levels.js"
       ],
       "top1": false,
       "top3": true,

@@ -32,7 +32,9 @@ export type ScanDiagnostic = {
     | "gated-test-skipped"
     | "remote-issue-fetched"
     | "remote-repo-fetched"
-    | "remote-checkout-cleanup-failed";
+    | "remote-checkout-cleanup-failed"
+    | "no-task-terms"
+    | "no-context-match";
   message: string;
   severity: "info" | "warning" | "error";
 };

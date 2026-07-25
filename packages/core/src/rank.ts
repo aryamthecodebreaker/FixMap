@@ -1,5 +1,6 @@
 import { buildImportGraph, findImportProximity } from "./import-graph.js";
 import type { ImportProximity } from "./import-graph.js";
+import { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
 import { extractTaskSignals, tokenizePath, tokenizeText } from "./signals.js";
 import type { RankedFile, RepoMap } from "./types.js";
 
@@ -19,6 +20,12 @@ const MAX_PROXIMITY_SEEDS = 5;
 const IMPORT_PROXIMITY_BOOSTS: Record<ImportProximity["distance"], number> = { 1: 4, 2: 2 };
 const EXAMPLE_CODE_PENALTY = 2;
 const TYPE_DECLARATION_PENALTY = 4;
+const BACKUP_COPY_PENALTY = 10;
+// A term counts as repository-wide boilerplate only when nearly every file carries it.
+// The previous half-of-all-files cutoff mistook subject matter for boilerplate: chalk
+// mentions "color" in 55% of its files because that is what chalk does, and suppressing
+// the word left a color-detection task with no signal at all.
+const WIDESPREAD_TOKEN_SHARE = 0.85;
 const DEFINITION_IDENTIFIER_BOOST = 4;
 const DEFINITION_LITERAL_BOOST = 8;
 const MAX_DEFINITION_IDENTIFIERS = 2;
@@ -40,12 +47,27 @@ export function rankContextFiles(
 
   const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path));
   const taskTargetsEvaluation = hasAny(signals.tokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
-  const candidates = repo.files.filter((file) =>
+  const scannable = repo.files.filter((file) =>
     mentionedPaths.has(file.path) ||
     (file.isSource &&
       !file.isTest &&
       !LOCKFILES.has(file.path.split("/").pop() ?? "") &&
       (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation))
+  );
+  // Generated output is kept only when the source it came from is absent. chalk's sole
+  // color-detection implementation lives in `source/vendor/`, so it stays; a committed
+  // bundle beside the module it was built from does not, because editing it is always
+  // wrong — the next build overwrites it.
+  const maintainedStems = new Set(
+    scannable
+      .filter((file) => !isGeneratedPath(file.path) && !isBackupPath(file.path))
+      .map((file) => moduleStem(file.path))
+  );
+  const candidates = scannable.filter((file) =>
+    mentionedPaths.has(file.path) ||
+    signals.changedFiles.has(file.path) ||
+    !isGeneratedPath(file.path) ||
+    !maintainedStems.has(moduleStem(file.path))
   );
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
@@ -160,6 +182,11 @@ export function rankContextFiles(
       ) {
         score -= TYPE_DECLARATION_PENALTY;
         reasons.push("type declaration deprioritized for a runtime task");
+      }
+
+      if (isBackupPath(file.path) && !isChanged && !mentionedPaths.has(file.path)) {
+        score -= BACKUP_COPY_PENALTY;
+        reasons.push("backup or archived copy deprioritized");
       }
 
       if (pathTokens.has("auth") || pathTokens.has("login")) {
@@ -347,7 +374,7 @@ function findCommonTokens(contentTokensByPath: Map<string, Set<string>>): Set<st
     return new Set();
   }
 
-  const threshold = Math.ceil(fileCount / 2);
+  const threshold = Math.ceil(fileCount * WIDESPREAD_TOKEN_SHARE);
   const frequency = new Map<string, number>();
 
   for (const tokens of contentTokensByPath.values()) {
