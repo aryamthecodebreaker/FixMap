@@ -35,15 +35,19 @@ The first run shallow-clones each repository at its pinned SHA into the OS temp 
 
 ## Results
 
-Measured 2026-07-22 on the dataset above (FixMap v0.7.0, Node v24, `rankContextFiles` with a top-5 window):
+Measured 2026-07-25 on the dataset above (Node v24, `rankContextFiles` with a top-5 window):
 
 | Metric | Hit rate |
 | --- | --- |
-| top-1 | 4/6 (67%) |
+| top-1 | 5/6 (83%) |
 | top-3 | 6/6 (100%) |
 | top-5 | 6/6 (100%) |
 
-The v0.7.0 ranker adds bounded definition-site evidence for distinctive task identifiers and exact code or literal fragments. That general signal moves the frozen Zod #5944 fixing file, `regexes.ts`, from outside the top five to top one without changing the task, expected path, or selection rule.
+The v0.7.0 ranker added bounded definition-site evidence for distinctive task identifiers and exact code or literal fragments. That general signal moves the frozen Zod #5944 fixing file, `regexes.ts`, from outside the top five to top one without changing the task, expected path, or selection rule.
+
+Two later corrections account for the rest. Ranking stopped treating a term as boilerplate at half of all files and now requires 85%, because a small single-purpose repository names its subject in most of its files. Scanning stopped re-applying a hardcoded directory blocklist on top of `git ls-files --exclude-standard`, which had already applied `.gitignore`. Together those moved pino #1996 from a top-3 hit to top-1.
+
+The figures published before 2026-07-25 (67% / 100% / 100%) came from a `results.json` that had drifted from the committed ranker and were not reproducible against `c35362f`; that file has been re-recorded.
 
 The exact per-case top-five rankings are checked in at [`results.json`](results.json). Six cases are useful regression evidence, not a general claim that FixMap is 100% accurate.
 

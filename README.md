@@ -154,9 +154,9 @@ Public repository inputs accept only canonical credential-free `https://github.c
 
 Ranking changes must pass both the internal evaluation gate and a frozen cross-repository evaluation built from six real, already-fixed issues in permissively licensed projects.
 
-| v0.7.0 external evaluation | Result |
+| External evaluation | Result |
 | --- | ---: |
-| Expected fixing file ranked Top-1 | 4 / 6 (67%) |
+| Expected fixing file ranked Top-1 | 5 / 6 (83%) |
 | Expected fixing file ranked Top-3 | 6 / 6 (100%) |
 | Expected fixing file ranked Top-5 | 6 / 6 (100%) |
 
