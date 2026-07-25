@@ -239,8 +239,8 @@ async function readDiff(
 
   try {
     const [{ stdout: names }, { stdout: diffText }] = await Promise.all([
-      exec("git", ["diff", "--name-only", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["diff", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
+      exec("git", ["diff", "--relative", "--name-only", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", "--relative", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
     ]);
     const tracked = names
       .split(/\r?\n/)

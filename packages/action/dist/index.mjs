@@ -1,6 +1,7 @@
 import { createRequire as __fixmapCreateRequire } from 'module'; const require = __fixmapCreateRequire(import.meta.url);
 
-// packages/action/src/index.ts
+// packages/action/src/runner.ts
+import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
 
 // packages/core/dist/import-graph.js
@@ -388,20 +389,27 @@ function extractDiffContentLines(diffText) {
   return diffText.split(/\r?\n/).filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")).join("\n");
 }
 function tokenizeText(text) {
-  return new Set(text.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token2) => token2.trim()).filter((token2) => token2.length >= 3 && !STOP_WORDS.has(token2)).map((token2) => normalizeToken(token2)).filter((token2) => token2.length >= 3 && !STOP_WORDS.has(token2)));
+  return new Set(text.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token) => token.trim()).filter((token) => token.length >= 3 && !STOP_WORDS.has(token)).map((token) => normalizeToken(token)).filter((token) => token.length >= 3 && !STOP_WORDS.has(token)));
 }
-function normalizeToken(token2) {
-  if (token2.length > 5 && token2.endsWith("ies"))
-    return `${token2.slice(0, -3)}y`;
-  if (token2.length > 5 && token2.endsWith("ing"))
-    return token2.slice(0, -3);
-  if (token2.length > 4 && token2.endsWith("ed"))
-    return token2.slice(0, -1);
-  if (token2.length > 4 && token2.endsWith("es"))
-    return token2.slice(0, -1);
-  if (token2.length > 3 && token2.endsWith("s"))
-    return token2.slice(0, -1);
-  return token2;
+function normalizeToken(token) {
+  if (token.length > 5 && token.endsWith("ies"))
+    return `${token.slice(0, -3)}y`;
+  if (token.length > 5 && token.endsWith("ing"))
+    return normalizeVerbStem(token.slice(0, -3));
+  if (token.length > 4 && token.endsWith("ed"))
+    return normalizeVerbStem(token.slice(0, -2));
+  if (token.length > 4 && token.endsWith("es"))
+    return normalizeTrailingE(token.slice(0, -2));
+  if (token.length > 3 && token.endsWith("s"))
+    return token.slice(0, -1);
+  return normalizeTrailingE(token);
+}
+function normalizeVerbStem(stem) {
+  const deduplicated = /([a-z])\1$/.test(stem) ? stem.slice(0, -1) : stem;
+  return normalizeTrailingE(deduplicated);
+}
+function normalizeTrailingE(token) {
+  return token.length > 4 && token.endsWith("e") ? token.slice(0, -1) : token;
 }
 function tokenizePath(path) {
   return tokenizeText(path);
@@ -438,6 +446,7 @@ var TYPE_DECLARATION_PENALTY = 4;
 var DEFINITION_IDENTIFIER_BOOST = 4;
 var DEFINITION_LITERAL_BOOST = 8;
 var MAX_DEFINITION_IDENTIFIERS = 2;
+var TASK_MATCHED_DEFINITION_BOOST = 4;
 function rankContextFiles(repo, input, limit = 8) {
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
@@ -469,13 +478,13 @@ function rankContextFiles(repo, input, limit = 8) {
       reasons.push("explicitly named in the task");
     }
     const pathTokens = tokenizePath(file.path);
-    const pathOverlap = [...pathTokens].filter((token2) => signals.tokens.has(token2));
+    const pathOverlap = [...pathTokens].filter((token) => signals.tokens.has(token));
     if (pathOverlap.length > 0) {
       score += pathOverlap.length * 3;
       reasons.push(`path matches task terms: ${pathOverlap.join(", ")}`);
     }
     const contentTokens = contentTokensByPath.get(file.path) ?? /* @__PURE__ */ new Set();
-    const contentOverlap = [...contentTokens].filter((token2) => signals.tokens.has(token2) && !commonTokens.has(token2));
+    const contentOverlap = [...contentTokens].filter((token) => signals.tokens.has(token) && !commonTokens.has(token));
     if (contentOverlap.length > 0) {
       score += Math.min(contentOverlap.length, 8) * 2;
       reasons.push(`content matches task terms: ${contentOverlap.slice(0, 8).join(", ")}`);
@@ -484,6 +493,11 @@ function rankContextFiles(repo, input, limit = 8) {
     if (definedIdentifiers.length > 0) {
       score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
       reasons.push(`defines task identifiers: ${definedIdentifiers.join(", ")}`);
+    }
+    const taskMatchedDefinitions = signals.exactFragments.length === 0 ? findTaskMatchedDefinitions(file.textSample, signals.tokens).filter((identifier) => !definedIdentifiers.includes(identifier)).slice(0, MAX_DEFINITION_IDENTIFIERS) : [];
+    if (taskMatchedDefinitions.length > 0) {
+      score += taskMatchedDefinitions.length * TASK_MATCHED_DEFINITION_BOOST;
+      reasons.push(`defines symbols matching task terms: ${taskMatchedDefinitions.join(", ")}`);
     }
     const definitionFragment = signals.exactFragments.find((fragment) => hasExactFragmentAtDefinition(file.textSample, fragment, definedIdentifiers));
     if (definitionFragment) {
@@ -625,6 +639,21 @@ function buildDefinitionSignals(identifiers) {
 function findDefinedIdentifiers(text, signals) {
   return signals.filter((signal) => signal.pattern.test(text)).map((signal) => signal.identifier);
 }
+function findTaskMatchedDefinitions(text, taskTokens) {
+  const definitions = /* @__PURE__ */ new Set();
+  const pattern = /\b(?:export\s+)?(?:async\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\s+([$A-Za-z_][$A-Za-z0-9_]*)\b/g;
+  for (const match of text.matchAll(pattern)) {
+    const identifier = match[1];
+    if (!identifier) {
+      continue;
+    }
+    const overlap = [...tokenizeText(identifier)].filter((token) => taskTokens.has(token));
+    if (overlap.length >= 2) {
+      definitions.add(identifier);
+    }
+  }
+  return [...definitions];
+}
 function hasExactFragmentAtDefinition(text, fragment, definedIdentifiers) {
   let index = text.indexOf(fragment);
   while (index !== -1) {
@@ -652,11 +681,11 @@ function findCommonTokens(contentTokensByPath) {
   const threshold = Math.ceil(fileCount / 2);
   const frequency = /* @__PURE__ */ new Map();
   for (const tokens of contentTokensByPath.values()) {
-    for (const token2 of tokens) {
-      frequency.set(token2, (frequency.get(token2) ?? 0) + 1);
+    for (const token of tokens) {
+      frequency.set(token, (frequency.get(token) ?? 0) + 1);
     }
   }
-  return new Set([...frequency].filter(([, count]) => count >= threshold).map(([token2]) => token2));
+  return new Set([...frequency].filter(([, count]) => count >= threshold).map(([token]) => token));
 }
 function isNearbyChangedFile(path, changedFiles) {
   const folder = path.split("/").slice(0, -1).join("/");
@@ -710,8 +739,8 @@ function buildRiskNotes(contextPaths, changedFiles = []) {
   const diffPresent = changedFiles.length > 0;
   const risks = [];
   for (const rule of RISK_RULES) {
-    const inChanged = rule.tokens.some((token2) => changedTokens.has(token2));
-    const inContext = rule.tokens.some((token2) => contextTokens.has(token2));
+    const inChanged = rule.tokens.some((token) => changedTokens.has(token));
+    const inContext = rule.tokens.some((token) => contextTokens.has(token));
     if (!inChanged && !inContext) {
       continue;
     }
@@ -751,7 +780,7 @@ function findRelatedTests(repo, contextPaths) {
   const contextTokens = new Set(contextPaths.flatMap((path) => [...tokenizePath(path)]));
   const overlapping = repo.files.filter((file) => file.isTest && !changedTestSet.has(file.path)).map((file) => {
     const testTokens = tokenizePath(file.path);
-    const overlap = [...testTokens].filter((token2) => contextTokens.has(token2)).length;
+    const overlap = [...testTokens].filter((token) => contextTokens.has(token)).length;
     return { path: file.path, score: overlap };
   }).filter((file) => file.score > 0).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).map((file) => file.path);
   return [...changedTests, ...overlapping].slice(0, 8);
@@ -761,40 +790,40 @@ function buildSummary(contextFileCount, testRouteCount) {
   const routes = testRouteCount === 1 ? "test route" : "test routes";
   return `FixMap found ${contextFileCount} ${files} and generated ${testRouteCount} ${routes}.`;
 }
-function renderMarkdownReport(report2) {
+function renderMarkdownReport(report) {
   const lines = [
     "# FixMap Report",
     "",
-    report2.summary,
+    report.summary,
     "",
     "## Context Files",
     "",
-    ...listOrEmpty(report2.contextFiles.map((file) => `- \`${file.path}\` (${file.confidence} confidence, score ${file.score}): ${file.reasons.join("; ")}`)),
+    ...listOrEmpty(report.contextFiles.map((file) => `- \`${file.path}\` (${file.confidence} confidence, score ${file.score}): ${file.reasons.join("; ")}`)),
     "",
     "## Test Route",
     "",
-    ...listOrEmpty(report2.testRoutes.map((route) => {
+    ...listOrEmpty(report.testRoutes.map((route) => {
       const related = route.relatedFiles.length > 0 ? ` Related: ${route.relatedFiles.map((path) => `\`${path}\``).join(", ")}.` : "";
       return `- \`${route.command}\`: ${route.reason}.${related}`;
     })),
     "",
     "## Risk Map",
     "",
-    ...listOrEmpty(report2.risks.map((risk) => `- **${risk.severity}** ${risk.area}: ${risk.reason}`)),
+    ...listOrEmpty(report.risks.map((risk) => `- **${risk.severity}** ${risk.area}: ${risk.reason}`)),
     "",
     "## Changed Files",
     "",
-    ...listOrEmpty(report2.changedFiles.map((path) => `- \`${path}\``)),
+    ...listOrEmpty(report.changedFiles.map((path) => `- \`${path}\``)),
     "",
     "## Diagnostics",
     "",
-    ...listOrEmpty(report2.diagnostics.map((diagnostic) => `- **${diagnostic.severity}** ${diagnostic.message}`))
+    ...listOrEmpty(report.diagnostics.map((diagnostic) => `- **${diagnostic.severity}** ${diagnostic.message}`))
   ];
   return `${lines.join("\n")}
 `;
 }
-function renderJsonReport(report2) {
-  return `${JSON.stringify(report2, null, 2)}
+function renderJsonReport(report) {
+  return `${JSON.stringify(report, null, 2)}
 `;
 }
 function listOrEmpty(lines) {
@@ -866,8 +895,8 @@ async function scanRepo(input) {
   const diagnostics = [];
   const files = await listFiles(input.repoRoot, diagnostics);
   const packageScripts = await readPackageScripts(input.repoRoot, files, diagnostics);
-  const diffSpec2 = resolveDiffSpec(input);
-  const diff = await readDiff(input.repoRoot, diffSpec2, diagnostics);
+  const diffSpec = resolveDiffSpec(input);
+  const diff = await readDiff(input.repoRoot, diffSpec, diagnostics);
   return {
     root: input.repoRoot,
     files,
@@ -1005,17 +1034,17 @@ async function readPackageScripts(root, files, diagnostics) {
   }
   return scripts;
 }
-async function readDiff(repoRoot, diffSpec2, diagnostics) {
-  if (!diffSpec2) {
+async function readDiff(repoRoot, diffSpec, diagnostics) {
+  if (!diffSpec) {
     return { changedFiles: [], diffText: "" };
   }
   try {
     const [{ stdout: names }, { stdout: diffText }] = await Promise.all([
-      exec("git", ["diff", "--name-only", diffSpec2], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["diff", diffSpec2], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
+      exec("git", ["diff", "--relative", "--name-only", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", "--relative", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
     ]);
     const tracked = names.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath);
-    const untracked = diffSpec2.includes("..") ? [] : await listUntrackedPaths(repoRoot);
+    const untracked = diffSpec.includes("..") ? [] : await listUntrackedPaths(repoRoot);
     return {
       changedFiles: [.../* @__PURE__ */ new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b)),
       diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS)
@@ -1025,7 +1054,7 @@ async function readDiff(repoRoot, diffSpec2, diagnostics) {
     diagnostics.push({
       code: "diff-unavailable",
       severity: "warning",
-      message: `Could not resolve git diff "${diffSpec2}": ${detail}. Results use the task text only.`
+      message: `Could not resolve git diff "${diffSpec}": ${detail}. Results use the task text only.`
     });
     return { changedFiles: [], diffText: "" };
   }
@@ -1137,9 +1166,8 @@ async function buildFixMapReport(input) {
 
 // packages/action/src/github.ts
 var FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
-var DEFAULT_COMMENT_AUTHOR = "github-actions[bot]";
-function buildPullRequestIssueText(event2) {
-  const pullRequest = event2?.pull_request;
+function buildPullRequestIssueText(event) {
+  const pullRequest = event?.pull_request;
   const parts = [pullRequest?.title, pullRequest?.body].filter((part) => Boolean(part?.trim())).map((part) => part.trim());
   return parts.join("\n\n");
 }
@@ -1159,7 +1187,7 @@ function createGitHubClient(options = {}) {
         fetchImpl,
         commentsUrl,
         headers,
-        input.commentAuthor?.trim() || DEFAULT_COMMENT_AUTHOR
+        input.commentAuthor?.trim()
       );
       const body = `${FIXMAP_REPORT_MARKER}
 ${input.markdown}`;
@@ -1180,8 +1208,8 @@ ${input.markdown}`;
     }
   };
 }
-async function findExistingComment(fetchImpl, commentsUrl, headers, viewerLogin) {
-  for (let page = 1; page <= 10; page += 1) {
+async function findExistingComment(fetchImpl, commentsUrl, headers, commentAuthor) {
+  for (let page = 1; ; page += 1) {
     const comments = await requestJson(
       fetchImpl,
       `${commentsUrl}?per_page=100&page=${page}`,
@@ -1189,7 +1217,7 @@ async function findExistingComment(fetchImpl, commentsUrl, headers, viewerLogin)
       "list pull request comments"
     );
     const existing = comments.find(
-      (comment) => comment.user?.login === viewerLogin && comment.body?.includes(FIXMAP_REPORT_MARKER)
+      (comment) => comment.body?.includes(FIXMAP_REPORT_MARKER) && (!commentAuthor || comment.user?.login === commentAuthor)
     );
     if (existing) {
       return existing;
@@ -1198,7 +1226,6 @@ async function findExistingComment(fetchImpl, commentsUrl, headers, viewerLogin)
       return void 0;
     }
   }
-  return void 0;
 }
 function isPermissionDeniedError(error) {
   return error instanceof Error && /GitHub returned (401|403|404)\b/.test(error.message);
@@ -1213,87 +1240,120 @@ async function requestJson(fetchImpl, url, init, action) {
   return response.json();
 }
 
-// packages/action/src/index.ts
-var event = readEvent(process.env.GITHUB_EVENT_PATH);
-var issue = readInput("issue") || buildPullRequestIssueText(event);
-var targetRepo = process.cwd();
-var diffSpec = readInput("diff");
-var baseRef = readInput("base") || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : void 0);
-var headRef = readInput("head") || (process.env.GITHUB_HEAD_REF ? "HEAD" : void 0);
-var format = readInput("format") === "json" ? "json" : "markdown";
-if (!issue && !diffSpec && !baseRef) {
-  throw new Error("FixMap needs a pull_request event, an issue input, or a diff/base input to build a useful report.");
-}
-var report = await buildFixMapReport({
-  repoRoot: targetRepo,
-  issueText: issue,
-  diffSpec,
-  baseRef,
-  headRef
-});
-var markdown = renderMarkdownReport(report);
-var output = format === "json" ? renderJsonReport(report) : markdown;
-process.stdout.write(output);
-if (process.env.GITHUB_STEP_SUMMARY) {
-  appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
-}
-if (process.env.GITHUB_OUTPUT) {
-  const delimiter = `fixmap_${Date.now()}`;
-  appendFileSync(process.env.GITHUB_OUTPUT, `report<<${delimiter}
-${output}${delimiter}
-`);
-  appendFileSync(process.env.GITHUB_OUTPUT, `context-count=${report.contextFiles.length}
-`);
-  appendFileSync(process.env.GITHUB_OUTPUT, `test-route-count=${report.testRoutes.length}
-`);
-}
-var token = readInput("github-token") || process.env.GITHUB_TOKEN;
-var commentAuthor = readInput("comment-author");
-if (token) {
-  try {
-    await upsertPullRequestComment(token, event, markdown, commentAuthor);
-  } catch (error) {
-    if (!isPermissionDeniedError(error)) {
-      throw error;
-    }
-    const detail = error instanceof Error ? error.message : String(error);
-    process.stdout.write(
-      `::warning::FixMap could not comment on the pull request, which is expected when the token is read-only (for example on forked pull requests). The full report is in the step summary and the report output. ${detail}
+// packages/action/src/runner.ts
+var STEP_SUMMARY_LIMIT_BYTES = 1024 * 1024;
+var TRUNCATION_FOOTER = "\n\n> FixMap report truncated to fit GitHub's 1 MiB step-summary limit. The complete report remains available through the `report` output.\n";
+async function runAction(env = process.env, dependencies = {}) {
+  const appendFile = dependencies.appendFile ?? ((path, contents) => appendFileSync(path, contents));
+  const readFile2 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
+  const stdout = dependencies.stdout ?? ((text) => process.stdout.write(text));
+  const event = readEvent(env.GITHUB_EVENT_PATH, readFile2);
+  const issue = readInput("issue", env) || buildPullRequestIssueText(event);
+  const diffSpec = readInput("diff", env);
+  const baseRef = readInput("base", env) || (env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : void 0);
+  const headRef = readInput("head", env) || (env.GITHUB_HEAD_REF ? "HEAD" : void 0);
+  const format = readInput("format", env) === "json" ? "json" : "markdown";
+  if (!issue && !diffSpec && !baseRef) {
+    throw new Error("FixMap needs a pull_request event, an issue input, or a diff/base input to build a useful report.");
+  }
+  const report = await (dependencies.buildReport ?? buildFixMapReport)({
+    repoRoot: (dependencies.cwd ?? process.cwd)(),
+    issueText: issue,
+    diffSpec,
+    baseRef,
+    headRef
+  });
+  const markdown = renderMarkdownReport(report);
+  const output = format === "json" ? renderJsonReport(report) : markdown;
+  stdout(output);
+  if (env.GITHUB_STEP_SUMMARY) {
+    appendFile(env.GITHUB_STEP_SUMMARY, fitStepSummary(markdown));
+  }
+  if (env.GITHUB_OUTPUT) {
+    appendFile(env.GITHUB_OUTPUT, renderActionOutputs(output, report, dependencies.uuid ?? randomUUID));
+  }
+  const token = readInput("github-token", env) || env.GITHUB_TOKEN;
+  const commentAuthor = readInput("comment-author", env);
+  if (token) {
+    try {
+      await upsertPullRequestComment(token, event, markdown, commentAuthor, env, dependencies.createClient);
+    } catch (error) {
+      if (!isPermissionDeniedError(error)) {
+        throw error;
+      }
+      const detail = error instanceof Error ? error.message : String(error);
+      stdout(
+        `::warning::FixMap could not comment on the pull request, which is expected when the token is read-only (for example on forked pull requests). The full report is in the step summary and the report output. ${detail}
 `
-    );
+      );
+    }
   }
 }
-function readInput(name) {
+function renderActionOutputs(reportText, report, uuid = randomUUID) {
+  const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;
+  const terminatedReport = reportText.endsWith("\n") ? reportText : `${reportText}
+`;
+  return [
+    `report<<${delimiter}
+`,
+    terminatedReport,
+    `${delimiter}
+`,
+    `context-count=${report.contextFiles.length}
+`,
+    `test-route-count=${report.testRoutes.length}
+`
+  ].join("");
+}
+function fitStepSummary(markdown, limitBytes = STEP_SUMMARY_LIMIT_BYTES) {
+  const bytes = Buffer.from(markdown);
+  if (bytes.length <= limitBytes) {
+    return markdown;
+  }
+  const footer = Buffer.from(TRUNCATION_FOOTER);
+  if (footer.length >= limitBytes) {
+    throw new Error("GitHub step-summary limit is too small for the FixMap truncation notice.");
+  }
+  let end = limitBytes - footer.length;
+  while (end > 0 && (bytes[end] & 192) === 128) {
+    end -= 1;
+  }
+  return `${bytes.subarray(0, end).toString("utf8")}${TRUNCATION_FOOTER}`;
+}
+function readInput(name, env) {
   const githubName = `INPUT_${name.replace(/ /g, "_").toUpperCase()}`;
   const shellSafeName = `INPUT_${name.replace(/[- ]/g, "_").toUpperCase()}`;
-  const value = process.env[githubName] || process.env[shellSafeName];
+  const value = env[githubName] || env[shellSafeName];
   return value?.trim() || void 0;
 }
-function readEvent(eventPath) {
+function readEvent(eventPath, readFile2) {
   if (!eventPath) {
     return void 0;
   }
   try {
-    return JSON.parse(readFileSync(eventPath, "utf8"));
+    return JSON.parse(readFile2(eventPath));
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`FixMap could not read the GitHub event payload: ${detail}`);
   }
 }
-async function upsertPullRequestComment(token2, event2, markdown2, commentAuthor2) {
-  if (!event2?.pull_request?.number || !process.env.GITHUB_REPOSITORY) {
+async function upsertPullRequestComment(token, event, markdown, commentAuthor, env, createClient = createGitHubClient) {
+  if (!event?.pull_request?.number || !env.GITHUB_REPOSITORY) {
     return;
   }
-  const [owner, repoName] = process.env.GITHUB_REPOSITORY.split("/");
+  const [owner, repoName] = env.GITHUB_REPOSITORY.split("/");
   if (!owner || !repoName) {
     throw new Error("FixMap requires GITHUB_REPOSITORY in owner/repository form to comment on a pull request.");
   }
-  await createGitHubClient().upsertPullRequestComment({
-    token: token2,
+  await createClient().upsertPullRequestComment({
+    token,
     owner,
     repo: repoName,
-    issueNumber: event2.pull_request.number,
-    markdown: markdown2,
-    commentAuthor: commentAuthor2
+    issueNumber: event.pull_request.number,
+    markdown,
+    commentAuthor
   });
 }
+
+// packages/action/src/index.ts
+await runAction();

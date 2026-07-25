@@ -305,11 +305,20 @@ export function tokenizeText(text: string): Set<string> {
 
 function normalizeToken(token: string): string {
   if (token.length > 5 && token.endsWith("ies")) return `${token.slice(0, -3)}y`;
-  if (token.length > 5 && token.endsWith("ing")) return token.slice(0, -3);
-  if (token.length > 4 && token.endsWith("ed")) return token.slice(0, -1);
-  if (token.length > 4 && token.endsWith("es")) return token.slice(0, -1);
+  if (token.length > 5 && token.endsWith("ing")) return normalizeVerbStem(token.slice(0, -3));
+  if (token.length > 4 && token.endsWith("ed")) return normalizeVerbStem(token.slice(0, -2));
+  if (token.length > 4 && token.endsWith("es")) return normalizeTrailingE(token.slice(0, -2));
   if (token.length > 3 && token.endsWith("s")) return token.slice(0, -1);
-  return token;
+  return normalizeTrailingE(token);
+}
+
+function normalizeVerbStem(stem: string): string {
+  const deduplicated = /([a-z])\1$/.test(stem) ? stem.slice(0, -1) : stem;
+  return normalizeTrailingE(deduplicated);
+}
+
+function normalizeTrailingE(token: string): string {
+  return token.length > 4 && token.endsWith("e") ? token.slice(0, -1) : token;
 }
 
 export function tokenizePath(path: string): Set<string> {

@@ -8,11 +8,10 @@
 // first time and reused afterwards. Needs network access on the first run,
 // so this is a scheduled/manual workflow rather than part of `npm run ci`.
 
-import { spawnSync } from "node:child_process";
-import { readFile, stat, mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
+import { materializePinnedRepository } from "./lib/external-cache.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const { scanRepo, rankContextFiles } = await import(pathToFileURL(join(repoRoot, "packages", "core", "dist", "index.js")).href);
@@ -22,39 +21,13 @@ const dataset = JSON.parse(await readFile(join(repoRoot, "benchmarks", "external
 // deliberately below measured performance and must not be treated as targets.
 const FLOORS = { top1: 0.3, top3: 0.5, top5: 0.5 };
 
-function git(args, cwd) {
-  const out = spawnSync("git", args, { cwd, encoding: "utf8" });
-  if (out.status !== 0) {
-    throw new Error(`git ${args.join(" ")} failed: ${out.stderr.slice(0, 300)}`);
-  }
-}
-
-async function materialize(benchmark) {
-  const dir = join(tmpdir(), "fixmap-external", `${benchmark.slug.replace("/", "__")}-${benchmark.sha.slice(0, 12)}`);
-  if (await exists(join(dir, ".git"))) {
-    return dir;
-  }
-  await mkdir(dir, { recursive: true });
-  git(["init", "--quiet"], dir);
-  git(["remote", "add", "origin", benchmark.repo], dir);
-  git(["fetch", "--quiet", "--depth", "1", "origin", benchmark.sha], dir);
-  git(["checkout", "--quiet", "--detach", "FETCH_HEAD"], dir);
-  return dir;
-}
-
-async function exists(path) {
-  try {
-    await stat(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 const results = [];
 for (const benchmark of dataset.cases) {
-  const dir = await materialize(benchmark);
+  const dir = await materializePinnedRepository(benchmark);
   const repo = await scanRepo({ repoRoot: dir });
+  if (repo.files.length === 0) {
+    throw new Error(`External evaluation could not scan any files for ${benchmark.slug} at ${benchmark.sha}.`);
+  }
   const ranked = rankContextFiles(repo, { issueText: benchmark.task }, 5);
   const paths = ranked.map((file) => file.path);
   results.push({
@@ -107,7 +80,9 @@ if (
     summary.top3HitRate < FLOORS.top3 ||
     summary.top5HitRate < FLOORS.top5)
 ) {
-  process.stderr.write("External evaluation fell below regression floors.\n");
+  process.stderr.write(
+    `External evaluation fell below regression floors: measured top-1=${summary.top1HitRate}, top-3=${summary.top3HitRate}, top-5=${summary.top5HitRate}; required top-1>=${FLOORS.top1}, top-3>=${FLOORS.top3}, top-5>=${FLOORS.top5}.\n`
+  );
   failed = true;
 }
 

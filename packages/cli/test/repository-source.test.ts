@@ -461,7 +461,7 @@ describe("repository acquisition", () => {
     await expect(stat(dirname(checkoutRoot))).rejects.toThrow();
   });
 
-  it("turns cleanup failure into a hard error instead of returning a report", async () => {
+  it("returns a successful report with a warning when cleanup fails", async () => {
     let temporaryRoot = "";
     const makeTemporaryDirectory = async (prefix: string) => {
       temporaryRoot = await mkdtemp(prefix);
@@ -469,7 +469,7 @@ describe("repository acquisition", () => {
     };
 
     try {
-      await expect(buildReportForRepository({
+      const report = await buildReportForRepository({
         repo: "https://github.com/owner/repository",
         issueText: "password reset emails fail"
       }, {
@@ -478,12 +478,38 @@ describe("repository acquisition", () => {
         removeTemporaryDirectory: async () => {
           throw new Error("directory is locked");
         }
-      })).rejects.toThrow("Could not remove temporary checkout");
+      });
+
+      expect(report.contextFiles[0]?.path).toBe("src/auth/reset-password.ts");
+      expect(report.diagnostics.at(-1)).toMatchObject({
+        code: "remote-checkout-cleanup-failed",
+        severity: "warning"
+      });
+      expect(report.diagnostics.at(-1)?.message).toContain("directory is locked");
+      expect(report.diagnostics.at(-1)?.message).toContain(temporaryRoot);
     } finally {
       if (temporaryRoot) {
         await rm(temporaryRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
       }
     }
+  });
+
+  it("preserves the primary error and attaches cleanup failure as its cause", async () => {
+    const source = parseRepositorySource("https://github.com/owner/repository");
+    const primaryError = new TypeError("analysis failed");
+    const cleanupError = new Error("directory is locked");
+
+    const failure = await withRepositorySource(source, async () => {
+      throw primaryError;
+    }, {
+      clonePublicRepository: fixtureClone,
+      removeTemporaryDirectory: async () => {
+        throw cleanupError;
+      }
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBe(primaryError);
+    expect((failure as Error & { cause?: unknown }).cause).toBe(cleanupError);
   });
 
   it("uses isolated temporary directories for concurrent calls", async () => {

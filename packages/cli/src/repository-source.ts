@@ -392,26 +392,40 @@ export async function buildReportForRepository(
     };
   }
 
-  return withRepositorySource(source, async (resolvedSource) => {
-    const report = await buildFixMapReport({
-      repoRoot: resolvedSource.repoRoot,
-      issueText,
-      diffSpec: input.diffSpec,
-      baseRef: input.baseRef,
-      headRef: input.headRef
-    });
-    const sourceDiagnostics = [issueDiagnostic, resolvedSource.diagnostic].filter(
-      (diagnostic): diagnostic is ScanDiagnostic => diagnostic !== undefined
-    );
-    report.diagnostics.unshift(...sourceDiagnostics);
-    return report;
-  }, dependencies);
+  return withRepositorySource(
+    source,
+    async (resolvedSource) => {
+      const report = await buildFixMapReport({
+        repoRoot: resolvedSource.repoRoot,
+        issueText,
+        diffSpec: input.diffSpec,
+        baseRef: input.baseRef,
+        headRef: input.headRef
+      });
+      const sourceDiagnostics = [issueDiagnostic, resolvedSource.diagnostic].filter(
+        (diagnostic): diagnostic is ScanDiagnostic => diagnostic !== undefined
+      );
+      report.diagnostics.unshift(...sourceDiagnostics);
+      return report;
+    },
+    dependencies,
+    (report, cleanupError, temporaryRoot) => {
+      report.diagnostics.push({
+        code: "remote-checkout-cleanup-failed",
+        severity: "warning",
+        message:
+          `The report completed, but FixMap could not remove temporary checkout "${temporaryRoot}": ` +
+          `${errorDetail(cleanupError)}. Delete that directory manually when it is no longer locked.`
+      });
+    }
+  );
 }
 
 export async function withRepositorySource<T>(
   source: ParsedRepositorySource,
   work: (source: ResolvedRepositorySource) => Promise<T>,
-  dependencies: RepositorySourceDependencies = {}
+  dependencies: RepositorySourceDependencies = {},
+  onCleanupFailure?: (result: T, cleanupError: unknown, temporaryRoot: string) => void
 ): Promise<T> {
   if (source.kind === "local") {
     if (!(await isDirectory(source.repoRoot))) {
@@ -430,6 +444,8 @@ export async function withRepositorySource<T>(
   const checkoutRoot = join(temporaryRoot, "repository");
   const hooksDirectory = join(temporaryRoot, "disabled-hooks");
   let primaryError: unknown;
+  let result: T | undefined;
+  let completed = false;
 
   try {
     await mkdir(hooksDirectory, { recursive: true });
@@ -451,11 +467,13 @@ export async function withRepositorySource<T>(
         "temporary checkout; no repository hooks or scripts were run, and the checkout was removed after analysis."
     };
 
-    return await work({
+    result = await work({
       kind: "github",
       repoRoot: checkoutRoot,
       diagnostic
     });
+    completed = true;
+    return result;
   } catch (error) {
     primaryError = error;
     throw error;
@@ -463,13 +481,27 @@ export async function withRepositorySource<T>(
     try {
       await removeTemporaryDirectory(temporaryRoot);
     } catch (cleanupError) {
-      const cleanupMessage =
-        `Could not remove temporary checkout "${temporaryRoot}": ${errorDetail(cleanupError)}.`;
-      if (primaryError instanceof Error) {
-        throw new RepositorySourceError(`${primaryError.message} ${cleanupMessage}`);
+      if (completed) {
+        onCleanupFailure?.(result as T, cleanupError, temporaryRoot);
+      } else if (primaryError instanceof Error) {
+        attachCleanupCause(primaryError, cleanupError);
       }
-      throw new RepositorySourceError(cleanupMessage);
     }
+  }
+}
+
+function attachCleanupCause(primaryError: Error, cleanupError: unknown): void {
+  const existingCause = (primaryError as Error & { cause?: unknown }).cause;
+  const cause = existingCause === undefined
+    ? cleanupError
+    : new AggregateError([existingCause, cleanupError], "Multiple cleanup failures followed the primary error.");
+  try {
+    Object.defineProperty(primaryError, "cause", {
+      configurable: true,
+      value: cause
+    });
+  } catch {
+    // Preserve the original error even when a frozen error object cannot accept a cause.
   }
 }
 

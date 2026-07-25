@@ -23,6 +23,10 @@ type PlanArguments = {
   format?: "markdown" | "json";
 };
 
+type PlanArgumentsValidation =
+  | { success: true; value: PlanArguments }
+  | { success: false; message: string };
+
 const PLAN_TOOL = {
   name: "fixmap_plan",
   title: "FixMap plan",
@@ -54,7 +58,8 @@ const PLAN_TOOL = {
         enum: ["markdown", "json"],
         description: "Report format, markdown by default"
       }
-    }
+    },
+    additionalProperties: false
   }
 };
 
@@ -73,7 +78,14 @@ export function createFixMapMcpServer(
       };
     }
 
-    const args = (request.params.arguments ?? {}) as PlanArguments;
+    const parsed = parsePlanArguments(request.params.arguments ?? {});
+    if (!parsed.success) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: `Invalid arguments: ${parsed.message}` }]
+      };
+    }
+    const args = parsed.value;
     if (!args.issue && !args.diff && !args.base) {
       return {
         isError: true,
@@ -112,6 +124,35 @@ export function createFixMapMcpServer(
   });
 
   return server;
+}
+
+export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return { success: false, message: "tool arguments must be an object." };
+  }
+
+  const record = input as Record<string, unknown>;
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "format"]);
+  const unknown = Object.keys(record).filter((key) => !allowed.has(key));
+  if (unknown.length > 0) {
+    return {
+      success: false,
+      message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`
+    };
+  }
+
+  for (const name of ["issue", "diff", "base", "head", "repo"] as const) {
+    const value = record[name];
+    if (value !== undefined && typeof value !== "string") {
+      return { success: false, message: `"${name}" must be a string.` };
+    }
+  }
+  const format = record.format;
+  if (format !== undefined && format !== "markdown" && format !== "json") {
+    return { success: false, message: '"format" must be either "markdown" or "json".' };
+  }
+
+  return { success: true, value: record as PlanArguments };
 }
 
 export async function runMcpServer(): Promise<void> {

@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
+import { wrapLine } from "./lib/wrap.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const COMMAND = 'npx @aryam/fixmap plan --issue "password reset emails fail"';
@@ -52,21 +53,7 @@ function escapeXml(text) {
 }
 
 function wrap(line) {
-  if (line.length <= WRAP_COLUMNS) {
-    return [line];
-  }
-  const rows = [];
-  let rest = line;
-  let indent = "";
-  while (rest.length > WRAP_COLUMNS - indent.length) {
-    const slice = rest.slice(0, WRAP_COLUMNS - indent.length);
-    const breakAt = slice.lastIndexOf(" ");
-    rows.push(indent + rest.slice(0, breakAt).trimEnd());
-    rest = rest.slice(breakAt + 1);
-    indent = "    ";
-  }
-  rows.push(indent + rest);
-  return rows;
+  return wrapLine(line, WRAP_COLUMNS);
 }
 
 // Colorize one report line into tspans: backticked segments cyan, headings
