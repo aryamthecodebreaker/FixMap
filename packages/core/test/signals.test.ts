@@ -47,7 +47,22 @@ describe("extractTaskSignals", () => {
     ["boxes", "box"],
     ["routing", "route"],
     ["parsing", "parse"],
-    ["running", "run"]
+    ["running", "run"],
+    // Four-letter bases ending in "e": the base keeps its "e" while the inflected
+    // form stems one character shorter unless normalizeTrailingE covers both.
+    ["based", "base"],
+    ["filed", "file"],
+    ["files", "file"],
+    ["dated", "date"],
+    ["sized", "size"],
+    ["timed", "time"],
+    ["coding", "code"],
+    ["lines", "line"],
+    // Longer "e" bases and doubled consonants, so the rules cannot drift apart again.
+    ["cached", "cache"],
+    ["stopped", "stop"],
+    ["created", "create"],
+    ["invoices", "invoice"]
   ])("normalizes %s to the same token as %s", (inflected, base) => {
     const inflectedSignals = extractTaskSignals({ issueText: inflected });
     const baseSignals = extractTaskSignals({ issueText: base });

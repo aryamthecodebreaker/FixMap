@@ -409,7 +409,7 @@ function normalizeVerbStem(stem) {
   return normalizeTrailingE(deduplicated);
 }
 function normalizeTrailingE(token) {
-  return token.length > 4 && token.endsWith("e") ? token.slice(0, -1) : token;
+  return token.length > 3 && token.endsWith("e") ? token.slice(0, -1) : token;
 }
 function tokenizePath(path) {
   return tokenizeText(path);
