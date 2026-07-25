@@ -317,8 +317,12 @@ function normalizeVerbStem(stem: string): string {
   return normalizeTrailingE(deduplicated);
 }
 
+// Strip a trailing "e" so a base form and its inflections converge: "file", "files",
+// and "filed" all reach "fil". The guard is > 3 rather than > 4 so four-letter bases
+// ("base", "code", "file", "size", "date", "time") are included; the result is still
+// at least three characters, which is the minimum token length tokenizeText keeps.
 function normalizeTrailingE(token: string): string {
-  return token.length > 4 && token.endsWith("e") ? token.slice(0, -1) : token;
+  return token.length > 3 && token.endsWith("e") ? token.slice(0, -1) : token;
 }
 
 export function tokenizePath(path: string): Set<string> {

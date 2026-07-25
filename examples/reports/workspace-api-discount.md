@@ -4,8 +4,8 @@ FixMap found 3 context files and generated 3 test routes.
 
 ## Context Files
 
-- `apps/api/src/orders.ts` (high confidence, score 17): path matches task terms: order; content matches task terms: discount, order, total, code; defines task identifiers: orderTotal
-- `README.md` (medium confidence, score 8): content matches task terms: order, total, ignor, unknown, discount, code, valu
+- `apps/api/src/orders.ts` (high confidence, score 17): path matches task terms: order; content matches task terms: discount, order, total, cod; defines task identifiers: orderTotal
+- `README.md` (medium confidence, score 8): content matches task terms: order, total, ignor, unknown, discount, cod, valu
 - `packages/utils/src/currency.ts` (low confidence, score 6): content matches task terms: discount, total
 
 ## Test Route
