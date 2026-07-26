@@ -2,19 +2,21 @@
 
 ## Cross-repository ranking and efficiency
 
-![FixMap v0.7.1 benchmark: measured accuracy and runtime plus explicitly labeled estimated and assumed comparisons.](assets/fixmap-benchmark-v0.7.1.svg)
+![FixMap benchmark: the fixing file ranked in the top three for 9 of 12 held-out repositories never tuned against and 15 of 15 in the regression suite, with a 1.75-second median scan and rank.](assets/fixmap-benchmark.svg)
 
-The frozen external evaluation uses 15 real issues and their merged fixing pull requests across 15 MIT-licensed JavaScript/TypeScript repositories. Each case pins the repository state before the fix and freezes the fixing source paths before FixMap ranks anything.
+Two suites answer two different questions. The [regression suite](../benchmarks/external/README.md) uses 15 repositories whose cases guided v0.7.1 ranking work, so it measures fit rather than generalization. The [held-out suite](../benchmarks/heldout/README.md) uses 12 further repositories selected by the identical frozen rule *after* the ranker was finished, and is never tuned against. Each case in both pins the repository state before the fix and freezes the fixing source paths before FixMap ranks anything.
 
 Measured 2026-07-26 on Node v24.13.0, Windows 11 (10.0.26200), Intel Core i5-8350U:
 
-| Quantity | Result | Evidence type |
-| --- | ---: | --- |
-| Expected fixing file in Top-1 | 9/15 (60%) | Measured |
-| Expected fixing file in Top-3 | 15/15 (100%) | Measured |
-| Expected fixing file in Top-5 | 15/15 (100%) | Measured |
-| Median scan + rank time | 1,747.7 ms | Measured, three warm runs per pinned repository |
-| Context proxy reduction | 98.56% | Estimated |
+| Quantity | Held-out (12) | Regression (15) | Evidence type |
+| --- | ---: | ---: | --- |
+| Expected fixing file in Top-1 | 8/12 (67%) | 9/15 (60%) | Measured |
+| Expected fixing file in Top-3 | 9/12 (75%) | 15/15 (100%) | Measured |
+| Expected fixing file in Top-5 | 9/12 (75%) | 15/15 (100%) | Measured |
+| Median scan + rank time | — | 1,747.7 ms | Measured, three warm runs per pinned repository |
+| Context proxy reduction | — | 98.56% | Estimated proxy, **not** a savings measurement |
+
+**The held-out column is the one to plan around.** The regression column describes performance on cases that shaped the ranker and will overstate what happens on a repository FixMap has never seen.
 
 The context comparison is intentionally a proxy:
 

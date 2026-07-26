@@ -159,6 +159,46 @@ h1 em, h2 em {
 .button.github-button:hover { border-color: rgba(116, 240, 186, 0.55); background: var(--mint-soft); }
 .proof-row { display: flex; gap: 26px; margin-top: 38px; flex-wrap: wrap; color: var(--muted); font-size: 12.5px; letter-spacing: 0.01em; }
 .proof-row span::before { content: "✓"; color: var(--mint); margin-right: 8px; }
+.proof-row b { color: var(--text); font-weight: 620; }
+
+/* Evidence */
+.evidence-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.evidence-card {
+  padding: 34px 32px 30px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.evidence-card.primary {
+  border-color: rgba(116, 240, 186, 0.42);
+  background: linear-gradient(var(--panel), var(--panel)) padding-box,
+    linear-gradient(165deg, rgba(116, 240, 186, 0.34), rgba(148, 187, 168, 0.06)) border-box;
+  border: 1px solid transparent;
+}
+.evidence-label { margin: 0; color: var(--mint); font: 600 11.5px/1 var(--font-mono), ui-monospace, monospace; letter-spacing: 0.09em; text-transform: uppercase; }
+.evidence-card:not(.primary) .evidence-label { color: var(--faint); }
+.evidence-figure { margin: 18px 0 0; font-size: clamp(46px, 6vw, 66px); line-height: 1; font-weight: 700; letter-spacing: -0.02em; }
+.evidence-figure.muted { color: var(--muted); }
+.evidence-caption { margin: 6px 0 0; color: var(--muted); font-size: 15px; }
+.evidence-note { margin: 20px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.evidence-note strong { color: var(--text); font-weight: 600; }
+.evidence-detail { display: flex; gap: 30px; margin: 22px 0 0; padding-top: 18px; border-top: 1px solid var(--line); }
+.evidence-detail div { display: flex; flex-direction: column; gap: 4px; }
+.evidence-detail dt { color: var(--faint); font: 600 10.5px/1 var(--font-mono), ui-monospace, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
+.evidence-detail dd { margin: 0; color: var(--text); font-size: 14.5px; font-variant-numeric: tabular-nums; }
+.evidence-verdict { max-width: 860px; margin: 34px 0 0; color: var(--muted); font-size: 16.5px; line-height: 1.7; }
+.evidence-verdict strong { color: var(--mint); font-weight: 620; }
+.evidence-disclaimer {
+  max-width: 860px;
+  margin: 22px 0 0;
+  padding: 18px 20px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--faint);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.evidence-disclaimer strong { color: var(--muted); font-weight: 600; }
+.evidence-links { display: flex; gap: 12px; margin-top: 30px; flex-wrap: wrap; }
 
 /* Terminal card */
 .hero-terminal {
@@ -195,7 +235,7 @@ h1 em, h2 em {
 .terminal-label { margin-top: 16px !important; color: var(--faint) !important; font-size: 10px; letter-spacing: 0.22em; }
 
 /* Sections */
-.film-section, .demo-section, .workflow, .quickstart { max-width: 1200px; margin: auto; padding: 104px 24px; border-top: 1px solid var(--line); }
+.film-section, .demo-section, .evidence, .workflow, .quickstart { max-width: 1200px; margin: auto; padding: 104px 24px; border-top: 1px solid var(--line); }
 .section-heading { max-width: 740px; margin-bottom: 46px; }
 .section-heading.compact { max-width: 560px; }
 h2 { margin-bottom: 18px; font-size: clamp(34px, 4.2vw, 52px); line-height: 1.06; }
@@ -337,13 +377,15 @@ footer > a:last-child:hover { color: var(--text); border-color: var(--mint); }
   .steps { grid-template-columns: 1fr; }
   .steps article { min-height: 0; }
   .steps article > span { margin-bottom: 26px; }
+  .evidence-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 620px) {
   .nav-links > a:not(.nav-github) { display: none; }
   .eyebrow::after, .kicker::after { display: none; }
   h1 { font-size: 40px; }
   .hero { padding-bottom: 72px; }
-  .film-section, .demo-section, .workflow, .quickstart { padding-top: 76px; padding-bottom: 76px; }
+  .film-section, .demo-section, .evidence, .workflow, .quickstart { padding-top: 76px; padding-bottom: 76px; }
+  .evidence-detail { gap: 22px; }
   .demo-input, .demo-results { padding-left: 18px; padding-right: 18px; }
   .proof-row { gap: 12px; flex-direction: column; }
   footer { align-items: flex-start; flex-direction: column; }

@@ -1,0 +1,148 @@
+{
+  "cases": [
+    {
+      "slug": "Automattic/mongoose",
+      "repo": "https://github.com/Automattic/mongoose.git",
+      "license": "MIT",
+      "sha": "0c3034d2886b5ff11eac8f3749cb33a896f53a57",
+      "issue": 16379,
+      "pullRequest": 16388,
+      "task": "Document.isModified(path) rebuilds the full modifiedPaths() set on every call — O(N^2) when checked per-path in loops (including mongoose's own validation)\n\n## Document.isModified(path) rebuilds the full modifiedPaths() set on every call — O(N^2) when checked per-path in loops (including mongoose's own validation)\n\n**Repo:** `Automattic/mongoose`\n**Location:** lib/document.js:2339 (isModified -> modifiedPaths rebuild) called per-path from lib/document.js:2965 (_getPathsToValidate) and user hooks\n**Severity:** medium · **Confidence:** 0.8\n**Type:** complexity-at-a-distance\n\n### Description\n\nDocument.prototype.isModified in lib/document.js (line ~2321): when `path` is not directly modified, it falls through to `this[documentModifiedPaths]()` (line ~",
+      "expected": [
+        "lib/document.js"
+      ]
+    },
+    {
+      "slug": "immerjs/immer",
+      "repo": "https://github.com/immerjs/immer.git",
+      "license": "MIT",
+      "sha": "bf2d15439259887f98f2737cf7ebde4234d5adea",
+      "issue": 1045,
+      "pullRequest": 1249,
+      "task": "`produceWithPatches` wrong return type\n\n## 🐛 Bug Report\r\n\r\nThe curried form of `produceWithPatches` returns the wrong type, while `produce` does.\r\n\r\n## Link to repro\r\n\r\n[https://codesandbox.io/s/producewithpatches-wrong-return-type-mr5hdp?file=/src/index.ts](https://codesandbox.io/s/producewithpatches-wrong-return-type-mr5hdp?file=/src/index.ts)\r\n\r\n## Observed behavior\r\n\r\nThe state returned by `produceWithPatches((draft: Draft<N>, m: number) => { ... })` is of type `WritableDraft<N>` but should be of type `N`.\r\n\r\nThe type of `produceWithPatches<N, [number]>((draft, m) => { ... })` is `never` while the type of `produce<N, [number]>(",
+      "expected": [
+        "src/types/types-external.ts"
+      ]
+    },
+    {
+      "slug": "jestjs/jest",
+      "repo": "https://github.com/jestjs/jest.git",
+      "license": "MIT",
+      "sha": "4c3091b4204d703f4ebe343b8ac9d8a28ac4388e",
+      "issue": 16174,
+      "pullRequest": 16237,
+      "task": "[Bug]: Spurious type error when calling `mockRejectedValue` on mocks of certain overloaded functions\n\n### Version\n\n30.4\n\n### Steps to reproduce\n\nConsider a method like [`pg.Client.end`](https://github.com/DefinitelyTyped/DefinitelyTyped/blob/5b8b3cdc7c82f3b424e9cbb18c229f40b6497cec/types/pg/index.d.ts#L307-L308). It has two overloads:\n\n```\n    end(): Promise<void>;\n    end(callback: (err: Error) => void): void;\n```\n\nWhen using a mocked instance, one might want to mock resolved or rejected values:\n\n```\ntest('mock pg', async () => {\n  const client: jest.Mocked<pg.Client> = setUpMockClient();\n  client.end.mockRejectedValueOnce(new Error('test error when closing client')) // Type error\n  await exp",
+      "expected": [
+        "packages/jest-mock/src/index.ts"
+      ]
+    },
+    {
+      "slug": "knex/knex",
+      "repo": "https://github.com/knex/knex.git",
+      "license": "MIT",
+      "sha": "6f42421e595e47653b131a621c2bd20fcb3337a4",
+      "issue": 5053,
+      "pullRequest": 5791,
+      "task": "BUG - FOR UPDATE must specify unqualified relation names\n\n# Environment\r\n\r\nKnex version: 1.0.3\r\nDatabase + version: PostgreSQL 13\r\nOS: Node 14\r\n\r\n# Bug\r\n\r\nThe error comes up when you build a query like knex('users').withSchema('myschema').where('id','xyz').forUpdate('users')\r\nIt seems incompatible to use withSchema and forUpdate in the same query because withSchema add the schema also in front of the forUpdate table name, but should not.\r\n\r\nError message: \"FOR UPDATE must specify unqualified relation names\"\r\n\r\nPs.: the above query works if I do not specify table name in forUpdate, but in query with joins you must specify the table name otherwise you ",
+      "expected": [
+        "lib/dialects/postgres/query/pg-querycompiler.js"
+      ]
+    },
+    {
+      "slug": "mochajs/mocha",
+      "repo": "https://github.com/mochajs/mocha.git",
+      "license": "MIT",
+      "sha": "d602cc7ab9b93169916d267e19071fbeb6cd0468",
+      "issue": 4526,
+      "pullRequest": 6107,
+      "task": "🐛 Bug: xunit reporter does not strip ansi escape sequences, leading to invalid XML\n\n<!--\r\nHave you read Mocha's Code of Conduct? By filing an Issue, you are expected to comply with it, including treating everyone with respect: https://github.com/mochajs/mocha/blob/master/.github/CODE_OF_CONDUCT.md\r\nFor more, check out the Mocha Gitter chat room: https://gitter.im/mochajs/mocha\r\n\r\nDetail the steps necessary to reproduce the problem. To get the fastest support, create an MCVE and upload it to GitHub.\r\ncreate an [MCVE](https://stackoverflow.com/help/mcve) and upload it to GitHub.\r\n-->\r\n\r\n### Prerequisites\r\n\r\n<!--\r\nPlace an `x` between the square brackets on the lines below for e",
+      "expected": [
+        "lib/reporters/xunit.js"
+      ]
+    },
+    {
+      "slug": "sindresorhus/got",
+      "repo": "https://github.com/sindresorhus/got.git",
+      "license": "MIT",
+      "sha": "28c0ca3c65716cc62c0d609a7c7043df9cf01b39",
+      "issue": 2459,
+      "pullRequest": 2460,
+      "task": "307 & 308 redirect should preserve body per RFC\n\n`got` starting from version 15 started dropping request body when followRedirect: true\n\nThe comment is wrong in the source code\nhttps://github.com/sindresorhus/got/blob/e5e645a7d6deeec02933bf474727a541775772c7/source/core/index.ts#L1088-L1089\nand the shouldDropBody flag \nhttps://github.com/sindresorhus/got/blob/e5e645a7d6deeec02933bf474727a541775772c7/source/core/index.ts#L1093\nshould be false when http status code is 307 or 308 \n\nhttps://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/307\nhttps://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/308\n\nall other major http c",
+      "expected": [
+        "source/core/index.ts"
+      ]
+    },
+    {
+      "slug": "socketio/socket.io",
+      "repo": "https://github.com/socketio/socket.io.git",
+      "license": "MIT",
+      "sha": "0e591b92d727b1ca84e530d4ab65fa21cfdc4ae6",
+      "issue": 5462,
+      "pullRequest": 5501,
+      "task": "socket.io-client - transports options array modified from [string] to [object] by io constructor\n\n**Describe the bug**\n\n```\nconst options = {transports: [\"websocket\",\"polling\"]};\nconst s = io(<URL>, options);\n```\noptions object is modified, and transports is set to  [ class WS, class XHR ]\nNot really a big issue, but quite unexpected and an unusual behaviour. Especially when you need to serialize the options object after connection.\n\n**Expected behavior**\noptions object should not be mutated.",
+      "expected": [
+        "packages/engine.io-client/lib/socket.ts"
+      ]
+    },
+    {
+      "slug": "sveltejs/svelte",
+      "repo": "https://github.com/sveltejs/svelte.git",
+      "license": "MIT",
+      "sha": "2bace308e37ac1def958be750bd699ed302bb715",
+      "issue": 18555,
+      "pullRequest": 18556,
+      "task": "A `<svelte:boundary>` hydrated in the failed state can never be reset\n\n### Describe the bug\n\nA boundary that fails during SSR renders its `failed` snippet and hydrates back into the failed state from the serialized marker. During that hydration `onerror` is never called, and the `reset` handed to the `failed` snippet is a no-op ([boundary.js#L200-L210](https://github.com/sveltejs/svelte/blob/4a6a85b5f149cc96514ed3bf5e59083b9246d394/packages/svelte/src/internal/client/dom/blocks/boundary.js#L200-L210)). Once a boundary hydrates as failed there is no way to leave that state short of destroying the component, even when its children would render fine on the client.\n\n",
+      "expected": [
+        "packages/svelte/src/internal/client/dom/blocks/boundary.js"
+      ]
+    },
+    {
+      "slug": "vitejs/vite",
+      "repo": "https://github.com/vitejs/vite.git",
+      "license": "MIT",
+      "sha": "791843e1591ec2d65a401560bc1fc0a85b32ee32",
+      "issue": 10136,
+      "pullRequest": 23024,
+      "task": "[Panic]: thread 'rolldown-worker' (11046093) panicked at crates/rolldown_common/src/types/hybrid_index_vec.rs:76:28\n\n### Panic message\n\n```Shell\nRolldown panicked. This is a bug in Rolldown, not your code.\n\nthread 'rolldown-worker' (11046093) panicked at crates/rolldown_common/src/types/hybrid_index_vec.rs:76:28:\nHybridIndexVec::Map missing idx 2 (len=1)\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\nPlease report this issue at: https://github.com/rolldown/rolldown/issues/new?template=panic_report.yml\n```\n\n### Reproduction\n\nhttps://github.com/btea/rolldown-panic\n\n1. Running `pnpm dev` works perfectly.\n2. The following changes were made to line 2 of the `src/App.vue` file, and ",
+      "expected": [
+        "packages/vite/src/node/server/bundledDev.ts"
+      ]
+    },
+    {
+      "slug": "vuejs/core",
+      "repo": "https://github.com/vuejs/core.git",
+      "license": "MIT",
+      "sha": "b555f02eede06f500deb25d3ba5ee44217ce1265",
+      "issue": 11564,
+      "pullRequest": 13915,
+      "task": "Missing support TS 5.5, without `DOM` lib in tsconfig\n\n### Vue version\n\nsince 3.0.0, to 3.5 alpha\n\n### Link to minimal reproduction\n\nhttps://github.com/sxzz/vue-ref-issue\n\n### Steps to reproduce\n\n- Install TS 5.5.4\r\n- Ensure there is no `DOM` lib in the `tsconfig.json`\r\n- Define `ref(100)` with its type as `Ref<any>`\n\n### What is expected?\n\n`Ref<number>`\n\n### What is actually happening?\n\n`Ref<any>`\n\n### System Info\n\n_No response_\n\n### Any additional comments?\n\nWorks on TS 5.4",
+      "expected": [
+        "packages/runtime-dom/src/index.ts"
+      ]
+    },
+    {
+      "slug": "winstonjs/winston",
+      "repo": "https://github.com/winstonjs/winston.git",
+      "license": "MIT",
+      "sha": "1f89222a796225923b87f0462497b92e274915ce",
+      "issue": 2610,
+      "pullRequest": 2611,
+      "task": "[Bug]: DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead (DEP0176)\n\n### 🔎 Search Terms\n\nfs.F_OK\n\n### The problem\n\nRunning winston on Node ≥ 22 emits:\n\n(node:55907) [DEP0176] DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead\n\nThe warning comes from FileTransport._tail, which still reads F_OK directly off the fs module.\n\nNode 22 deprecated fs.F_OK / fs.R_OK / fs.W_OK / fs.X_OK as direct properties on fs — see DEP0176. Replacement is fs.constants.F_OK.\n\nHappy to send a PR if it helps.\n\n### What version of Winston presents the issue?\n\nv3.13.0\n\n### What version of Node are you using?\n\nv24.8.0\n\n### If this worked in a previous version of Wins",
+      "expected": [
+        "lib/winston/transports/file.js"
+      ]
+    },
+    {
+      "slug": "yargs/yargs",
+      "repo": "https://github.com/yargs/yargs.git",
+      "license": "MIT",
+      "sha": "971e351705f0fbc5566c6ed1dfd707fa65e11c0d",
+      "issue": 2497,
+      "pullRequest": 2498,
+      "task": "Vulnerability Report: Prototype Pollution in `apply-extends`\n\n\n## Summary\nA prototype pollution vulnerability was identified in the `apply-extends` helper function within `lib/utils/apply-extends.ts`. This function is responsible for merging configuration objects, including those loaded via the `extends` keyword. The vulnerability allowed an attacker to inject properties into `Object.prototype` by including a `__proto__` key in a configuration file.\n\n## Technical Details\n\n### Vulnerability Location\nThe vulnerability existed in the `mergeDeep` function within `lib/utils/apply-extends.ts`. This function recursively merged two objects without checking if th",
+      "expected": [
+        "lib/utils/apply-extends.ts"
+      ]
+    }
+  ]
+}

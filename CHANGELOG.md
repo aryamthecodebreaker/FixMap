@@ -2,6 +2,19 @@
 
 All notable changes to FixMap are documented here.
 
+## Unreleased
+
+### Added
+
+- Added a held-out evaluation suite: 12 MIT-licensed repositories selected by the same frozen rule as the regression suite, but chosen **after** the v0.7.1 ranker was finished and never tuned against. It measures 67% Top-1 and 75% Top-3/5, against 60% / 100% / 100% on the regression suite. Top-1 does not degrade on unseen repositories; the Top-3 gap is what fitting bought on the tuned set. Run it with `npm run evaluate:heldout`.
+- `scripts/evaluate-external.mjs` accepts `--suite external|heldout`, so both suites share one harness and one recorded-result format.
+
+### Changed
+
+- The README now reports held-out and regression figures side by side and states plainly that the 75% is the number to plan around. The previously advertised 100% Top-3 was measured on the cases that guided development and was never a generalization estimate.
+- The benchmark card no longer headlines a "98.6% fewer tokens" context proxy or a "14.97 minutes saved" comparison. Both compared against assumed baselines rather than measurements — no agent reads an entire repository, and no with/without-agent experiment was run — so a reader had no way to tell the honest numbers on the card from the invented ones. Byte-based context proxies remain recorded and labeled in `docs/BENCHMARKS.md`.
+- `benchmarks/external/` is documented as a regression suite rather than an accuracy claim.
+
 ## 0.7.1 - 2026-07-26
 
 ### Fixed

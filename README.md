@@ -152,22 +152,33 @@ Public repository inputs accept only canonical credential-free `https://github.c
 
 ## Evidence, not hype
 
-Ranking changes must pass both the internal evaluation gate and a frozen cross-repository evaluation built from 15 real, already-fixed issues in permissively licensed projects.
+Most tools show you the benchmark they tuned on. Here is both.
 
-![FixMap v0.7.1 benchmark: 15 of 15 fixing files found in the top three, 1.75-second median scan and rank time, and clearly labeled estimated or assumed savings comparisons.](docs/assets/fixmap-benchmark-v0.7.1.svg)
+![FixMap benchmark: the fixing file ranked in the top three for 9 of 12 held-out repositories never tuned against and 15 of 15 in the regression suite, with a 1.75-second median scan and rank.](docs/assets/fixmap-benchmark.svg)
 
-| External evaluation | Result |
-| --- | ---: |
-| Expected fixing file ranked Top-1 | 9 / 15 (60%) |
-| Expected fixing file ranked Top-3 | 15 / 15 (100%) |
-| Expected fixing file ranked Top-5 | 15 / 15 (100%) |
-| Median scan + rank time | 1.75 s |
+FixMap is measured against real issues that were later fixed by a merged pull request. Each case pins the commit *before* the fix, feeds FixMap the issue text a maintainer actually wrote, and checks whether the file that fix changed appears in the ranking. Cases are chosen mechanically, and every input and output is checked in.
 
-The dataset covers Express, Axios, debug, ky, Zod, Pino, Fastify, Chalk, Vitest, ESLint, Webpack, Undici, Redux Toolkit, Prettier, and Hono at exact commits. Every input and ranked output is checked into [`benchmarks/external/`](benchmarks/external), and a scheduled workflow reruns it weekly. Fifteen cases are useful regression evidence—not a general accuracy claim.
+| | Held-out — 12 repos, **never tuned against** | Regression — 15 repos, guided development |
+| --- | ---: | ---: |
+| Fixing file ranked Top-1 | **8 / 12 (67%)** | 9 / 15 (60%) |
+| Fixing file ranked Top-3 | **9 / 12 (75%)** | 15 / 15 (100%) |
+| Fixing file ranked Top-5 | **9 / 12 (75%)** | 15 / 15 (100%) |
 
-Across those repositories, sending only the top five files instead of every scanned text-bearing file in FixMap's supported extension set reduces a byte-based token proxy by an estimated **98.6%**. The proxy assumes UTF-8 bytes ÷ 4; it is not tokenizer output. The visual's time-savings comparison assumes 15 minutes of manual triage and is **not** a controlled with/without-agent measurement.
+**Plan around the 75%, not the 100%.** The regression suite is where v0.7.1's ranking heuristics were developed — a case missed, the ranker changed. That makes it honest regression evidence and a bad generalization estimate. The held-out suite was selected by the identical frozen rule *after* the ranker was finished and has never been tuned against, so it is the number that predicts what happens on your repository.
 
-Read the full [benchmark methodology and scanner measurements](docs/BENCHMARKS.md).
+The gap is worth reading closely. Top-1 does not degrade on unseen code — it is slightly *higher* there. Top-3 falls from 100% to 75%, and that drop is exactly what fitting bought on the tuned set. The three held-out misses are listed with their real rankings in [`benchmarks/heldout/`](benchmarks/heldout), not removed or explained away.
+
+Held-out repositories: mongoose, immer, jest, knex, mocha, got, socket.io, svelte, vite, vue, winston, yargs. Regression repositories: Express, Axios, debug, ky, Zod, Pino, Fastify, Chalk, Vitest, ESLint, Webpack, Undici, Redux Toolkit, Prettier, Hono.
+
+Median scan and rank across the pinned repositories is **1.75 s**, measured over three warm runs each.
+
+**What is not claimed:** there is no tokens-saved or minutes-saved figure here. Establishing one honestly needs a controlled experiment running the same tasks with and without FixMap, which has not been done. Byte-based context-size proxies are recorded in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) and labeled as estimates, not savings.
+
+Read the full [benchmark methodology and scanner measurements](docs/BENCHMARKS.md), or reproduce either suite yourself:
+
+```bash
+npm run evaluate:heldout
+```
 
 ## What changed in v0.7.1
 
@@ -175,7 +186,7 @@ FixMap now grounds identifier-like task terms against repository text before usi
 
 The grounding path includes regressions for paraphrased camelCase identifiers and identifiers beyond the 64 KB text-sampling boundary. Git-tracked vendored source remains rankable—Chalk's `source/vendor/supports-color/index.js` is still the Top-1 result in the external benchmark.
 
-[Inspect the changelog](CHANGELOG.md) · [See every external ranking](benchmarks/external/README.md) · [Audit the efficiency assumptions](docs/BENCHMARKS.md)
+[Inspect the changelog](CHANGELOG.md) · [See the held-out results](benchmarks/heldout/README.md) · [See every regression ranking](benchmarks/external/README.md) · [Audit the efficiency assumptions](docs/BENCHMARKS.md)
 
 ## Watch it work
 

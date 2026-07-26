@@ -57,7 +57,9 @@
     "smoke": "node packages/cli/dist/cli.js plan --issue \"password reset fails\" --repo examples/tiny-auth-app --format json --output fixmap-report.json && node scripts/smoke-action.mjs && node scripts/smoke-workspace.mjs",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run build:core && npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "evaluate:heldout": "npm run build:core && node scripts/evaluate-external.mjs --suite heldout",
+    "evaluate:heldout:record": "npm run build:core && node scripts/evaluate-external.mjs --suite heldout --record"
   },
   "engines": {
     "node": ">=20.11"

@@ -1,0 +1,217 @@
+{
+  "cases": 12,
+  "top1HitRate": 0.667,
+  "top3HitRate": 0.75,
+  "top5HitRate": 0.75,
+  "floors": {
+    "top1": 0.3,
+    "top3": 0.5,
+    "top5": 0.5
+  },
+  "results": [
+    {
+      "slug": "Automattic/mongoose",
+      "issue": 16379,
+      "expected": [
+        "lib/document.js"
+      ],
+      "top5": [
+        "lib/document.js",
+        "lib/helpers/setDefaultsOnInsert.js",
+        "lib/mongoose.js",
+        "lib/types/documentArray/methods/index.js",
+        "lib/helpers/update/modifiedPaths.js"
+      ],
+      "top1": true,
+      "top3": true,
+      "top5Hit": true
+    },
+    {
+      "slug": "immerjs/immer",
+      "issue": 1045,
+      "expected": [
+        "src/types/types-external.ts"
+      ],
+      "top5": [
+        "src/types/types-external.ts",
+        "src/core/immerClass.ts",
+        "src/core/proxy.ts",
+        "src/immer.ts",
+        "src/plugins/arrayMethods.ts"
+      ],
+      "top1": true,
+      "top3": true,
+      "top5Hit": true
+    },
+    {
+      "slug": "jestjs/jest",
+      "issue": 16174,
+      "expected": [
+        "packages/jest-mock/src/index.ts"
+      ],
+      "top5": [
+        "packages/jest-test-result/src/types.ts",
+        "packages/jest-config/src/readConfigFileAndSetRootDir.ts",
+        "packages/jest-config/src/resolveConfigPath.ts",
+        "packages/jest-core/src/plugins/TestNamePattern.ts",
+        "packages/jest-core/src/plugins/TestPathPattern.ts"
+      ],
+      "top1": false,
+      "top3": false,
+      "top5Hit": false
+    },
+    {
+      "slug": "knex/knex",
+      "issue": 5053,
+      "expected": [
+        "lib/dialects/postgres/query/pg-querycompiler.js"
+      ],
+      "top5": [
+        "lib/dialects/postgres/query/pg-querycompiler.js",
+        "lib/dialects/mysql/query/mysql-querycompiler.js",
+        "lib/dialects/mysql/schema/mysql-tablecompiler.js",
+        "lib/schema/compiler.js",
+        "lib/dialects/postgres/schema/pg-columncompiler.js"
+      ],
+      "top1": true,
+      "top3": true,
+      "top5Hit": true
+    },
+    {
+      "slug": "mochajs/mocha",
+      "issue": 4526,
+      "expected": [
+        "lib/reporters/xunit.js"
+      ],
+      "top5": [
+        ".github/CODE_OF_CONDUCT.md",
+        "lib/errors.js",
+        "lib/reporters/xunit.js",
+        "lib/cli/lookup-files.js",
+        "lib/mocha.cjs"
+      ],
+      "top1": false,
+      "top3": true,
+      "top5Hit": true
+    },
+    {
+      "slug": "sindresorhus/got",
+      "issue": 2459,
+      "expected": [
+        "source/core/index.ts"
+      ],
+      "top5": [
+        "source/core/index.ts",
+        "source/core/diagnostics-channel.ts",
+        "source/core/response.ts",
+        "source/core/errors.ts",
+        "source/as-promise/index.ts"
+      ],
+      "top1": true,
+      "top3": true,
+      "top5Hit": true
+    },
+    {
+      "slug": "socketio/socket.io",
+      "issue": 5462,
+      "expected": [
+        "packages/engine.io-client/lib/socket.ts"
+      ],
+      "top5": [
+        "packages/engine.io-client/lib/socket.ts",
+        "packages/engine.io-client/lib/transports/polling-xhr.ts",
+        "packages/socket.io-client/lib/socket.ts",
+        "packages/engine.io-client/lib/transports/websocket.ts",
+        "packages/engine.io-client/lib/transports/polling-xhr.node.ts"
+      ],
+      "top1": true,
+      "top3": true,
+      "top5Hit": true
+    },
+    {
+      "slug": "sveltejs/svelte",
+      "issue": 18555,
+      "expected": [
+        "packages/svelte/src/internal/client/dom/blocks/boundary.js"
+      ],
+      "top5": [
+        "packages/svelte/src/internal/client/dom/blocks/boundary.js",
+        "packages/svelte/src/internal/client/dom/operations.js",
+        "packages/svelte/src/internal/client/errors.js",
+        "packages/svelte/src/internal/client/warnings.js",
+        "packages/svelte/src/internal/client/dom/blocks/snippet.js"
+      ],
+      "top1": true,
+      "top3": true,
+      "top5Hit": true
+    },
+    {
+      "slug": "vitejs/vite",
+      "issue": 10136,
+      "expected": [
+        "packages/vite/src/node/server/bundledDev.ts"
+      ],
+      "top5": [
+        ".github/ISSUE_TEMPLATE/bug_report.yml",
+        "packages/vite/src/types/commonjs.d.ts",
+        "packages/vite/src/types/alias.d.ts",
+        "packages/vite/src/types/chokidar.d.ts",
+        "packages/vite/types/metadata.d.ts"
+      ],
+      "top1": false,
+      "top3": false,
+      "top5Hit": false
+    },
+    {
+      "slug": "vuejs/core",
+      "issue": 11564,
+      "expected": [
+        "packages/runtime-dom/src/index.ts"
+      ],
+      "top5": [
+        "tsconfig.json",
+        "packages-private/dts-built-test/tsconfig.json",
+        "packages-private/tsconfig.json",
+        "packages-private/vite-debug/tsconfig.json",
+        "packages-private/dts-test/ref.test-d.ts"
+      ],
+      "top1": false,
+      "top3": false,
+      "top5Hit": false
+    },
+    {
+      "slug": "winstonjs/winston",
+      "issue": 2610,
+      "expected": [
+        "lib/winston/transports/file.js"
+      ],
+      "top5": [
+        "lib/winston/transports/file.js",
+        "lib/winston/tail-file.js",
+        "lib/winston/transports/console.js",
+        "lib/winston/transports/http.js",
+        "lib/winston/transports/index.d.ts"
+      ],
+      "top1": true,
+      "top3": true,
+      "top5Hit": true
+    },
+    {
+      "slug": "yargs/yargs",
+      "issue": 2497,
+      "expected": [
+        "lib/utils/apply-extends.ts"
+      ],
+      "top5": [
+        "lib/utils/apply-extends.ts",
+        "lib/command.ts",
+        "lib/completion.ts",
+        "lib/typings/yargs-parser-types.ts",
+        "lib/usage.ts"
+      ],
+      "top1": true,
+      "top3": true,
+      "top5Hit": true
+    }
+  ]
+}
