@@ -1,0 +1,62 @@
+# Held-Out Ranking Evaluation
+
+This suite exists because [`benchmarks/external/`](../external) can no longer answer the question people actually care about.
+
+Those 15 cases guided ranking work: when a case missed, the ranker changed. Every heuristic in v0.7.1 was written by someone who had already seen which of those repositories FixMap got wrong. That makes the suite good regression evidence and useless as a generalization estimate — a 100% top-3 measured on cases that shaped the code is a statement about fitting, not about the next repository you point FixMap at.
+
+These 12 repositories were selected **after** the v0.7.1 ranker was finished, by the same frozen rule, and nothing has been tuned against them.
+
+## Dataset
+
+[`dataset.json`](dataset.json) contains 12 cases across 12 MIT-licensed repositories, none of which appear in the regression suite:
+
+| Repository | Issue | Expected fixing file |
+| --- | --- | --- |
+| Automattic/mongoose | [#16379](https://github.com/Automattic/mongoose/issues/16379) | `lib/document.js` |
+| immerjs/immer | [#1045](https://github.com/immerjs/immer/issues/1045) | `src/types/types-external.ts` |
+| jestjs/jest | [#16174](https://github.com/jestjs/jest/issues/16174) | `packages/jest-mock/src/index.ts` |
+| knex/knex | [#5053](https://github.com/knex/knex/issues/5053) | `lib/dialects/postgres/query/pg-querycompiler.js` |
+| mochajs/mocha | [#4526](https://github.com/mochajs/mocha/issues/4526) | `lib/reporters/xunit.js` |
+| sindresorhus/got | [#2459](https://github.com/sindresorhus/got/issues/2459) | `source/core/index.ts` |
+| socketio/socket.io | [#5462](https://github.com/socketio/socket.io/issues/5462) | `packages/engine.io-client/lib/socket.ts` |
+| sveltejs/svelte | [#18555](https://github.com/sveltejs/svelte/issues/18555) | `packages/svelte/src/internal/client/dom/blocks/boundary.js` |
+| vitejs/vite | [#10136](https://github.com/vitejs/vite/issues/10136) | `packages/vite/src/node/server/bundledDev.ts` |
+| vuejs/core | [#11564](https://github.com/vuejs/core/issues/11564) | `packages/runtime-dom/src/index.ts` |
+| winstonjs/winston | [#2610](https://github.com/winstonjs/winston/issues/2610) | `lib/winston/transports/file.js` |
+| yargs/yargs | [#2497](https://github.com/yargs/yargs/issues/2497) | `lib/utils/apply-extends.ts` |
+
+**Selection rule** — identical to the regression suite, applied mechanically: per repository, the most recent merged pull request out of the 50 most recent that closes an issue whose body is at least 80 characters, is not a docs-titled change, and modifies 1–3 source files after excluding tests, docs, examples, configuration, and lockfiles. Each case pins the fixing PR's base commit, uses the issue title plus the first 600 characters of its body as the task text, and takes the PR's changed source files as the expected answer.
+
+**Exclusions, all decided before any ranking was measured:** `date-fns/date-fns` and `rollup/rollup` were dropped because their licenses do not report as MIT. `babel/babel` was dropped because it cannot be checked out on Windows — a path-length limit in the test fixtures, unrelated to ranking. `pmndrs/zustand` and `TanStack/query` produced no pull request matching the rule.
+
+## Results
+
+Measured 2026-07-26 (Node v24, `rankContextFiles` with a top-5 window):
+
+| Metric | Held-out (12 cases) | Regression suite (15 cases) |
+| --- | ---: | ---: |
+| top-1 | **8/12 (66.7%)** | 9/15 (60.0%) |
+| top-3 | **9/12 (75.0%)** | 15/15 (100.0%) |
+| top-5 | **9/12 (75.0%)** | 15/15 (100.0%) |
+
+Read those two columns together, because the gap is the point.
+
+Top-1 does not degrade on unseen repositories — it is slightly higher. That is the strongest single piece of evidence in this repository: the signals FixMap ranks on (exact definitions, path and content matches, import proximity, changed files) transfer to code it was never shaped by.
+
+Top-3 and top-5 drop from 100% to 75%. That difference is what tuning bought on the regression suite and nothing more. **75% is the honest number to plan around**, and 100% should not be quoted as an accuracy claim.
+
+The three misses — `jestjs/jest`, `vitejs/vite`, and `vuejs/core` — are recorded in [`results.json`](results.json) with their actual top-five rankings. They are not removed, reweighted, or explained away.
+
+## Running it
+
+```bash
+npm run build:core
+npm run evaluate:heldout           # report only
+npm run evaluate:heldout:record    # deliberately refresh results.json
+```
+
+## Rules for this suite
+
+1. **Never tune against these cases.** The moment a ranking change is made because one of them missed, this suite becomes a second regression suite and stops measuring generalization. Move the case into `benchmarks/external/` and select a fresh replacement.
+2. **Do not edit a case to match output.** When ranking behavior changes, rerun and update the recorded results.
+3. **Report both columns.** Quoting the regression number alone overstates accuracy; quoting only the held-out number understates regression coverage.

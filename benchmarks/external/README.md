@@ -1,6 +1,8 @@
-# Cross-Repository Ranking Evaluation
+# Cross-Repository Regression Suite
 
 A reproducible evaluation of FixMap's context ranking against real, already-fixed issues in permissively licensed JavaScript/TypeScript repositories. It complements the small self-repository gate in [`benchmarks/cases.json`](../cases.json).
+
+> **This suite measures regression, not generalization.** Its cases guided v0.7.1 ranking work — when a case missed, the ranker changed — so its hit rates describe how well FixMap fits code it has already been shaped by. For an estimate of behavior on unseen repositories, use [`benchmarks/heldout/`](../heldout), which was selected by the identical rule after the ranker was finished and is never tuned against. Quote the two together or quote the held-out number; quoting 100% alone overstates accuracy.
 
 ## Dataset
 

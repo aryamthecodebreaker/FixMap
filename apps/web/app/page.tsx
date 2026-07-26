@@ -1,7 +1,27 @@
 import { Demo } from "./demo";
+// Read the recorded evaluations directly so the site cannot drift from the
+// benchmark. Published numbers that are typed by hand go stale silently.
+import heldout from "../../../benchmarks/heldout/results.json";
+import regression from "../../../benchmarks/external/results.json";
+import savings from "../../../benchmarks/external/savings-results.json";
 
 const installCommand =
   "npx -y @aryam/fixmap plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/59";
+
+type EvaluationCase = { top1: boolean; top3: boolean; top5Hit: boolean };
+const hits = (results: EvaluationCase[], key: keyof EvaluationCase) =>
+  results.filter((result) => result[key]).length;
+
+const heldoutCases = heldout.results as EvaluationCase[];
+const regressionCases = regression.results as EvaluationCase[];
+const heldoutTop3 = hits(heldoutCases, "top3");
+const heldoutTop1 = hits(heldoutCases, "top1");
+const heldoutTop5 = hits(heldoutCases, "top5Hit");
+const regressionTop3 = hits(regressionCases, "top3");
+const regressionTop1 = hits(regressionCases, "top1");
+const regressionTop5 = hits(regressionCases, "top5Hit");
+const medianSeconds = (savings.performance.medianScanAndRankMs / 1000).toFixed(2);
+const percent = (hitCount: number, total: number) => `${Math.round((hitCount / total) * 100)}%`;
 
 export default function HomePage() {
   return (
@@ -14,6 +34,7 @@ export default function HomePage() {
         <div className="nav-links">
           <a href="#launch-film">Film</a>
           <a href="#demo">Demo</a>
+          <a href="#evidence">Evidence</a>
           <a href="#how-it-works">How it works</a>
           <a className="nav-github" href="https://github.com/aryamthecodebreaker/FixMap">GitHub ↗</a>
         </div>
@@ -31,11 +52,12 @@ export default function HomePage() {
             <a className="button secondary" href="#launch-film">Watch the launch film</a>
             <a className="button github-button" href="https://github.com/aryamthecodebreaker/FixMap">View on GitHub ↗</a>
           </div>
-          <div className="proof-row" aria-label="Product properties">
-            <span>Deterministic explanations</span>
-            <span>Markdown + JSON</span>
-            <span>MCP server</span>
-            <span>GitHub Action</span>
+          <div className="proof-row" aria-label="Measured results">
+            <span>
+              <b>{heldoutTop3}/{heldout.cases}</b> fixing files in the top 3, on repos never tuned against
+            </span>
+            <span><b>{medianSeconds}s</b> median scan + rank</span>
+            <span>No API key · no model call</span>
           </div>
         </div>
         <div className="hero-terminal" aria-label="Example FixMap report">
@@ -89,6 +111,66 @@ export default function HomePage() {
           <p>This browser demo ranks a safe sample repository. The CLI applies the same transparent ideas to your real checkout.</p>
         </div>
         <Demo />
+      </section>
+
+      <section className="evidence" id="evidence">
+        <div className="section-heading">
+          <p className="kicker">Measured, not asserted</p>
+          <h2>Most tools show you the benchmark they tuned on. Here is both.</h2>
+          <p>
+            Every case is a real issue that was later closed by a merged pull request. FixMap sees the repository
+            as it stood <em>before</em> the fix and the issue text a maintainer actually wrote. A hit means the file
+            that fix changed came back in the ranking.
+          </p>
+        </div>
+
+        <div className="evidence-grid">
+          <article className="evidence-card primary">
+            <p className="evidence-label">Held-out · {heldout.cases} repos</p>
+            <p className="evidence-figure">{heldoutTop3}/{heldout.cases}</p>
+            <p className="evidence-caption">in the top 3</p>
+            <p className="evidence-note">
+              Selected after the ranker was finished, by the same mechanical rule.
+              <strong> Never tuned against.</strong>
+            </p>
+            <dl className="evidence-detail">
+              <div><dt>Top-1</dt><dd>{heldoutTop1}/{heldout.cases} ({percent(heldoutTop1, heldout.cases)})</dd></div>
+              <div><dt>Top-5</dt><dd>{heldoutTop5}/{heldout.cases} ({percent(heldoutTop5, heldout.cases)})</dd></div>
+            </dl>
+          </article>
+
+          <article className="evidence-card">
+            <p className="evidence-label">Regression · {regression.cases} repos</p>
+            <p className="evidence-figure muted">{regressionTop3}/{regression.cases}</p>
+            <p className="evidence-caption">in the top 3</p>
+            <p className="evidence-note">
+              These cases guided development — when one missed, the ranker changed.
+              <strong> Not a generalization estimate.</strong>
+            </p>
+            <dl className="evidence-detail">
+              <div><dt>Top-1</dt><dd>{regressionTop1}/{regression.cases} ({percent(regressionTop1, regression.cases)})</dd></div>
+              <div><dt>Top-5</dt><dd>{regressionTop5}/{regression.cases} ({percent(regressionTop5, regression.cases)})</dd></div>
+            </dl>
+          </article>
+        </div>
+
+        <p className="evidence-verdict">
+          Plan around the <strong>{percent(heldoutTop3, heldout.cases)}</strong>, not the{" "}
+          {percent(regressionTop3, regression.cases)}. Top-1 does not degrade on unseen code—it is slightly higher
+          there—so the signals FixMap ranks on genuinely transfer. The top-3 gap between the two columns is what
+          fitting bought on the tuned set, and nothing more.
+        </p>
+
+        <p className="evidence-disclaimer">
+          <strong>What this does not claim:</strong> there is no “tokens saved” or “minutes saved” number here.
+          An honest one needs a controlled run of the same tasks with and without FixMap, which has not been done.
+          The {heldout.cases - heldoutTop3} held-out misses are published with their real rankings rather than removed.
+        </p>
+
+        <div className="evidence-links">
+          <a className="button secondary" href="https://github.com/aryamthecodebreaker/FixMap/tree/main/benchmarks/heldout">Held-out cases and results ↗</a>
+          <a className="button secondary" href="https://github.com/aryamthecodebreaker/FixMap/tree/main/benchmarks/external">Regression suite ↗</a>
+        </div>
       </section>
 
       <section className="workflow" id="how-it-works">
