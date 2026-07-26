@@ -1,4 +1,43 @@
-# Scanner Performance Benchmarks
+# Benchmarks
+
+## Cross-repository ranking and efficiency
+
+![FixMap v0.7.1 benchmark: measured accuracy and runtime plus explicitly labeled estimated and assumed comparisons.](assets/fixmap-benchmark-v0.7.1.svg)
+
+The frozen external evaluation uses 15 real issues and their merged fixing pull requests across 15 MIT-licensed JavaScript/TypeScript repositories. Each case pins the repository state before the fix and freezes the fixing source paths before FixMap ranks anything.
+
+Measured 2026-07-26 on Node v24.13.0, Windows 11 (10.0.26200), Intel Core i5-8350U:
+
+| Quantity | Result | Evidence type |
+| --- | ---: | --- |
+| Expected fixing file in Top-1 | 9/15 (60%) | Measured |
+| Expected fixing file in Top-3 | 15/15 (100%) | Measured |
+| Expected fixing file in Top-5 | 15/15 (100%) | Measured |
+| Median scan + rank time | 1,747.7 ms | Measured, three warm runs per pinned repository |
+| Context proxy reduction | 98.56% | Estimated |
+
+The context comparison is intentionally a proxy:
+
+- **Assumed baseline:** send every scanned text-bearing file in FixMap's supported extension set—22,058,578 estimated tokens.
+- **FixMap comparison:** send only the Top-5 ranked files—318,546 estimated tokens.
+- **Estimator:** UTF-8 file bytes ÷ 4. This is not tokenizer output and does not include prompts, tool protocol, or generated responses.
+
+The supported set is `.cjs`, `.css`, `.go`, `.js`, `.json`, `.jsx`, `.md`, `.mjs`, `.py`, `.rs`, `.ts`, `.tsx`, `.yaml`, and `.yml`, so the assumed baseline includes tests, documentation, and configuration—not only implementation code.
+
+The visual also shows a 14.97-minute implied difference against an **assumed 15-minute manual-triage baseline**. That baseline was not measured in a controlled with/without-agent experiment, so it is not presented as a real-world time-savings claim.
+
+Run or deliberately refresh the evidence:
+
+```bash
+npm run evaluate:external
+npm run benchmark:savings
+npm run benchmark:savings:record
+npm run render:benchmark-card
+```
+
+See [`benchmarks/external/README.md`](../benchmarks/external/README.md) for case selection, exact repositories, fresh baseline comparison, and every recorded ranking.
+
+## Scanner performance
 
 FixMap caps repository scans at 25,000 files. This page documents measured scan performance on deterministic synthetic repositories so the cap and its cost are inspectable rather than asserted.
 

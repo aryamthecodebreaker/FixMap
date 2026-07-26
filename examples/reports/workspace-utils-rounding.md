@@ -21,6 +21,13 @@ FixMap found 2 context files and generated 3 test routes.
 
 - None found
 
+## Analysis
+
+- Task grounding: **anchored**
+- Repository scan: **complete**
+- Ranking shape: **separated**
+- Next action: Inspect packages/utils/src/currency.ts and its routed tests before editing.
+
 ## Diagnostics
 
 - None found

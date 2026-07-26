@@ -1,5 +1,10 @@
 import { buildImportGraph, findImportProximity } from "./import-graph.js";
 import type { ImportProximity } from "./import-graph.js";
+import {
+  analyzeTaskGrounding,
+  buildGroundedTaskTokens
+} from "./grounding.js";
+import type { TaskGrounding } from "./grounding.js";
 import { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
 import { extractTaskSignals, tokenizePath, tokenizeText } from "./signals.js";
 import type { RankedFile, RepoMap } from "./types.js";
@@ -21,6 +26,9 @@ const IMPORT_PROXIMITY_BOOSTS: Record<ImportProximity["distance"], number> = { 1
 const EXAMPLE_CODE_PENALTY = 2;
 const TYPE_DECLARATION_PENALTY = 4;
 const BACKUP_COPY_PENALTY = 10;
+const EXPLICIT_PATH_BOOST = 40;
+const EXACT_LITERAL_BOOST = 8;
+const MEMBER_MENTION_BOOST = 8;
 // A term counts as repository-wide boilerplate only when nearly every file carries it.
 // The previous half-of-all-files cutoff mistook subject matter for boilerplate: chalk
 // mentions "color" in 55% of its files because that is what chalk does, and suppressing
@@ -44,9 +52,15 @@ export function rankContextFiles(
     diffText: input.diffText ?? "",
     changedFiles: repo.changedFiles
   });
+  const grounding = analyzeTaskGrounding(repo, input);
+  const taskTokens = buildGroundedTaskTokens(grounding, {
+    issueText: input.issueText ?? "",
+    diffText: input.diffText ?? "",
+    changedFiles: repo.changedFiles
+  });
 
   const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path));
-  const taskTargetsEvaluation = hasAny(signals.tokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
+  const taskTargetsEvaluation = hasAny(taskTokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
   const scannable = repo.files.filter((file) =>
     mentionedPaths.has(file.path) ||
     (file.isSource &&
@@ -72,15 +86,15 @@ export function rankContextFiles(
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
   const definitionSignals = buildDefinitionSignals(signals.identifiers);
-  const taskTargetsDocumentation = hasAny(signals.tokens, ["docs", "documentation", "readme", "guide", "copy"]);
-  const taskTargetsConfiguration = hasAny(signals.tokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
-  const taskTargetsDeployment = hasAny(signals.tokens, DEPLOYMENT_TERMS);
   const taskText = [input.issueText ?? "", input.diffText ?? ""].join("\n");
+  const taskTargetsDocumentation = targetsDocumentation(taskText);
+  const taskTargetsConfiguration = hasAny(taskTokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
+  const taskTargetsDeployment = hasAny(taskTokens, DEPLOYMENT_TERMS);
   const taskTargetsExamples = /\b(?:demos?|examples?|samples?)\b/i.test(
     taskText.replace(/\bfor example\b/gi, "")
   );
   const taskTargetsTypeDeclarations =
-    /\b(?:typescript|type definitions?|declarations?|typings?|\.d\.(?:ts|mts|cts))\b/i.test(taskText);
+    /\b(?:typescript|types?|type definitions?|declarations?|typings?|\.d\.(?:ts|mts|cts))\b/i.test(taskText);
 
   const scored: ScoredFile[] = candidates
     .map((file) => {
@@ -94,22 +108,41 @@ export function rankContextFiles(
       }
 
       if (mentionedPaths.has(file.path)) {
-        score += 12;
+        score += EXPLICIT_PATH_BOOST;
         reasons.push("explicitly named in the task");
       }
 
       const pathTokens = tokenizePath(file.path);
-      const pathOverlap = [...pathTokens].filter((token) => signals.tokens.has(token));
+      const pathOverlap = [...pathTokens].filter((token) => taskTokens.has(token));
       if (pathOverlap.length > 0) {
         score += pathOverlap.length * 3;
         reasons.push(`path matches task terms: ${pathOverlap.join(", ")}`);
       }
 
       const contentTokens = contentTokensByPath.get(file.path) ?? new Set<string>();
-      const contentOverlap = [...contentTokens].filter((token) => signals.tokens.has(token) && !commonTokens.has(token));
+      const contentOverlap = [...contentTokens].filter((token) => taskTokens.has(token) && !commonTokens.has(token));
       if (contentOverlap.length > 0) {
         score += Math.min(contentOverlap.length, 8) * 2;
         reasons.push(`content matches task terms: ${contentOverlap.slice(0, 8).join(", ")}`);
+      }
+
+      const matchedMembers = [...signals.memberMentions]
+        .filter((member) => hasExactIdentifier(file.textSample, member))
+        .slice(0, 3);
+      if (matchedMembers.length > 0) {
+        score += matchedMembers.length * MEMBER_MENTION_BOOST;
+        reasons.push(`contains task member names: ${matchedMembers.join(", ")}`);
+      }
+
+      const exactLiteral = signals.exactFragments
+        .filter((fragment) => file.textSample.includes(fragment))
+        .sort((a, b) =>
+          countOccurrences(taskText, b) - countOccurrences(taskText, a) ||
+          b.length - a.length
+        )[0];
+      if (exactLiteral) {
+        score += EXACT_LITERAL_BOOST * Math.min(3, countOccurrences(taskText, exactLiteral));
+        reasons.push(`contains exact task literal: ${previewFragment(exactLiteral)}`);
       }
 
       const definedIdentifiers = findDefinedIdentifiers(file.textSample, definitionSignals)
@@ -120,7 +153,7 @@ export function rankContextFiles(
       }
 
       const taskMatchedDefinitions = signals.exactFragments.length === 0
-        ? findTaskMatchedDefinitions(file.textSample, signals.tokens)
+        ? findTaskMatchedDefinitions(file.textSample, taskTokens)
           .filter((identifier) => !definedIdentifiers.includes(identifier))
           .slice(0, MAX_DEFINITION_IDENTIFIERS)
         : [];
@@ -182,6 +215,13 @@ export function rankContextFiles(
       ) {
         score -= TYPE_DECLARATION_PENALTY;
         reasons.push("type declaration deprioritized for a runtime task");
+      } else if (
+        isTypeDeclarationPath(file.path) &&
+        taskTargetsTypeDeclarations &&
+        !isChanged
+      ) {
+        score += TYPE_DECLARATION_PENALTY;
+        reasons.push("type declaration matches a type-focused task");
       }
 
       if (isBackupPath(file.path) && !isChanged && !mentionedPaths.has(file.path)) {
@@ -190,7 +230,7 @@ export function rankContextFiles(
       }
 
       if (pathTokens.has("auth") || pathTokens.has("login")) {
-        if (signals.tokens.has("auth") || signals.tokens.has("login") || signals.tokens.has("password")) {
+        if (taskTokens.has("auth") || taskTokens.has("login") || taskTokens.has("password")) {
           score += 2;
           reasons.push("auth-related task signal");
         }
@@ -201,21 +241,24 @@ export function rankContextFiles(
 
   applyImportProximity(scored, repo);
 
-  return scored
-    .map((entry) => ({
-      path: entry.path,
-      score: entry.score,
-      confidence: confidenceForScore(entry.score, entry.isChanged),
-      reasons: entry.reasons.length > 0 ? entry.reasons : ["source file baseline"]
-    }))
+  const ranked = scored
     .filter((file) => file.score >= 4)
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
     .slice(0, limit);
+  const clustered = isClusteredRanking(ranked);
+
+  return ranked
+    .map((entry) => ({
+      path: entry.path,
+      score: entry.score,
+      confidence: confidenceForEntry(entry, grounding, clustered),
+      reasons: entry.reasons.length > 0 ? entry.reasons : ["source file baseline"]
+    }));
 }
 
 function applyImportProximity(scored: ScoredFile[], repo: RepoMap): void {
   const seedEntries = scored
-    .filter((entry) => confidenceForScore(entry.score, entry.isChanged) === "high")
+    .filter((entry) => entry.score >= 8 && hasDirectEvidence(entry))
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
     .slice(0, MAX_PROXIMITY_SEEDS);
   if (seedEntries.length === 0) {
@@ -247,10 +290,70 @@ function proximityReason(hit: ImportProximity): string {
   return hit.direction === "imported-by" ? `imported by ranked file ${hit.seed}` : `imports ranked file ${hit.seed}`;
 }
 
-function confidenceForScore(score: number, isChanged: boolean): RankedFile["confidence"] {
-  if (isChanged || score >= 14) return "high";
-  if (score >= 8) return "medium";
-  return "low";
+function confidenceForEntry(
+  entry: ScoredFile,
+  grounding: TaskGrounding,
+  clustered: boolean
+): RankedFile["confidence"] {
+  if (entry.isChanged || entry.reasons.includes("explicitly named in the task")) {
+    return "high";
+  }
+
+  let confidence: RankedFile["confidence"] =
+    entry.score >= 14 ? "high" : entry.score >= 8 ? "medium" : "low";
+  const supportedIdentifierCount = grounding.identifiers.filter((identifier) =>
+    identifier.status === "exact-definition" ||
+    identifier.status === "exact-text" ||
+    identifier.status === "partial-definition"
+  ).length;
+
+  if (grounding.unresolvedIdentifiers.length > 0) {
+    if (supportedIdentifierCount === 0) {
+      return "low";
+    }
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (grounding.unverifiedIdentifiers.length > 0) {
+    if (supportedIdentifierCount === 0) {
+      return "low";
+    }
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (grounding.partiallyResolvedIdentifiers.length > 0) {
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (grounding.specificity === "vague") {
+    return "low";
+  }
+  if (!grounding.scanComplete) {
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (clustered && !hasDirectEvidence(entry)) {
+    confidence = capConfidence(confidence, "medium");
+  }
+  return confidence;
+}
+
+function capConfidence(
+  confidence: RankedFile["confidence"],
+  maximum: RankedFile["confidence"]
+): RankedFile["confidence"] {
+  const levels: RankedFile["confidence"][] = ["low", "medium", "high"];
+  return levels.indexOf(confidence) > levels.indexOf(maximum) ? maximum : confidence;
+}
+
+function hasDirectEvidence(entry: ScoredFile): boolean {
+  return entry.isChanged || entry.reasons.some((reason) =>
+    reason === "explicitly named in the task" ||
+    reason.startsWith("defines task identifiers:") ||
+    reason.startsWith("exact task literal at definition:")
+  );
+}
+
+function isClusteredRanking(entries: ScoredFile[]): boolean {
+  const top = entries[0]?.score;
+  const third = entries[2]?.score;
+  return top !== undefined && third !== undefined && top - third <= 2;
 }
 
 function hasAny(tokens: Set<string>, values: string[]): boolean {
@@ -311,6 +414,15 @@ function isTypeDeclarationPath(path: string): boolean {
   return /\.d\.(?:ts|mts|cts)$/i.test(path);
 }
 
+function targetsDocumentation(taskText: string): boolean {
+  const documentation = "(?:docs?|documentation|readme|guide|copy)";
+  const action = "(?:add|edit|update|write|rewrite|revise|remove|correct|document)";
+  return (
+    new RegExp(`\\b${action}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) ||
+    new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${action}\\b`, "i").test(taskText)
+  );
+}
+
 function buildDefinitionSignals(identifiers: Set<string>): DefinitionSignal[] {
   return [...identifiers]
     .sort((a, b) => a.localeCompare(b))
@@ -324,6 +436,12 @@ function buildDefinitionSignals(identifiers: Set<string>): DefinitionSignal[] {
 
 function findDefinedIdentifiers(text: string, signals: DefinitionSignal[]): string[] {
   return signals.filter((signal) => signal.pattern.test(text)).map((signal) => signal.identifier);
+}
+
+function hasExactIdentifier(text: string, identifier: string): boolean {
+  return new RegExp(
+    `(^|[^$A-Za-z0-9_])${escapeRegExp(identifier)}(?=$|[^$A-Za-z0-9_])`
+  ).test(text);
 }
 
 function findTaskMatchedDefinitions(text: string, taskTokens: Set<string>): string[] {
@@ -366,6 +484,13 @@ function previewFragment(fragment: string): string {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function countOccurrences(text: string, value: string): number {
+  if (!value) {
+    return 0;
+  }
+  return text.split(value).length - 1;
 }
 
 function findCommonTokens(contentTokensByPath: Map<string, Set<string>>): Set<string> {

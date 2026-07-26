@@ -1,17 +1,43 @@
 {
+  "measuredAt": "2026-07-26T05:40:14.104Z",
+  "environment": {
+    "node": "v24.13.0",
+    "platform": "win32 10.0.26200",
+    "cpu": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+    "runsPerRepository": 3,
+    "repositoryCache": "warm after pinned checkout materialization"
+  },
   "cases": 15,
-  "top1HitRate": 0.6,
-  "top3HitRate": 1,
-  "top5HitRate": 1,
-  "floors": {
-    "top1": 0.3,
-    "top3": 0.5,
-    "top5": 0.5
+  "accuracy": {
+    "top1HitRate": 0.6,
+    "top3HitRate": 1,
+    "top5HitRate": 1
+  },
+  "performance": {
+    "medianScanAndRankMs": 1747.7
+  },
+  "contextProxy": {
+    "baseline": "Assumed: every scanned text-bearing file in FixMap's supported extension set is sent as context.",
+    "comparison": "Estimated: only FixMap's top-five ranked files are sent as context.",
+    "tokenEstimator": "UTF-8 file bytes divided by 4; this is not tokenizer output.",
+    "assumedAllSourceTokens": 22058578,
+    "estimatedTop5Tokens": 318546,
+    "estimatedTokenReduction": 0.9856
+  },
+  "timeComparison": {
+    "baseline": "Assumed manual repository triage: 15 minutes per task.",
+    "warning": "The manual baseline was not measured in a controlled with/without agent experiment.",
+    "assumedManualMinutes": 15,
+    "measuredFixMapMinutes": 0.0291,
+    "impliedMinutesSaved": 14.97,
+    "impliedTimeReduction": 0.9981
   },
   "results": [
     {
       "slug": "expressjs/express",
       "issue": 7365,
+      "scannedFiles": 213,
+      "medianRuntimeMs": 734.3,
       "expected": [
         "lib/request.js"
       ],
@@ -24,11 +50,17 @@
       ],
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 727851,
+      "rankedBytes": 47062,
+      "assumedAllSourceTokens": 181963,
+      "estimatedTop5Tokens": 11766
     },
     {
       "slug": "axios/axios",
       "issue": 6721,
+      "scannedFiles": 454,
+      "medianRuntimeMs": 5941.7,
       "expected": [
         "lib/core/AxiosError.js"
       ],
@@ -41,11 +73,17 @@
       ],
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 3056385,
+      "rankedBytes": 90899,
+      "assumedAllSourceTokens": 764097,
+      "estimatedTop5Tokens": 22725
     },
     {
       "slug": "debug-js/debug",
       "issue": 746,
+      "scannedFiles": 14,
+      "medianRuntimeMs": 241.6,
       "expected": [
         "src/node.js"
       ],
@@ -58,11 +96,17 @@
       ],
       "top1": false,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 50170,
+      "rankedBytes": 44787,
+      "assumedAllSourceTokens": 12543,
+      "estimatedTop5Tokens": 11197
     },
     {
       "slug": "sindresorhus/ky",
       "issue": 857,
+      "scannedFiles": 67,
+      "medianRuntimeMs": 442.2,
       "expected": [
         "source/core/Ky.ts"
       ],
@@ -75,11 +119,17 @@
       ],
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 515493,
+      "rankedBytes": 66339,
+      "assumedAllSourceTokens": 128874,
+      "estimatedTop5Tokens": 16585
     },
     {
       "slug": "colinhacks/zod",
       "issue": 5944,
+      "scannedFiles": 582,
+      "medianRuntimeMs": 3161.2,
       "expected": [
         "packages/zod/src/v4/core/regexes.ts"
       ],
@@ -92,11 +142,17 @@
       ],
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 3503802,
+      "rankedBytes": 141032,
+      "assumedAllSourceTokens": 875951,
+      "estimatedTop5Tokens": 35258
     },
     {
       "slug": "pinojs/pino",
       "issue": 1996,
+      "scannedFiles": 200,
+      "medianRuntimeMs": 1205.2,
       "expected": [
         "lib/transport.js",
         "lib/worker.js"
@@ -110,11 +166,17 @@
       ],
       "top1": false,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 686991,
+      "rankedBytes": 60825,
+      "assumedAllSourceTokens": 171748,
+      "estimatedTop5Tokens": 15207
     },
     {
       "slug": "fastify/fastify",
       "issue": 6671,
+      "scannedFiles": 393,
+      "medianRuntimeMs": 2057.2,
       "expected": [
         "lib/request.js"
       ],
@@ -127,11 +189,17 @@
       ],
       "top1": false,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 2898149,
+      "rankedBytes": 127634,
+      "assumedAllSourceTokens": 724538,
+      "estimatedTop5Tokens": 31909
     },
     {
       "slug": "chalk/chalk",
       "issue": 624,
+      "scannedFiles": 33,
+      "medianRuntimeMs": 585.2,
       "expected": [
         "source/vendor/supports-color/index.js"
       ],
@@ -144,11 +212,17 @@
       ],
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 61363,
+      "rankedBytes": 19494,
+      "assumedAllSourceTokens": 15341,
+      "estimatedTop5Tokens": 4874
     },
     {
       "slug": "vitest-dev/vitest",
       "issue": 7375,
+      "scannedFiles": 3050,
+      "medianRuntimeMs": 7201.2,
       "expected": [
         "packages/browser/src/client/tester/dialog.ts"
       ],
@@ -161,11 +235,17 @@
       ],
       "top1": false,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 8007670,
+      "rankedBytes": 74225,
+      "assumedAllSourceTokens": 2001918,
+      "estimatedTop5Tokens": 18557
     },
     {
       "slug": "eslint/eslint",
       "issue": 478,
+      "scannedFiles": 2297,
+      "medianRuntimeMs": 3244.5,
       "expected": [
         "lib/types/config-api.d.ts"
       ],
@@ -178,11 +258,17 @@
       ],
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 17155140,
+      "rankedBytes": 75779,
+      "assumedAllSourceTokens": 4288785,
+      "estimatedTop5Tokens": 18945
     },
     {
       "slug": "webpack/webpack",
       "issue": 15371,
+      "scannedFiles": 13454,
+      "medianRuntimeMs": 16661.6,
       "expected": [
         "lib/DefinePlugin.js"
       ],
@@ -195,11 +281,17 @@
       ],
       "top1": false,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 26898376,
+      "rankedBytes": 126489,
+      "assumedAllSourceTokens": 6724594,
+      "estimatedTop5Tokens": 31623
     },
     {
       "slug": "nodejs/undici",
       "issue": 5566,
+      "scannedFiles": 786,
+      "medianRuntimeMs": 1225.5,
       "expected": [
         "lib/dispatcher/client-h2.js"
       ],
@@ -212,11 +304,17 @@
       ],
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 6873700,
+      "rankedBytes": 128985,
+      "assumedAllSourceTokens": 1718425,
+      "estimatedTop5Tokens": 32247
     },
     {
       "slug": "reduxjs/redux-toolkit",
       "issue": 5156,
+      "scannedFiles": 1152,
+      "medianRuntimeMs": 1747.7,
       "expected": [
         "packages/toolkit/src/query/react/buildHooks.ts"
       ],
@@ -229,11 +327,17 @@
       ],
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 6277414,
+      "rankedBytes": 147148,
+      "assumedAllSourceTokens": 1569354,
+      "estimatedTop5Tokens": 36787
     },
     {
       "slug": "prettier/prettier",
       "issue": 5738,
+      "scannedFiles": 9319,
+      "medianRuntimeMs": 10195.7,
       "expected": [
         "src/language-css/print/comma-separated-value-group.js"
       ],
@@ -246,11 +350,17 @@
       ],
       "top1": false,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 8832175,
+      "rankedBytes": 81223,
+      "assumedAllSourceTokens": 2208044,
+      "estimatedTop5Tokens": 20306
     },
     {
       "slug": "honojs/hono",
       "issue": 3281,
+      "scannedFiles": 482,
+      "medianRuntimeMs": 701.9,
       "expected": [
         "src/adapter/aws-lambda/types.ts"
       ],
@@ -263,7 +373,11 @@
       ],
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "sourceBytes": 2689631,
+      "rankedBytes": 42261,
+      "assumedAllSourceTokens": 672408,
+      "estimatedTop5Tokens": 10566
     }
   ]
 }

@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@aryam/fixmap-core": "0.7.0",
+    "@aryam/fixmap-core": "0.7.1",
     "next": "16.2.11",
     "react": "19.2.7",
     "react-dom": "19.2.7"

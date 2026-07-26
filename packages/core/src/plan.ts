@@ -1,3 +1,9 @@
+import {
+  analyzeTaskGrounding,
+  buildNextAction,
+  buildRankingShape
+} from "./grounding.js";
+import type { RankingShape, TaskGrounding } from "./grounding.js";
 import { rankContextFiles } from "./rank.js";
 import { buildRiskNotes, buildSummary, buildTestRoutes } from "./report.js";
 import { scanRepo } from "./repo-scan.js";
@@ -15,6 +21,11 @@ export async function buildFixMapReport(
     issueText: input.issueText,
     diffText: repo.diffText
   });
+  const grounding = analyzeTaskGrounding(repo, {
+    issueText: input.issueText,
+    diffText: repo.diffText
+  });
+  const ranking = buildRankingShape(contextFiles);
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
@@ -28,9 +39,75 @@ export async function buildFixMapReport(
     diagnostics: [
       ...repo.diagnostics,
       ...findGatedTestDiagnostics(repo.files, routedTestPaths),
+      ...findTaskDiagnostics(grounding, ranking),
       ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "")
-    ]
+    ],
+    analysis: {
+      grounding,
+      ranking,
+      nextAction: buildNextAction(grounding, ranking, contextFiles)
+    }
   };
+}
+
+function findTaskDiagnostics(
+  grounding: TaskGrounding,
+  ranking: RankingShape
+): ScanDiagnostic[] {
+  const diagnostics: ScanDiagnostic[] = [];
+
+  if (grounding.unresolvedIdentifiers.length > 0) {
+    diagnostics.push({
+      code: "unresolved-identifier",
+      severity: "warning",
+      message:
+        `Identifier${grounding.unresolvedIdentifiers.length === 1 ? "" : "s"} not found exactly in the scanned repository: ` +
+        `${grounding.unresolvedIdentifiers.join(", ")}. Component words from unresolved identifiers were ignored, ` +
+        "and unsupported recommendations were capped at low confidence."
+    });
+  }
+
+  if (grounding.partiallyResolvedIdentifiers.length > 0) {
+    diagnostics.push({
+      code: "partially-resolved-identifier",
+      severity: "info",
+      message:
+        `Identifier${grounding.partiallyResolvedIdentifiers.length === 1 ? "" : "s"} matched a longer repository symbol by component terms: ` +
+        `${grounding.partiallyResolvedIdentifiers.join(", ")}. The component terms were retained, but confidence was capped at medium.`
+    });
+  }
+
+  if (grounding.unverifiedIdentifiers.length > 0) {
+    diagnostics.push({
+      code: "identifier-unverified",
+      severity: "warning",
+      message:
+        `Identifier${grounding.unverifiedIdentifiers.length === 1 ? "" : "s"} could not be verified because one or more source files exceeded the text-sampling limit: ` +
+        `${grounding.unverifiedIdentifiers.join(", ")}. FixMap did not claim that the identifier was absent, and confidence was capped at low without another anchor.`
+    });
+  }
+
+  if (grounding.specificity === "vague") {
+    diagnostics.push({
+      code: "vague-task",
+      severity: "warning",
+      message:
+        "The task is broad and has no verified symbol, file, or diff anchor. Treat the ranking as subsystem guidance only, " +
+        "or add a failing behavior, error string, command, symbol, or file path."
+    });
+  }
+
+  if (ranking.clustered && grounding.specificity !== "anchored") {
+    diagnostics.push({
+      code: "flat-ranking",
+      severity: "warning",
+      message:
+        "The leading files have tightly clustered scores, so FixMap cannot identify a decisive edit point. " +
+        "Use them as a starting neighborhood and verify the exact file before editing."
+    });
+  }
+
+  return diagnostics;
 }
 
 // An empty report is the one result that explains nothing on its own. Say whether the task

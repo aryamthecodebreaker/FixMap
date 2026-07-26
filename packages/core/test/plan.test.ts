@@ -70,4 +70,71 @@ describe("buildFixMapReport", () => {
     expect(report.diagnostics.map((entry) => entry.code)).not.toContain("no-task-terms");
     expect(report.diagnostics.map((entry) => entry.code)).not.toContain("no-context-match");
   });
+
+  it("warns about unresolved identifiers and exposes grounding metadata", async () => {
+    const root = await createAuthFixture();
+    await writeFile(
+      join(root, "src", "cache-state.ts"),
+      "export function transitionCacheState() { return 'partial scheduler'; }\n"
+    );
+
+    const report = await buildFixMapReport({
+      repoRoot: root,
+      issueText:
+        "experimentalHoudiniPartialPrerenderScheduler throws InvalidTransitionState near the cache state"
+    });
+
+    expect(report.diagnostics.map((entry) => entry.code)).toContain("unresolved-identifier");
+    expect(report.analysis?.grounding.unresolvedIdentifiers).toEqual([
+      "experimentalHoudiniPartialPrerenderScheduler",
+      "InvalidTransitionState"
+    ]);
+    expect(report.contextFiles.every((file) => file.confidence === "low")).toBe(true);
+    expect(report.analysis?.nextAction).toContain("Verify or correct");
+  });
+
+  it("labels vague, tied results as subsystem guidance", async () => {
+    const root = await createAuthFixture();
+    for (const name of ["network", "parser", "renderer"]) {
+      await writeFile(
+        join(root, "src", `${name}.ts`),
+        `export function handleError() { return "${name}"; }\n`
+      );
+    }
+
+    const report = await buildFixMapReport({
+      repoRoot: root,
+      issueText: "improve error handling"
+    });
+
+    expect(report.contextFiles.length).toBeGreaterThanOrEqual(3);
+    expect(report.contextFiles.every((file) => file.confidence === "low")).toBe(true);
+    expect(report.diagnostics.map((entry) => entry.code)).toContain("vague-task");
+    expect(report.diagnostics.map((entry) => entry.code)).toContain("flat-ranking");
+    expect(report.analysis?.ranking.clustered).toBe(true);
+  });
+
+  it("does not claim an identifier is absent when a large source file was not sampled", async () => {
+    const root = await createAuthFixture();
+    const padding = "x".repeat(64_100);
+    await writeFile(
+      join(root, "src", "large-module.ts"),
+      `${padding}\nexport function lateIdentifier() { return true; }\n`
+    );
+
+    const report = await buildFixMapReport({
+      repoRoot: root,
+      issueText: "lateIdentifier returns the wrong value"
+    });
+
+    expect(report.analysis?.grounding.unresolvedIdentifiers).toEqual([]);
+    expect(report.analysis?.grounding.unverifiedIdentifiers).toEqual(["lateIdentifier"]);
+    expect(report.analysis?.grounding.identifiers).toContainEqual({
+      identifier: "lateIdentifier",
+      status: "unverified",
+      matchedFiles: []
+    });
+    expect(report.diagnostics.map((entry) => entry.code)).toContain("identifier-unverified");
+    expect(report.diagnostics.map((entry) => entry.code)).not.toContain("unresolved-identifier");
+  });
 });

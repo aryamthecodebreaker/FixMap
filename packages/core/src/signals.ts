@@ -136,7 +136,15 @@ const STOP_WORDS = new Set([
   "your"
 ]);
 
-const FILE_MENTION_PATTERN = /[A-Za-z0-9_@$][A-Za-z0-9_.$/\\-]*\.[A-Za-z][A-Za-z0-9]*/g;
+const FILE_MENTION_PATTERN =
+  /[A-Za-z0-9_@$][A-Za-z0-9_.$/\\-]*\.(?:[cm]?[jt]sx?|json|ya?ml|mdx?|css|scss|less|html|py|rb|rs|go|java|kt|c|cc|cpp|h|hpp|d\.ts)\b/g;
+const MEMBER_MENTION_PATTERN =
+  /\b(?:window|globalThis|process|request|response|req|res|this)\.([$A-Za-z_][$A-Za-z0-9_$]*)\b/g;
+const FILE_EXTENSIONS = new Set([
+  "c", "cc", "cjs", "cpp", "css", "go", "h", "hpp", "html", "java", "js", "json",
+  "jsx", "kt", "less", "md", "mdx", "mjs", "py", "rb", "rs", "scss", "ts", "tsx",
+  "yaml", "yml"
+]);
 const IDENTIFIER_PATTERN = /[A-Za-z_$][A-Za-z0-9_$]{4,}/g;
 const MAX_EXACT_FRAGMENTS = 8;
 const MAX_IDENTIFIERS = 24;
@@ -145,6 +153,7 @@ export type TaskSignals = {
   tokens: Set<string>;
   changedFiles: Set<string>;
   fileMentions: Set<string>;
+  memberMentions: Set<string>;
   exactFragments: string[];
   identifiers: Set<string>;
 };
@@ -154,16 +163,25 @@ export function extractTaskSignals(input: {
   diffText?: string | undefined;
   changedFiles?: string[];
 }): TaskSignals {
-  const taskText = [input.issueText ?? "", extractDiffContentLines(input.diffText ?? "")].join("\n");
+  const issueText = stripUncheckedChecklistLines(input.issueText ?? "");
+  const taskText = [issueText, extractDiffContentLines(input.diffText ?? "")].join("\n");
   const tokens = tokenizeText(taskText);
 
   return {
     tokens,
     changedFiles: new Set(input.changedFiles ?? []),
-    fileMentions: extractFileMentions(input.issueText ?? ""),
+    fileMentions: extractFileMentions(issueText),
+    memberMentions: extractMemberMentions(issueText),
     exactFragments: extractExactFragments(taskText),
     identifiers: extractIdentifiers(taskText)
   };
+}
+
+function stripUncheckedChecklistLines(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*[-*]\s*\[\s\]\s+/.test(line))
+    .join("\n");
 }
 
 export function extractExactFragments(text: string): string[] {
@@ -279,6 +297,17 @@ export function extractFileMentions(text: string): Set<string> {
   return mentions;
 }
 
+export function extractMemberMentions(text: string): Set<string> {
+  return new Set(
+    [...text.matchAll(MEMBER_MENTION_PATTERN)]
+      .map((match) => match[1])
+      .filter(
+        (member): member is string =>
+          typeof member === "string" && !FILE_EXTENSIONS.has(member.toLowerCase())
+      )
+  );
+}
+
 function extractDiffContentLines(diffText: string): string {
   if (!diffText) {
     return "";
@@ -293,14 +322,19 @@ function extractDiffContentLines(diffText: string): string {
 export function tokenizeText(text: string): Set<string> {
   return new Set(
     text
+      .replace(/\bhttp\s*\/\s*([123])\b/gi, "http h$1")
       .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
       .toLowerCase()
       .split(TOKEN_SPLIT)
       .map((token) => token.trim())
-      .filter((token) => token.length >= 3 && !STOP_WORDS.has(token))
+      .filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token))
       .map((token) => normalizeToken(token))
-      .filter((token) => token.length >= 3 && !STOP_WORDS.has(token))
+      .filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token))
   );
+}
+
+function isSearchableToken(token: string): boolean {
+  return token.length >= 3 || /^[a-z]\d$/i.test(token);
 }
 
 function normalizeToken(token: string): string {
