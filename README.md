@@ -247,11 +247,11 @@ Read the full [benchmark methodology and scanner measurements](docs/BENCHMARKS.m
 npm run evaluate:heldout
 ```
 
-## What changed in v0.7.1
+## What changed in v0.7.2
 
-FixMap now grounds identifier-like task terms against repository text before using them as strong ranking evidence. Unresolved, partially resolved, and unverified identifiers are reported separately, and incomplete scans or flat rankings cap confidence instead of producing a misleading high-confidence map.
+`--explain <path>` answers the question a ranked list cannot: why the file you expected is missing. It separates being ranked, scoring below the cutoff, being deliberately excluded, and never being scanned.
 
-The grounding path includes regressions for paraphrased camelCase identifiers and identifiers beyond the 64 KB text-sampling boundary. Git-tracked vendored source remains rankable—Chalk's `source/vendor/supports-color/index.js` is still the Top-1 result in the external benchmark.
+Every published rate now carries a confidence interval, because at twelve cases one result flipping moves Top-3 by eight points. And both evaluations report how often a wrong file ranks *first* while the right one sits lower — the regression suite's 100% Top-3 was concealing a 40% misleading rate, which is what an agent actually pays for.
 
 [Inspect the changelog](CHANGELOG.md) · [See the held-out results](benchmarks/heldout/README.md) · [See every regression ranking](benchmarks/external/README.md) · [Audit the efficiency assumptions](docs/BENCHMARKS.md)
 
@@ -303,10 +303,13 @@ FixMap is focused on JavaScript and TypeScript repositories. It does not claim t
 
 Next priorities include:
 
-- expanding the frozen cross-repository dataset beyond six cases
+- growing the held-out suite past twelve cases, where the confidence interval is still wide enough to matter
+- measuring agent success with and without FixMap, which is the only honest route to a savings figure
 - adding co-change and ownership signals
 - publishing more monorepo adapters and examples
 - promoting a stable `v1` Action tag after wider acceptance testing
+
+**Real failure reports are worth more here than any of the above.** If FixMap ranks the wrong file on your repository, that case is more useful than one selected by our own rule — open an issue with the task text and the repository, and it becomes a permanent benchmark case.
 
 See [open issues](https://github.com/aryamthecodebreaker/FixMap/issues) for scoped work, or start with [CONTRIBUTING.md](CONTRIBUTING.md). Security reports belong in the process described by [SECURITY.md](SECURITY.md).
 

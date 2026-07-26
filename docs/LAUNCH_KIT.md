@@ -207,7 +207,7 @@ Marketplace: https://github.com/marketplace/actions/fixmap
 
 npm: https://www.npmjs.com/package/@aryam/fixmap
 
-Release: https://github.com/aryamthecodebreaker/FixMap/releases/tag/v0.7.1
+Release: https://github.com/aryamthecodebreaker/FixMap/releases/tag/v0.7.2
 
 I would especially value feedback on the ranking explanations and which repository signals would make FixMap more useful before an agent starts editing.
 
