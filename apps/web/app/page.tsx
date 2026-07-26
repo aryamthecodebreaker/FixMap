@@ -77,7 +77,7 @@ export default function HomePage() {
 
       <section className="film-section" id="launch-film">
         <div className="film-copy">
-          <p className="kicker">23-second product film</p>
+          <p className="kicker">24-second product film</p>
           <h2>See the handoff before the first edit.</h2>
           <p id="launch-film-description">
             The film moves from the wrong-file problem to a ranked context file, a test route, and an explicit risk note—the core FixMap workflow in one short pass.
