@@ -4,11 +4,17 @@ All notable changes to FixMap are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Vague-task detection no longer misses a wordy request. It gated on five task tokens or fewer, so "clean this up and make the general performance better overall" was classified as descriptive purely for being longer than "improve DX". Vagueness is now judged by how little survives removing generic-improvement vocabulary, which also keeps a concrete request that merely asks for an improvement out of the bucket. The adversarial suite found this and now asserts the label strictly.
+- A truncated scan says what it did not read. Hitting the file cap reported only that scanning stopped; it now names the busiest unread directories — "3,000 paths went unread, mostly under web/ (3,000)" — so a reader can judge whether the omission touched the code their task is about. Git checkouts get the exact remainder; a plain directory walk has no complete list to report from and keeps the shorter message.
+
 ### Added
 
 - Confidence is now calibrated rather than asserted. Both evaluation suites record the top-ranked file's confidence label, and the summary reports how often each label was correct. Across all 27 cases a top result labeled high confidence is the right fixing file 11/15 of the time, medium 5/8, and low 1/4. The ordering holds, so the label carries information — but high means roughly three in four, not certainty, and the counts are published because bands this small cannot support a precise percentage.
 - Added an adversarial suite measuring the opposite failure to accuracy: fabricated identifiers, real identifiers from the wrong repository, vague requests, absent feature surfaces, runtime-only symptoms, and generic-term floods, run against real pinned repositories. False-confidence rate is 0.0 across 8 cases. Unit tests cannot replace this — FixMap's own fixtures contain the fabricated identifiers, so a suite pointed at this repository would resolve them and pass while the behavior was broken. `npm run evaluate:adversarial:gate`.
 - The `fixmap_plan` MCP tool description and the README now tell an agent how much to trust the output: check the analysis block, verify identifiers resolved, widen the search when grounding is weak, and never edit a file only because it ranked highly.
+- Published example reports for the three ways FixMap declines to answer — fabricated identifiers, a vague request, and terms that match nothing — so the examples directory no longer shows only successful routings. Regenerate with `npm run render:examples`.
 
 - Added a held-out evaluation suite: 12 MIT-licensed repositories selected by the same frozen rule as the regression suite, but chosen **after** the v0.7.1 ranker was finished and never tuned against. It measures 67% Top-1 and 75% Top-3/5, against 60% / 100% / 100% on the regression suite. Top-1 does not degrade on unseen repositories; the Top-3 gap is what fitting bought on the tuned set. Run it with `npm run evaluate:heldout`.
 - `scripts/evaluate-external.mjs` accepts `--suite external|heldout`, so both suites share one harness and one recorded-result format.

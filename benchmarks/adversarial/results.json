@@ -74,8 +74,10 @@
       "slug": "chalk/chalk",
       "maxConfidence": "low",
       "topConfidence": "low",
-      "grounding": "descriptive",
-      "diagnostics": [],
+      "grounding": "vague",
+      "diagnostics": [
+        "vague-task"
+      ],
       "contextFileCount": 1,
       "overconfident": false,
       "groundingOk": true,

@@ -98,9 +98,12 @@ async function buildFilesFromPaths(
 ): Promise<RepoFile[]> {
   const results: RepoFile[] = [];
 
-  for (const rawPath of paths) {
+  for (const [index, rawPath] of paths.entries()) {
     if (results.length >= MAX_SCANNED_FILES) {
-      reportScanLimit(diagnostics);
+      // Git handed us the whole tracked list, so the remainder is known exactly.
+      // Saying which directories went unread lets a reader judge whether the
+      // truncation touched the code their task is about.
+      reportScanLimit(diagnostics, paths.slice(index).map(normalizePath));
       break;
     }
 
@@ -196,12 +199,33 @@ function isInAlwaysIgnoredDir(relativePath: string): boolean {
   return relativePath.split("/").slice(0, -1).some((segment) => ALWAYS_IGNORED_DIRS.has(segment));
 }
 
-function reportScanLimit(diagnostics: RepoMap["diagnostics"]): void {
+function reportScanLimit(diagnostics: RepoMap["diagnostics"], skipped?: string[]): void {
+  const advice = `Stopped scanning after ${MAX_SCANNED_FILES.toLocaleString()} files. Narrow the repository root for more precise results.`;
+  const scope = skipped && skipped.length > 0
+    ? ` ${skipped.length.toLocaleString()} path${skipped.length === 1 ? "" : "s"} went unread, mostly under ${summarizeSkippedScope(skipped)}.`
+    : "";
+
   diagnostics.push({
     code: "scan-limit-reached",
     severity: "warning",
-    message: `Stopped scanning after ${MAX_SCANNED_FILES.toLocaleString()} files. Narrow the repository root for more precise results.`
+    message: `${advice}${scope}`
   });
+}
+
+/** The busiest top-level directories among unread paths, so the omission is inspectable. */
+export function summarizeSkippedScope(paths: string[]): string {
+  const counts = new Map<string, number>();
+  for (const path of paths) {
+    const [head] = path.split("/");
+    const scope = path.includes("/") && head ? `${head}/` : "the repository root";
+    counts.set(scope, (counts.get(scope) ?? 0) + 1);
+  }
+
+  return [...counts]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 3)
+    .map(([scope, count]) => `${scope} (${count.toLocaleString()})`)
+    .join(", ");
 }
 
 async function readPackageScripts(root: string, files: RepoFile[], diagnostics: RepoMap["diagnostics"]): Promise<PackageScript[]> {

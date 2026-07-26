@@ -9,6 +9,9 @@ import type {
 const MAX_IDENTIFIER_MATCHED_FILES = 5;
 const VAGUE_TASK_PATTERN =
   /\b(?:improve|better|clean\s+up|cleanup|refactor|developer\s+experience|dx|general|overall|errors?|reliability|performance)\b/i;
+// Same vocabulary, global, for stripping rather than detecting. A `g` regex carries
+// lastIndex between calls, so detection keeps its own non-global copy.
+const VAGUE_TASK_TERMS = new RegExp(VAGUE_TASK_PATTERN.source, "gi");
 
 export type TaskGrounding = TaskAnalysis["grounding"];
 export type RankingShape = TaskAnalysis["ranking"];
@@ -46,7 +49,7 @@ export function analyzeTaskGrounding(
     hasMatchedFileMention ||
     resolvedIdentifierCount > 0 ||
     partiallyResolvedIdentifiers.length > 0;
-  const vague = !hasDirectAnchor && isVagueTask(issueText, signals.tokens.size);
+  const vague = !hasDirectAnchor && isVagueTask(issueText);
 
   return {
     specificity: hasDirectAnchor ? "anchored" : vague ? "vague" : "descriptive",
@@ -222,8 +225,20 @@ function isAnchorIdentifier(identifier: string, issueText: string): boolean {
   return [...identifier].filter((character) => /[A-Z]/.test(character)).length >= 3;
 }
 
-function isVagueTask(issueText: string, tokenCount: number): boolean {
-  return issueText.trim().length > 0 && tokenCount <= 5 && VAGUE_TASK_PATTERN.test(issueText);
+// Vagueness is not shortness. "clean this up and make the general performance
+// better overall" is longer than "improve DX" and just as unroutable, because
+// nothing is left once the generic-improvement vocabulary is removed. Counting
+// what survives that removal also keeps a concrete request that merely asks for
+// an improvement — "improve the retry backoff so a 503 stops hammering the
+// upstream host" — out of the vague bucket.
+const MAX_RESIDUAL_TOKENS_FOR_VAGUE = 3;
+
+function isVagueTask(issueText: string): boolean {
+  if (issueText.trim().length === 0 || !VAGUE_TASK_PATTERN.test(issueText)) {
+    return false;
+  }
+  const residual = tokenizeText(issueText.replace(VAGUE_TASK_TERMS, " "));
+  return residual.size <= MAX_RESIDUAL_TOKENS_FOR_VAGUE;
 }
 
 function removeIdentifiers(text: string, identifiers: string[]): string {

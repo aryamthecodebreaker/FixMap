@@ -4,9 +4,40 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { scanRepo } from "../src/repo-scan.js";
+import { scanRepo, summarizeSkippedScope } from "../src/repo-scan.js";
 
 const exec = promisify(execFile);
+
+describe("summarizeSkippedScope", () => {
+  it("names the busiest unread directories so a truncated scan is inspectable", () => {
+    const skipped = [
+      ...Array.from({ length: 40 }, (_, index) => `services/api/mod${index}.ts`),
+      ...Array.from({ length: 12 }, (_, index) => `web/app/page${index}.tsx`),
+      ...Array.from({ length: 3 }, (_, index) => `tooling/script${index}.mjs`)
+    ];
+
+    expect(summarizeSkippedScope(skipped)).toBe("services/ (40), web/ (12), tooling/ (3)");
+  });
+
+  it("reports root-level files separately and keeps only the busiest three scopes", () => {
+    const skipped = [
+      "README.md",
+      ...Array.from({ length: 5 }, (_, index) => `a/one${index}.ts`),
+      ...Array.from({ length: 4 }, (_, index) => `b/two${index}.ts`),
+      ...Array.from({ length: 3 }, (_, index) => `c/three${index}.ts`),
+      ...Array.from({ length: 2 }, (_, index) => `d/four${index}.ts`)
+    ];
+
+    const summary = summarizeSkippedScope(skipped);
+
+    expect(summary).toBe("a/ (5), b/ (4), c/ (3)");
+    expect(summary).not.toContain("d/");
+  });
+
+  it("describes an unread root-level file without inventing a directory", () => {
+    expect(summarizeSkippedScope(["CHANGELOG.md"])).toBe("the repository root (1)");
+  });
+});
 
 describe("scanRepo", () => {
   it("discovers source files, test files, and package scripts", async () => {

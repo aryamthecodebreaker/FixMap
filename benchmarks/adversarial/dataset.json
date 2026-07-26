@@ -82,10 +82,8 @@
       "why": "Pure product-improvement language with no anchor, against a small repository where generic words cover a large fraction of files.",
       "maxConfidence": "low",
       "requiresGrounding": [
-        "vague",
-        "descriptive"
-      ],
-      "note": "Grounding reports \"descriptive\" rather than \"vague\": isVagueTask only fires at five task tokens or fewer, so a longer vague sentence misses the label. The ranking outcome is still honest (one file, low confidence), so this is a labeling gap rather than a safety gap. Recorded rather than asserted away."
+        "vague"
+      ]
     },
     {
       "id": "absent-feature-surface",
