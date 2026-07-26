@@ -26,6 +26,17 @@ const IMPORT_PROXIMITY_BOOSTS: Record<ImportProximity["distance"], number> = { 1
 const EXAMPLE_CODE_PENALTY = 2;
 const TYPE_DECLARATION_PENALTY = 4;
 const BACKUP_COPY_PENALTY = 10;
+const BUNDLED_OUTPUT_PENALTY = 12;
+// Bundlers strip newlines; people do not. A file averaging hundreds of characters per
+// line is machine output, whatever directory it sits in. Repositories commit these —
+// Next.js keeps pre-bundled dependencies under `src/compiled/` — and because they have
+// no first-party counterpart the generated-duplicate rule keeps them, while their
+// minified text contains the exact symbol names a task searches for. Editing one is
+// always wrong: it is regenerated from a source that is not in this repository.
+// Measured on content rather than path so readable vendored source, however long, is
+// untouched — chalk's `source/vendor/supports-color/index.js` stays rankable.
+const BUNDLED_LINE_LENGTH = 400;
+const MIN_BUNDLE_SAMPLE_BYTES = 2_000;
 const EXPLICIT_PATH_BOOST = 40;
 const EXACT_LITERAL_BOOST = 8;
 const MEMBER_MENTION_BOOST = 8;
@@ -229,6 +240,11 @@ export function rankContextFiles(
         reasons.push("backup or archived copy deprioritized");
       }
 
+      if (isBundledOutput(file.textSample) && !isChanged && !mentionedPaths.has(file.path)) {
+        score -= BUNDLED_OUTPUT_PENALTY;
+        reasons.push("machine-generated bundle deprioritized");
+      }
+
       if (pathTokens.has("auth") || pathTokens.has("login")) {
         if (taskTokens.has("auth") || taskTokens.has("login") || taskTokens.has("password")) {
           score += 2;
@@ -408,6 +424,14 @@ function compiledSourcePathVariants(path: string): string[] {
 
 function isAuxiliaryCodePath(path: string): boolean {
   return path.split("/").slice(0, -1).some((segment) => AUXILIARY_CODE_DIRS.has(segment.toLowerCase()));
+}
+
+function isBundledOutput(textSample: string): boolean {
+  if (textSample.length < MIN_BUNDLE_SAMPLE_BYTES) {
+    return false;
+  }
+  const lineCount = textSample.split("\n").length;
+  return textSample.length / lineCount >= BUNDLED_LINE_LENGTH;
 }
 
 function isTypeDeclarationPath(path: string): boolean {
