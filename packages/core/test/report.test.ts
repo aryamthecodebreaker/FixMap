@@ -140,4 +140,57 @@ describe("report rendering", () => {
     expect(routes[0]?.command).toBe("pnpm --dir apps/api run test");
     expect(buildTestRoutes(repo, ["README.md"])).toEqual([]);
   });
+
+  it("lists only the tests each package command can actually reach", () => {
+    // Every route previously carried the same repository-wide list, so a core
+    // route advertised action tests that `--prefix packages/core` never runs.
+    const source = (path: string) => ({
+      path, extension: ".ts", sizeBytes: 10, isSource: true, isTest: false, kind: "code" as const, textSample: ""
+    });
+    const test = (path: string) => ({ ...source(path), isTest: true });
+    const repo: RepoMap = {
+      root: "/repo",
+      packageManager: "npm",
+      changedFiles: [],
+      diffText: "",
+      diagnostics: [],
+      packageScripts: [
+        { name: "test", command: "vitest run", packageDir: "packages/core" },
+        { name: "test", command: "vitest run", packageDir: "packages/action" }
+      ],
+      files: [
+        source("packages/core/src/rank.ts"),
+        source("packages/action/src/runner.ts"),
+        test("packages/core/test/rank.test.ts"),
+        test("packages/action/test/runner.test.ts")
+      ]
+    };
+
+    const routes = buildTestRoutes(repo, ["packages/core/src/rank.ts", "packages/action/src/runner.ts"]);
+    const core = routes.find((route) => route.command.includes("packages/core"));
+    const action = routes.find((route) => route.command.includes("packages/action"));
+
+    expect(core?.relatedFiles).toEqual(["packages/core/test/rank.test.ts"]);
+    expect(action?.relatedFiles).toEqual(["packages/action/test/runner.test.ts"]);
+  });
+
+  it("lets a repository-root command keep every related test", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageManager: "npm",
+      changedFiles: [],
+      diffText: "",
+      diagnostics: [],
+      packageScripts: [{ name: "test", command: "vitest run", packageDir: "" }],
+      files: [
+        { path: "packages/core/src/rank.ts", extension: ".ts", sizeBytes: 10, isSource: true, isTest: false, kind: "code", textSample: "" },
+        { path: "packages/core/test/rank.test.ts", extension: ".ts", sizeBytes: 10, isSource: true, isTest: true, kind: "code", textSample: "" }
+      ]
+    };
+
+    const routes = buildTestRoutes(repo, ["packages/core/src/rank.ts"]);
+
+    expect(routes[0]?.command).toBe("npm run test");
+    expect(routes[0]?.relatedFiles).toContain("packages/core/test/rank.test.ts");
+  });
 });

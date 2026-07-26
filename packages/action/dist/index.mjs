@@ -1046,6 +1046,13 @@ function isNearbyChangedFile(path, changedFiles) {
 }
 
 // packages/core/dist/report.js
+function scopeToPackage(paths, packageDir) {
+  if (!packageDir) {
+    return paths;
+  }
+  const prefix = `${packageDir}/`;
+  return paths.filter((path) => path.startsWith(prefix));
+}
 function buildTestRoutes(repo, contextPaths) {
   const codeContextPaths = contextPaths.filter((path) => repo.files.find((file) => file.path === path)?.kind === "code");
   if (codeContextPaths.length === 0) {
@@ -1068,7 +1075,7 @@ function buildTestRoutes(repo, contextPaths) {
     routes.push({
       command,
       reason: `${script.packageDir ? `nearest package (${script.packageDir})` : "repository root"} script named ${script.name}`,
-      relatedFiles: script.name === "test" ? relatedTests : codeContextPaths
+      relatedFiles: scopeToPackage(script.name === "test" ? relatedTests : codeContextPaths, script.packageDir)
     });
     if (routes.length === 3)
       break;

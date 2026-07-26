@@ -1,6 +1,18 @@
 import { tokenizePath } from "./signals.js";
 import type { FixMapReport, RepoMap, RiskNote, TestRoute } from "./types.js";
 
+// A route runs one package's script, so it can only exercise files inside that package.
+// Listing a sibling package's tests beneath it claims something the command cannot do:
+// `npm --prefix packages/core run test` never reaches packages/action/test. A root
+// script has no such boundary and legitimately covers everything.
+function scopeToPackage(paths: string[], packageDir: string): string[] {
+  if (!packageDir) {
+    return paths;
+  }
+  const prefix = `${packageDir}/`;
+  return paths.filter((path) => path.startsWith(prefix));
+}
+
 export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRoute[] {
   const codeContextPaths = contextPaths.filter((path) => repo.files.find((file) => file.path === path)?.kind === "code");
   if (codeContextPaths.length === 0) {
@@ -28,7 +40,10 @@ export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRout
     routes.push({
       command,
       reason: `${script.packageDir ? `nearest package (${script.packageDir})` : "repository root"} script named ${script.name}`,
-      relatedFiles: script.name === "test" ? relatedTests : codeContextPaths
+      relatedFiles: scopeToPackage(
+        script.name === "test" ? relatedTests : codeContextPaths,
+        script.packageDir
+      )
     });
     if (routes.length === 3) break;
   }
