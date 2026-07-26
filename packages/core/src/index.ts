@@ -1,4 +1,5 @@
 export { buildFixMapReport } from "./plan.js";
+export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
 export { explainFile } from "./explain.js";
 export type { FileExplanation } from "./explain.js";
 export {
@@ -23,5 +24,7 @@ export type {
   RiskNote,
   ScanDiagnostic,
   TaskAnalysis,
-  TestRoute
+  TestRoute,
+  VerifyFinding,
+  VerifyResult
 } from "./types.js";

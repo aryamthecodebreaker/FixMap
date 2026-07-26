@@ -2,6 +2,16 @@
 
 All notable changes to FixMap are documented here.
 
+## 0.7.3 - 2026-07-26
+
+### Added
+
+- `fixmap verify --report <file> --diff <spec>` closes the loop after an edit. It compares a saved plan against the diff that followed and reports five things: edits in generated or retired locations that the next build discards, files the change needed that the plan never ranked, an untouched leading file, source moving with no test moving, and risk areas the plan never flagged. Both inputs are things the user already has, so nothing is executed and no repository code runs. Only a discarded edit exits non-zero — that one is wrong regardless of the task, while everything else is advisory, because a plan can be wrong and a change can still be right. Available as `verifyPlan` from the core package and with `--format json`.
+
+### Fixed
+
+- Test routes list only the tests each command can actually run. `findRelatedTests` ran once and its result was assigned to every route, so a report claimed `npm --prefix packages/core run test` would exercise `packages/action/test/runner.test.ts`, which that command never reaches. On this repository all three routes carried an identical eight files spanning three packages. Related files are now scoped to the route's package directory; a repository-root script keeps everything.
+
 ## 0.7.2 - 2026-07-26
 
 ### Added
