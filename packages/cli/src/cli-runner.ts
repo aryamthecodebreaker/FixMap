@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import {
   explainFile,
   renderJsonReport,
+  renderVerifyMarkdown,
+  verifyPlan,
   renderMarkdownReport,
   scanRepo,
   type FileExplanation,
@@ -22,6 +24,7 @@ export type CliOptions = {
   format: "markdown" | "json";
   output?: string | undefined;
   explainPath?: string | undefined;
+  reportPath?: string | undefined;
   unknownArgs: string[];
   invalidValues: string[];
 };
@@ -43,10 +46,12 @@ Usage:
   fixmap plan --issue "Fix login" --repo https://github.com/owner/repository
   fixmap plan --diff main...HEAD
   fixmap plan --base main --head HEAD --format json
+  fixmap verify --report fixmap-report.json --diff main...HEAD
   fixmap mcp
 
 Commands:
   plan                Generate a FixMap report for a task or diff
+  verify              Compare a saved report against the diff that followed it
   mcp                 Run FixMap as an MCP server over stdio for AI coding agents
 
 Options:
@@ -58,6 +63,7 @@ Options:
   --format <fmt>      Output format: markdown (default) or json
   --output <file>     Write the report to a file instead of stdout
   --explain <path>    Explain why one file was ranked where it was, or left out
+  --report <file>     Verify command only: the JSON report the change was planned from
   --help, -h          Show this help
   --version, -v       Show the FixMap version
 `;
@@ -88,7 +94,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   }
 
   const options = parseArgs(args);
-  if (options.command !== "plan") {
+  if (options.command !== "plan" && options.command !== "verify") {
     stderr(`Unknown command: ${options.command || "(none)"}\n\n${USAGE}`);
     return 1;
   }
@@ -104,6 +110,10 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     stderr(`${sections.join("\n")}\n\n${USAGE}`);
     return 1;
   }
+  if (options.command === "verify") {
+    return runVerify(options, { stdout, stderr });
+  }
+
   if (!options.issueText && !options.diffSpec && !options.baseRef) {
     stderr("Provide --issue, --diff, or --base/--head so FixMap has a task signal.\n");
     return 1;
@@ -185,6 +195,7 @@ export function parseArgs(args: string[]): CliOptions {
   let format: "markdown" | "json" = "markdown";
   let output: string | undefined;
   let explainPath: string | undefined;
+  let reportPath: string | undefined;
   const unknownArgs: string[] = [];
   const invalidValues: string[] = [];
 
@@ -236,6 +247,10 @@ export function parseArgs(args: string[]): CliOptions {
       } else {
         invalidValues.push(`--format received ${JSON.stringify(value ?? "(missing)")}; expected "markdown" or "json"`);
       }
+    } else if (arg === "--report") {
+      consumeValue();
+      if (value?.trim()) reportPath = value.trim();
+      else invalidValues.push("--report requires a path to a FixMap JSON report");
     } else if (arg === "--explain") {
       consumeValue();
       if (value?.trim()) explainPath = value.trim();
@@ -259,6 +274,7 @@ export function parseArgs(args: string[]): CliOptions {
     format,
     output,
     explainPath,
+    reportPath,
     unknownArgs,
     invalidValues
   };
@@ -269,6 +285,70 @@ function readVersion(): string {
     readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")
   ) as { version: string };
   return packageJson.version;
+}
+
+/**
+ * Compares a saved plan against the diff that followed it. Both inputs are things the
+ * user already has, so nothing is executed and no repository code runs.
+ */
+async function runVerify(
+  options: CliOptions,
+  io: { stdout: (text: string) => void; stderr: (text: string) => void }
+): Promise<number> {
+  if (!options.reportPath) {
+    io.stderr("Provide --report with the JSON report this change was planned from.\n");
+    return 1;
+  }
+  if (!options.diffSpec && !options.baseRef) {
+    io.stderr("Provide --diff or --base/--head so FixMap can see what changed.\n");
+    return 1;
+  }
+  if (/^https?:\/\//i.test(options.repo ?? "")) {
+    io.stderr("verify needs a local checkout; remote mode cannot resolve a diff.\n");
+    return 1;
+  }
+
+  let report: FixMapReport;
+  try {
+    report = JSON.parse(readFileSync(options.reportPath, "utf8")) as FixMapReport;
+  } catch (error) {
+    io.stderr(
+      `Could not read "${options.reportPath}": ${error instanceof Error ? error.message : String(error)}\n` +
+      "Generate one with: fixmap plan --issue \"...\" --format json --output fixmap-report.json\n"
+    );
+    return 1;
+  }
+  if (!Array.isArray(report.contextFiles)) {
+    io.stderr(`"${options.reportPath}" is not a FixMap JSON report: no contextFiles array.\n`);
+    return 1;
+  }
+
+  try {
+    const repo = await scanRepo({
+      repoRoot: options.repo ?? process.cwd(),
+      diffSpec: options.diffSpec,
+      baseRef: options.baseRef,
+      headRef: options.headRef
+    });
+    const unresolvedDiff = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
+    if (unresolvedDiff) {
+      io.stderr(`${unresolvedDiff.message}\nVerification needs a resolvable diff to compare against.\n`);
+      return 1;
+    }
+
+    const result = verifyPlan(report, repo);
+    io.stdout(
+      options.format === "json"
+        ? `${JSON.stringify(result, null, 2)}\n`
+        : renderVerifyMarkdown(result)
+    );
+    // A generated-location edit is discarded by the next build, so it fails the command
+    // rather than being reported and ignored. Everything else is advisory.
+    return result.findings.some((finding) => finding.severity === "error") ? 1 : 0;
+  } catch (error) {
+    io.stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
 }
 
 /** Renders one file's explanation. The summary carries the answer; reasons show the working. */

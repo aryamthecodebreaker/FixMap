@@ -97,6 +97,36 @@ or path from this file in the task to raise it.
 
 It distinguishes the cases that actually differ: the file was ranked, it scored below the cutoff, it was deliberately excluded (a test, a lockfile, generated output whose source was ranked instead), or the scan never saw it. When a scan hits its file limit, it says so rather than implying the path does not exist. Add `--format json` for the machine-readable form.
 
+### Verify the change afterwards
+
+`plan` answers where to start. `verify` answers whether the change that followed matches the plan — by comparing the saved report against a real git diff:
+
+```bash
+npx -y @aryam/fixmap@latest plan --issue "password reset emails fail" \
+  --format json --output fixmap-report.json
+
+# ...make the change...
+
+npx -y @aryam/fixmap@latest verify --report fixmap-report.json --diff main...HEAD
+```
+
+```text
+FixMap verified 3 changed files against the plan and raised 1 error and 2 warnings.
+
+- **error** A file was edited in a generated or retired location. A build regenerates
+  these, so the change will be lost. Edit the source they are produced from.
+  - `dist/auth/reset-password.js`
+- **warning** One file changed that the plan did not rank. Either the task grew beyond
+  the original description, or the ranking missed them — worth checking which.
+  - `src/billing/charge.ts`
+- **warning** Code changed but no test did. The plan routed this test as most related.
+  - `test/reset-password.test.ts`
+```
+
+It checks five things: edits in generated or retired locations, files the change needed that the plan never ranked, an untouched leading file, source moving with no test moving, and risk areas the plan never flagged. Nothing is executed — both inputs are things you already have.
+
+Only a discarded edit exits non-zero, because that one is wrong regardless of the task. Everything else is advisory: a plan can be wrong and a change can still be right, and FixMap reports the gap rather than judging it. `verify` is CLI-only for now; MCP and Action support follow.
+
 ### MCP server
 
 FixMap exposes one stdio tool, `fixmap_plan`, so an agent can request the same report directly.
@@ -167,7 +197,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.7.2
+        uses: aryamthecodebreaker/FixMap@v0.7.3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -247,11 +277,11 @@ Read the full [benchmark methodology and scanner measurements](docs/BENCHMARKS.m
 npm run evaluate:heldout
 ```
 
-## What changed in v0.7.2
+## What changed in v0.7.3
 
-`--explain <path>` answers the question a ranked list cannot: why the file you expected is missing. It separates being ranked, scoring below the cutoff, being deliberately excluded, and never being scanned.
+`fixmap verify` closes the loop: it compares a saved plan against the diff that followed, flagging edits a build will discard, files the change needed that the plan never ranked, source moving without tests, and risk the plan never mentioned.
 
-Every published rate now carries a confidence interval, because at twelve cases one result flipping moves Top-3 by eight points. And both evaluations report how often a wrong file ranks *first* while the right one sits lower — the regression suite's 100% Top-3 was concealing a 40% misleading rate, which is what an agent actually pays for.
+Test routes now list only the tests each command can actually run. Every route previously carried the same repository-wide list, so a report claimed `npm --prefix packages/core run test` would exercise another package's tests.
 
 [Inspect the changelog](CHANGELOG.md) · [See the held-out results](benchmarks/heldout/README.md) · [See every regression ranking](benchmarks/external/README.md) · [Audit the efficiency assumptions](docs/BENCHMARKS.md)
 

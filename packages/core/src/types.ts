@@ -112,3 +112,21 @@ export type FixMapReport = {
   diagnostics: ScanDiagnostic[];
   analysis?: TaskAnalysis;
 };
+
+export type VerifyFinding = {
+  code:
+    | "edit-in-generated-location"
+    | "unmapped-change"
+    | "leading-file-untouched"
+    | "no-test-changed"
+    | "new-risk-area";
+  severity: "info" | "warning" | "error";
+  paths: string[];
+  message: string;
+};
+
+export type VerifyResult = {
+  summary: string;
+  changedFiles: string[];
+  findings: VerifyFinding[];
+};
