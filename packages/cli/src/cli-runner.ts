@@ -182,7 +182,38 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     stdout(rendered);
   }
 
+  const hint = nextCommandHint(options, report);
+  if (hint) {
+    stderr(hint);
+  }
+
   return 0;
+}
+
+/**
+ * Names the command that helps next, on stderr so the report itself stays clean for
+ * pipes, files, JSON consumers, and the Action comment.
+ *
+ * Only one hint, only when it applies. A feature nobody discovers may as well not
+ * exist, but a banner on every run is noise — so this speaks when the situation makes
+ * the suggestion obviously useful and stays quiet otherwise.
+ */
+function nextCommandHint(options: CliOptions, report: FixMapReport): string | undefined {
+  if (options.output && options.format === "json") {
+    const diff = options.diffSpec ?? "main...HEAD";
+    return `\nAfter you make the change, check it against this plan:\n  fixmap verify --report ${options.output} --diff ${diff}\n`;
+  }
+
+  const leading = report.contextFiles[0];
+  const weak =
+    report.contextFiles.length === 0 ||
+    leading?.confidence === "low" ||
+    report.analysis?.ranking.clustered === true;
+  if (weak) {
+    return "\nExpected a file that is not listed? Ask why it was left out:\n  fixmap plan --issue \"<same task>\" --explain <path>\n";
+  }
+
+  return undefined;
 }
 
 export function parseArgs(args: string[]): CliOptions {

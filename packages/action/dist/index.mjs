@@ -1090,8 +1090,12 @@ var RISK_RULES = [
   { area: "public-api", severity: "medium", tokens: ["api", "route", "public"], reason: "public interfaces or request handling may change" },
   { area: "dependencies", severity: "medium", tokens: ["dependency", "lock", "package"], reason: "dependency changes can affect build and supply-chain behavior" }
 ];
+var AUXILIARY_RISK_DIRS = /* @__PURE__ */ new Set(["demo", "demos", "example", "examples", "sample", "samples", "fixture", "fixtures"]);
+function carriesRiskEvidence(path) {
+  return !path.split("/").slice(0, -1).some((segment) => AUXILIARY_RISK_DIRS.has(segment.toLowerCase()));
+}
 function buildRiskNotes(contextPaths, changedFiles = []) {
-  const contextTokens = new Set(contextPaths.flatMap((path) => [...tokenizePath(path)]));
+  const contextTokens = new Set(contextPaths.filter(carriesRiskEvidence).flatMap((path) => [...tokenizePath(path)]));
   const changedTokens = new Set(changedFiles.flatMap((path) => [...tokenizePath(path)]));
   const diffPresent = changedFiles.length > 0;
   const risks = [];
