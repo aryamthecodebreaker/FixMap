@@ -6,6 +6,8 @@ All notable changes to FixMap are documented here.
 
 ### Fixed
 
+- Committed minified bundles no longer compete with the source a task is about. Repositories ship pre-bundled third-party dependencies — Next.js keeps them under `src/compiled/` — and because they have no first-party counterpart the generated-duplicate rule keeps them, while their minified text contains the exact symbol names being searched for. A 30 KB single-line bundle ranked at high confidence, one point behind the real implementation, and even earned the definition-site boost. Files averaging 400+ characters per line are now deprioritized. The check reads content rather than paths, so readable vendored source of any length is untouched and chalk's `source/vendor/supports-color/index.js` still ranks first.
+
 - Vague-task detection no longer misses a wordy request. It gated on five task tokens or fewer, so "clean this up and make the general performance better overall" was classified as descriptive purely for being longer than "improve DX". Vagueness is now judged by how little survives removing generic-improvement vocabulary, which also keeps a concrete request that merely asks for an improvement out of the bucket. The adversarial suite found this and now asserts the label strictly.
 - A truncated scan says what it did not read. Hitting the file cap reported only that scanning stopped; it now names the busiest unread directories — "3,000 paths went unread, mostly under web/ (3,000)" — so a reader can judge whether the omission touched the code their task is about. Git checkouts get the exact remainder; a plain directory walk has no complete list to report from and keeps the shorter message.
 

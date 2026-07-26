@@ -979,4 +979,77 @@ describe("rankContextFiles", () => {
     expect(ranked[0]?.path).toBe("lib/types/config-api.d.ts");
     expect(ranked[0]?.reasons).toContain("contains exact task literal: @eslint/config-helpers");
   });
+
+  it("ranks readable source above a committed minified bundle that matches the same terms", () => {
+    // Repositories commit pre-bundled third-party dependencies (Next.js keeps them
+    // under src/compiled/). They have no first-party counterpart, so the
+    // generated-duplicate rule keeps them, and their minified text contains the
+    // symbol names being searched for. Editing one is always wrong.
+    const bundle = `(function(){function safeParse(t){return t};function safeParseAsync(t){return Promise.resolve(t)};${"function h(a,b){return a+b};".repeat(400)}})();`;
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "src/parser/parse-input.ts",
+          extension: ".ts",
+          sizeBytes: 200,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function safeParseAsync(source: string) {\n  return parseInput(source);\n}\n"
+        },
+        {
+          path: "src/compiled/safe-parser/index.js",
+          extension: ".js",
+          sizeBytes: bundle.length,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: bundle
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "safeParseAsync returns the wrong result for nested input" });
+
+    expect(ranked[0]?.path).toBe("src/parser/parse-input.ts");
+    expect(ranked.find((file) => file.path === "src/compiled/safe-parser/index.js")?.reasons)
+      .toContain("machine-generated bundle deprioritized");
+  });
+
+  it("leaves readable vendored source alone, however long the file", () => {
+    const vendored = Array.from(
+      { length: 400 },
+      (_, index) => `export function detectTerminal${index}() { return supportsColor(); }`
+    ).join("\n");
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "source/vendor/supports-color/index.js",
+          extension: ".js",
+          sizeBytes: vendored.length,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: vendored
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "supportsColor detection on windows terminals" });
+
+    expect(ranked[0]?.path).toBe("source/vendor/supports-color/index.js");
+    expect(ranked[0]?.reasons.join(" ")).not.toContain("machine-generated bundle");
+  });
 });

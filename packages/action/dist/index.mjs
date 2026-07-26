@@ -696,6 +696,9 @@ var IMPORT_PROXIMITY_BOOSTS = { 1: 4, 2: 2 };
 var EXAMPLE_CODE_PENALTY = 2;
 var TYPE_DECLARATION_PENALTY = 4;
 var BACKUP_COPY_PENALTY = 10;
+var BUNDLED_OUTPUT_PENALTY = 12;
+var BUNDLED_LINE_LENGTH = 400;
+var MIN_BUNDLE_SAMPLE_BYTES = 2e3;
 var EXPLICIT_PATH_BOOST = 40;
 var EXACT_LITERAL_BOOST = 8;
 var MEMBER_MENTION_BOOST = 8;
@@ -815,6 +818,10 @@ function rankContextFiles(repo, input, limit = 8) {
     if (isBackupPath(file.path) && !isChanged && !mentionedPaths.has(file.path)) {
       score -= BACKUP_COPY_PENALTY;
       reasons.push("backup or archived copy deprioritized");
+    }
+    if (isBundledOutput(file.textSample) && !isChanged && !mentionedPaths.has(file.path)) {
+      score -= BUNDLED_OUTPUT_PENALTY;
+      reasons.push("machine-generated bundle deprioritized");
     }
     if (pathTokens.has("auth") || pathTokens.has("login")) {
       if (taskTokens.has("auth") || taskTokens.has("login") || taskTokens.has("password")) {
@@ -947,6 +954,13 @@ function compiledSourcePathVariants(path) {
 }
 function isAuxiliaryCodePath(path) {
   return path.split("/").slice(0, -1).some((segment) => AUXILIARY_CODE_DIRS.has(segment.toLowerCase()));
+}
+function isBundledOutput(textSample) {
+  if (textSample.length < MIN_BUNDLE_SAMPLE_BYTES) {
+    return false;
+  }
+  const lineCount = textSample.split("\n").length;
+  return textSample.length / lineCount >= BUNDLED_LINE_LENGTH;
 }
 function isTypeDeclarationPath(path) {
   return /\.d\.(?:ts|mts|cts)$/i.test(path);
