@@ -47,6 +47,18 @@ Top-3 and top-5 drop from 100% to 75%. That difference is what tuning bought on 
 
 The three misses — `jestjs/jest`, `vitejs/vite`, and `vuejs/core` — are recorded in [`results.json`](results.json) with their actual top-five rankings. They are not removed, reweighted, or explained away.
 
+## Confidence calibration
+
+Both suites record the confidence label on the top-ranked file, so the label can be checked against outcomes rather than trusted. Across all 27 cases:
+
+| Top result labeled | Correct | Accuracy |
+| --- | ---: | ---: |
+| high | 11 / 15 | 73% |
+| medium | 5 / 8 | 63% |
+| low | 1 / 4 | 25% |
+
+The ordering is monotonic, which is the property that matters — the label discriminates. But high does not mean certain, and a 15-case band cannot carry a precise percentage. Counts are published so readers can weigh that themselves. Per-suite figures are in each `results.json` under `calibration`.
+
 ## Running it
 
 ```bash

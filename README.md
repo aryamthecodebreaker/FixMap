@@ -104,6 +104,28 @@ Cursor, Windsurf, or another MCP client:
 
 The official MCP Registry identifier is `io.github.aryamthecodebreaker/fixmap`. Analysis runs locally over stdio; FixMap does not send repository source to a hosted model or service.
 
+#### Tell the agent how much to trust it
+
+The `fixmap_plan` tool description carries this guidance, so most clients pick it up automatically. Add it to your agent's system prompt when you want it enforced:
+
+```text
+Treat FixMap's output as a starting map, not proof that the task is valid.
+
+1. Check the analysis block first. If it reports unresolved or unverified
+   identifiers, vague task grounding, an incomplete scan, or a clustered
+   ranking, do not assume the top-ranked file is correct.
+2. Verify that identifiers, error strings, commands, and paths named in the
+   task were actually found in the repository.
+3. When no strong anchor resolves, search more broadly or ask for
+   clarification before editing.
+4. Prefer changed files, exact definitions, imports, and tests over generic
+   keyword matches.
+5. Never edit a file only because it ranked highly. Confirm the code there
+   relates to the requested behavior.
+```
+
+This matters because the ranking is a lead, not a conclusion: across the frozen suites, a top result labeled *high confidence* is the correct fixing file about three quarters of the time.
+
 ### GitHub Action
 
 Install [FixMap from GitHub Marketplace](https://github.com/marketplace/actions/fixmap), or add the versioned Action directly:
@@ -171,6 +193,29 @@ The gap is worth reading closely. Top-1 does not degrade on unseen code — it i
 Held-out repositories: mongoose, immer, jest, knex, mocha, got, socket.io, svelte, vite, vue, winston, yargs. Regression repositories: Express, Axios, debug, ky, Zod, Pino, Fastify, Chalk, Vitest, ESLint, Webpack, Undici, Redux Toolkit, Prettier, Hono.
 
 Median scan and rank across the pinned repositories is **1.75 s**, measured over three warm runs each.
+
+### Does the confidence label mean anything?
+
+A confidence label is only useful if it predicts something. Across all 27 cases in both suites, when the top-ranked file is labeled:
+
+| Top result labeled | Correct fixing file | |
+| --- | ---: | ---: |
+| high | 11 / 15 | **73%** |
+| medium | 5 / 8 | 63% |
+| low | 1 / 4 | 25% |
+
+The ordering holds, so the label carries real information — but **high confidence means roughly three in four, not certainty.** Treat the top result as a lead worth checking first, not a conclusion. Bands this small cannot support a precise percentage; the counts are shown so you can judge that yourself.
+
+### Does it stay quiet when it should?
+
+Ranking the right file matters less than not inventing one. An [adversarial suite](benchmarks/adversarial) runs fabricated identifiers, real identifiers from the wrong repository, vague requests, absent features, and runtime-only symptoms against real pinned repositories, and asserts FixMap does not overclaim:
+
+| Result | Value |
+| --- | ---: |
+| Adversarial cases | 8 |
+| **False-confidence rate** | **0.0** |
+
+Fabricated identifiers produce a diagnostic naming them and a low-confidence report rather than a persuasive wrong answer.
 
 **What is not claimed:** there is no tokens-saved or minutes-saved figure here. Establishing one honestly needs a controlled experiment running the same tasks with and without FixMap, which has not been done. Byte-based context-size proxies are recorded in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) and labeled as estimates, not savings.
 

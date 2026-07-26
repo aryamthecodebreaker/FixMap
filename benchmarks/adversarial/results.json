@@ -1,0 +1,130 @@
+{
+  "cases": 8,
+  "passed": 8,
+  "falseConfidenceRate": 0,
+  "results": [
+    {
+      "id": "fabricated-identifier-undici",
+      "kind": "fabricated-identifier",
+      "slug": "nodejs/undici",
+      "maxConfidence": "low",
+      "topConfidence": "low",
+      "grounding": "descriptive",
+      "diagnostics": [
+        "identifier-unverified"
+      ],
+      "contextFileCount": 8,
+      "overconfident": false,
+      "groundingOk": true,
+      "diagnosticOk": true,
+      "passed": true
+    },
+    {
+      "id": "fabricated-identifier-express",
+      "kind": "fabricated-identifier",
+      "slug": "expressjs/express",
+      "maxConfidence": "low",
+      "topConfidence": "low",
+      "grounding": "descriptive",
+      "diagnostics": [
+        "identifier-unverified"
+      ],
+      "contextFileCount": 8,
+      "overconfident": false,
+      "groundingOk": true,
+      "diagnosticOk": true,
+      "passed": true
+    },
+    {
+      "id": "wrong-repository-identifier",
+      "kind": "wrong-repository-identifier",
+      "slug": "expressjs/express",
+      "maxConfidence": "medium",
+      "topConfidence": "low",
+      "grounding": "descriptive",
+      "diagnostics": [
+        "identifier-unverified"
+      ],
+      "contextFileCount": 6,
+      "overconfident": false,
+      "groundingOk": true,
+      "diagnosticOk": true,
+      "passed": true
+    },
+    {
+      "id": "vague-improvement-request",
+      "kind": "vague-task",
+      "slug": "vitest-dev/vitest",
+      "maxConfidence": "low",
+      "topConfidence": "low",
+      "grounding": "vague",
+      "diagnostics": [
+        "vague-task",
+        "flat-ranking"
+      ],
+      "contextFileCount": 8,
+      "overconfident": false,
+      "groundingOk": true,
+      "diagnosticOk": true,
+      "passed": true
+    },
+    {
+      "id": "vague-cleanup-request",
+      "kind": "vague-task",
+      "slug": "chalk/chalk",
+      "maxConfidence": "low",
+      "topConfidence": "low",
+      "grounding": "descriptive",
+      "diagnostics": [],
+      "contextFileCount": 1,
+      "overconfident": false,
+      "groundingOk": true,
+      "diagnosticOk": true,
+      "passed": true
+    },
+    {
+      "id": "absent-feature-surface",
+      "kind": "absent-feature",
+      "slug": "chalk/chalk",
+      "maxConfidence": "medium",
+      "topConfidence": "medium",
+      "grounding": "descriptive",
+      "diagnostics": [],
+      "contextFileCount": 8,
+      "overconfident": false,
+      "groundingOk": true,
+      "diagnosticOk": true,
+      "passed": true
+    },
+    {
+      "id": "runtime-only-symptom",
+      "kind": "non-static-symptom",
+      "slug": "pinojs/pino",
+      "maxConfidence": "medium",
+      "topConfidence": "medium",
+      "grounding": "descriptive",
+      "diagnostics": [],
+      "contextFileCount": 6,
+      "overconfident": false,
+      "groundingOk": true,
+      "diagnosticOk": true,
+      "passed": true
+    },
+    {
+      "id": "documentation-term-flood",
+      "kind": "generic-term-flood",
+      "slug": "webpack/webpack",
+      "maxConfidence": "medium",
+      "topConfidence": "medium",
+      "grounding": "descriptive",
+      "diagnostics": [
+        "flat-ranking"
+      ],
+      "contextFileCount": 8,
+      "overconfident": false,
+      "groundingOk": true,
+      "diagnosticOk": true,
+      "passed": true
+    }
+  ]
+}

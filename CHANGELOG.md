@@ -6,6 +6,10 @@ All notable changes to FixMap are documented here.
 
 ### Added
 
+- Confidence is now calibrated rather than asserted. Both evaluation suites record the top-ranked file's confidence label, and the summary reports how often each label was correct. Across all 27 cases a top result labeled high confidence is the right fixing file 11/15 of the time, medium 5/8, and low 1/4. The ordering holds, so the label carries information — but high means roughly three in four, not certainty, and the counts are published because bands this small cannot support a precise percentage.
+- Added an adversarial suite measuring the opposite failure to accuracy: fabricated identifiers, real identifiers from the wrong repository, vague requests, absent feature surfaces, runtime-only symptoms, and generic-term floods, run against real pinned repositories. False-confidence rate is 0.0 across 8 cases. Unit tests cannot replace this — FixMap's own fixtures contain the fabricated identifiers, so a suite pointed at this repository would resolve them and pass while the behavior was broken. `npm run evaluate:adversarial:gate`.
+- The `fixmap_plan` MCP tool description and the README now tell an agent how much to trust the output: check the analysis block, verify identifiers resolved, widen the search when grounding is weak, and never edit a file only because it ranked highly.
+
 - Added a held-out evaluation suite: 12 MIT-licensed repositories selected by the same frozen rule as the regression suite, but chosen **after** the v0.7.1 ranker was finished and never tuned against. It measures 67% Top-1 and 75% Top-3/5, against 60% / 100% / 100% on the regression suite. Top-1 does not degrade on unseen repositories; the Top-3 gap is what fitting bought on the tuned set. Run it with `npm run evaluate:heldout`.
 - `scripts/evaluate-external.mjs` accepts `--suite external|heldout`, so both suites share one harness and one recorded-result format.
 

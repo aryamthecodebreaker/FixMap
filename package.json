@@ -59,7 +59,10 @@
     "typecheck": "npm run build:core && npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "evaluate:heldout": "npm run build:core && node scripts/evaluate-external.mjs --suite heldout",
-    "evaluate:heldout:record": "npm run build:core && node scripts/evaluate-external.mjs --suite heldout --record"
+    "evaluate:heldout:record": "npm run build:core && node scripts/evaluate-external.mjs --suite heldout --record",
+    "evaluate:adversarial": "npm run build:core && node scripts/evaluate-adversarial.mjs",
+    "evaluate:adversarial:gate": "npm run build:core && node scripts/evaluate-adversarial.mjs --gate --check-recorded",
+    "evaluate:adversarial:record": "npm run build:core && node scripts/evaluate-adversarial.mjs --record"
   },
   "engines": {
     "node": ">=20.11"

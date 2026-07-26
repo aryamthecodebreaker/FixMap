@@ -50,6 +50,7 @@ for (const benchmark of dataset.cases) {
     issue: benchmark.issue,
     expected: benchmark.expected,
     top5: paths,
+    topConfidence: ranked[0]?.confidence ?? null,
     top1: benchmark.expected.includes(paths[0]),
     top3: benchmark.expected.some((path) => paths.slice(0, 3).includes(path)),
     top5Hit: benchmark.expected.some((path) => paths.includes(path))
@@ -57,11 +58,31 @@ for (const benchmark of dataset.cases) {
 }
 
 const rate = (key) => results.filter((result) => result[key]).length / results.length;
+
+// Calibration answers the question a confidence label is supposed to answer:
+// when FixMap says it is confident about the leading file, is that file the one
+// the fix actually changed? Without this the label is an unverified assertion,
+// which is the failure the grounding work set out to remove. Sample counts are
+// reported alongside each rate because a band holding three cases cannot carry
+// a percentage on its own.
+const calibration = ["high", "medium", "low"].map((confidence) => {
+  const band = results.filter((result) => result.topConfidence === confidence);
+  return {
+    confidence,
+    cases: band.length,
+    top1Correct: band.filter((result) => result.top1).length,
+    top1Accuracy: band.length === 0
+      ? null
+      : Number((band.filter((result) => result.top1).length / band.length).toFixed(3))
+  };
+});
+
 const summary = {
   cases: results.length,
   top1HitRate: Number(rate("top1").toFixed(3)),
   top3HitRate: Number(rate("top3").toFixed(3)),
   top5HitRate: Number(rate("top5Hit").toFixed(3)),
+  calibration,
   floors: FLOORS,
   results
 };

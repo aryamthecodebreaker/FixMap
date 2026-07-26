@@ -3,6 +3,26 @@
   "top1HitRate": 0.667,
   "top3HitRate": 0.75,
   "top5HitRate": 0.75,
+  "calibration": [
+    {
+      "confidence": "high",
+      "cases": 8,
+      "top1Correct": 6,
+      "top1Accuracy": 0.75
+    },
+    {
+      "confidence": "medium",
+      "cases": 2,
+      "top1Correct": 1,
+      "top1Accuracy": 0.5
+    },
+    {
+      "confidence": "low",
+      "cases": 2,
+      "top1Correct": 1,
+      "top1Accuracy": 0.5
+    }
+  ],
   "floors": {
     "top1": 0.3,
     "top3": 0.5,
@@ -22,6 +42,7 @@
         "lib/types/documentArray/methods/index.js",
         "lib/helpers/update/modifiedPaths.js"
       ],
+      "topConfidence": "high",
       "top1": true,
       "top3": true,
       "top5Hit": true
@@ -39,6 +60,7 @@
         "src/immer.ts",
         "src/plugins/arrayMethods.ts"
       ],
+      "topConfidence": "medium",
       "top1": true,
       "top3": true,
       "top5Hit": true
@@ -56,6 +78,7 @@
         "packages/jest-core/src/plugins/TestNamePattern.ts",
         "packages/jest-core/src/plugins/TestPathPattern.ts"
       ],
+      "topConfidence": "medium",
       "top1": false,
       "top3": false,
       "top5Hit": false
@@ -73,6 +96,7 @@
         "lib/schema/compiler.js",
         "lib/dialects/postgres/schema/pg-columncompiler.js"
       ],
+      "topConfidence": "high",
       "top1": true,
       "top3": true,
       "top5Hit": true
@@ -90,6 +114,7 @@
         "lib/cli/lookup-files.js",
         "lib/mocha.cjs"
       ],
+      "topConfidence": "high",
       "top1": false,
       "top3": true,
       "top5Hit": true
@@ -107,6 +132,7 @@
         "source/core/errors.ts",
         "source/as-promise/index.ts"
       ],
+      "topConfidence": "high",
       "top1": true,
       "top3": true,
       "top5Hit": true
@@ -124,6 +150,7 @@
         "packages/engine.io-client/lib/transports/websocket.ts",
         "packages/engine.io-client/lib/transports/polling-xhr.node.ts"
       ],
+      "topConfidence": "high",
       "top1": true,
       "top3": true,
       "top5Hit": true
@@ -141,6 +168,7 @@
         "packages/svelte/src/internal/client/warnings.js",
         "packages/svelte/src/internal/client/dom/blocks/snippet.js"
       ],
+      "topConfidence": "high",
       "top1": true,
       "top3": true,
       "top5Hit": true
@@ -158,6 +186,7 @@
         "packages/vite/src/types/chokidar.d.ts",
         "packages/vite/types/metadata.d.ts"
       ],
+      "topConfidence": "low",
       "top1": false,
       "top3": false,
       "top5Hit": false
@@ -175,6 +204,7 @@
         "packages-private/vite-debug/tsconfig.json",
         "packages-private/dts-test/ref.test-d.ts"
       ],
+      "topConfidence": "high",
       "top1": false,
       "top3": false,
       "top5Hit": false
@@ -192,6 +222,7 @@
         "lib/winston/transports/http.js",
         "lib/winston/transports/index.d.ts"
       ],
+      "topConfidence": "low",
       "top1": true,
       "top3": true,
       "top5Hit": true
@@ -209,6 +240,7 @@
         "lib/typings/yargs-parser-types.ts",
         "lib/usage.ts"
       ],
+      "topConfidence": "high",
       "top1": true,
       "top3": true,
       "top5Hit": true
