@@ -2,7 +2,14 @@ import { readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { renderJsonReport, renderMarkdownReport, type FixMapReport } from "@aryam/fixmap-core";
+import {
+  explainFile,
+  renderJsonReport,
+  renderMarkdownReport,
+  scanRepo,
+  type FileExplanation,
+  type FixMapReport
+} from "@aryam/fixmap-core";
 import { buildReportForRepository, type RepositoryPlanInput } from "./repository-source.js";
 
 export type CliOptions = {
@@ -14,6 +21,7 @@ export type CliOptions = {
   headRef?: string | undefined;
   format: "markdown" | "json";
   output?: string | undefined;
+  explainPath?: string | undefined;
   unknownArgs: string[];
   invalidValues: string[];
 };
@@ -49,6 +57,7 @@ Options:
   --repo <source>     Local path or public GitHub HTTPS URL (defaults to current directory)
   --format <fmt>      Output format: markdown (default) or json
   --output <file>     Write the report to a file instead of stdout
+  --explain <path>    Explain why one file was ranked where it was, or left out
   --help, -h          Show this help
   --version, -v       Show the FixMap version
 `;
@@ -98,6 +107,29 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   if (!options.issueText && !options.diffSpec && !options.baseRef) {
     stderr("Provide --issue, --diff, or --base/--head so FixMap has a task signal.\n");
     return 1;
+  }
+
+  if (options.explainPath) {
+    // Explaining a ranking needs the scanned repository, not just the finished report,
+    // so this runs against a local checkout. Remote mode already excludes anything
+    // beyond issue analysis for the same reason.
+    if (/^https?:\/\//i.test(options.repo ?? "")) {
+      stderr("--explain needs a local checkout; clone the repository and point --repo at the directory.\n");
+      return 1;
+    }
+    try {
+      const repo = await scanRepo({ repoRoot: options.repo ?? process.cwd() });
+      const explanation = explainFile(repo, { issueText: options.issueText }, options.explainPath);
+      stdout(
+        options.format === "json"
+          ? `${JSON.stringify(explanation, null, 2)}\n`
+          : renderExplanation(explanation)
+      );
+      return 0;
+    } catch (error) {
+      stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
   }
 
   let report: FixMapReport;
@@ -152,6 +184,7 @@ export function parseArgs(args: string[]): CliOptions {
   let headRef: string | undefined;
   let format: "markdown" | "json" = "markdown";
   let output: string | undefined;
+  let explainPath: string | undefined;
   const unknownArgs: string[] = [];
   const invalidValues: string[] = [];
 
@@ -203,6 +236,10 @@ export function parseArgs(args: string[]): CliOptions {
       } else {
         invalidValues.push(`--format received ${JSON.stringify(value ?? "(missing)")}; expected "markdown" or "json"`);
       }
+    } else if (arg === "--explain") {
+      consumeValue();
+      if (value?.trim()) explainPath = value.trim();
+      else invalidValues.push("--explain requires a repository-relative file path");
     } else if (arg === "--output") {
       consumeValue();
       if (value?.trim()) output = value;
@@ -221,6 +258,7 @@ export function parseArgs(args: string[]): CliOptions {
     headRef,
     format,
     output,
+    explainPath,
     unknownArgs,
     invalidValues
   };
@@ -231,4 +269,16 @@ function readVersion(): string {
     readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")
   ) as { version: string };
   return packageJson.version;
+}
+
+/** Renders one file's explanation. The summary carries the answer; reasons show the working. */
+function renderExplanation(explanation: FileExplanation): string {
+  const lines = [`# Why ${explanation.path}`, "", explanation.summary];
+  if (explanation.reasons.length > 0) {
+    lines.push("", "## Signals", "");
+    for (const reason of explanation.reasons) {
+      lines.push(`- ${reason}`);
+    }
+  }
+  return `${lines.join("\n")}\n`;
 }

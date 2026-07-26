@@ -53,10 +53,15 @@ const TASK_MATCHED_DEFINITION_BOOST = 4;
 type ScoredFile = { path: string; score: number; isChanged: boolean; reasons: string[] };
 type DefinitionSignal = { identifier: string; pattern: RegExp };
 
+export const REPORT_SCORE_CUTOFF = 4;
+
 export function rankContextFiles(
   repo: RepoMap,
   input: { issueText?: string | undefined; diffText?: string | undefined },
-  limit = 8
+  limit = 8,
+  // `explainFile` lowers this to see what a file scored below the reporting cutoff.
+  // Ranking never calls it with anything but the default.
+  minScore = REPORT_SCORE_CUTOFF
 ): RankedFile[] {
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
@@ -258,7 +263,7 @@ export function rankContextFiles(
   applyImportProximity(scored, repo);
 
   const ranked = scored
-    .filter((file) => file.score >= 4)
+    .filter((file) => file.score >= minScore)
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
     .slice(0, limit);
   const clustered = isClusteredRanking(ranked);
