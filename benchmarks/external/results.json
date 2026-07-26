@@ -3,24 +3,63 @@
   "top1HitRate": 0.6,
   "top3HitRate": 1,
   "top5HitRate": 1,
+  "intervals95": {
+    "top1": [
+      0.357,
+      0.802
+    ],
+    "top3": [
+      0.796,
+      1
+    ],
+    "top5": [
+      0.796,
+      1
+    ]
+  },
+  "misleadingTopResult": {
+    "cases": 6,
+    "of": 15,
+    "rate": 0.4,
+    "slugs": [
+      "debug-js/debug",
+      "pinojs/pino",
+      "fastify/fastify",
+      "vitest-dev/vitest",
+      "webpack/webpack",
+      "prettier/prettier"
+    ]
+  },
   "calibration": [
     {
       "confidence": "high",
       "cases": 7,
       "top1Correct": 5,
-      "top1Accuracy": 0.714
+      "top1Accuracy": 0.714,
+      "interval95": [
+        0.359,
+        0.918
+      ]
     },
     {
       "confidence": "medium",
       "cases": 6,
       "top1Correct": 4,
-      "top1Accuracy": 0.667
+      "top1Accuracy": 0.667,
+      "interval95": [
+        0.3,
+        0.903
+      ]
     },
     {
       "confidence": "low",
       "cases": 2,
       "top1Correct": 0,
-      "top1Accuracy": 0
+      "top1Accuracy": 0,
+      "interval95": [
+        0,
+        0.658
+      ]
     }
   ],
   "floors": {

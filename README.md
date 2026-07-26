@@ -79,6 +79,24 @@ npx -y @aryam/fixmap@latest plan \
 
 Remote repository mode is issue-only. Clone the repository locally when you need `--diff`, `--base`, or `--head`.
 
+### Ask why
+
+Every report explains the files it chose. `--explain` answers the harder question — why a file you expected is missing:
+
+```bash
+npx -y @aryam/fixmap@latest plan --issue "password reset emails fail" \
+  --explain src/billing/invoice.ts
+```
+
+```text
+# Why src/billing/invoice.ts
+
+Scored 2, below the lowest reported score of 24. Name a symbol, error string,
+or path from this file in the task to raise it.
+```
+
+It distinguishes the cases that actually differ: the file was ranked, it scored below the cutoff, it was deliberately excluded (a test, a lockfile, generated output whose source was ranked instead), or the scan never saw it. When a scan hits its file limit, it says so rather than implying the path does not exist. Add `--format json` for the machine-readable form.
+
 ### MCP server
 
 FixMap exposes one stdio tool, `fixmap_plan`, so an agent can request the same report directly.
@@ -149,7 +167,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.7.1
+        uses: aryamthecodebreaker/FixMap@v0.7.2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -182,13 +200,17 @@ FixMap is measured against real issues that were later fixed by a merged pull re
 
 | | Held-out — 12 repos, **never tuned against** | Regression — 15 repos, guided development |
 | --- | ---: | ---: |
-| Fixing file ranked Top-1 | **8 / 12 (67%)** | 9 / 15 (60%) |
-| Fixing file ranked Top-3 | **9 / 12 (75%)** | 15 / 15 (100%) |
-| Fixing file ranked Top-5 | **9 / 12 (75%)** | 15 / 15 (100%) |
+| Fixing file ranked Top-1 | **8 / 12 — 67%** <br><sub>95% CI 39–86%</sub> | 9 / 15 — 60% <br><sub>95% CI 36–80%</sub> |
+| Fixing file ranked Top-3 | **9 / 12 — 75%** <br><sub>95% CI 47–91%</sub> | 15 / 15 — 100% <br><sub>95% CI 80–100%</sub> |
+| Wrong file ranked first while the right one was available | **1 / 12 — 8%** | 6 / 15 — 40% |
 
-**Plan around the 75%, not the 100%.** The regression suite is where v0.7.1's ranking heuristics were developed — a case missed, the ranker changed. That makes it honest regression evidence and a bad generalization estimate. The held-out suite was selected by the identical frozen rule *after* the ranker was finished and has never been tuned against, so it is the number that predicts what happens on your repository.
+**Plan around the held-out column.** The regression suite is where the ranking heuristics were developed — a case missed, the ranker changed — so its 100% describes fit, not accuracy on your repository.
 
-The gap is worth reading closely. Top-1 does not degrade on unseen code — it is slightly *higher* there. Top-3 falls from 100% to 75%, and that drop is exactly what fitting bought on the tuned set. The three held-out misses are listed with their real rankings in [`benchmarks/heldout/`](benchmarks/heldout), not removed or explained away.
+**And read the intervals, not the percentages.** At twelve cases one result flipping moves Top-3 from 67% to 83%. The honest statement is "somewhere in the region of three quarters", not "75%". Anyone quoting these figures to two significant figures, including us, is overstating them.
+
+Two things the point estimates hide. Held-out Top-1 (67%) is nearly its Top-3 (75%) — **when FixMap finds the file at all, it usually ranks it first**, which is what actually matters to an agent that opens one file. The tuned suite's 100% Top-3 conceals the opposite: in 40% of those cases something wrong ranks above the answer, so an agent following it opens the wrong file first.
+
+The three held-out misses are published with their real rankings in [`benchmarks/heldout/`](benchmarks/heldout), not removed or explained away.
 
 Held-out repositories: mongoose, immer, jest, knex, mocha, got, socket.io, svelte, vite, vue, winston, yargs. Regression repositories: Express, Axios, debug, ky, Zod, Pino, Fastify, Chalk, Vitest, ESLint, Webpack, Undici, Redux Toolkit, Prettier, Hono.
 
@@ -198,13 +220,13 @@ Median scan and rank across the pinned repositories is **1.75 s**, measured over
 
 A confidence label is only useful if it predicts something. Across all 27 cases in both suites, when the top-ranked file is labeled:
 
-| Top result labeled | Correct fixing file | |
-| --- | ---: | ---: |
-| high | 11 / 15 | **73%** |
-| medium | 5 / 8 | 63% |
-| low | 1 / 4 | 25% |
+| Top result labeled | Correct fixing file | | |
+| --- | ---: | ---: | --- |
+| high | 11 / 15 | **73%** | <sub>95% CI 48–89%</sub> |
+| medium | 5 / 8 | 63% | <sub>95% CI 31–86%</sub> |
+| low | 1 / 4 | 25% | <sub>95% CI 5–70%</sub> |
 
-The ordering holds, so the label carries real information — but **high confidence means roughly three in four, not certainty.** Treat the top result as a lead worth checking first, not a conclusion. Bands this small cannot support a precise percentage; the counts are shown so you can judge that yourself.
+The ordering holds, so the label carries real information — but **high confidence means roughly three in four, not certainty.** Treat the top result as a lead worth checking first, not a conclusion. The intervals overlap at these sample sizes, so read the ordering as directional rather than as three separate measured rates.
 
 ### Does it stay quiet when it should?
 

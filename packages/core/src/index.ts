@@ -1,4 +1,6 @@
 export { buildFixMapReport } from "./plan.js";
+export { explainFile } from "./explain.js";
+export type { FileExplanation } from "./explain.js";
 export {
   analyzeTaskGrounding,
   buildGroundedTaskTokens,

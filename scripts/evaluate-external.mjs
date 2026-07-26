@@ -59,6 +59,35 @@ for (const benchmark of dataset.cases) {
 
 const rate = (key) => results.filter((result) => result[key]).length / results.length;
 
+// A hit rate over a dozen cases reads far more precise than it is: one case flipping
+// moves 9/12 by eight points. The Wilson score interval is reported next to every rate
+// so a reader sees the real precision instead of inferring it from the decimals. It is
+// used rather than the normal approximation because that one misbehaves near 0 and 1,
+// which is exactly where a 15/15 result sits.
+function wilsonInterval(successes, total, z = 1.96) {
+  if (total === 0) {
+    return null;
+  }
+  const proportion = successes / total;
+  const denominator = 1 + (z * z) / total;
+  const centre = proportion + (z * z) / (2 * total);
+  const spread = z * Math.sqrt(proportion * (1 - proportion) / total + (z * z) / (4 * total * total));
+  return [
+    Number(Math.max(0, (centre - spread) / denominator).toFixed(3)),
+    Number(Math.min(1, (centre + spread) / denominator).toFixed(3))
+  ];
+}
+
+const band = (key) => {
+  const successes = results.filter((result) => result[key]).length;
+  return { successes, of: results.length, interval95: wilsonInterval(successes, results.length) };
+};
+
+// A top-3 hit still wastes an agent's first move when something wrong ranks above the
+// answer. Counting those separately keeps the headline rates from hiding the case where
+// FixMap had the right file and buried it.
+const misleadingCases = results.filter((result) => result.top5Hit && !result.top1);
+
 // Calibration answers the question a confidence label is supposed to answer:
 // when FixMap says it is confident about the leading file, is that file the one
 // the fix actually changed? Without this the label is an unverified assertion,
@@ -73,7 +102,8 @@ const calibration = ["high", "medium", "low"].map((confidence) => {
     top1Correct: band.filter((result) => result.top1).length,
     top1Accuracy: band.length === 0
       ? null
-      : Number((band.filter((result) => result.top1).length / band.length).toFixed(3))
+      : Number((band.filter((result) => result.top1).length / band.length).toFixed(3)),
+    interval95: wilsonInterval(band.filter((result) => result.top1).length, band.length)
   };
 });
 
@@ -82,6 +112,17 @@ const summary = {
   top1HitRate: Number(rate("top1").toFixed(3)),
   top3HitRate: Number(rate("top3").toFixed(3)),
   top5HitRate: Number(rate("top5Hit").toFixed(3)),
+  intervals95: {
+    top1: band("top1").interval95,
+    top3: band("top3").interval95,
+    top5: band("top5Hit").interval95
+  },
+  misleadingTopResult: {
+    cases: misleadingCases.length,
+    of: results.length,
+    rate: Number((misleadingCases.length / results.length).toFixed(3)),
+    slugs: misleadingCases.map((result) => result.slug)
+  },
   calibration,
   floors: FLOORS,
   results

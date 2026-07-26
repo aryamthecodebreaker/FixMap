@@ -2,7 +2,13 @@
 
 All notable changes to FixMap are documented here.
 
-## Unreleased
+## 0.7.2 - 2026-07-26
+
+### Added
+
+- `plan --explain <path>` answers the question a ranked list cannot: why a file you expected is missing. It separates the cases that actually differ — ranked, scored below the cutoff, deliberately excluded as a test or lockfile or generated output whose source was ranked instead, or never scanned. A scan that hit its file limit says so rather than implying the path does not exist. Available as `explainFile` from the core package and as `--format json`.
+- Every published hit rate now carries a 95% Wilson confidence interval. At twelve cases one result flipping moves Top-3 by eight points, so the point estimates read far more precisely than the evidence supports: held-out Top-3 is 75% with an interval of 47–91%. The README says so rather than quoting two significant figures.
+- Both evaluations report a misleading-top-result rate: how often a wrong file ranks first while the right one sits lower in the window. Held-out is 1/12; the regression suite is 6/15, which its 100% Top-3 had been hiding. This is what an agent actually pays for, since it opens the first file.
 
 ### Fixed
 

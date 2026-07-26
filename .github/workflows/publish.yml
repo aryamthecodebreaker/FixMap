@@ -74,6 +74,9 @@ jobs:
           const action = readJson("packages/action/package.json");
           const lock = readJson("package-lock.json");
           const server = readJson("server.json");
+          // apps/web is unpublished but depends on the core package, and npm ci fails on a
+          // stale range there. It broke the 0.7.2 release once before this check existed.
+          const web = readJson("apps/web/package.json");
 
           const checks = [
             ["package.json version", root.version],
@@ -87,6 +90,8 @@ jobs:
             ["package-lock.json Action version", lock.packages?.["packages/action"]?.version],
             ["CLI core dependency", cli.dependencies?.["@aryam/fixmap-core"]],
             ["Action core dependency", action.dependencies?.["@aryam/fixmap-core"]],
+            ["Web app core dependency", web.dependencies?.["@aryam/fixmap-core"]],
+            ["package-lock.json web core dependency", lock.packages?.["apps/web"]?.dependencies?.["@aryam/fixmap-core"]],
             ["server.json version", server.version],
           ];
 

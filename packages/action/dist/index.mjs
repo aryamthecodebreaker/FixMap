@@ -707,7 +707,8 @@ var DEFINITION_IDENTIFIER_BOOST = 4;
 var DEFINITION_LITERAL_BOOST = 8;
 var MAX_DEFINITION_IDENTIFIERS = 2;
 var TASK_MATCHED_DEFINITION_BOOST = 4;
-function rankContextFiles(repo, input, limit = 8) {
+var REPORT_SCORE_CUTOFF = 4;
+function rankContextFiles(repo, input, limit = 8, minScore = REPORT_SCORE_CUTOFF) {
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
     diffText: input.diffText ?? "",
@@ -832,7 +833,7 @@ function rankContextFiles(repo, input, limit = 8) {
     return { path: file.path, score, isChanged, reasons };
   });
   applyImportProximity(scored, repo);
-  const ranked = scored.filter((file) => file.score >= 4).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, limit);
+  const ranked = scored.filter((file) => file.score >= minScore).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, limit);
   const clustered = isClusteredRanking(ranked);
   return ranked.map((entry) => ({
     path: entry.path,

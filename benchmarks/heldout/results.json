@@ -3,24 +3,58 @@
   "top1HitRate": 0.667,
   "top3HitRate": 0.75,
   "top5HitRate": 0.75,
+  "intervals95": {
+    "top1": [
+      0.391,
+      0.862
+    ],
+    "top3": [
+      0.468,
+      0.911
+    ],
+    "top5": [
+      0.468,
+      0.911
+    ]
+  },
+  "misleadingTopResult": {
+    "cases": 1,
+    "of": 12,
+    "rate": 0.083,
+    "slugs": [
+      "mochajs/mocha"
+    ]
+  },
   "calibration": [
     {
       "confidence": "high",
       "cases": 8,
       "top1Correct": 6,
-      "top1Accuracy": 0.75
+      "top1Accuracy": 0.75,
+      "interval95": [
+        0.409,
+        0.929
+      ]
     },
     {
       "confidence": "medium",
       "cases": 2,
       "top1Correct": 1,
-      "top1Accuracy": 0.5
+      "top1Accuracy": 0.5,
+      "interval95": [
+        0.095,
+        0.905
+      ]
     },
     {
       "confidence": "low",
       "cases": 2,
       "top1Correct": 1,
-      "top1Accuracy": 0.5
+      "top1Accuracy": 0.5,
+      "interval95": [
+        0.095,
+        0.905
+      ]
     }
   ],
   "floors": {

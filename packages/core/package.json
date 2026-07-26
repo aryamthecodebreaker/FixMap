@@ -1,6 +1,6 @@
 {
   "name": "@aryam/fixmap-core",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Deterministic local-first repository scanner, context ranker, and report renderer for coding agents.",
   "license": "MIT",
   "repository": {
@@ -37,8 +37,13 @@
       "import": "./dist/browser.js"
     }
   },
-  "files": ["dist", "LICENSE"],
-  "publishConfig": { "access": "public" },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src test --max-warnings=0",
