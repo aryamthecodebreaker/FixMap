@@ -326,6 +326,7 @@ function tokenizePath(path) {
 // packages/core/dist/grounding.js
 var MAX_IDENTIFIER_MATCHED_FILES = 5;
 var VAGUE_TASK_PATTERN = /\b(?:improve|better|clean\s+up|cleanup|refactor|developer\s+experience|dx|general|overall|errors?|reliability|performance)\b/i;
+var VAGUE_TASK_TERMS = new RegExp(VAGUE_TASK_PATTERN.source, "gi");
 function analyzeTaskGrounding(repo, input) {
   const issueText = input.issueText ?? "";
   const signals = extractTaskSignals({
@@ -341,7 +342,7 @@ function analyzeTaskGrounding(repo, input) {
   const resolvedIdentifierCount = identifiers.filter((entry) => entry.status === "exact-definition" || entry.status === "exact-text").length;
   const hasMatchedFileMention = [...signals.fileMentions].some((mention) => repo.files.some((file) => pathMatchesMention(file.path, mention)));
   const hasDirectAnchor = repo.changedFiles.length > 0 || hasMatchedFileMention || resolvedIdentifierCount > 0 || partiallyResolvedIdentifiers.length > 0;
-  const vague = !hasDirectAnchor && isVagueTask(issueText, signals.tokens.size);
+  const vague = !hasDirectAnchor && isVagueTask(issueText);
   return {
     specificity: hasDirectAnchor ? "anchored" : vague ? "vague" : "descriptive",
     identifiers,
@@ -454,8 +455,13 @@ function isAnchorIdentifier(identifier, issueText) {
   }
   return [...identifier].filter((character) => /[A-Z]/.test(character)).length >= 3;
 }
-function isVagueTask(issueText, tokenCount) {
-  return issueText.trim().length > 0 && tokenCount <= 5 && VAGUE_TASK_PATTERN.test(issueText);
+var MAX_RESIDUAL_TOKENS_FOR_VAGUE = 3;
+function isVagueTask(issueText) {
+  if (issueText.trim().length === 0 || !VAGUE_TASK_PATTERN.test(issueText)) {
+    return false;
+  }
+  const residual = tokenizeText(issueText.replace(VAGUE_TASK_TERMS, " "));
+  return residual.size <= MAX_RESIDUAL_TOKENS_FOR_VAGUE;
 }
 function removeIdentifiers(text, identifiers) {
   return identifiers.reduce((current, identifier) => current.replace(new RegExp(escapeRegExp(identifier), "g"), " "), text);
@@ -1248,9 +1254,9 @@ async function listGitPaths(root) {
 }
 async function buildFilesFromPaths(root, paths, diagnostics) {
   const results = [];
-  for (const rawPath of paths) {
+  for (const [index, rawPath] of paths.entries()) {
     if (results.length >= MAX_SCANNED_FILES) {
-      reportScanLimit(diagnostics);
+      reportScanLimit(diagnostics, paths.slice(index).map(normalizePath));
       break;
     }
     const relativePath = normalizePath(rawPath);
@@ -1326,12 +1332,23 @@ async function toRepoFile(absolutePath, relativePath) {
 function isInAlwaysIgnoredDir(relativePath) {
   return relativePath.split("/").slice(0, -1).some((segment) => ALWAYS_IGNORED_DIRS.has(segment));
 }
-function reportScanLimit(diagnostics) {
+function reportScanLimit(diagnostics, skipped) {
+  const advice = `Stopped scanning after ${MAX_SCANNED_FILES.toLocaleString()} files. Narrow the repository root for more precise results.`;
+  const scope = skipped && skipped.length > 0 ? ` ${skipped.length.toLocaleString()} path${skipped.length === 1 ? "" : "s"} went unread, mostly under ${summarizeSkippedScope(skipped)}.` : "";
   diagnostics.push({
     code: "scan-limit-reached",
     severity: "warning",
-    message: `Stopped scanning after ${MAX_SCANNED_FILES.toLocaleString()} files. Narrow the repository root for more precise results.`
+    message: `${advice}${scope}`
   });
+}
+function summarizeSkippedScope(paths) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const path of paths) {
+    const [head] = path.split("/");
+    const scope = path.includes("/") && head ? `${head}/` : "the repository root";
+    counts.set(scope, (counts.get(scope) ?? 0) + 1);
+  }
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3).map(([scope, count]) => `${scope} (${count.toLocaleString()})`).join(", ");
 }
 async function readPackageScripts(root, files, diagnostics) {
   const manifests = files.filter((file) => file.path === "package.json" || file.path.endsWith("/package.json"));

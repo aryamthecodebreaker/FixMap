@@ -39,11 +39,13 @@ They run against fixtures rather than real repositories, so they never see the c
 
 More sharply — **FixMap's own test fixtures contain the fabricated identifiers.** Running these cases against this repository resolves `experimentalHoudiniPartialPrerenderScheduler` as exact text, grounding reports `anchored`, and no warning fires. A suite pointed at this repository would pass while the behavior was completely broken. It has to run elsewhere.
 
-## Recorded observation, not asserted away
+## What this suite has already caught
 
-`vague-cleanup-request` reports task grounding as `descriptive` rather than `vague`. `isVagueTask` only fires at five task tokens or fewer, so a longer vague sentence misses the label even when a reader would call it obviously vague.
+`vague-cleanup-request` was written to assert grounding of `vague` and initially reported `descriptive`. The cause was a length proxy: `isVagueTask` only fired at five task tokens or fewer, so *"clean this up and make the general performance better overall"* missed the label purely for being wordier than *"improve DX"*.
 
-The ranking outcome is still honest — one context file at low confidence — so this is a labeling gap rather than a safety gap, and the case passes on the ceiling that matters. It is recorded here and in the dataset's `note` field rather than quietly loosened, because a suite that edits its expectations to stay green measures nothing.
+The ranking was still honest — one file, low confidence — so the ceiling passed and only the label was wrong. It was recorded as a known gap rather than quietly loosened, then fixed: vagueness is now judged by how little survives removing generic-improvement vocabulary, which also keeps a concrete request that happens to ask for an improvement out of the bucket. The case now asserts `vague` strictly.
+
+That is the intended lifecycle for this suite — write the assertion you believe is correct, record the gap when reality disagrees, fix it, then tighten. A suite that edits its expectations to stay green measures nothing.
 
 ## Running it
 
