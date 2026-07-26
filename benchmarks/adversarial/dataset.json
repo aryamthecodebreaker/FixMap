@@ -1,0 +1,136 @@
+{
+  "cases": [
+    {
+      "id": "fabricated-identifier-undici",
+      "kind": "fabricated-identifier",
+      "slug": "nodejs/undici",
+      "repo": "https://github.com/nodejs/undici.git",
+      "license": "MIT",
+      "sha": "87270e46a22660a1975e199335862cdaeb11e22c",
+      "task": "experimentalHoudiniPartialPrerenderScheduler throws InvalidTransitionState when the polynomial regression threshold is exceeded during partial prerender cache scheduling",
+      "why": "Every identifier and error string is invented. The compound names decompose into words that genuinely appear in undici, so lexical ranking alone produces a confident-looking answer.",
+      "maxConfidence": "low",
+      "requiresGrounding": [
+        "descriptive",
+        "vague"
+      ],
+      "requiresDiagnostic": [
+        "unresolved-identifier",
+        "identifier-unverified"
+      ]
+    },
+    {
+      "id": "fabricated-identifier-express",
+      "kind": "fabricated-identifier",
+      "slug": "expressjs/express",
+      "repo": "https://github.com/expressjs/express.git",
+      "license": "MIT",
+      "sha": "ba006766fb964571723138708eacaba0f55759cd",
+      "task": "quantumMiddlewarePipelineReconciler fails with ReconcilerDesyncError after the adaptive route cache is warmed",
+      "why": "Invented identifiers over a small repository, where a handful of weak matches is a larger share of the total evidence.",
+      "maxConfidence": "low",
+      "requiresGrounding": [
+        "descriptive",
+        "vague"
+      ],
+      "requiresDiagnostic": [
+        "unresolved-identifier",
+        "identifier-unverified"
+      ]
+    },
+    {
+      "id": "wrong-repository-identifier",
+      "kind": "wrong-repository-identifier",
+      "slug": "expressjs/express",
+      "repo": "https://github.com/expressjs/express.git",
+      "license": "MIT",
+      "sha": "ba006766fb964571723138708eacaba0f55759cd",
+      "task": "The cidrv6 regex in safeParse emits the wrong JSON schema pattern for IPv6 CIDR blocks",
+      "why": "cidrv6 and safeParse are real Zod identifiers asked against Express, which has no such symbols. FixMap must not treat a real-looking name as grounded just because it is well formed.",
+      "maxConfidence": "medium",
+      "requiresGrounding": [
+        "descriptive",
+        "vague"
+      ],
+      "requiresDiagnostic": [
+        "unresolved-identifier",
+        "identifier-unverified"
+      ]
+    },
+    {
+      "id": "vague-improvement-request",
+      "kind": "vague-task",
+      "slug": "vitest-dev/vitest",
+      "repo": "https://github.com/vitest-dev/vitest.git",
+      "license": "MIT",
+      "sha": "22d353a80c230dbc7c69a22b390070f7aa9afabe",
+      "task": "improve DX when running into errors",
+      "why": "No localizable target exists. The report's original failure returned eight files at flat scores and medium confidence rather than admitting there was nothing to route to.",
+      "maxConfidence": "low",
+      "requiresGrounding": [
+        "vague"
+      ]
+    },
+    {
+      "id": "vague-cleanup-request",
+      "kind": "vague-task",
+      "slug": "chalk/chalk",
+      "repo": "https://github.com/chalk/chalk.git",
+      "license": "MIT",
+      "sha": "8a94e0ebfc495dda27f7090fb1a012790b15a76d",
+      "task": "clean this up and make the general performance better overall",
+      "why": "Pure product-improvement language with no anchor, against a small repository where generic words cover a large fraction of files.",
+      "maxConfidence": "low",
+      "requiresGrounding": [
+        "vague",
+        "descriptive"
+      ],
+      "note": "Grounding reports \"descriptive\" rather than \"vague\": isVagueTask only fires at five task tokens or fewer, so a longer vague sentence misses the label. The ranking outcome is still honest (one file, low confidence), so this is a labeling gap rather than a safety gap. Recorded rather than asserted away."
+    },
+    {
+      "id": "absent-feature-surface",
+      "kind": "absent-feature",
+      "slug": "chalk/chalk",
+      "repo": "https://github.com/chalk/chalk.git",
+      "license": "MIT",
+      "sha": "8a94e0ebfc495dda27f7090fb1a012790b15a76d",
+      "task": "add a --skip-tests flag to the command line interface so the CLI can bypass the test runner during release builds",
+      "why": "Chalk exposes no CLI. Graceful low-confidence output here was one of the best results in the original review and must not regress into invented precision.",
+      "maxConfidence": "medium",
+      "requiresGrounding": [
+        "descriptive",
+        "vague"
+      ]
+    },
+    {
+      "id": "runtime-only-symptom",
+      "kind": "non-static-symptom",
+      "slug": "pinojs/pino",
+      "repo": "https://github.com/pinojs/pino.git",
+      "license": "MIT",
+      "sha": "5a236d74a0861bba84eb69fdcea2e0e2b87653b2",
+      "task": "output is sometimes interleaved and out of order under heavy concurrency on slower machines, but only intermittently and never in CI",
+      "why": "A timing-dependent symptom with no static trace. Static ranking cannot locate this, and the honest response is weak confidence rather than a plausible file.",
+      "maxConfidence": "medium",
+      "requiresGrounding": [
+        "descriptive",
+        "vague"
+      ]
+    },
+    {
+      "id": "documentation-term-flood",
+      "kind": "generic-term-flood",
+      "slug": "webpack/webpack",
+      "repo": "https://github.com/webpack/webpack.git",
+      "license": "MIT",
+      "sha": "61d4136e6d16bb52b13802a1a02ed56bdfafbdb3",
+      "task": "the build command version output and configuration options should be fixed",
+      "why": "Only broad development vocabulary that instruction and documentation files carry in volume. Guards the generic-file penalties against regression.",
+      "maxConfidence": "medium",
+      "requiresGrounding": [
+        "descriptive",
+        "vague"
+      ]
+    }
+  ]
+}
