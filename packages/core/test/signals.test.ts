@@ -103,4 +103,34 @@ describe("extractTaskSignals", () => {
     expect(signals.identifiers.size).toBe(24);
     expect(signals.exactFragments).toHaveLength(8);
   });
+
+  it("separates source-file mentions from dotted member expressions", () => {
+    const signals = extractTaskSignals({
+      issueText: "request.port disagrees with src/http/request.ts and window.print is not mocked"
+    });
+
+    expect(signals.fileMentions).toEqual(new Set(["src/http/request.ts"]));
+    expect(signals.memberMentions).toEqual(new Set(["port", "print"]));
+  });
+
+  it("normalizes HTTP/2 to the h2 path token", () => {
+    const signals = extractTaskSignals({
+      issueText: "aborted HTTP/2 client requests leak memory"
+    });
+
+    expect(signals.tokens).toContain("h2");
+  });
+
+  it("drops unchecked issue-template options while retaining the selected package", () => {
+    const signals = extractTaskSignals({
+      issueText: [
+        "- [ ] `@eslint/core`",
+        "- [x] `@eslint/config-helpers`",
+        "Alias Config in the selected package"
+      ].join("\n")
+    });
+
+    expect(signals.exactFragments).not.toContain("@eslint/core");
+    expect(signals.exactFragments).toContain("@eslint/config-helpers");
+  });
 });

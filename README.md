@@ -127,7 +127,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.7.0
+        uses: aryamthecodebreaker/FixMap@v0.7.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -152,25 +152,30 @@ Public repository inputs accept only canonical credential-free `https://github.c
 
 ## Evidence, not hype
 
-Ranking changes must pass both the internal evaluation gate and a frozen cross-repository evaluation built from six real, already-fixed issues in permissively licensed projects.
+Ranking changes must pass both the internal evaluation gate and a frozen cross-repository evaluation built from 15 real, already-fixed issues in permissively licensed projects.
+
+![FixMap v0.7.1 benchmark: 15 of 15 fixing files found in the top three, 1.75-second median scan and rank time, and clearly labeled estimated or assumed savings comparisons.](docs/assets/fixmap-benchmark-v0.7.1.svg)
 
 | External evaluation | Result |
 | --- | ---: |
-| Expected fixing file ranked Top-1 | 5 / 6 (83%) |
-| Expected fixing file ranked Top-3 | 6 / 6 (100%) |
-| Expected fixing file ranked Top-5 | 6 / 6 (100%) |
+| Expected fixing file ranked Top-1 | 9 / 15 (60%) |
+| Expected fixing file ranked Top-3 | 15 / 15 (100%) |
+| Expected fixing file ranked Top-5 | 15 / 15 (100%) |
+| Median scan + rank time | 1.75 s |
 
-The dataset covers Express, Axios, debug, ky, Zod, and Pino at exact commits. Every input and ranked output is checked into [`benchmarks/external/`](benchmarks/external), and a scheduled workflow reruns it weekly. Six cases are useful regression evidence—not a general accuracy claim.
+The dataset covers Express, Axios, debug, ky, Zod, Pino, Fastify, Chalk, Vitest, ESLint, Webpack, Undici, Redux Toolkit, Prettier, and Hono at exact commits. Every input and ranked output is checked into [`benchmarks/external/`](benchmarks/external), and a scheduled workflow reruns it weekly. Fifteen cases are useful regression evidence—not a general accuracy claim.
 
-The v0.7.0 release also passed 122 automated tests, typechecking, linting, production builds, package and Action smoke tests, the internal evaluation gate, the frozen external evaluation, a production dependency audit gate, and a deterministic 1,000-file scanner check.
+Across those repositories, sending only the top five files instead of every scanned text-bearing file in FixMap's supported extension set reduces a byte-based token proxy by an estimated **98.6%**. The proxy assumes UTF-8 bytes ÷ 4; it is not tokenizer output. The visual's time-savings comparison assumes 15 minutes of manual triage and is **not** a controlled with/without-agent measurement.
 
 Read the full [benchmark methodology and scanner measurements](docs/BENCHMARKS.md).
 
-## What changed in v0.7.0
+## What changed in v0.7.1
 
-FixMap now recognizes distinctive identifiers and exact code or literal fragments in task text, then boosts the nearby definition site instead of merely rewarding repeated words. That moved the frozen Zod #5944 fixing file from outside the Top-5 to Top-1 while keeping the dataset unchanged.
+FixMap now grounds identifier-like task terms against repository text before using them as strong ranking evidence. Unresolved, partially resolved, and unverified identifiers are reported separately, and incomplete scans or flat rankings cap confidence instead of producing a misleading high-confidence map.
 
-[Read the v0.7.0 release notes](https://github.com/aryamthecodebreaker/FixMap/releases/tag/v0.7.0) · [Inspect the changelog](CHANGELOG.md) · [See every external ranking](benchmarks/external/README.md)
+The grounding path includes regressions for paraphrased camelCase identifiers and identifiers beyond the 64 KB text-sampling boundary. Git-tracked vendored source remains rankable—Chalk's `source/vendor/supports-color/index.js` is still the Top-1 result in the external benchmark.
+
+[Inspect the changelog](CHANGELOG.md) · [See every external ranking](benchmarks/external/README.md) · [Audit the efficiency assumptions](docs/BENCHMARKS.md)
 
 ## Watch it work
 

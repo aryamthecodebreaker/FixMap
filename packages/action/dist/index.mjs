@@ -4,6 +4,469 @@ import { createRequire as __fixmapCreateRequire } from 'module'; const require =
 import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
 
+// packages/core/dist/signals.js
+var TOKEN_SPLIT = /[^a-zA-Z0-9]+/g;
+var STOP_WORDS = /* @__PURE__ */ new Set([
+  "add",
+  "all",
+  "also",
+  "and",
+  "any",
+  "are",
+  "async",
+  "await",
+  "been",
+  "being",
+  "both",
+  "break",
+  "but",
+  "can",
+  "cannot",
+  "case",
+  "catch",
+  "class",
+  "const",
+  "continue",
+  "could",
+  "debugger",
+  "default",
+  "delete",
+  "did",
+  "doe",
+  "does",
+  "down",
+  "else",
+  "enum",
+  "extends",
+  "false",
+  "finally",
+  "each",
+  "even",
+  "export",
+  "for",
+  "from",
+  "function",
+  "get",
+  "github",
+  "got",
+  "had",
+  "has",
+  "have",
+  "her",
+  "him",
+  "his",
+  "how",
+  "implements",
+  "import",
+  "index",
+  "instanceof",
+  "instead",
+  "interface",
+  "into",
+  "its",
+  "just",
+  "let",
+  "main",
+  "may",
+  "might",
+  "more",
+  "most",
+  "must",
+  "name",
+  "namespace",
+  "new",
+  "node",
+  "not",
+  "now",
+  "null",
+  "off",
+  "only",
+  "other",
+  "our",
+  "out",
+  "over",
+  "package",
+  "packages",
+  "private",
+  "protected",
+  "public",
+  "readonly",
+  "return",
+  "run",
+  "same",
+  "she",
+  "should",
+  "some",
+  "src",
+  "static",
+  "still",
+  "such",
+  "super",
+  "switch",
+  "than",
+  "that",
+  "the",
+  "their",
+  "them",
+  "then",
+  "there",
+  "these",
+  "they",
+  "this",
+  "those",
+  "throw",
+  "true",
+  "try",
+  "type",
+  "typeof",
+  "under",
+  "undefined",
+  "uses",
+  "var",
+  "very",
+  "void",
+  "was",
+  "were",
+  "what",
+  "when",
+  "where",
+  "which",
+  "while",
+  "who",
+  "why",
+  "will",
+  "with",
+  "would",
+  "yield",
+  "you",
+  "your"
+]);
+var FILE_MENTION_PATTERN = /[A-Za-z0-9_@$][A-Za-z0-9_.$/\\-]*\.(?:[cm]?[jt]sx?|json|ya?ml|mdx?|css|scss|less|html|py|rb|rs|go|java|kt|c|cc|cpp|h|hpp|d\.ts)\b/g;
+var MEMBER_MENTION_PATTERN = /\b(?:window|globalThis|process|request|response|req|res|this)\.([$A-Za-z_][$A-Za-z0-9_$]*)\b/g;
+var FILE_EXTENSIONS = /* @__PURE__ */ new Set([
+  "c",
+  "cc",
+  "cjs",
+  "cpp",
+  "css",
+  "go",
+  "h",
+  "hpp",
+  "html",
+  "java",
+  "js",
+  "json",
+  "jsx",
+  "kt",
+  "less",
+  "md",
+  "mdx",
+  "mjs",
+  "py",
+  "rb",
+  "rs",
+  "scss",
+  "ts",
+  "tsx",
+  "yaml",
+  "yml"
+]);
+var IDENTIFIER_PATTERN = /[A-Za-z_$][A-Za-z0-9_$]{4,}/g;
+var MAX_EXACT_FRAGMENTS = 8;
+var MAX_IDENTIFIERS = 24;
+function extractTaskSignals(input) {
+  const issueText = stripUncheckedChecklistLines(input.issueText ?? "");
+  const taskText = [issueText, extractDiffContentLines(input.diffText ?? "")].join("\n");
+  const tokens = tokenizeText(taskText);
+  return {
+    tokens,
+    changedFiles: new Set(input.changedFiles ?? []),
+    fileMentions: extractFileMentions(issueText),
+    memberMentions: extractMemberMentions(issueText),
+    exactFragments: extractExactFragments(taskText),
+    identifiers: extractIdentifiers(taskText)
+  };
+}
+function stripUncheckedChecklistLines(text) {
+  return text.split(/\r?\n/).filter((line) => !/^\s*[-*]\s*\[\s\]\s+/.test(line)).join("\n");
+}
+function extractExactFragments(text) {
+  const fragments = /* @__PURE__ */ new Set();
+  for (const quoted of scanQuotedFragments(text)) {
+    const fragment = quoted.value.trim();
+    if (isDistinctiveFragment(fragment)) {
+      fragments.add(fragment);
+      if (fragments.size >= MAX_EXACT_FRAGMENTS) {
+        break;
+      }
+    }
+  }
+  return [...fragments];
+}
+function extractIdentifiers(text) {
+  const identifiers = /* @__PURE__ */ new Set();
+  for (const match of text.matchAll(IDENTIFIER_PATTERN)) {
+    const identifier = match[0];
+    if (isDistinctiveIdentifier(identifier)) {
+      addIdentifier(identifiers, identifier);
+    }
+  }
+  for (const quoted of scanQuotedFragments(text)) {
+    if (quoted.delimiter !== "`") {
+      continue;
+    }
+    const fragment = quoted.value.trim();
+    if (!/^[$A-Za-z_][$A-Za-z0-9_]*$/.test(fragment.trim())) {
+      continue;
+    }
+    if (!isDistinctiveIdentifier(fragment) && fragment.length < 8) {
+      continue;
+    }
+    for (const match of fragment.matchAll(IDENTIFIER_PATTERN)) {
+      addIdentifier(identifiers, match[0]);
+    }
+  }
+  return identifiers;
+}
+function addIdentifier(identifiers, identifier) {
+  if (identifiers.size >= MAX_IDENTIFIERS || STOP_WORDS.has(identifier.toLowerCase())) {
+    return;
+  }
+  identifiers.add(identifier);
+}
+function isDistinctiveIdentifier(identifier) {
+  return /[0-9_$]/.test(identifier) || /[a-z][A-Z]/.test(identifier);
+}
+function isDistinctiveFragment(fragment) {
+  if (fragment.length < 6 || fragment.length > 96 || /\s/.test(fragment)) {
+    return false;
+  }
+  const punctuationCount = [...fragment].filter((character) => /[^A-Za-z0-9_$]/.test(character)).length;
+  return punctuationCount >= 2 && /[A-Za-z0-9]/.test(fragment);
+}
+function scanQuotedFragments(text) {
+  const fragments = [];
+  for (const line of text.split(/\r?\n/)) {
+    let cursor = 0;
+    while (cursor < line.length) {
+      const delimiter = line[cursor];
+      if (delimiter !== '"' && delimiter !== "'" && delimiter !== "`") {
+        cursor += 1;
+        continue;
+      }
+      let end = cursor + 1;
+      while (end < line.length) {
+        if (line[end] === delimiter && !isEscaped(line, end)) {
+          break;
+        }
+        end += 1;
+      }
+      fragments.push({ delimiter, value: line.slice(cursor + 1, end) });
+      cursor = end < line.length ? end + 1 : line.length;
+    }
+  }
+  return fragments;
+}
+function isEscaped(text, index) {
+  let backslashes = 0;
+  for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor -= 1) {
+    backslashes += 1;
+  }
+  return backslashes % 2 === 1;
+}
+function extractFileMentions(text) {
+  const mentions = /* @__PURE__ */ new Set();
+  for (const match of text.matchAll(FILE_MENTION_PATTERN)) {
+    const cleaned = match[0].replace(/\\/g, "/").replace(/^\.\.?\//, "");
+    if (cleaned.length >= 4) {
+      mentions.add(cleaned);
+    }
+  }
+  return mentions;
+}
+function extractMemberMentions(text) {
+  return new Set([...text.matchAll(MEMBER_MENTION_PATTERN)].map((match) => match[1]).filter((member) => typeof member === "string" && !FILE_EXTENSIONS.has(member.toLowerCase())));
+}
+function extractDiffContentLines(diffText) {
+  if (!diffText) {
+    return "";
+  }
+  return diffText.split(/\r?\n/).filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")).join("\n");
+}
+function tokenizeText(text) {
+  return new Set(text.replace(/\bhttp\s*\/\s*([123])\b/gi, "http h$1").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token) => token.trim()).filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token)).map((token) => normalizeToken(token)).filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token)));
+}
+function isSearchableToken(token) {
+  return token.length >= 3 || /^[a-z]\d$/i.test(token);
+}
+function normalizeToken(token) {
+  if (token.length > 5 && token.endsWith("ies"))
+    return `${token.slice(0, -3)}y`;
+  if (token.length > 5 && token.endsWith("ing"))
+    return normalizeVerbStem(token.slice(0, -3));
+  if (token.length > 4 && token.endsWith("ed"))
+    return normalizeVerbStem(token.slice(0, -2));
+  if (token.length > 4 && token.endsWith("es"))
+    return normalizeTrailingE(token.slice(0, -2));
+  if (token.length > 3 && token.endsWith("s"))
+    return token.slice(0, -1);
+  return normalizeTrailingE(token);
+}
+function normalizeVerbStem(stem) {
+  const deduplicated = /([a-z])\1$/.test(stem) ? stem.slice(0, -1) : stem;
+  return normalizeTrailingE(deduplicated);
+}
+function normalizeTrailingE(token) {
+  return token.length > 3 && token.endsWith("e") ? token.slice(0, -1) : token;
+}
+function tokenizePath(path) {
+  return tokenizeText(path);
+}
+
+// packages/core/dist/grounding.js
+var MAX_IDENTIFIER_MATCHED_FILES = 5;
+var VAGUE_TASK_PATTERN = /\b(?:improve|better|clean\s+up|cleanup|refactor|developer\s+experience|dx|general|overall|errors?|reliability|performance)\b/i;
+function analyzeTaskGrounding(repo, input) {
+  const issueText = input.issueText ?? "";
+  const signals = extractTaskSignals({
+    issueText,
+    diffText: input.diffText ?? "",
+    changedFiles: repo.changedFiles
+  });
+  const anchorIdentifiers = [...signals.identifiers].filter((identifier) => isAnchorIdentifier(identifier, issueText));
+  const identifiers = anchorIdentifiers.map((identifier) => groundIdentifier(repo, identifier));
+  const unresolvedIdentifiers = identifiers.filter((entry) => entry.status === "not-found").map((entry) => entry.identifier);
+  const partiallyResolvedIdentifiers = identifiers.filter((entry) => entry.status === "partial-definition").map((entry) => entry.identifier);
+  const unverifiedIdentifiers = identifiers.filter((entry) => entry.status === "unverified").map((entry) => entry.identifier);
+  const resolvedIdentifierCount = identifiers.filter((entry) => entry.status === "exact-definition" || entry.status === "exact-text").length;
+  const hasMatchedFileMention = [...signals.fileMentions].some((mention) => repo.files.some((file) => pathMatchesMention(file.path, mention)));
+  const hasDirectAnchor = repo.changedFiles.length > 0 || hasMatchedFileMention || resolvedIdentifierCount > 0 || partiallyResolvedIdentifiers.length > 0;
+  const vague = !hasDirectAnchor && isVagueTask(issueText, signals.tokens.size);
+  return {
+    specificity: hasDirectAnchor ? "anchored" : vague ? "vague" : "descriptive",
+    identifiers,
+    unresolvedIdentifiers,
+    partiallyResolvedIdentifiers,
+    unverifiedIdentifiers,
+    scanComplete: !repo.diagnostics.some((diagnostic) => diagnostic.code === "scan-limit-reached")
+  };
+}
+function buildGroundedTaskTokens(grounding, input) {
+  if (grounding.unresolvedIdentifiers.length === 0) {
+    return extractTaskSignals(input).tokens;
+  }
+  const sanitizedIssueText = removeIdentifiers(input.issueText ?? "", grounding.unresolvedIdentifiers);
+  const sanitizedDiffText = removeIdentifiers(input.diffText ?? "", grounding.unresolvedIdentifiers);
+  return extractTaskSignals({
+    ...input,
+    issueText: sanitizedIssueText,
+    diffText: sanitizedDiffText
+  }).tokens;
+}
+function buildRankingShape(contextFiles) {
+  const sortedScores = contextFiles.map((file) => file.score).sort((a, b) => b - a);
+  const topScore = sortedScores[0] ?? null;
+  const runnerUpScore = sortedScores[1] ?? null;
+  const topGap = topScore === null || runnerUpScore === null ? null : topScore - runnerUpScore;
+  const thirdScore = sortedScores[2];
+  const clustered = topScore !== null && thirdScore !== void 0 && topScore - thirdScore <= 2;
+  return { topScore, runnerUpScore, topGap, clustered };
+}
+function buildNextAction(grounding, ranking, contextFiles) {
+  if (grounding.unresolvedIdentifiers.length > 0) {
+    return "Verify or correct the unresolved identifiers before editing ranked files.";
+  }
+  if (grounding.unverifiedIdentifiers.length > 0) {
+    return "Narrow the repository or inspect large unread files before trusting identifier-based recommendations.";
+  }
+  if (grounding.partiallyResolvedIdentifiers.length > 0) {
+    return "Verify the partially matched symbol name in the leading file before editing.";
+  }
+  if (!grounding.scanComplete) {
+    return "Narrow the repository or package scope, then rerun FixMap before treating the ranking as complete.";
+  }
+  if (grounding.specificity === "vague") {
+    return "Add a concrete failing behavior, symbol, error string, command, or file path and rerun FixMap.";
+  }
+  if (ranking.clustered) {
+    return "Treat the leading files as a subsystem neighborhood and verify the exact edit point before changing code.";
+  }
+  if (contextFiles[0]) {
+    return `Inspect ${contextFiles[0].path} and its routed tests before editing.`;
+  }
+  return "Add a concrete repository anchor and rerun FixMap.";
+}
+function groundIdentifier(repo, identifier) {
+  const definitionPattern = new RegExp(`\\b(?:export\\s+)?(?:async\\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\\s+${escapeRegExp(identifier)}\\b`);
+  const exactPattern = new RegExp(`(^|[^$A-Za-z0-9_])${escapeRegExp(identifier)}(?=$|[^$A-Za-z0-9_])`);
+  const definitionFiles = repo.files.filter((file) => definitionPattern.test(file.textSample)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
+  if (definitionFiles.length > 0) {
+    return {
+      identifier,
+      status: "exact-definition",
+      matchedFiles: definitionFiles
+    };
+  }
+  const textFiles = repo.files.filter((file) => exactPattern.test(file.textSample)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
+  return textFiles.length > 0 ? { identifier, status: "exact-text", matchedFiles: textFiles } : groundPartialOrUnverifiedIdentifier(repo, identifier);
+}
+function groundPartialOrUnverifiedIdentifier(repo, identifier) {
+  const identifierParts = tokenizeText(identifier);
+  const partialFiles = repo.files.filter((file) => hasDefinitionContainingTokens(file.textSample, identifierParts)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
+  if (identifierParts.size >= 2 && partialFiles.length > 0) {
+    return {
+      identifier,
+      status: "partial-definition",
+      matchedFiles: partialFiles
+    };
+  }
+  if (repo.files.some((file) => file.isSource && file.textSampleComplete === false)) {
+    return { identifier, status: "unverified", matchedFiles: [] };
+  }
+  return { identifier, status: "not-found", matchedFiles: [] };
+}
+function hasDefinitionContainingTokens(text, expectedTokens) {
+  if (expectedTokens.size < 2) {
+    return false;
+  }
+  const definitionPattern = /\b(?:export\s+)?(?:async\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\s+([$A-Za-z_][$A-Za-z0-9_]*)\b/g;
+  for (const match of text.matchAll(definitionPattern)) {
+    const name = match[1];
+    if (!name) {
+      continue;
+    }
+    const candidateTokens = tokenizeText(name);
+    if ([...expectedTokens].every((token) => candidateTokens.has(token))) {
+      return true;
+    }
+  }
+  return false;
+}
+function isAnchorIdentifier(identifier, issueText) {
+  if (new RegExp(`\`${escapeRegExp(identifier)}\``).test(issueText)) {
+    return true;
+  }
+  if (/[_$0-9]/.test(identifier)) {
+    return true;
+  }
+  if (/^[a-z][A-Za-z0-9_$]*[A-Z]/.test(identifier)) {
+    return true;
+  }
+  return [...identifier].filter((character) => /[A-Z]/.test(character)).length >= 3;
+}
+function isVagueTask(issueText, tokenCount) {
+  return issueText.trim().length > 0 && tokenCount <= 5 && VAGUE_TASK_PATTERN.test(issueText);
+}
+function removeIdentifiers(text, identifiers) {
+  return identifiers.reduce((current, identifier) => current.replace(new RegExp(escapeRegExp(identifier), "g"), " "), text);
+}
+function pathMatchesMention(path, mention) {
+  return path === mention || path.endsWith(`/${mention}`) || mention.endsWith(`/${path}`);
+}
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // packages/core/dist/import-graph.js
 var JS_EXTENSIONS = /* @__PURE__ */ new Set([".cjs", ".cts", ".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"]);
 var RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
@@ -198,285 +661,6 @@ function isBackupPath(path) {
   return BACKUP_FILE_PATTERNS.some((pattern) => pattern.test(fileName));
 }
 
-// packages/core/dist/signals.js
-var TOKEN_SPLIT = /[^a-zA-Z0-9]+/g;
-var STOP_WORDS = /* @__PURE__ */ new Set([
-  "add",
-  "all",
-  "also",
-  "and",
-  "any",
-  "are",
-  "async",
-  "await",
-  "been",
-  "being",
-  "both",
-  "break",
-  "but",
-  "can",
-  "cannot",
-  "case",
-  "catch",
-  "class",
-  "const",
-  "continue",
-  "could",
-  "debugger",
-  "default",
-  "delete",
-  "did",
-  "doe",
-  "does",
-  "down",
-  "else",
-  "enum",
-  "extends",
-  "false",
-  "finally",
-  "each",
-  "even",
-  "export",
-  "for",
-  "from",
-  "function",
-  "get",
-  "github",
-  "got",
-  "had",
-  "has",
-  "have",
-  "her",
-  "him",
-  "his",
-  "how",
-  "implements",
-  "import",
-  "index",
-  "instanceof",
-  "instead",
-  "interface",
-  "into",
-  "its",
-  "just",
-  "let",
-  "main",
-  "may",
-  "might",
-  "more",
-  "most",
-  "must",
-  "name",
-  "namespace",
-  "new",
-  "node",
-  "not",
-  "now",
-  "null",
-  "off",
-  "only",
-  "other",
-  "our",
-  "out",
-  "over",
-  "package",
-  "packages",
-  "private",
-  "protected",
-  "public",
-  "readonly",
-  "return",
-  "run",
-  "same",
-  "she",
-  "should",
-  "some",
-  "src",
-  "static",
-  "still",
-  "such",
-  "super",
-  "switch",
-  "than",
-  "that",
-  "the",
-  "their",
-  "them",
-  "then",
-  "there",
-  "these",
-  "they",
-  "this",
-  "those",
-  "throw",
-  "true",
-  "try",
-  "type",
-  "typeof",
-  "under",
-  "undefined",
-  "uses",
-  "var",
-  "very",
-  "void",
-  "was",
-  "were",
-  "what",
-  "when",
-  "where",
-  "which",
-  "while",
-  "who",
-  "why",
-  "will",
-  "with",
-  "would",
-  "yield",
-  "you",
-  "your"
-]);
-var FILE_MENTION_PATTERN = /[A-Za-z0-9_@$][A-Za-z0-9_.$/\\-]*\.[A-Za-z][A-Za-z0-9]*/g;
-var IDENTIFIER_PATTERN = /[A-Za-z_$][A-Za-z0-9_$]{4,}/g;
-var MAX_EXACT_FRAGMENTS = 8;
-var MAX_IDENTIFIERS = 24;
-function extractTaskSignals(input) {
-  const taskText = [input.issueText ?? "", extractDiffContentLines(input.diffText ?? "")].join("\n");
-  const tokens = tokenizeText(taskText);
-  return {
-    tokens,
-    changedFiles: new Set(input.changedFiles ?? []),
-    fileMentions: extractFileMentions(input.issueText ?? ""),
-    exactFragments: extractExactFragments(taskText),
-    identifiers: extractIdentifiers(taskText)
-  };
-}
-function extractExactFragments(text) {
-  const fragments = /* @__PURE__ */ new Set();
-  for (const quoted of scanQuotedFragments(text)) {
-    const fragment = quoted.value.trim();
-    if (isDistinctiveFragment(fragment)) {
-      fragments.add(fragment);
-      if (fragments.size >= MAX_EXACT_FRAGMENTS) {
-        break;
-      }
-    }
-  }
-  return [...fragments];
-}
-function extractIdentifiers(text) {
-  const identifiers = /* @__PURE__ */ new Set();
-  for (const match of text.matchAll(IDENTIFIER_PATTERN)) {
-    const identifier = match[0];
-    if (isDistinctiveIdentifier(identifier)) {
-      addIdentifier(identifiers, identifier);
-    }
-  }
-  for (const quoted of scanQuotedFragments(text)) {
-    if (quoted.delimiter !== "`") {
-      continue;
-    }
-    const fragment = quoted.value.trim();
-    if (!/^[$A-Za-z_][$A-Za-z0-9_]*$/.test(fragment.trim())) {
-      continue;
-    }
-    if (!isDistinctiveIdentifier(fragment) && fragment.length < 8) {
-      continue;
-    }
-    for (const match of fragment.matchAll(IDENTIFIER_PATTERN)) {
-      addIdentifier(identifiers, match[0]);
-    }
-  }
-  return identifiers;
-}
-function addIdentifier(identifiers, identifier) {
-  if (identifiers.size >= MAX_IDENTIFIERS || STOP_WORDS.has(identifier.toLowerCase())) {
-    return;
-  }
-  identifiers.add(identifier);
-}
-function isDistinctiveIdentifier(identifier) {
-  return /[0-9_$]/.test(identifier) || /[a-z][A-Z]/.test(identifier);
-}
-function isDistinctiveFragment(fragment) {
-  if (fragment.length < 6 || fragment.length > 96 || /\s/.test(fragment)) {
-    return false;
-  }
-  const punctuationCount = [...fragment].filter((character) => /[^A-Za-z0-9_$]/.test(character)).length;
-  return punctuationCount >= 2 && /[A-Za-z0-9]/.test(fragment);
-}
-function scanQuotedFragments(text) {
-  const fragments = [];
-  for (const line of text.split(/\r?\n/)) {
-    let cursor = 0;
-    while (cursor < line.length) {
-      const delimiter = line[cursor];
-      if (delimiter !== '"' && delimiter !== "'" && delimiter !== "`") {
-        cursor += 1;
-        continue;
-      }
-      let end = cursor + 1;
-      while (end < line.length) {
-        if (line[end] === delimiter && !isEscaped(line, end)) {
-          break;
-        }
-        end += 1;
-      }
-      fragments.push({ delimiter, value: line.slice(cursor + 1, end) });
-      cursor = end < line.length ? end + 1 : line.length;
-    }
-  }
-  return fragments;
-}
-function isEscaped(text, index) {
-  let backslashes = 0;
-  for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor -= 1) {
-    backslashes += 1;
-  }
-  return backslashes % 2 === 1;
-}
-function extractFileMentions(text) {
-  const mentions = /* @__PURE__ */ new Set();
-  for (const match of text.matchAll(FILE_MENTION_PATTERN)) {
-    const cleaned = match[0].replace(/\\/g, "/").replace(/^\.\.?\//, "");
-    if (cleaned.length >= 4) {
-      mentions.add(cleaned);
-    }
-  }
-  return mentions;
-}
-function extractDiffContentLines(diffText) {
-  if (!diffText) {
-    return "";
-  }
-  return diffText.split(/\r?\n/).filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")).join("\n");
-}
-function tokenizeText(text) {
-  return new Set(text.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token) => token.trim()).filter((token) => token.length >= 3 && !STOP_WORDS.has(token)).map((token) => normalizeToken(token)).filter((token) => token.length >= 3 && !STOP_WORDS.has(token)));
-}
-function normalizeToken(token) {
-  if (token.length > 5 && token.endsWith("ies"))
-    return `${token.slice(0, -3)}y`;
-  if (token.length > 5 && token.endsWith("ing"))
-    return normalizeVerbStem(token.slice(0, -3));
-  if (token.length > 4 && token.endsWith("ed"))
-    return normalizeVerbStem(token.slice(0, -2));
-  if (token.length > 4 && token.endsWith("es"))
-    return normalizeTrailingE(token.slice(0, -2));
-  if (token.length > 3 && token.endsWith("s"))
-    return token.slice(0, -1);
-  return normalizeTrailingE(token);
-}
-function normalizeVerbStem(stem) {
-  const deduplicated = /([a-z])\1$/.test(stem) ? stem.slice(0, -1) : stem;
-  return normalizeTrailingE(deduplicated);
-}
-function normalizeTrailingE(token) {
-  return token.length > 3 && token.endsWith("e") ? token.slice(0, -1) : token;
-}
-function tokenizePath(path) {
-  return tokenizeText(path);
-}
-
 // packages/core/dist/rank.js
 var DEPLOYMENT_TERMS = [
   "deploy",
@@ -506,6 +690,9 @@ var IMPORT_PROXIMITY_BOOSTS = { 1: 4, 2: 2 };
 var EXAMPLE_CODE_PENALTY = 2;
 var TYPE_DECLARATION_PENALTY = 4;
 var BACKUP_COPY_PENALTY = 10;
+var EXPLICIT_PATH_BOOST = 40;
+var EXACT_LITERAL_BOOST = 8;
+var MEMBER_MENTION_BOOST = 8;
 var WIDESPREAD_TOKEN_SHARE = 0.85;
 var DEFINITION_IDENTIFIER_BOOST = 4;
 var DEFINITION_LITERAL_BOOST = 8;
@@ -517,20 +704,26 @@ function rankContextFiles(repo, input, limit = 8) {
     diffText: input.diffText ?? "",
     changedFiles: repo.changedFiles
   });
+  const grounding = analyzeTaskGrounding(repo, input);
+  const taskTokens = buildGroundedTaskTokens(grounding, {
+    issueText: input.issueText ?? "",
+    diffText: input.diffText ?? "",
+    changedFiles: repo.changedFiles
+  });
   const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path));
-  const taskTargetsEvaluation = hasAny(signals.tokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
+  const taskTargetsEvaluation = hasAny(taskTokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
   const scannable = repo.files.filter((file) => mentionedPaths.has(file.path) || file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
   const maintainedStems = new Set(scannable.filter((file) => !isGeneratedPath(file.path) && !isBackupPath(file.path)).map((file) => moduleStem(file.path)));
   const candidates = scannable.filter((file) => mentionedPaths.has(file.path) || signals.changedFiles.has(file.path) || !isGeneratedPath(file.path) || !maintainedStems.has(moduleStem(file.path)));
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
   const definitionSignals = buildDefinitionSignals(signals.identifiers);
-  const taskTargetsDocumentation = hasAny(signals.tokens, ["docs", "documentation", "readme", "guide", "copy"]);
-  const taskTargetsConfiguration = hasAny(signals.tokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
-  const taskTargetsDeployment = hasAny(signals.tokens, DEPLOYMENT_TERMS);
   const taskText = [input.issueText ?? "", input.diffText ?? ""].join("\n");
+  const taskTargetsDocumentation = targetsDocumentation(taskText);
+  const taskTargetsConfiguration = hasAny(taskTokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
+  const taskTargetsDeployment = hasAny(taskTokens, DEPLOYMENT_TERMS);
   const taskTargetsExamples = /\b(?:demos?|examples?|samples?)\b/i.test(taskText.replace(/\bfor example\b/gi, ""));
-  const taskTargetsTypeDeclarations = /\b(?:typescript|type definitions?|declarations?|typings?|\.d\.(?:ts|mts|cts))\b/i.test(taskText);
+  const taskTargetsTypeDeclarations = /\b(?:typescript|types?|type definitions?|declarations?|typings?|\.d\.(?:ts|mts|cts))\b/i.test(taskText);
   const scored = candidates.map((file) => {
     const reasons = [];
     let score = 0;
@@ -540,27 +733,37 @@ function rankContextFiles(repo, input, limit = 8) {
       reasons.push("changed file");
     }
     if (mentionedPaths.has(file.path)) {
-      score += 12;
+      score += EXPLICIT_PATH_BOOST;
       reasons.push("explicitly named in the task");
     }
     const pathTokens = tokenizePath(file.path);
-    const pathOverlap = [...pathTokens].filter((token) => signals.tokens.has(token));
+    const pathOverlap = [...pathTokens].filter((token) => taskTokens.has(token));
     if (pathOverlap.length > 0) {
       score += pathOverlap.length * 3;
       reasons.push(`path matches task terms: ${pathOverlap.join(", ")}`);
     }
     const contentTokens = contentTokensByPath.get(file.path) ?? /* @__PURE__ */ new Set();
-    const contentOverlap = [...contentTokens].filter((token) => signals.tokens.has(token) && !commonTokens.has(token));
+    const contentOverlap = [...contentTokens].filter((token) => taskTokens.has(token) && !commonTokens.has(token));
     if (contentOverlap.length > 0) {
       score += Math.min(contentOverlap.length, 8) * 2;
       reasons.push(`content matches task terms: ${contentOverlap.slice(0, 8).join(", ")}`);
+    }
+    const matchedMembers = [...signals.memberMentions].filter((member) => hasExactIdentifier(file.textSample, member)).slice(0, 3);
+    if (matchedMembers.length > 0) {
+      score += matchedMembers.length * MEMBER_MENTION_BOOST;
+      reasons.push(`contains task member names: ${matchedMembers.join(", ")}`);
+    }
+    const exactLiteral = signals.exactFragments.filter((fragment) => file.textSample.includes(fragment)).sort((a, b) => countOccurrences(taskText, b) - countOccurrences(taskText, a) || b.length - a.length)[0];
+    if (exactLiteral) {
+      score += EXACT_LITERAL_BOOST * Math.min(3, countOccurrences(taskText, exactLiteral));
+      reasons.push(`contains exact task literal: ${previewFragment(exactLiteral)}`);
     }
     const definedIdentifiers = findDefinedIdentifiers(file.textSample, definitionSignals).slice(0, MAX_DEFINITION_IDENTIFIERS);
     if (definedIdentifiers.length > 0) {
       score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
       reasons.push(`defines task identifiers: ${definedIdentifiers.join(", ")}`);
     }
-    const taskMatchedDefinitions = signals.exactFragments.length === 0 ? findTaskMatchedDefinitions(file.textSample, signals.tokens).filter((identifier) => !definedIdentifiers.includes(identifier)).slice(0, MAX_DEFINITION_IDENTIFIERS) : [];
+    const taskMatchedDefinitions = signals.exactFragments.length === 0 ? findTaskMatchedDefinitions(file.textSample, taskTokens).filter((identifier) => !definedIdentifiers.includes(identifier)).slice(0, MAX_DEFINITION_IDENTIFIERS) : [];
     if (taskMatchedDefinitions.length > 0) {
       score += taskMatchedDefinitions.length * TASK_MATCHED_DEFINITION_BOOST;
       reasons.push(`defines symbols matching task terms: ${taskMatchedDefinitions.join(", ")}`);
@@ -599,13 +802,16 @@ function rankContextFiles(repo, input, limit = 8) {
     if (isTypeDeclarationPath(file.path) && !taskTargetsTypeDeclarations && !isChanged && !mentionedPaths.has(file.path)) {
       score -= TYPE_DECLARATION_PENALTY;
       reasons.push("type declaration deprioritized for a runtime task");
+    } else if (isTypeDeclarationPath(file.path) && taskTargetsTypeDeclarations && !isChanged) {
+      score += TYPE_DECLARATION_PENALTY;
+      reasons.push("type declaration matches a type-focused task");
     }
     if (isBackupPath(file.path) && !isChanged && !mentionedPaths.has(file.path)) {
       score -= BACKUP_COPY_PENALTY;
       reasons.push("backup or archived copy deprioritized");
     }
     if (pathTokens.has("auth") || pathTokens.has("login")) {
-      if (signals.tokens.has("auth") || signals.tokens.has("login") || signals.tokens.has("password")) {
+      if (taskTokens.has("auth") || taskTokens.has("login") || taskTokens.has("password")) {
         score += 2;
         reasons.push("auth-related task signal");
       }
@@ -613,15 +819,17 @@ function rankContextFiles(repo, input, limit = 8) {
     return { path: file.path, score, isChanged, reasons };
   });
   applyImportProximity(scored, repo);
-  return scored.map((entry) => ({
+  const ranked = scored.filter((file) => file.score >= 4).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, limit);
+  const clustered = isClusteredRanking(ranked);
+  return ranked.map((entry) => ({
     path: entry.path,
     score: entry.score,
-    confidence: confidenceForScore(entry.score, entry.isChanged),
+    confidence: confidenceForEntry(entry, grounding, clustered),
     reasons: entry.reasons.length > 0 ? entry.reasons : ["source file baseline"]
-  })).filter((file) => file.score >= 4).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, limit);
+  }));
 }
 function applyImportProximity(scored, repo) {
-  const seedEntries = scored.filter((entry) => confidenceForScore(entry.score, entry.isChanged) === "high").sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, MAX_PROXIMITY_SEEDS);
+  const seedEntries = scored.filter((entry) => entry.score >= 8 && hasDirectEvidence(entry)).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, MAX_PROXIMITY_SEEDS);
   if (seedEntries.length === 0) {
     return;
   }
@@ -648,12 +856,49 @@ function proximityReason(hit) {
   }
   return hit.direction === "imported-by" ? `imported by ranked file ${hit.seed}` : `imports ranked file ${hit.seed}`;
 }
-function confidenceForScore(score, isChanged) {
-  if (isChanged || score >= 14)
+function confidenceForEntry(entry, grounding, clustered) {
+  if (entry.isChanged || entry.reasons.includes("explicitly named in the task")) {
     return "high";
-  if (score >= 8)
-    return "medium";
-  return "low";
+  }
+  let confidence = entry.score >= 14 ? "high" : entry.score >= 8 ? "medium" : "low";
+  const supportedIdentifierCount = grounding.identifiers.filter((identifier) => identifier.status === "exact-definition" || identifier.status === "exact-text" || identifier.status === "partial-definition").length;
+  if (grounding.unresolvedIdentifiers.length > 0) {
+    if (supportedIdentifierCount === 0) {
+      return "low";
+    }
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (grounding.unverifiedIdentifiers.length > 0) {
+    if (supportedIdentifierCount === 0) {
+      return "low";
+    }
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (grounding.partiallyResolvedIdentifiers.length > 0) {
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (grounding.specificity === "vague") {
+    return "low";
+  }
+  if (!grounding.scanComplete) {
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (clustered && !hasDirectEvidence(entry)) {
+    confidence = capConfidence(confidence, "medium");
+  }
+  return confidence;
+}
+function capConfidence(confidence, maximum) {
+  const levels = ["low", "medium", "high"];
+  return levels.indexOf(confidence) > levels.indexOf(maximum) ? maximum : confidence;
+}
+function hasDirectEvidence(entry) {
+  return entry.isChanged || entry.reasons.some((reason) => reason === "explicitly named in the task" || reason.startsWith("defines task identifiers:") || reason.startsWith("exact task literal at definition:"));
+}
+function isClusteredRanking(entries) {
+  const top = entries[0]?.score;
+  const third = entries[2]?.score;
+  return top !== void 0 && third !== void 0 && top - third <= 2;
 }
 function hasAny(tokens, values) {
   return values.some((value) => tokens.has(value));
@@ -661,7 +906,7 @@ function hasAny(tokens, values) {
 function matchMentionedPaths(mentions, repoPaths) {
   const matched = /* @__PURE__ */ new Set();
   for (const mention of mentions) {
-    const exactMatches = repoPaths.filter((path) => pathMatchesMention(path, mention));
+    const exactMatches = repoPaths.filter((path) => pathMatchesMention2(path, mention));
     if (exactMatches.length > 0) {
       if (exactMatches.length <= MAX_FILES_PER_MENTION) {
         for (const path of exactMatches) {
@@ -671,7 +916,7 @@ function matchMentionedPaths(mentions, repoPaths) {
       continue;
     }
     const fallbackVariants = compiledSourcePathVariants(mention);
-    const fallbackMatches = repoPaths.filter((path) => fallbackVariants.some((variant) => pathMatchesMention(path, variant)));
+    const fallbackMatches = repoPaths.filter((path) => fallbackVariants.some((variant) => pathMatchesMention2(path, variant)));
     if (fallbackMatches.length > 0 && fallbackMatches.length <= MAX_FILES_PER_MENTION) {
       for (const path of fallbackMatches) {
         matched.add(path);
@@ -680,7 +925,7 @@ function matchMentionedPaths(mentions, repoPaths) {
   }
   return matched;
 }
-function pathMatchesMention(path, mention) {
+function pathMatchesMention2(path, mention) {
   return path === mention || path.endsWith(`/${mention}`) || mention.endsWith(`/${path}`);
 }
 function compiledSourcePathVariants(path) {
@@ -700,14 +945,22 @@ function isAuxiliaryCodePath(path) {
 function isTypeDeclarationPath(path) {
   return /\.d\.(?:ts|mts|cts)$/i.test(path);
 }
+function targetsDocumentation(taskText) {
+  const documentation = "(?:docs?|documentation|readme|guide|copy)";
+  const action = "(?:add|edit|update|write|rewrite|revise|remove|correct|document)";
+  return new RegExp(`\\b${action}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) || new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${action}\\b`, "i").test(taskText);
+}
 function buildDefinitionSignals(identifiers) {
   return [...identifiers].sort((a, b) => a.localeCompare(b)).map((identifier) => ({
     identifier,
-    pattern: new RegExp(`\\b(?:export\\s+)?(?:async\\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\\s+${escapeRegExp(identifier)}\\b`)
+    pattern: new RegExp(`\\b(?:export\\s+)?(?:async\\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\\s+${escapeRegExp2(identifier)}\\b`)
   }));
 }
 function findDefinedIdentifiers(text, signals) {
   return signals.filter((signal) => signal.pattern.test(text)).map((signal) => signal.identifier);
+}
+function hasExactIdentifier(text, identifier) {
+  return new RegExp(`(^|[^$A-Za-z0-9_])${escapeRegExp2(identifier)}(?=$|[^$A-Za-z0-9_])`).test(text);
 }
 function findTaskMatchedDefinitions(text, taskTokens) {
   const definitions = /* @__PURE__ */ new Set();
@@ -740,8 +993,14 @@ function hasExactFragmentAtDefinition(text, fragment, definedIdentifiers) {
 function previewFragment(fragment) {
   return fragment.length <= 40 ? fragment : `${fragment.slice(0, 37)}...`;
 }
-function escapeRegExp(value) {
+function escapeRegExp2(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function countOccurrences(text, value) {
+  if (!value) {
+    return 0;
+  }
+  return text.split(value).length - 1;
 }
 function findCommonTokens(contentTokensByPath) {
   const fileCount = contentTokensByPath.size;
@@ -884,6 +1143,15 @@ function renderMarkdownReport(report) {
     "## Changed Files",
     "",
     ...listOrEmpty(report.changedFiles.map((path) => `- \`${path}\``)),
+    ...report.analysis ? [
+      "",
+      "## Analysis",
+      "",
+      `- Task grounding: **${report.analysis.grounding.specificity}**`,
+      `- Repository scan: **${report.analysis.grounding.scanComplete ? "complete" : "incomplete"}**`,
+      `- Ranking shape: **${report.analysis.ranking.clustered ? "clustered" : "separated"}**`,
+      `- Next action: ${report.analysis.nextAction}`
+    ] : [],
     "",
     "## Diagnostics",
     "",
@@ -1043,6 +1311,7 @@ async function toRepoFile(absolutePath, relativePath) {
   }
   const extension = extname(relativePath);
   const isSource = SOURCE_EXTENSIONS.has(extension);
+  const sample = isSource ? await readTextSample(absolutePath, fileStat.size) : { text: "", complete: true };
   return {
     path: relativePath,
     extension,
@@ -1050,7 +1319,8 @@ async function toRepoFile(absolutePath, relativePath) {
     isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
     isSource,
     kind: classifyFile(relativePath, extension),
-    textSample: isSource ? await readTextSample(absolutePath, fileStat.size) : ""
+    textSample: sample.text,
+    textSampleComplete: sample.complete
   };
 }
 function isInAlwaysIgnoredDir(relativePath) {
@@ -1133,12 +1403,12 @@ function classifyFile(path, extension) {
 }
 async function readTextSample(path, sizeBytes) {
   if (sizeBytes > MAX_TEXT_SAMPLE_BYTES) {
-    return "";
+    return { text: "", complete: false };
   }
   try {
-    return await readFile(path, "utf8");
+    return { text: await readFile(path, "utf8"), complete: true };
   } catch {
-    return "";
+    return { text: "", complete: false };
   }
 }
 async function listUntrackedPaths(repoRoot) {
@@ -1204,6 +1474,11 @@ async function buildFixMapReport(input) {
     issueText: input.issueText,
     diffText: repo.diffText
   });
+  const grounding = analyzeTaskGrounding(repo, {
+    issueText: input.issueText,
+    diffText: repo.diffText
+  });
+  const ranking = buildRankingShape(contextFiles);
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
@@ -1216,9 +1491,54 @@ async function buildFixMapReport(input) {
     diagnostics: [
       ...repo.diagnostics,
       ...findGatedTestDiagnostics(repo.files, routedTestPaths),
+      ...findTaskDiagnostics(grounding, ranking),
       ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "")
-    ]
+    ],
+    analysis: {
+      grounding,
+      ranking,
+      nextAction: buildNextAction(grounding, ranking, contextFiles)
+    }
   };
+}
+function findTaskDiagnostics(grounding, ranking) {
+  const diagnostics = [];
+  if (grounding.unresolvedIdentifiers.length > 0) {
+    diagnostics.push({
+      code: "unresolved-identifier",
+      severity: "warning",
+      message: `Identifier${grounding.unresolvedIdentifiers.length === 1 ? "" : "s"} not found exactly in the scanned repository: ${grounding.unresolvedIdentifiers.join(", ")}. Component words from unresolved identifiers were ignored, and unsupported recommendations were capped at low confidence.`
+    });
+  }
+  if (grounding.partiallyResolvedIdentifiers.length > 0) {
+    diagnostics.push({
+      code: "partially-resolved-identifier",
+      severity: "info",
+      message: `Identifier${grounding.partiallyResolvedIdentifiers.length === 1 ? "" : "s"} matched a longer repository symbol by component terms: ${grounding.partiallyResolvedIdentifiers.join(", ")}. The component terms were retained, but confidence was capped at medium.`
+    });
+  }
+  if (grounding.unverifiedIdentifiers.length > 0) {
+    diagnostics.push({
+      code: "identifier-unverified",
+      severity: "warning",
+      message: `Identifier${grounding.unverifiedIdentifiers.length === 1 ? "" : "s"} could not be verified because one or more source files exceeded the text-sampling limit: ${grounding.unverifiedIdentifiers.join(", ")}. FixMap did not claim that the identifier was absent, and confidence was capped at low without another anchor.`
+    });
+  }
+  if (grounding.specificity === "vague") {
+    diagnostics.push({
+      code: "vague-task",
+      severity: "warning",
+      message: "The task is broad and has no verified symbol, file, or diff anchor. Treat the ranking as subsystem guidance only, or add a failing behavior, error string, command, symbol, or file path."
+    });
+  }
+  if (ranking.clustered && grounding.specificity !== "anchored") {
+    diagnostics.push({
+      code: "flat-ranking",
+      severity: "warning",
+      message: "The leading files have tightly clustered scores, so FixMap cannot identify a decisive edit point. Use them as a starting neighborhood and verify the exact file before editing."
+    });
+  }
+  return diagnostics;
 }
 function findEmptyResultDiagnostics(repo, contextFiles, issueText) {
   if (contextFiles.length > 0 || repo.files.length === 0) {

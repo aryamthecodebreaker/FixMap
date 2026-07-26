@@ -139,6 +139,15 @@ export function renderMarkdownReport(report: FixMapReport): string {
     "## Changed Files",
     "",
     ...listOrEmpty(report.changedFiles.map((path) => `- \`${path}\``)),
+    ...(report.analysis ? [
+      "",
+      "## Analysis",
+      "",
+      `- Task grounding: **${report.analysis.grounding.specificity}**`,
+      `- Repository scan: **${report.analysis.grounding.scanComplete ? "complete" : "incomplete"}**`,
+      `- Ranking shape: **${report.analysis.ranking.clustered ? "clustered" : "separated"}**`,
+      `- Next action: ${report.analysis.nextAction}`
+    ] : []),
     "",
     "## Diagnostics",
     "",

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14",
+  "generatedAt": "2026-07-26",
   "taskTextRule": "Issue title plus the first 600 characters of the issue body. The fixed character cap can end mid-token and does not guarantee that late file-path hints are retained.",
   "selectionRule": "Per repository: the most recent merged pull request (of the 50 most recent) that closes an issue whose body is at least 80 characters, is not a docs-titled change, and modifies 1-3 source files after excluding tests, docs, examples, configuration, and lockfiles. Expected files are exactly the fixing PR's source files and were verified to exist at the pinned base SHA. Cases were frozen before measuring FixMap's rankings and must not be edited to match ranking output.",
   "cases": [
@@ -74,6 +74,114 @@
       "expected": [
         "lib/transport.js",
         "lib/worker.js"
+      ]
+    },
+    {
+      "slug": "fastify/fastify",
+      "repo": "https://github.com/fastify/fastify.git",
+      "license": "MIT",
+      "sha": "5f4871f931d45d576bc3385cd1e95f0d668abf4f",
+      "issue": 6671,
+      "pullRequest": 6680,
+      "task": "request.port is invalid\n\nIt currently directly mismatches documentation\n\nSee explanation and testcase in https://github.com/fastify/fastify/pull/6668#issuecomment-4274519865\n\nSee also https://github.com/fastify/fastify/pull/6668#issuecomment-4274552753\n\nA regression from https://github.com/fastify/fastify/pull/6603",
+      "expected": [
+        "lib/request.js"
+      ]
+    },
+    {
+      "slug": "chalk/chalk",
+      "repo": "https://github.com/chalk/chalk.git",
+      "license": "MIT",
+      "sha": "8a94e0ebfc495dda27f7090fb1a012790b15a76d",
+      "issue": 624,
+      "pullRequest": 688,
+      "task": "$FORCE_COLOR works only as either level 0 or 3\n\nI tried to override the level of color support using `$FORCE_COLOR` environment variable, but I got\n\n```console\n> cat test.mjs\nimport { supportsColor } from 'chalk';\nconsole.log(\"FORCE_COLOR:\", process.env.FORCE_COLOR, \"\\tsupportsColor:\", supportsColor);\n\n> for i in 0 1 2 3; env FORCE_COLOR=$i node test.mjs; end\nFORCE_COLOR: 0 \\tsupportsColor: false\nFORCE_COLOR: 1 \\tsupportsColor: { level: 3, hasBasic: true, has256: true, has16m: true }\nFORCE_COLOR: 2 \\tsupportsColor: { level: 3, hasBasic: true, has256: true, has16m: true }\nFORCE_COLOR: 3 \\tsupportsColor: { level: 3, hasBasic: true, has",
+      "expected": [
+        "source/vendor/supports-color/index.js"
+      ]
+    },
+    {
+      "slug": "vitest-dev/vitest",
+      "repo": "https://github.com/vitest-dev/vitest.git",
+      "license": "MIT",
+      "sha": "22d353a80c230dbc7c69a22b390070f7aa9afabe",
+      "issue": 7375,
+      "pullRequest": 10798,
+      "task": "Default mock for the `window.print` call in browser mode\n\n### Clear and concise description of the problem\n\nI see there are default mocks for the `window.confirm`, `window.alert`, etc... calls but nothing for `print`.\n\nGiven this open, unaddressed and seemingly un-workaroundable issue: https://github.com/vitest-dev/vitest/issues/7290 (and the linked issues within), I cannot mock my `reactToPrint` module within my tests, so the print window pops up, and on my CI tests, it hangs the runner. Ive tried to mock the print call myself, but cant seem to get it right.\n\n### Suggested solution\n\nAdd a default mock for the `window.print` call:\n\nhttps://github.co",
+      "expected": [
+        "packages/browser/src/client/tester/dialog.ts"
+      ]
+    },
+    {
+      "slug": "eslint/eslint",
+      "repo": "https://github.com/eslint/eslint.git",
+      "license": "MIT",
+      "sha": "e7d1e4373bf626f8da76d62ce024c28928bc99bc",
+      "issue": 478,
+      "pullRequest": 21082,
+      "task": "Change Request: Alias `Config` to `ConfigObject` in `@eslint/config-helpers`\n\n### Which packages would you like to change?\n\n- [ ] `@eslint/compat`\n- [ ] `@eslint/config-array`\n- [x] `@eslint/config-helpers`\n- [ ] `@eslint/core`\n- [ ] `@eslint/mcp`\n- [ ] `@eslint/migrate-config`\n- [ ] `@eslint/object-schema`\n- [ ] `@eslint/plugin-kit`\n\n### What problem do you want to solve?\n\nIn `@eslint/core`, the configuration object type is exported as `ConfigObject`, while `@eslint/config-helpers` exports the same type as `Config`. Although they refer to the same underlying type, consumers and plugin authors have to use different names depending on which package they import from.\n\nFor",
+      "expected": [
+        "lib/types/config-api.d.ts"
+      ]
+    },
+    {
+      "slug": "webpack/webpack",
+      "repo": "https://github.com/webpack/webpack.git",
+      "license": "MIT",
+      "sha": "61d4136e6d16bb52b13802a1a02ed56bdfafbdb3",
+      "issue": 15371,
+      "pullRequest": 21503,
+      "task": "more informative error in DefinePlugin\n\n<!-- Please don't delete this template or we'll close your issue -->\n\n## Feature request\n<!-- Issues that contain questions or support requests will be closed. -->\n<!-- Before creating an issue please make sure you are using the latest version of webpack. -->\n<!-- Check if this feature needs to be implemented in a plugin or loader instead -->\n<!-- If yes: file the issue on the plugin/loader repo -->\n<!-- Features related to the development server should be filed on this repo instead -->\n\n**What is the expected behavior?**\n\n[evaluating](https://github.com/webpack/webpack/blob/main/li",
+      "expected": [
+        "lib/DefinePlugin.js"
+      ]
+    },
+    {
+      "slug": "nodejs/undici",
+      "repo": "https://github.com/nodejs/undici.git",
+      "license": "MIT",
+      "sha": "87270e46a22660a1975e199335862cdaeb11e22c",
+      "issue": 5566,
+      "pullRequest": 5569,
+      "task": "Memory leak: aborted HTTP/2 requests strand the response body and leak the request graph (regression in #5483 / 8.6.0)\n\n# Memory leak: aborted HTTP/2 requests strand the response body and leak the request graph\n\n## Summary\n\nOn the HTTP/2 client, **aborting an in-flight request leaks memory** — one request graph per abort — and the leak is unbounded on a long-lived, multiplexed (coalescing) session. The aborted stream's response body is never terminated, so `fetch`'s `finished(internalResponse.body.stream, …)` callback never fires, `processResponseEndOfBody`/`cleanupAbortListeners` never run, and the `finished()` listener set, the request handler (`AsyncResource`), the `Request`, buffered `ArrayBuffer`s, and (fo",
+      "expected": [
+        "lib/dispatcher/client-h2.js"
+      ]
+    },
+    {
+      "slug": "reduxjs/redux-toolkit",
+      "repo": "https://github.com/reduxjs/redux-toolkit.git",
+      "license": "MIT",
+      "sha": "e4725cece4b4649df9eb5b31ba1cf6140fa5c7d3",
+      "issue": 5156,
+      "pullRequest": 5344,
+      "task": "Investigate TS 7.0 ( `tsgo` ) type issues\n\nTried adding a new typecheck job with `tsgo`, and got these errors:\n\n```\nVersion 7.0.0-dev.20251207.1\nError: src/query/react/buildHooks.ts(1823,13): error TS2769: No overload matches this call.\n  The last overload gave the following error.\n    Argument of type '((currentState: ({ status: QueryStatus.uninitialized; originalArgs?: undefined; data?: undefined; error?: undefined; requestId?: undefined; endpointName?: string | undefined; startedTimeStamp?: undefined; fulfilledTimeStamp?: undefined; } & { ...; }) | ({ ...; } & { ...; }) | ({ ...; } & { ...; .....' is not assignabl",
+      "expected": [
+        "packages/toolkit/src/query/react/buildHooks.ts"
+      ]
+    },
+    {
+      "slug": "prettier/prettier",
+      "repo": "https://github.com/prettier/prettier.git",
+      "license": "MIT",
+      "sha": "1cfcbbb993425718cd25780b91936339c4a7fe4a",
+      "issue": 5738,
+      "pullRequest": 19687,
+      "task": "Unnecessary line breaks after == in SCSS conditions with booleans\n\nThe SCSS formatter inserts line breaks after `==` in `if` conditions with booleans, but I think breaking only on the boolean operator would look more natural, and would correspond better to how Prettier formats Javascript. (Of course, let me know if this is intentional -- just because it looks odd to me doesn't mean it looks odd to Prettier.)\n\n**Prettier 1.15.3**\n[Playground link](https://prettier.io/playground/#N4Igxg9gdgLgprEAuEABAlgMwAQBIDOEAtnDABbpQDm2AvLXoSeZVQLRwA2+c2AhlAAmeARHJwATmxbU6DXKPFSZ7AO7pybTtHZQ+JbMAA6UAL4gANCAgAHGOmj5koPhIkRVABVcInKPgBuEOiCliAARhJ8YADWpADKNtGsyDASAK5wVmQwRJ",
+      "expected": [
+        "src/language-css/print/comma-separated-value-group.js"
+      ]
+    },
+    {
+      "slug": "honojs/hono",
+      "repo": "https://github.com/honojs/hono.git",
+      "license": "MIT",
+      "sha": "cadff88bba34153646c9b35f24d7cc0cb61be913",
+      "issue": 3281,
+      "pullRequest": 5142,
+      "task": "Types: LambdaEvent type is missing authorizer context for lambda auth\n\n### What version of Hono are you using?\n\n4.5.3\n\n### What runtime/platform is your app running on?\n\naws lambda\n\n### What steps can reproduce the bug?\n\nCreate a HTTP Api proxy v2 endpoint in aws-lambda and use a lambda authorizer in front of it, but practically since this is a typings issue you can set up your bindings like:\n\n```typescript\ntype Bindings = {\n  Bindings: { event: LambdaEvent, lambdaContext:LambdaContext };\n  Variables: { userId: string };\n};\n\nconst app = new Hono<Bindings>();\n```\n\nThen try and set a value from the lambda authorizer context\n\n```typescript",
+      "expected": [
+        "src/adapter/aws-lambda/types.ts"
       ]
     }
   ]

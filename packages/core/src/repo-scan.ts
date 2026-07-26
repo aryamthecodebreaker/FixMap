@@ -176,6 +176,9 @@ async function toRepoFile(absolutePath: string, relativePath: string): Promise<R
 
   const extension = extname(relativePath);
   const isSource = SOURCE_EXTENSIONS.has(extension);
+  const sample = isSource
+    ? await readTextSample(absolutePath, fileStat.size)
+    : { text: "", complete: true };
 
   return {
     path: relativePath,
@@ -184,7 +187,8 @@ async function toRepoFile(absolutePath: string, relativePath: string): Promise<R
     isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
     isSource,
     kind: classifyFile(relativePath, extension),
-    textSample: isSource ? await readTextSample(absolutePath, fileStat.size) : ""
+    textSample: sample.text,
+    textSampleComplete: sample.complete
   };
 }
 
@@ -281,15 +285,18 @@ function classifyFile(path: string, extension: string): RepoFile["kind"] {
   return "other";
 }
 
-async function readTextSample(path: string, sizeBytes: number): Promise<string> {
+async function readTextSample(
+  path: string,
+  sizeBytes: number
+): Promise<{ text: string; complete: boolean }> {
   if (sizeBytes > MAX_TEXT_SAMPLE_BYTES) {
-    return "";
+    return { text: "", complete: false };
   }
 
   try {
-    return await readFile(path, "utf8");
+    return { text: await readFile(path, "utf8"), complete: true };
   } catch {
-    return "";
+    return { text: "", complete: false };
   }
 }
 

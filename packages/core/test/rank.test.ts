@@ -742,4 +742,241 @@ describe("rankContextFiles", () => {
 
     expect(ranked[0]?.path).toBe("source/vendor/supports-color/index.js");
   });
+
+  it("never reports high confidence from component words of invented identifiers", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "src/cache/state.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function transitionCacheState() { return 'partial invalid scheduler'; }"
+        },
+        {
+          path: "src/cache/navigation.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function scheduleNavigation() { return 'transition state'; }"
+        },
+        {
+          path: "src/build/policy.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function regressionPolicy() { return 'polynomial regression cache threshold'; }"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText:
+        "experimentalHoudiniPartialPrerenderScheduler throws InvalidTransitionState when polynomial regression crosses the cache threshold"
+    });
+    const reasons = ranked.flatMap((file) => file.reasons).join(" ");
+
+    expect(ranked.length).toBeGreaterThan(0);
+    expect(ranked.every((file) => file.confidence === "low")).toBe(true);
+    expect(reasons).not.toMatch(/\bhoudini\b|\bpartial\b|\bscheduler\b|\btransition\b|\binvalid\b/);
+  });
+
+  it("caps score-derived confidence when the repository scan is incomplete", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [{
+        code: "scan-limit-reached",
+        severity: "warning",
+        message: "The scan limit was reached."
+      }],
+      files: [{
+        path: "src/cache/policy.ts",
+        extension: ".ts",
+        sizeBytes: 100,
+        isSource: true,
+        isTest: false,
+        kind: "code",
+        textSample: "cache policy threshold regression recovery"
+      }]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "cache policy threshold regression recovery"
+    });
+
+    expect(ranked[0]?.score).toBeGreaterThanOrEqual(14);
+    expect(ranked[0]?.confidence).toBe("medium");
+  });
+
+  it("treats a documentation reference as evidence, not as a docs-editing intent", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "lib/request.js",
+          extension: ".js",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "Object.defineProperty(Request.prototype, 'port', { get () { return this.raw.port } })"
+        },
+        {
+          path: "docs/Request.md",
+          extension: ".md",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "documentation",
+          textSample: "request port documentation invalid mismatch"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "request.port is invalid and directly mismatches documentation"
+    });
+
+    expect(ranked[0]?.path).toBe("lib/request.js");
+    expect(ranked[0]?.reasons).toContain("contains task member names: port");
+    expect(ranked.find((file) => file.path === "docs/Request.md")?.reasons)
+      .not.toContain("documentation-focused task");
+  });
+
+  it("gives an explicit nested path enough weight to beat large-repository keyword noise", () => {
+    const noise = Array.from({ length: 20 }, (_, index) => ({
+      path: `packages/toolkit/src/query/core/noise-${index}.ts`,
+      extension: ".ts",
+      sizeBytes: 100,
+      isSource: true,
+      isTest: false,
+      kind: "code" as const,
+      textSample: "query react build hooks error endpoint state request argument"
+    }));
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        ...noise,
+        {
+          path: "packages/toolkit/src/query/react/buildHooks.ts",
+          extension: ".ts",
+          sizeBytes: 74_000,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "",
+          textSampleComplete: false
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "src/query/react/buildHooks.ts(1823,13) has a type error"
+    });
+
+    expect(ranked[0]?.path).toBe("packages/toolkit/src/query/react/buildHooks.ts");
+    expect(ranked[0]?.confidence).toBe("high");
+  });
+
+  it("uses normalized HTTP/2 evidence to prefer the h2 client implementation", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "lib/dispatcher/client-h2.js",
+          extension: ".js",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "abort request response stream client session cleanup"
+        },
+        {
+          path: "lib/web/fetch/body.js",
+          extension: ".js",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "abort request response stream body leak"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "aborted HTTP/2 client requests leak the response stream"
+    });
+
+    expect(ranked[0]?.path).toBe("lib/dispatcher/client-h2.js");
+    expect(ranked[0]?.reasons).toContain("path matches task terms: client, h2");
+  });
+
+  it("uses an exact quoted package literal to find an affected type bridge", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "lib/types/config-api.d.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "import { type Config } from \"@eslint/config-helpers\"; export { type Config };"
+        },
+        {
+          path: "lib/config/flat-config-array.js",
+          extension: ".js",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "config helper object alias package configuration"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "Alias `Config` to `ConfigObject` in `@eslint/config-helpers`"
+    });
+
+    expect(ranked[0]?.path).toBe("lib/types/config-api.d.ts");
+    expect(ranked[0]?.reasons).toContain("contains exact task literal: @eslint/config-helpers");
+  });
 });

@@ -4,7 +4,7 @@ A reproducible evaluation of FixMap's context ranking against real, already-fixe
 
 ## Dataset
 
-[`dataset.json`](dataset.json) contains 6 cases across 6 MIT-licensed repositories:
+[`dataset.json`](dataset.json) contains 15 cases across 15 MIT-licensed repositories:
 
 | Repository | License | Issue | Fixing PR | Pinned base SHA |
 | --- | --- | --- | --- | --- |
@@ -14,6 +14,15 @@ A reproducible evaluation of FixMap's context ranking against real, already-fixe
 | sindresorhus/ky | MIT | [#857](https://github.com/sindresorhus/ky/issues/857) | [#858](https://github.com/sindresorhus/ky/pull/858) | `4ba8c15feaca` |
 | colinhacks/zod | MIT | [#5944](https://github.com/colinhacks/zod/issues/5944) | [#5945](https://github.com/colinhacks/zod/pull/5945) | `1fb56a5c18c2` |
 | pinojs/pino | MIT | [#1996](https://github.com/pinojs/pino/issues/1996) | [#2432](https://github.com/pinojs/pino/pull/2432) | `5a236d74a086` |
+| fastify/fastify | MIT | [#6671](https://github.com/fastify/fastify/issues/6671) | [#6680](https://github.com/fastify/fastify/pull/6680) | `5f4871f931d4` |
+| chalk/chalk | MIT | [#624](https://github.com/chalk/chalk/issues/624) | [#688](https://github.com/chalk/chalk/pull/688) | `8a94e0ebfc49` |
+| vitest-dev/vitest | MIT | [#7375](https://github.com/vitest-dev/vitest/issues/7375) | [#10798](https://github.com/vitest-dev/vitest/pull/10798) | `22d353a80c23` |
+| eslint/eslint | MIT | [#478](https://github.com/eslint/eslint/issues/478) | [#21082](https://github.com/eslint/eslint/pull/21082) | `e7d1e4373bf6` |
+| webpack/webpack | MIT | [#15371](https://github.com/webpack/webpack/issues/15371) | [#21503](https://github.com/webpack/webpack/pull/21503) | `61d4136e6d16` |
+| nodejs/undici | MIT | [#5566](https://github.com/nodejs/undici/issues/5566) | [#5569](https://github.com/nodejs/undici/pull/5569) | `87270e46a226` |
+| reduxjs/redux-toolkit | MIT | [#5156](https://github.com/reduxjs/redux-toolkit/issues/5156) | [#5344](https://github.com/reduxjs/redux-toolkit/pull/5344) | `e4725cece4b4` |
+| prettier/prettier | MIT | [#5738](https://github.com/prettier/prettier/issues/5738) | [#19687](https://github.com/prettier/prettier/pull/19687) | `1cfcbbb99342` |
+| honojs/hono | MIT | [#3281](https://github.com/honojs/hono/issues/3281) | [#5142](https://github.com/honojs/hono/pull/5142) | `cadff88bba34` |
 
 Each case pins the fixing PR's **base commit** (the repository state while the bug existed), uses the linked issue title plus the first 600 characters of its body as the task text, and uses the PR's changed source files as the expected answer. The fixed input cap can end mid-token and can omit file hints that appear later in an issue; this is part of the frozen benchmark rather than something adjusted after seeing rankings.
 
@@ -35,20 +44,42 @@ The first run shallow-clones each repository at its pinned SHA into the OS temp 
 
 ## Results
 
-Measured 2026-07-25 on the dataset above (Node v24, `rankContextFiles` with a top-5 window):
+Measured 2026-07-26 on the dataset above (Node v24, `rankContextFiles` with a top-5 window):
 
 | Metric | Hit rate |
 | --- | --- |
-| top-1 | 5/6 (83%) |
-| top-3 | 6/6 (100%) |
-| top-5 | 6/6 (100%) |
+| top-1 | 9/15 (60%) |
+| top-3 | 15/15 (100%) |
+| top-5 | 15/15 (100%) |
 
-The v0.7.0 ranker added bounded definition-site evidence for distinctive task identifiers and exact code or literal fragments. That general signal moves the frozen Zod #5944 fixing file, `regexes.ts`, from outside the top five to top one without changing the task, expected path, or selection rule.
+The freshly measured pre-change baseline on the expanded 15-case dataset was 6/15 (40%) Top-1, 10/15 (67%) Top-3, and 10/15 (67%) Top-5. It was measured with the current dataset against the untouched pre-v0.7.1 ranker; it was not copied from the stale historical `results.json`.
 
-Two later corrections account for the rest. Ranking stopped treating a term as boilerplate at half of all files and now requires 85%, because a small single-purpose repository names its subject in most of its files. Scanning stopped re-applying a hardcoded directory blocklist on top of `git ls-files --exclude-standard`, which had already applied `.gitignore`. Together those moved pino #1996 from a top-3 hit to top-1.
+The v0.7.1 changes add honest identifier grounding and general ranking evidence for member references, explicit paths and literals, type-focused tasks, HTTP/2 naming, and issue-template noise. Those changes move the expected fixing file into the Top-3 for all five previously missed cases. They do not special-case repository names or expected paths.
 
-The figures published before 2026-07-25 (67% / 100% / 100%) came from a `results.json` that had drifted from the committed ranker and were not reproducible against `c35362f`; that file has been re-recorded.
+The Chalk case is a deliberate guard against blanket vendor exclusion: its only color-detection implementation is `source/vendor/supports-color/index.js`, which remains the Top-1 result. FixMap trusts `git ls-files --exclude-standard`, then drops generated output only when its maintained source counterpart is present.
 
-The exact per-case top-five rankings are checked in at [`results.json`](results.json). Six cases are useful regression evidence, not a general claim that FixMap is 100% accurate.
+The exact per-case top-five rankings are checked in at [`results.json`](results.json). Fifteen cases are useful regression evidence, not a general claim that FixMap is 100% accurate.
 
 The `--gate` floors (top-1 ≥ 0.3, top-3 ≥ 0.5, top-5 ≥ 0.5) exist only to catch ranking collapses in the scheduled run. They are deliberately below measured performance and are not accuracy claims or targets.
+
+## Runtime and context-size comparison
+
+`npm run benchmark:savings` runs scan + rank three times per pinned repository and reports the median. The recorded result in [`savings-results.json`](savings-results.json) measured:
+
+| Quantity | Result | Classification |
+| --- | ---: | --- |
+| Median scan + rank time | 1.75 s | Measured |
+| All supported scanned text | 22,058,578 tokens | Assumed baseline, estimated as UTF-8 bytes ÷ 4 |
+| Top-five ranked context | 318,546 tokens | Estimated as UTF-8 bytes ÷ 4 |
+| Context reduction | 98.56% | Estimated from the two byte-based proxies |
+| Difference vs 15-minute manual triage | 14.97 min | Implied from an assumed baseline |
+
+“Supported scanned text” means every scanned `.cjs`, `.css`, `.go`, `.js`, `.json`, `.jsx`, `.md`, `.mjs`, `.py`, `.rs`, `.ts`, `.tsx`, `.yaml`, or `.yml` file, including tests and documentation—not only implementation code.
+
+The 15-minute manual baseline was **not measured in a controlled with/without-agent experiment**. It is included only as a replaceable scenario; pass `--assumed-manual-minutes` to change it. The benchmark makes no claim that an agent will save that amount of time in real work.
+
+```bash
+npm run benchmark:savings
+npm run benchmark:savings:record
+npm run render:benchmark-card
+```

@@ -2,7 +2,7 @@
 
 All notable changes to FixMap are documented here.
 
-## Unreleased
+## 0.7.1 - 2026-07-26
 
 ### Fixed
 
@@ -14,11 +14,17 @@ All notable changes to FixMap are documented here.
 ### Added
 
 - An empty report now explains itself instead of printing "Diagnostics: None found". FixMap distinguishes task text that produced no searchable term from terms that matched no file, and names the terms it searched for.
+- Added repository-grounded identifier analysis to reports. Exact, partial, unresolved, and unverified identifiers are distinguished before ranking confidence is assigned.
+- Added regressions for paraphrased camelCase identifiers and identifiers beyond the 64 KB text-sampling boundary, preventing grounding from suppressing useful component words or claiming absence from incomplete evidence.
+- Expanded the frozen external benchmark from 6 to 15 pinned repositories and added a reproducible scan/runtime/context-size benchmark plus an exact SVG result card.
 
 ### Changed
 
-- Improved the frozen six-repository evaluation from 83% / 83% / 100% to 83% / 100% / 100% top-1/3/5. The pino #1996 transport case now ranks `lib/transport.js` first. The eight-case internal evaluation is unchanged at 62.5% / 87.5%.
-- Re-recorded `benchmarks/external/results.json`, which had drifted from what the committed ranker produces.
+- Improved the freshly measured 15-repository baseline from 40% / 67% / 67% to 60% / 100% / 100% Top-1/3/5. The baseline was run against the same frozen cases rather than read from the previously stale results file.
+- Confidence is capped when identifier grounding is incomplete, task text is vague, the repository scan is incomplete, or the ranking is too flat to justify certainty.
+- Ranking now recognizes member references, type-focused tasks, HTTP/2-to-`h2` naming, explicit nested paths and repeated literals while filtering unchecked issue-template options.
+- The efficiency benchmark labels byte-derived token figures as estimates and the manual-triage comparison as an assumption, not a controlled agent experiment.
+- Re-recorded `benchmarks/external/results.json` with all 15 exact Top-5 rankings.
 
 ## 0.7.0 - 2026-07-22
 

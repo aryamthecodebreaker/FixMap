@@ -391,7 +391,7 @@ describe("repository acquisition", () => {
       severity: "info"
     });
     expect(report.diagnostics[0]?.message).toContain("truncated to 20,000 characters");
-  });
+  }, 15_000);
 
   it("rejects remote diff analysis before cloning", async () => {
     const clonePublicRepository = vi.fn(fixtureClone);

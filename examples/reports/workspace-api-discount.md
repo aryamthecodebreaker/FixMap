@@ -22,6 +22,13 @@ FixMap found 3 context files and generated 3 test routes.
 
 - None found
 
+## Analysis
+
+- Task grounding: **anchored**
+- Repository scan: **complete**
+- Ranking shape: **separated**
+- Next action: Inspect apps/api/src/orders.ts and its routed tests before editing.
+
 ## Diagnostics
 
 - None found
