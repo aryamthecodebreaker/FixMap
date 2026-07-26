@@ -60,8 +60,22 @@ const RISK_RULES: { area: string; severity: RiskNote["severity"]; tokens: string
   { area: "dependencies", severity: "medium", tokens: ["dependency", "lock", "package"], reason: "dependency changes can affect build and supply-chain behavior" }
 ];
 
+// Demo code names sensitive areas without touching them. Express ships examples/auth/,
+// which the ranker already deprioritizes as demo code — but reading it for risk turned a
+// low-confidence example into "high: authentication-related files are affected" on a task
+// about request parsing. A risk note derived from evidence the ranking itself discounted
+// is exactly the confident-but-wrong output the diagnostics exist to prevent. A changed
+// file is different: a diff is fact, so it still counts wherever it lives.
+const AUXILIARY_RISK_DIRS = new Set(["demo", "demos", "example", "examples", "sample", "samples", "fixture", "fixtures"]);
+
+function carriesRiskEvidence(path: string): boolean {
+  return !path.split("/").slice(0, -1).some((segment) => AUXILIARY_RISK_DIRS.has(segment.toLowerCase()));
+}
+
 export function buildRiskNotes(contextPaths: string[], changedFiles: string[] = []): RiskNote[] {
-  const contextTokens = new Set(contextPaths.flatMap((path) => [...tokenizePath(path)]));
+  const contextTokens = new Set(
+    contextPaths.filter(carriesRiskEvidence).flatMap((path) => [...tokenizePath(path)])
+  );
   const changedTokens = new Set(changedFiles.flatMap((path) => [...tokenizePath(path)]));
   const diffPresent = changedFiles.length > 0;
   const risks: RiskNote[] = [];

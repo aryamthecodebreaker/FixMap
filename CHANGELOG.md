@@ -2,6 +2,16 @@
 
 All notable changes to FixMap are documented here.
 
+## Unreleased
+
+### Fixed
+
+- Risk notes are no longer derived from demo code. Express ships `examples/auth/`, which the ranker already deprioritizes as example code — but the risk map still read it, turning a low-confidence demo file into "**high** authentication: authentication-related files are affected" on a task about request body parsing. A risk derived from evidence the ranking itself discounted is precisely the confident-but-wrong output the diagnostics exist to prevent. Changed files still count wherever they live, because a diff is fact rather than a guess.
+
+### Added
+
+- The CLI now points at the next useful command. Saving a JSON plan suggests the `verify` invocation for it; a weak, empty, or tightly clustered ranking suggests `--explain`. Hints go to stderr, so reports piped to a file, parsed as JSON, or posted by the Action are unchanged, and only one appears per run.
+
 ## 0.7.3 - 2026-07-26
 
 ### Added

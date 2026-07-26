@@ -26,6 +26,15 @@ npx -y @aryam/fixmap@latest plan --issue https://github.com/aryamthecodebreaker/
 
 No clone, signup, configuration, or source upload is required.
 
+| Command | Answers |
+| --- | --- |
+| [`fixmap plan`](#cli) | Which files, tests, and risks should I look at first? |
+| [`fixmap plan --explain <path>`](#ask-why) | Why is the file I expected *not* in that list? |
+| [`fixmap verify`](#verify-the-change-afterwards) | Did the change I made match the plan? |
+| [`fixmap mcp`](#mcp-server) | The same report, requested directly by an agent |
+
+The CLI points at the next useful command as you go, so `--explain` and `verify` surface when they apply rather than only living here.
+
 <!-- Reproducible recording: regenerate with `npm run build:cli && node scripts/render-demo.mjs` -->
 ![Animated FixMap terminal recording: one command produces ranked context files with confidence and reasons, a related test route, a high authentication risk note, and honest diagnostics.](docs/assets/fixmap-cli-demo.svg)
 

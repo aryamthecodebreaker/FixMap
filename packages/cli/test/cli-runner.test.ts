@@ -82,8 +82,10 @@ describe("CLI argument handling", () => {
     expect(exitCode).toBe(0);
     expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({ issueText: "reset fails" }));
     expect(writeReport).toHaveBeenCalledWith("report.json", expect.stringContaining('"contextFiles"'));
+    // The report itself never reaches stdout when written to a file. Saving a JSON plan
+    // does name the command that consumes it, on stderr so the artifact stays clean.
     expect(io.stdout).toEqual([]);
-    expect(io.stderr).toEqual([]);
+    expect(io.stderr.join("")).toContain("fixmap verify --report report.json");
   });
 
   it("requires a task signal before invoking the report builder", async () => {

@@ -193,4 +193,15 @@ describe("report rendering", () => {
     expect(routes[0]?.command).toBe("npm run test");
     expect(routes[0]?.relatedFiles).toContain("packages/core/test/rank.test.ts");
   });
+it("ignores demo code when deriving risk, but trusts a changed file anywhere", () => {
+    // Express ships examples/auth/. Reading it for risk turned a deprioritized demo
+    // file into a high-severity authentication note on a request-parsing task.
+    expect(buildRiskNotes(["examples/auth/index.js"], [])).toEqual([]);
+    expect(buildRiskNotes(["src/auth/login.ts"], [])).toContainEqual(
+      expect.objectContaining({ area: "authentication", severity: "high" })
+    );
+    expect(buildRiskNotes([], ["examples/auth/index.js"])).toContainEqual(
+      expect.objectContaining({ area: "authentication" })
+    );
+  });
 });
