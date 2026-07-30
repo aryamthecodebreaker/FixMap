@@ -199,10 +199,6 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
  * the suggestion obviously useful and stays quiet otherwise.
  */
 function nextCommandHint(options: CliOptions, report: FixMapReport): string | undefined {
-  if (options.output && options.format === "json") {
-    const diff = options.diffSpec ?? "main...HEAD";
-    return `\nAfter you make the change, check it against this plan:\n  fixmap verify --report ${options.output} --diff ${diff}\n`;
-  }
 
   const leading = report.contextFiles[0];
   const weak =
@@ -212,6 +208,13 @@ function nextCommandHint(options: CliOptions, report: FixMapReport): string | un
   if (weak) {
     return "\nExpected a file that is not listed? Ask why it was left out:\n  fixmap plan --issue \"<same task>\" --explain <path>\n";
   }
+
+  if (options.output && options.format === "json" ) {
+    const diff = options.diffSpec ?? "main...HEAD";
+    return `\nAfter you make the change, check it against this plan:\n  fixmap verify --report ${options.output} --diff ${diff}\n`;
+  }
+
+  
 
   return undefined;
 }

@@ -11,6 +11,11 @@ const report: FixMapReport = {
   diagnostics: []
 };
 
+const emptyReport: FixMapReport = {
+  summary: "Found 0 context files.",
+  contextFiles: [],
+};
+
 function capture() {
   const stdout: string[] = [];
   const stderr: string[] = [];
@@ -51,6 +56,23 @@ describe("CLI argument handling", () => {
     expect(io.stderr.join("")).toContain("Unknown option(s): --mystery");
     expect(io.stderr.join("")).not.toContain("Unknown option(s): yaml");
   });
+
+  it("shows analysis hint instead of verify hint for empty JSON plans", async () => {
+  const io = capture();
+  const buildReport = vi.fn(async () => emptyReport);
+  const writeReport = vi.fn(async () => undefined);
+
+  const exitCode = await runCli(
+    ["plan", "--issue", "reset fails", "--format", "json", "--output", "report.json"],
+    { ...io.dependencies, buildReport, writeReport }
+  );
+
+  expect(exitCode).toBe(0);
+
+  expect(io.stderr.join("")).not.toContain("fixmap verify --report report.json");
+
+  expect(io.stderr.join("")).toContain("Expected a file that is not listed?");
+});
 
   it("reports empty inline values explicitly", () => {
     const parsed = parseArgs(["plan", "--issue=", "--output="]);
