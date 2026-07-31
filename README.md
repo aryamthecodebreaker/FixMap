@@ -12,7 +12,7 @@ Paste a GitHub issue URL, describe a task, or point at a diff. FixMap returns ra
 [![Marketplace](https://img.shields.io/badge/GitHub_Marketplace-FixMap-2ea44f?logo=github)](https://github.com/marketplace/actions/fixmap)
 [![MIT](https://img.shields.io/badge/license-MIT-74f0ba)](LICENSE)
 
-[Try one command](#one-command-start) · [Watch the 24-second film](https://fixmap-flax.vercel.app/#launch-film) · [Install the Action](https://github.com/marketplace/actions/fixmap) · [Connect MCP](#mcp-server) · [Contribute](CONTRIBUTING.md)
+[Try one command](#one-command-start) · [Watch the 24-second film](https://usefixmap.vercel.app/fixmap-launch.mp4) · [Install the Action](https://github.com/marketplace/actions/fixmap) · [Connect MCP](#mcp-server) · [Contribute](CONTRIBUTING.md)
 
 </div>
 
@@ -410,9 +410,9 @@ New surface: `fixmap doctor`, `plan --compare`, `--exclude` and `.fixmapignore`,
 
 ## Watch it work
 
-[![FixMap launch film preview: a terminal report showing the ranked reset-password context file, its related test route, and a high authentication risk note.](apps/web/public/fixmap-launch-poster.jpg)](https://fixmap-flax.vercel.app/#launch-film)
+[![FixMap launch film preview: a terminal report showing the ranked reset-password context file, its related test route, and a high authentication risk note.](apps/web/public/fixmap-launch-poster.jpg)](https://usefixmap.vercel.app/fixmap-launch.mp4)
 
-[Play the launch film](https://fixmap-flax.vercel.app/fixmap-launch.mp4) · [Explore the browser demo](https://fixmap-flax.vercel.app/#demo) · [Open the repository](https://github.com/aryamthecodebreaker/FixMap)
+[Play the launch film](https://usefixmap.vercel.app/fixmap-launch.mp4) · [Explore the browser demo](https://usefixmap.vercel.app/demo) · [Open the repository](https://github.com/aryamthecodebreaker/FixMap)
 
 The website demo runs against a small browser-only sample. The CLI, MCP server, and Action scan real repositories.
 

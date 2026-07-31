@@ -98,7 +98,7 @@ fixmap mcp             Run FixMap as an MCP server over stdio
 ## Links
 
 - [GitHub repository](https://github.com/aryamthecodebreaker/FixMap)
-- [Live demo](https://fixmap-flax.vercel.app)
+- [Live demo](https://usefixmap.vercel.app)
 - [Changelog](https://github.com/aryamthecodebreaker/FixMap/blob/main/CHANGELOG.md)
 
 MIT © FixMap contributors.

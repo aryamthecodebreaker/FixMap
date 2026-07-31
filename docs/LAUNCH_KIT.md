@@ -199,7 +199,7 @@ The latest work includes:
 
 The evaluation is intentionally public and modest. Across 12 pinned real bugs in repositories the ranker was never tuned against, FixMap ranks an expected file in the top 1 for 7 and in the top 3 for 9. Every per-case ranking is published, including the three misses, and 12 cases are not a general accuracy claim.
 
-Watch the film and try the live experience: https://fixmap-flax.vercel.app/#launch-film
+Watch the film and try the live experience: https://usefixmap.vercel.app/fixmap-launch.mp4
 
 GitHub: https://github.com/aryamthecodebreaker/FixMap
 

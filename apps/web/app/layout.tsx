@@ -13,7 +13,7 @@ const body = Inter({ subsets: ["latin"], variable: "--font-body" });
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://fixmap-flax.vercel.app"),
+  metadataBase: new URL("https://usefixmap.vercel.app"),
   title: "FixMap — Repo maps for coding agents",
   description: "Paste a public GitHub issue URL and get ranked files, test routes, risk notes, and explainable diagnostics. Local-first and open source.",
   keywords: [
