@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const base = "https://fixmap-flax.vercel.app";
+const base = "https://usefixmap.vercel.app";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return ["", "/product", "/demo", "/evidence", "/get-started", "/docs"].map((path) => ({
