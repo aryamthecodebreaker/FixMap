@@ -69,6 +69,29 @@ describe("CLI argument handling", () => {
     expect(parseArgs(args).issueText).toBe("reset fails");
   });
 
+  it("rejects duplicate issue flags instead of silently taking the last", () => {
+    const parsed = parseArgs(["plan", "--issue", "first", "--issue", "second"]);
+
+    expect(parsed.invalidValues).toContain("pass only one --issue value");
+    expect(parsed.issueText).toBe("first");
+  });
+
+  it("loads task text from --issue-file", async () => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+
+    const exitCode = await runCli(["plan", "--issue-file", "task.md"], {
+      ...io.dependencies,
+      buildReport,
+      readIssueFile: () => "password reset emails fail"
+    });
+
+    expect(exitCode).toBe(0);
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({
+      issueText: "password reset emails fail"
+    }));
+  });
+
   it("routes a valid plan to the injected report builder and output writer", async () => {
     const io = capture();
     const buildReport = vi.fn(async () => report);

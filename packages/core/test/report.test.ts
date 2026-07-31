@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRiskNotes, buildTestRoutes, renderJsonReport, renderMarkdownReport } from "../src/report.js";
+import { buildReportFromRepo, buildRiskNotes, buildTestRoutes, renderJsonReport, renderMarkdownReport } from "../src/report.js";
 import type { FixMapReport, RepoMap } from "../src/types.js";
 
 describe("report rendering", () => {
@@ -71,7 +71,8 @@ describe("report rendering", () => {
     expect(routes[0]?.relatedFiles).toEqual(["test/auth/reset-password.test.ts"]);
     expect(routes.map((route) => route.command)).toEqual(["npm run test", "npm run typecheck"]);
     expect(risks[0]?.area).toBe("authentication");
-    expect(risks[0]?.severity).toBe("high");
+    expect(risks[0]?.severity).toBe("low");
+    expect(risks[0]?.reason).toContain("no diff evidence");
   });
 
   it("downgrades risks that come only from context ranking when a diff is present", () => {
@@ -141,6 +142,26 @@ describe("report rendering", () => {
     expect(buildTestRoutes(repo, ["README.md"])).toEqual([]);
   });
 
+  it("warns when code is ranked but no supported test route exists", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      packageScripts: [],
+      files: [{
+        path: "requests/adapters.py", extension: ".py", sizeBytes: 20, isSource: true,
+        isTest: false, kind: "code", textSample: "def stream_timeout(): pass"
+      }]
+    };
+
+    const report = buildReportFromRepo(repo, { issueText: "stream timeout fails" });
+
+    expect(report.testRoutes).toEqual([]);
+    expect(report.diagnostics).toContainEqual(expect.objectContaining({ code: "no-test-route" }));
+  });
+
   it("lists only the tests each package command can actually reach", () => {
     // Every route previously carried the same repository-wide list, so a core
     // route advertised action tests that `--prefix packages/core` never runs.
@@ -198,7 +219,7 @@ it("ignores demo code when deriving risk, but trusts a changed file anywhere", (
     // file into a high-severity authentication note on a request-parsing task.
     expect(buildRiskNotes(["examples/auth/index.js"], [])).toEqual([]);
     expect(buildRiskNotes(["src/auth/login.ts"], [])).toContainEqual(
-      expect.objectContaining({ area: "authentication", severity: "high" })
+      expect.objectContaining({ area: "authentication", severity: "low" })
     );
     expect(buildRiskNotes([], ["examples/auth/index.js"])).toContainEqual(
       expect.objectContaining({ area: "authentication" })

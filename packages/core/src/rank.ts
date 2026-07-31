@@ -23,7 +23,8 @@ const COMPILED_TO_SOURCE_MENTION_EXTENSIONS: Readonly<Record<string, readonly st
 const MAX_FILES_PER_MENTION = 5;
 const MAX_PROXIMITY_SEEDS = 5;
 const IMPORT_PROXIMITY_BOOSTS: Record<ImportProximity["distance"], number> = { 1: 4, 2: 2 };
-const EXAMPLE_CODE_PENALTY = 2;
+const EXAMPLE_CODE_PENALTY = 8;
+const PRESENTATION_CODE_PENALTY = 8;
 const TYPE_DECLARATION_PENALTY = 4;
 const BACKUP_COPY_PENALTY = 10;
 const BUNDLED_OUTPUT_PENALTY = 12;
@@ -45,7 +46,7 @@ const MEMBER_MENTION_BOOST = 8;
 // mentions "color" in 55% of its files because that is what chalk does, and suppressing
 // the word left a color-detection task with no signal at all.
 const WIDESPREAD_TOKEN_SHARE = 0.85;
-const DEFINITION_IDENTIFIER_BOOST = 4;
+const DEFINITION_IDENTIFIER_BOOST = 24;
 const DEFINITION_LITERAL_BOOST = 8;
 const MAX_DEFINITION_IDENTIFIERS = 2;
 const TASK_MATCHED_DEFINITION_BOOST = 4;
@@ -99,8 +100,10 @@ export function rankContextFiles(
     !isGeneratedPath(file.path) ||
     !maintainedStems.has(moduleStem(file.path))
   );
-  const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
+  const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeFileContent(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
+  const allTaskTermsAreWidespread = taskTokens.size > 0 &&
+    [...taskTokens].every((token) => commonTokens.has(token));
   const definitionSignals = buildDefinitionSignals(signals.identifiers);
   const taskText = [input.issueText ?? "", input.diffText ?? ""].join("\n");
   const taskTargetsDocumentation = targetsDocumentation(taskText);
@@ -109,6 +112,9 @@ export function rankContextFiles(
   const taskTargetsExamples = /\b(?:demos?|examples?|samples?)\b/i.test(
     taskText.replace(/\bfor example\b/gi, "")
   );
+  const taskTargetsPresentation = hasAny(taskTokens, [
+    "browser", "button", "client", "display", "form", "frontend", "layout", "page", "screen", "ui", "visitor", "web", "website"
+  ]);
   const taskTargetsTypeDeclarations =
     /\b(?:typescript|types?|type definitions?|declarations?|typings?|\.d\.(?:ts|mts|cts))\b/i.test(taskText);
 
@@ -136,10 +142,18 @@ export function rankContextFiles(
       }
 
       const contentTokens = contentTokensByPath.get(file.path) ?? new Set<string>();
-      const contentOverlap = [...contentTokens].filter((token) => taskTokens.has(token) && !commonTokens.has(token));
+      const contentOverlap = [...contentTokens].filter((token) =>
+        taskTokens.has(token) && (allTaskTermsAreWidespread || !commonTokens.has(token))
+      );
       if (contentOverlap.length > 0) {
         score += Math.min(contentOverlap.length, 8) * 2;
         reasons.push(`content matches task terms: ${contentOverlap.slice(0, 8).join(", ")}`);
+      }
+
+      const regexTokenOverlap = findRegexTokenOverlap(file.textSample, taskTokens);
+      if (regexTokenOverlap.length > 0) {
+        score += Math.min(regexTokenOverlap.length, 2) * 12;
+        reasons.push(`regex literal matches task tokens: ${regexTokenOverlap.join(", ")}`);
       }
 
       const matchedMembers = [...signals.memberMentions]
@@ -168,7 +182,9 @@ export function rankContextFiles(
         reasons.push(`defines task identifiers: ${definedIdentifiers.join(", ")}`);
       }
 
-      const taskMatchedDefinitions = signals.exactFragments.length === 0
+      const taskMatchedDefinitions = signals.exactFragments.length === 0 &&
+        !taskTargetsDocumentation &&
+        !taskTargetsPresentation
         ? findTaskMatchedDefinitions(file.textSample, taskTokens)
           .filter((identifier) => !definedIdentifiers.includes(identifier))
           .slice(0, MAX_DEFINITION_IDENTIFIERS)
@@ -216,11 +232,24 @@ export function rankContextFiles(
         file.kind === "code" &&
         isAuxiliaryCodePath(file.path) &&
         !taskTargetsExamples &&
+        !taskTargetsPresentation &&
         !isChanged &&
         !mentionedPaths.has(file.path)
       ) {
         score -= EXAMPLE_CODE_PENALTY;
         reasons.push("example or demo code deprioritized for an implementation task");
+      }
+
+      if (
+        file.kind === "code" &&
+        isPresentationCodePath(file.path) &&
+        !taskTargetsPresentation &&
+        !taskTargetsExamples &&
+        !isChanged &&
+        !mentionedPaths.has(file.path)
+      ) {
+        score -= PRESENTATION_CODE_PENALTY;
+        reasons.push("presentation or demo surface deprioritized for a non-UI implementation task");
       }
 
       if (
@@ -428,7 +457,50 @@ function compiledSourcePathVariants(path: string): string[] {
 }
 
 function isAuxiliaryCodePath(path: string): boolean {
-  return path.split("/").slice(0, -1).some((segment) => AUXILIARY_CODE_DIRS.has(segment.toLowerCase()));
+  const parts = path.split("/");
+  const stem = (parts.at(-1) ?? "").replace(/\.[^.]+$/, "").toLowerCase();
+  return parts.slice(0, -1).some((segment) => AUXILIARY_CODE_DIRS.has(segment.toLowerCase())) ||
+    /^(?:demo|example|sample)(?:[-_.]|$)/.test(stem);
+}
+
+function isPresentationCodePath(path: string): boolean {
+  const name = path.split("/").at(-1)?.toLowerCase() ?? "";
+  return /^(?:page|layout|demo|sample-repo)\.[cm]?[jt]sx?$/.test(name);
+}
+
+function tokenizeFileContent(text: string): Set<string> {
+  const tokens = tokenizeText(text);
+  for (const match of text.matchAll(/\b([A-Za-z])\{(\d+),(\d+)\}/g)) {
+    const character = match[1]?.toLowerCase();
+    const minimum = Number(match[2]);
+    const maximum = Math.min(Number(match[3]), 8);
+    if (!character || !Number.isSafeInteger(minimum) || !Number.isSafeInteger(maximum)) {
+      continue;
+    }
+    for (let length = Math.max(3, minimum); length <= maximum; length += 1) {
+      tokens.add(character.repeat(length));
+    }
+  }
+  return tokens;
+}
+
+function findRegexTokenOverlap(text: string, taskTokens: Set<string>): string[] {
+  const overlap = new Set<string>();
+  for (const match of text.matchAll(/\b([A-Za-z])\{(\d+),(\d+)\}/g)) {
+    const character = match[1]?.toLowerCase();
+    const minimum = Number(match[2]);
+    const maximum = Math.min(Number(match[3]), 8);
+    if (!character || !Number.isSafeInteger(minimum) || !Number.isSafeInteger(maximum)) {
+      continue;
+    }
+    for (let length = Math.max(3, minimum); length <= maximum; length += 1) {
+      const token = character.repeat(length);
+      if (taskTokens.has(token)) {
+        overlap.add(token);
+      }
+    }
+  }
+  return [...overlap].slice(0, 2);
 }
 
 function isBundledOutput(textSample: string): boolean {
@@ -445,7 +517,7 @@ function isTypeDeclarationPath(path: string): boolean {
 
 function targetsDocumentation(taskText: string): boolean {
   const documentation = "(?:docs?|documentation|readme|guide|copy)";
-  const action = "(?:add|edit|update|write|rewrite|revise|remove|correct|document)";
+  const action = "(?:add|edit|update|write|rewrite|revise|remove|correct|document|improve)";
   return (
     new RegExp(`\\b${action}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) ||
     new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${action}\\b`, "i").test(taskText)

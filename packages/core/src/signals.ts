@@ -21,6 +21,7 @@ const STOP_WORDS = new Set([
   "class",
   "const",
   "continue",
+  "codebase",
   "could",
   "debugger",
   "default",
@@ -61,6 +62,7 @@ const STOP_WORDS = new Set([
   "just",
   "let",
   "main",
+  "make",
   "may",
   "might",
   "more",
@@ -82,6 +84,7 @@ const STOP_WORDS = new Set([
   "package",
   "packages",
   "private",
+  "quality",
   "protected",
   "public",
   "readonly",
@@ -108,6 +111,7 @@ const STOP_WORDS = new Set([
   "they",
   "this",
   "those",
+  "thing",
   "throw",
   "true",
   "try",
@@ -148,6 +152,10 @@ const FILE_EXTENSIONS = new Set([
 const IDENTIFIER_PATTERN = /[A-Za-z_$][A-Za-z0-9_$]{4,}/g;
 const MAX_EXACT_FRAGMENTS = 8;
 const MAX_IDENTIFIERS = 24;
+const TRAILING_E_VERB_STEMS = new Set([
+  "bas", "cach", "chang", "cod", "creat", "dat", "fil", "improv", "invoic",
+  "mak", "pars", "remov", "rout", "siz", "tim", "updat"
+]);
 
 export type TaskSignals = {
   tokens: Set<string>;
@@ -323,6 +331,7 @@ export function tokenizeText(text: string): Set<string> {
   return new Set(
     text
       .replace(/\bhttp\s*\/\s*([123])\b/gi, "http h$1")
+      .replace(/https?:\/\/[^\s<>()\[\]{}]+/gi, " ")
       .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
       .toLowerCase()
       .split(TOKEN_SPLIT)
@@ -341,22 +350,14 @@ function normalizeToken(token: string): string {
   if (token.length > 5 && token.endsWith("ies")) return `${token.slice(0, -3)}y`;
   if (token.length > 5 && token.endsWith("ing")) return normalizeVerbStem(token.slice(0, -3));
   if (token.length > 4 && token.endsWith("ed")) return normalizeVerbStem(token.slice(0, -2));
-  if (token.length > 4 && token.endsWith("es")) return normalizeTrailingE(token.slice(0, -2));
+  if (token.length > 4 && /(?:sses|shes|ches|xes|zes)$/.test(token)) return token.slice(0, -2);
   if (token.length > 3 && token.endsWith("s")) return token.slice(0, -1);
-  return normalizeTrailingE(token);
+  return token;
 }
 
 function normalizeVerbStem(stem: string): string {
   const deduplicated = /([a-z])\1$/.test(stem) ? stem.slice(0, -1) : stem;
-  return normalizeTrailingE(deduplicated);
-}
-
-// Strip a trailing "e" so a base form and its inflections converge: "file", "files",
-// and "filed" all reach "fil". The guard is > 3 rather than > 4 so four-letter bases
-// ("base", "code", "file", "size", "date", "time") are included; the result is still
-// at least three characters, which is the minimum token length tokenizeText keeps.
-function normalizeTrailingE(token: string): string {
-  return token.length > 3 && token.endsWith("e") ? token.slice(0, -1) : token;
+  return TRAILING_E_VERB_STEMS.has(deduplicated) ? `${deduplicated}e` : deduplicated;
 }
 
 export function tokenizePath(path: string): Set<string> {

@@ -36,4 +36,3 @@ FixMap found 0 context files and generated 0 test routes.
 ## Diagnostics
 
 - **warning** The task is broad and has no verified symbol, file, or diff anchor. Treat the ranking as subsystem guidance only, or add a failing behavior, error string, command, symbol, or file path.
-- **warning** No context files: no file in the 3 scanned matched the task terms better, clean, general, mak, overall, performanc. The repository may not contain this behavior, or it may name it differently.

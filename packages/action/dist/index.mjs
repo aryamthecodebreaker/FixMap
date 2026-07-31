@@ -27,6 +27,7 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "class",
   "const",
   "continue",
+  "codebase",
   "could",
   "debugger",
   "default",
@@ -67,6 +68,7 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "just",
   "let",
   "main",
+  "make",
   "may",
   "might",
   "more",
@@ -88,6 +90,7 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "package",
   "packages",
   "private",
+  "quality",
   "protected",
   "public",
   "readonly",
@@ -114,6 +117,7 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "they",
   "this",
   "those",
+  "thing",
   "throw",
   "true",
   "try",
@@ -174,6 +178,24 @@ var FILE_EXTENSIONS = /* @__PURE__ */ new Set([
 var IDENTIFIER_PATTERN = /[A-Za-z_$][A-Za-z0-9_$]{4,}/g;
 var MAX_EXACT_FRAGMENTS = 8;
 var MAX_IDENTIFIERS = 24;
+var TRAILING_E_VERB_STEMS = /* @__PURE__ */ new Set([
+  "bas",
+  "cach",
+  "chang",
+  "cod",
+  "creat",
+  "dat",
+  "fil",
+  "improv",
+  "invoic",
+  "mak",
+  "pars",
+  "remov",
+  "rout",
+  "siz",
+  "tim",
+  "updat"
+]);
 function extractTaskSignals(input) {
   const issueText = stripUncheckedChecklistLines(input.issueText ?? "");
   const taskText = [issueText, extractDiffContentLines(input.diffText ?? "")].join("\n");
@@ -294,7 +316,7 @@ function extractDiffContentLines(diffText) {
   return diffText.split(/\r?\n/).filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")).join("\n");
 }
 function tokenizeText(text) {
-  return new Set(text.replace(/\bhttp\s*\/\s*([123])\b/gi, "http h$1").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token) => token.trim()).filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token)).map((token) => normalizeToken(token)).filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token)));
+  return new Set(text.replace(/\bhttp\s*\/\s*([123])\b/gi, "http h$1").replace(/https?:\/\/[^\s<>()\[\]{}]+/gi, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token) => token.trim()).filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token)).map((token) => normalizeToken(token)).filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token)));
 }
 function isSearchableToken(token) {
   return token.length >= 3 || /^[a-z]\d$/i.test(token);
@@ -306,18 +328,15 @@ function normalizeToken(token) {
     return normalizeVerbStem(token.slice(0, -3));
   if (token.length > 4 && token.endsWith("ed"))
     return normalizeVerbStem(token.slice(0, -2));
-  if (token.length > 4 && token.endsWith("es"))
-    return normalizeTrailingE(token.slice(0, -2));
+  if (token.length > 4 && /(?:sses|shes|ches|xes|zes)$/.test(token))
+    return token.slice(0, -2);
   if (token.length > 3 && token.endsWith("s"))
     return token.slice(0, -1);
-  return normalizeTrailingE(token);
+  return token;
 }
 function normalizeVerbStem(stem) {
   const deduplicated = /([a-z])\1$/.test(stem) ? stem.slice(0, -1) : stem;
-  return normalizeTrailingE(deduplicated);
-}
-function normalizeTrailingE(token) {
-  return token.length > 3 && token.endsWith("e") ? token.slice(0, -1) : token;
+  return TRAILING_E_VERB_STEMS.has(deduplicated) ? `${deduplicated}e` : deduplicated;
 }
 function tokenizePath(path) {
   return tokenizeText(path);
@@ -325,7 +344,7 @@ function tokenizePath(path) {
 
 // packages/core/dist/grounding.js
 var MAX_IDENTIFIER_MATCHED_FILES = 5;
-var VAGUE_TASK_PATTERN = /\b(?:improve|better|clean\s+up|cleanup|refactor|developer\s+experience|dx|general|overall|errors?|reliability|performance)\b/i;
+var VAGUE_TASK_PATTERN = /\b(?:improve|better|clean\s+up|cleanup|refactor|developer\s+experience|dx|general|overall|errors?|reliability|performance|codebase|quality|make|things?|please)\b/i;
 var VAGUE_TASK_TERMS = new RegExp(VAGUE_TASK_PATTERN.source, "gi");
 function analyzeTaskGrounding(repo, input) {
   const issueText = input.issueText ?? "";
@@ -693,7 +712,8 @@ var COMPILED_TO_SOURCE_MENTION_EXTENSIONS = {
 var MAX_FILES_PER_MENTION = 5;
 var MAX_PROXIMITY_SEEDS = 5;
 var IMPORT_PROXIMITY_BOOSTS = { 1: 4, 2: 2 };
-var EXAMPLE_CODE_PENALTY = 2;
+var EXAMPLE_CODE_PENALTY = 8;
+var PRESENTATION_CODE_PENALTY = 8;
 var TYPE_DECLARATION_PENALTY = 4;
 var BACKUP_COPY_PENALTY = 10;
 var BUNDLED_OUTPUT_PENALTY = 12;
@@ -703,7 +723,7 @@ var EXPLICIT_PATH_BOOST = 40;
 var EXACT_LITERAL_BOOST = 8;
 var MEMBER_MENTION_BOOST = 8;
 var WIDESPREAD_TOKEN_SHARE = 0.85;
-var DEFINITION_IDENTIFIER_BOOST = 4;
+var DEFINITION_IDENTIFIER_BOOST = 24;
 var DEFINITION_LITERAL_BOOST = 8;
 var MAX_DEFINITION_IDENTIFIERS = 2;
 var TASK_MATCHED_DEFINITION_BOOST = 4;
@@ -725,14 +745,30 @@ function rankContextFiles(repo, input, limit = 8, minScore = REPORT_SCORE_CUTOFF
   const scannable = repo.files.filter((file) => mentionedPaths.has(file.path) || file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
   const maintainedStems = new Set(scannable.filter((file) => !isGeneratedPath(file.path) && !isBackupPath(file.path)).map((file) => moduleStem(file.path)));
   const candidates = scannable.filter((file) => mentionedPaths.has(file.path) || signals.changedFiles.has(file.path) || !isGeneratedPath(file.path) || !maintainedStems.has(moduleStem(file.path)));
-  const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeText(file.textSample)]));
+  const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeFileContent(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
+  const allTaskTermsAreWidespread = taskTokens.size > 0 && [...taskTokens].every((token) => commonTokens.has(token));
   const definitionSignals = buildDefinitionSignals(signals.identifiers);
   const taskText = [input.issueText ?? "", input.diffText ?? ""].join("\n");
   const taskTargetsDocumentation = targetsDocumentation(taskText);
   const taskTargetsConfiguration = hasAny(taskTokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
   const taskTargetsDeployment = hasAny(taskTokens, DEPLOYMENT_TERMS);
   const taskTargetsExamples = /\b(?:demos?|examples?|samples?)\b/i.test(taskText.replace(/\bfor example\b/gi, ""));
+  const taskTargetsPresentation = hasAny(taskTokens, [
+    "browser",
+    "button",
+    "client",
+    "display",
+    "form",
+    "frontend",
+    "layout",
+    "page",
+    "screen",
+    "ui",
+    "visitor",
+    "web",
+    "website"
+  ]);
   const taskTargetsTypeDeclarations = /\b(?:typescript|types?|type definitions?|declarations?|typings?|\.d\.(?:ts|mts|cts))\b/i.test(taskText);
   const scored = candidates.map((file) => {
     const reasons = [];
@@ -753,10 +789,15 @@ function rankContextFiles(repo, input, limit = 8, minScore = REPORT_SCORE_CUTOFF
       reasons.push(`path matches task terms: ${pathOverlap.join(", ")}`);
     }
     const contentTokens = contentTokensByPath.get(file.path) ?? /* @__PURE__ */ new Set();
-    const contentOverlap = [...contentTokens].filter((token) => taskTokens.has(token) && !commonTokens.has(token));
+    const contentOverlap = [...contentTokens].filter((token) => taskTokens.has(token) && (allTaskTermsAreWidespread || !commonTokens.has(token)));
     if (contentOverlap.length > 0) {
       score += Math.min(contentOverlap.length, 8) * 2;
       reasons.push(`content matches task terms: ${contentOverlap.slice(0, 8).join(", ")}`);
+    }
+    const regexTokenOverlap = findRegexTokenOverlap(file.textSample, taskTokens);
+    if (regexTokenOverlap.length > 0) {
+      score += Math.min(regexTokenOverlap.length, 2) * 12;
+      reasons.push(`regex literal matches task tokens: ${regexTokenOverlap.join(", ")}`);
     }
     const matchedMembers = [...signals.memberMentions].filter((member) => hasExactIdentifier(file.textSample, member)).slice(0, 3);
     if (matchedMembers.length > 0) {
@@ -773,7 +814,7 @@ function rankContextFiles(repo, input, limit = 8, minScore = REPORT_SCORE_CUTOFF
       score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
       reasons.push(`defines task identifiers: ${definedIdentifiers.join(", ")}`);
     }
-    const taskMatchedDefinitions = signals.exactFragments.length === 0 ? findTaskMatchedDefinitions(file.textSample, taskTokens).filter((identifier) => !definedIdentifiers.includes(identifier)).slice(0, MAX_DEFINITION_IDENTIFIERS) : [];
+    const taskMatchedDefinitions = signals.exactFragments.length === 0 && !taskTargetsDocumentation && !taskTargetsPresentation ? findTaskMatchedDefinitions(file.textSample, taskTokens).filter((identifier) => !definedIdentifiers.includes(identifier)).slice(0, MAX_DEFINITION_IDENTIFIERS) : [];
     if (taskMatchedDefinitions.length > 0) {
       score += taskMatchedDefinitions.length * TASK_MATCHED_DEFINITION_BOOST;
       reasons.push(`defines symbols matching task terms: ${taskMatchedDefinitions.join(", ")}`);
@@ -805,9 +846,13 @@ function rankContextFiles(repo, input, limit = 8, minScore = REPORT_SCORE_CUTOFF
       score += 5;
       reasons.push("root configuration for a deployment-related task");
     }
-    if (file.kind === "code" && isAuxiliaryCodePath(file.path) && !taskTargetsExamples && !isChanged && !mentionedPaths.has(file.path)) {
+    if (file.kind === "code" && isAuxiliaryCodePath(file.path) && !taskTargetsExamples && !taskTargetsPresentation && !isChanged && !mentionedPaths.has(file.path)) {
       score -= EXAMPLE_CODE_PENALTY;
       reasons.push("example or demo code deprioritized for an implementation task");
+    }
+    if (file.kind === "code" && isPresentationCodePath(file.path) && !taskTargetsPresentation && !taskTargetsExamples && !isChanged && !mentionedPaths.has(file.path)) {
+      score -= PRESENTATION_CODE_PENALTY;
+      reasons.push("presentation or demo surface deprioritized for a non-UI implementation task");
     }
     if (isTypeDeclarationPath(file.path) && !taskTargetsTypeDeclarations && !isChanged && !mentionedPaths.has(file.path)) {
       score -= TYPE_DECLARATION_PENALTY;
@@ -954,7 +999,46 @@ function compiledSourcePathVariants(path) {
   return [];
 }
 function isAuxiliaryCodePath(path) {
-  return path.split("/").slice(0, -1).some((segment) => AUXILIARY_CODE_DIRS.has(segment.toLowerCase()));
+  const parts = path.split("/");
+  const stem = (parts.at(-1) ?? "").replace(/\.[^.]+$/, "").toLowerCase();
+  return parts.slice(0, -1).some((segment) => AUXILIARY_CODE_DIRS.has(segment.toLowerCase())) || /^(?:demo|example|sample)(?:[-_.]|$)/.test(stem);
+}
+function isPresentationCodePath(path) {
+  const name = path.split("/").at(-1)?.toLowerCase() ?? "";
+  return /^(?:page|layout|demo|sample-repo)\.[cm]?[jt]sx?$/.test(name);
+}
+function tokenizeFileContent(text) {
+  const tokens = tokenizeText(text);
+  for (const match of text.matchAll(/\b([A-Za-z])\{(\d+),(\d+)\}/g)) {
+    const character = match[1]?.toLowerCase();
+    const minimum = Number(match[2]);
+    const maximum = Math.min(Number(match[3]), 8);
+    if (!character || !Number.isSafeInteger(minimum) || !Number.isSafeInteger(maximum)) {
+      continue;
+    }
+    for (let length = Math.max(3, minimum); length <= maximum; length += 1) {
+      tokens.add(character.repeat(length));
+    }
+  }
+  return tokens;
+}
+function findRegexTokenOverlap(text, taskTokens) {
+  const overlap = /* @__PURE__ */ new Set();
+  for (const match of text.matchAll(/\b([A-Za-z])\{(\d+),(\d+)\}/g)) {
+    const character = match[1]?.toLowerCase();
+    const minimum = Number(match[2]);
+    const maximum = Math.min(Number(match[3]), 8);
+    if (!character || !Number.isSafeInteger(minimum) || !Number.isSafeInteger(maximum)) {
+      continue;
+    }
+    for (let length = Math.max(3, minimum); length <= maximum; length += 1) {
+      const token = character.repeat(length);
+      if (taskTokens.has(token)) {
+        overlap.add(token);
+      }
+    }
+  }
+  return [...overlap].slice(0, 2);
 }
 function isBundledOutput(textSample) {
   if (textSample.length < MIN_BUNDLE_SAMPLE_BYTES) {
@@ -968,7 +1052,7 @@ function isTypeDeclarationPath(path) {
 }
 function targetsDocumentation(taskText) {
   const documentation = "(?:docs?|documentation|readme|guide|copy)";
-  const action = "(?:add|edit|update|write|rewrite|revise|remove|correct|document)";
+  const action = "(?:add|edit|update|write|rewrite|revise|remove|correct|document|improve)";
   return new RegExp(`\\b${action}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) || new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${action}\\b`, "i").test(taskText);
 }
 function buildDefinitionSignals(identifiers) {
@@ -1084,11 +1168,11 @@ function extractEnvNames(textSample) {
 // packages/core/dist/report.js
 var MAX_REPORTED_TERMS = 8;
 function buildReportFromRepo(repo, input) {
-  const contextFiles = rankContextFiles(repo, {
+  const grounding = analyzeTaskGrounding(repo, {
     issueText: input.issueText,
     diffText: repo.diffText
   });
-  const grounding = analyzeTaskGrounding(repo, {
+  const contextFiles = grounding.specificity === "vague" ? [] : rankContextFiles(repo, {
     issueText: input.issueText,
     diffText: repo.diffText
   });
@@ -1105,8 +1189,9 @@ function buildReportFromRepo(repo, input) {
     diagnostics: [
       ...repo.diagnostics,
       ...findGatedTestDiagnostics(repo.files, routedTestPaths),
+      ...findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes),
       ...findTaskDiagnostics(grounding, ranking),
-      ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "")
+      ...grounding.specificity === "vague" ? [] : findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "")
     ],
     analysis: {
       grounding,
@@ -1114,6 +1199,17 @@ function buildReportFromRepo(repo, input) {
       nextAction: buildNextAction(grounding, ranking, contextFiles)
     }
   };
+}
+function findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes) {
+  if (testRoutes.length > 0 || !contextFiles.some((entry) => repo.files.find((file) => file.path === entry.path)?.kind === "code")) {
+    return [];
+  }
+  const hasPython = repo.files.some((file) => file.extension === ".py");
+  return [{
+    code: "no-test-route",
+    severity: "warning",
+    message: hasPython ? "No test command was routed. This Python repository has no supported package-script route; inspect pyproject.toml, tox.ini, or the test directory and choose the project runner explicitly." : "No test command was routed. FixMap found code context but no supported package test script, so tests were not assumed to be absent."
+  }];
 }
 function findTaskDiagnostics(grounding, ranking) {
   const diagnostics = [];
@@ -1238,13 +1334,13 @@ function buildRiskNotes(contextPaths, changedFiles = []) {
     if (!inChanged && !inContext) {
       continue;
     }
-    if (inChanged || !diffPresent) {
+    if (inChanged) {
       risks.push({ area: rule.area, severity: rule.severity, reason: rule.reason });
     } else {
       risks.push({
         area: rule.area,
         severity: "low",
-        reason: `context ranking surfaced ${rule.area}-related files, but none of the changed files touch this area`
+        reason: diffPresent ? `context ranking surfaced ${rule.area}-related files, but none of the changed files touch this area` : `ranked files touch ${rule.area}; review this area before editing, but no diff evidence is available yet`
       });
     }
   }
@@ -1379,18 +1475,28 @@ async function scanRepo(input) {
   }
   const diagnostics = [];
   const files = await listFiles(input.repoRoot, diagnostics);
+  const trackedFiles = await listTrackedPaths(input.repoRoot);
   const packageScripts = await readPackageScripts(input.repoRoot, files, diagnostics);
   const diffSpec = resolveDiffSpec(input);
   const diff = await readDiff(input.repoRoot, diffSpec, diagnostics);
   return {
     root: input.repoRoot,
     files,
+    trackedFiles,
     packageScripts,
     changedFiles: diff.changedFiles,
     diffText: diff.diffText,
     packageManager: detectPackageManager(files),
     diagnostics
   };
+}
+async function listTrackedPaths(root) {
+  try {
+    const { stdout } = await exec("git", ["ls-files", "--cached", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER });
+    return stdout.split("\0").filter(Boolean).map(normalizePath);
+  } catch {
+    return [];
+  }
 }
 function resolveDiffSpec(input) {
   return input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : void 0);
@@ -1688,6 +1794,58 @@ async function requestJson(fetchImpl, url, init, action) {
   return response.json();
 }
 
+// packages/action/src/issue-source.ts
+function parseActionIssueSource(input) {
+  const trimmed = input.trim();
+  if (!/^https?:\/\/github\.com\//i.test(trimmed)) {
+    return void 0;
+  }
+  let url;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new Error("GitHub issue input must use https://github.com/owner/repository/issues/123.");
+  }
+  const segments = url.pathname.split("/").filter(Boolean);
+  const number = Number(segments[3]);
+  if (url.protocol !== "https:" || url.hostname.toLowerCase() !== "github.com" || url.search || url.hash || segments.length !== 4 || segments[2]?.toLowerCase() !== "issues" || !segments[0] || !segments[1] || !/^[1-9]\d*$/.test(segments[3] ?? "") || !Number.isSafeInteger(number)) {
+    throw new Error(
+      "Only canonical public GitHub issue URLs are supported. Pull request, discussion, compare, tree, and file URLs are not fetched."
+    );
+  }
+  return {
+    owner: segments[0],
+    repository: segments[1],
+    number,
+    displayUrl: `https://github.com/${segments[0]}/${segments[1]}/issues/${number}`
+  };
+}
+async function fetchActionIssue(source) {
+  const response = await fetch(
+    `https://api.github.com/repos/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repository)}/issues/${source.number}`,
+    {
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "fixmap-action",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      redirect: "error",
+      signal: AbortSignal.timeout(15e3)
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Could not fetch public GitHub issue ${source.displayUrl}: GitHub returned HTTP ${response.status}.`);
+  }
+  const payload = await response.json();
+  if (payload.pull_request || typeof payload.title !== "string" || !payload.title.trim()) {
+    throw new Error(`Could not fetch public GitHub issue ${source.displayUrl}: the response was not an issue.`);
+  }
+  return {
+    title: payload.title.trim(),
+    body: typeof payload.body === "string" ? payload.body.trim().slice(0, 2e4) : ""
+  };
+}
+
 // packages/action/src/runner.ts
 var STEP_SUMMARY_LIMIT_BYTES = 1024 * 1024;
 var TRUNCATION_FOOTER = "\n\n> FixMap report truncated to fit GitHub's 1 MiB step-summary limit. The complete report remains available through the `report` output.\n";
@@ -1696,11 +1854,19 @@ async function runAction(env = process.env, dependencies = {}) {
   const readFile2 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
   const stdout = dependencies.stdout ?? ((text) => process.stdout.write(text));
   const event = readEvent(env.GITHUB_EVENT_PATH, readFile2);
-  const issue = readInput("issue", env) || buildPullRequestIssueText(event);
+  const rawIssue = readInput("issue", env) || buildPullRequestIssueText(event);
   const diffSpec = readInput("diff", env);
   const baseRef = readInput("base", env) || (env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : void 0);
   const headRef = readInput("head", env) || (env.GITHUB_HEAD_REF ? "HEAD" : void 0);
-  const format = readInput("format", env) === "json" ? "json" : "markdown";
+  const format = parseFormat(readInput("format", env));
+  const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : void 0;
+  if (issueSource && env.GITHUB_REPOSITORY && env.GITHUB_REPOSITORY.toLowerCase() !== `${issueSource.owner}/${issueSource.repository}`.toLowerCase()) {
+    throw new Error(
+      `Issue ${issueSource.displayUrl} belongs to ${issueSource.owner}/${issueSource.repository}, but this Action is scanning ${env.GITHUB_REPOSITORY}.`
+    );
+  }
+  const fetchedIssue = issueSource ? await (dependencies.fetchIssue ?? fetchActionIssue)(issueSource) : void 0;
+  const issue = fetchedIssue ? [fetchedIssue.title, fetchedIssue.body].filter(Boolean).join("\n\n") : rawIssue;
   if (!issue && !diffSpec && !baseRef) {
     throw new Error("FixMap needs a pull_request event, an issue input, or a diff/base input to build a useful report.");
   }
@@ -1711,6 +1877,13 @@ async function runAction(env = process.env, dependencies = {}) {
     baseRef,
     headRef
   });
+  if (issueSource) {
+    report.diagnostics.unshift({
+      code: "remote-issue-fetched",
+      severity: "info",
+      message: `Fetched ${issueSource.displayUrl} anonymously and used its title${fetchedIssue?.body ? " and body" : ""} as task context.`
+    });
+  }
   const markdown = renderMarkdownReport(report);
   const output = format === "json" ? renderJsonReport(report) : markdown;
   stdout(output);
@@ -1736,6 +1909,16 @@ async function runAction(env = process.env, dependencies = {}) {
       );
     }
   }
+}
+function parseFormat(value) {
+  if (!value) {
+    return "markdown";
+  }
+  const normalized = value.toLowerCase();
+  if (normalized === "markdown" || normalized === "json") {
+    return normalized;
+  }
+  throw new Error(`Invalid format input ${JSON.stringify(value)}; expected markdown or json.`);
 }
 function renderActionOutputs(reportText, report, uuid = randomUUID) {
   const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;

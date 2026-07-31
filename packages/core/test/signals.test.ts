@@ -37,8 +37,8 @@ describe("extractTaskSignals", () => {
   it("normalizes simple plural and verb forms", () => {
     const signals = extractTaskSignals({ issueText: "Invoices are created for users" });
 
-    expect(signals.tokens.has("invoic")).toBe(true);
-    expect(signals.tokens.has("creat")).toBe(true);
+    expect(signals.tokens.has("invoice")).toBe(true);
+    expect(signals.tokens.has("create")).toBe(true);
     expect(signals.tokens.has("user")).toBe(true);
   });
 
@@ -82,6 +82,28 @@ describe("extractTaskSignals", () => {
     expect(signals.tokens.has("does")).toBe(false);
     expect(signals.tokens.has("doe")).toBe(false);
     expect(signals.tokens.has("but")).toBe(false);
+  });
+
+  it("does not turn URLs into ranking terms", () => {
+    const signals = extractTaskSignals({
+      issueText: "see https://github.com/chalk/chalk/pull/1 for color support on windows"
+    });
+
+    expect(signals.tokens).not.toContain("http");
+    expect(signals.tokens).not.toContain("com");
+    expect(signals.tokens).not.toContain("pull");
+    expect(signals.tokens).toContain("color");
+    expect(signals.tokens).toContain("window");
+  });
+
+  it("keeps short trailing-e words readable instead of emitting three-letter stems", () => {
+    const signals = extractTaskSignals({ issueText: "files site make" });
+
+    expect(signals.tokens).toContain("file");
+    expect(signals.tokens).toContain("site");
+    expect(signals.tokens).not.toContain("fil");
+    expect(signals.tokens).not.toContain("sit");
+    expect(signals.tokens).not.toContain("mak");
   });
 
   it("keeps bounded code-shaped identifiers and an unterminated exact literal", () => {

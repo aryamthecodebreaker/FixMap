@@ -36,4 +36,4 @@ FixMap found 0 context files and generated 0 test routes.
 ## Diagnostics
 
 - **warning** Identifiers not found exactly in the scanned repository: resolveTenantScopedSessionBinding, SessionBindingMismatch. Component words from unresolved identifiers were ignored, and unsupported recommendations were capped at low confidence.
-- **warning** No context files: no file in the 3 scanned matched the task terms bind, clos, mismatch, resolv, rotation, scop, session, tenant (+1 more). The repository may not contain this behavior, or it may name it differently.
+- **warning** No context files: no file in the 3 scanned matched the task terms bind, close, mismatch, resolve, rotation, scop, session, tenant (+1 more). The repository may not contain this behavior, or it may name it differently.

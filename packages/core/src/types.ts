@@ -40,7 +40,8 @@ export type ScanDiagnostic = {
     | "partially-resolved-identifier"
     | "identifier-unverified"
     | "vague-task"
-    | "flat-ranking";
+    | "flat-ranking"
+    | "no-test-route";
   message: string;
   severity: "info" | "warning" | "error";
 };
@@ -50,6 +51,7 @@ export type RepoMap = {
   files: RepoFile[];
   packageScripts: PackageScript[];
   changedFiles: string[];
+  trackedFiles?: string[];
   diffText: string;
   packageManager: "npm" | "pnpm" | "yarn" | "bun";
   diagnostics: ScanDiagnostic[];
@@ -116,6 +118,7 @@ export type FixMapReport = {
 export type VerifyFinding = {
   code:
     | "edit-in-generated-location"
+    | "tracked-generated-edit"
     | "unmapped-change"
     | "leading-file-untouched"
     | "no-test-changed"

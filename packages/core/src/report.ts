@@ -19,14 +19,16 @@ export function buildReportFromRepo(
   repo: RepoMap,
   input: { issueText?: string | undefined }
 ): FixMapReport {
-  const contextFiles = rankContextFiles(repo, {
-    issueText: input.issueText,
-    diffText: repo.diffText
-  });
   const grounding = analyzeTaskGrounding(repo, {
     issueText: input.issueText,
     diffText: repo.diffText
   });
+  const contextFiles = grounding.specificity === "vague"
+    ? []
+    : rankContextFiles(repo, {
+      issueText: input.issueText,
+      diffText: repo.diffText
+    });
   const ranking = buildRankingShape(contextFiles);
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
@@ -41,8 +43,11 @@ export function buildReportFromRepo(
     diagnostics: [
       ...repo.diagnostics,
       ...findGatedTestDiagnostics(repo.files, routedTestPaths),
+      ...findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes),
       ...findTaskDiagnostics(grounding, ranking),
-      ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "")
+      ...(grounding.specificity === "vague"
+        ? []
+        : findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? ""))
     ],
     analysis: {
       grounding,
@@ -50,6 +55,27 @@ export function buildReportFromRepo(
       nextAction: buildNextAction(grounding, ranking, contextFiles)
     }
   };
+}
+
+function findMissingTestRouteDiagnostics(
+  repo: RepoMap,
+  contextFiles: RankedFile[],
+  testRoutes: TestRoute[]
+): ScanDiagnostic[] {
+  if (testRoutes.length > 0 || !contextFiles.some((entry) =>
+    repo.files.find((file) => file.path === entry.path)?.kind === "code"
+  )) {
+    return [];
+  }
+
+  const hasPython = repo.files.some((file) => file.extension === ".py");
+  return [{
+    code: "no-test-route",
+    severity: "warning",
+    message: hasPython
+      ? "No test command was routed. This Python repository has no supported package-script route; inspect pyproject.toml, tox.ini, or the test directory and choose the project runner explicitly."
+      : "No test command was routed. FixMap found code context but no supported package test script, so tests were not assumed to be absent."
+  }];
 }
 
 function findTaskDiagnostics(
@@ -238,13 +264,15 @@ export function buildRiskNotes(contextPaths: string[], changedFiles: string[] = 
       continue;
     }
 
-    if (inChanged || !diffPresent) {
+    if (inChanged) {
       risks.push({ area: rule.area, severity: rule.severity, reason: rule.reason });
     } else {
       risks.push({
         area: rule.area,
         severity: "low",
-        reason: `context ranking surfaced ${rule.area}-related files, but none of the changed files touch this area`
+        reason: diffPresent
+          ? `context ranking surfaced ${rule.area}-related files, but none of the changed files touch this area`
+          : `ranked files touch ${rule.area}; review this area before editing, but no diff evidence is available yet`
       });
     }
   }

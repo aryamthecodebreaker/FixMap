@@ -65,6 +65,19 @@ describe("verifyPlan", () => {
     expect(finding?.message).toContain("will be lost");
   });
 
+  it("warns instead of failing for a committed generated release artifact", () => {
+    const repo = repoWith(["dist/auth/reset-password.js"]);
+    repo.trackedFiles = ["dist/auth/reset-password.js"];
+
+    const result = verifyPlan(planFor("src/auth/reset-password.ts"), repo);
+
+    expect(result.findings).toContainEqual(expect.objectContaining({
+      code: "tracked-generated-edit",
+      severity: "warning"
+    }));
+    expect(result.findings.map((entry) => entry.code)).not.toContain("edit-in-generated-location");
+  });
+
   it("names files the change needed that the plan never ranked", () => {
     const result = verifyPlan(
       planFor("src/auth/reset-password.ts"),

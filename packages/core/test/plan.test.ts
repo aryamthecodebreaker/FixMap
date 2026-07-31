@@ -107,11 +107,9 @@ describe("buildFixMapReport", () => {
       issueText: "improve error handling"
     });
 
-    expect(report.contextFiles.length).toBeGreaterThanOrEqual(3);
-    expect(report.contextFiles.every((file) => file.confidence === "low")).toBe(true);
+    expect(report.contextFiles).toEqual([]);
     expect(report.diagnostics.map((entry) => entry.code)).toContain("vague-task");
-    expect(report.diagnostics.map((entry) => entry.code)).toContain("flat-ranking");
-    expect(report.analysis?.ranking.clustered).toBe(true);
+    expect(report.analysis?.nextAction).toContain("Add a concrete");
   });
 
   it("does not claim an identifier is absent when a large source file was not sampled", async () => {

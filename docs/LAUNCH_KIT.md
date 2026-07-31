@@ -19,9 +19,9 @@ The report ranks likely files with reasons, suggests test routes, and names risk
 - CLI, MCP server, and GitHub Action share the same core ranker.
 - Public GitHub issue URLs supply both task context and the repository in one input; source is scanned in an isolated anonymous shallow checkout that is removed after analysis.
 - Two frozen evaluations use real fixed issues at pinned pre-fix commits, selected by a mechanical rule.
-- **Held-out (12 repositories, never tuned against): top-1 `8/12` (67%), top-3 and top-5 `9/12` (75%).**
-- Regression (15 repositories, guided development): top-1 `9/15` (60%), top-3 and top-5 `15/15` (100%).
-- Confidence is calibrated: a top result labeled high confidence is the right file `11/15` of the time across both suites.
+- **Held-out (12 repositories, never tuned against): top-1 `7/12` (58%), top-3 and top-5 `9/12` (75%).**
+- Regression (15 repositories, guided development): top-1 `10/15` (67%), top-3 and top-5 `15/15` (100%).
+- Confidence labels are directional heuristics, not calibrated probabilities; all per-band counts remain public.
 - An adversarial suite measures false confidence on fabricated identifiers, vague tasks, and absent features: `0.0` across 8 cases.
 - Every ranked output and both frozen selection rules are public in [`benchmarks/`](../benchmarks/).
 - A release cannot publish unless the local CI suite and external evaluation gate pass.
@@ -122,7 +122,7 @@ Points for the maintainer to explain personally:
 2. The one-sentence solution: deterministic repo context—ranked files, test routes, risks, and diagnostics.
 3. The fastest trial: include the one-input public GitHub issue URL command.
 4. The technical mechanism: path/content signals, real git diff signals, bounded static import proximity, file-kind priors, and workspace boundaries.
-5. The honest evidence: 12 held-out repositories never tuned against, `8/12` top-1 and `9/12` top-3, alongside the regression suite it was developed on, with every per-case ranking linked.
+5. The honest evidence: 12 held-out repositories never tuned against, `7/12` top-1 and `9/12` top-3, alongside the regression suite it was developed on, with every per-case ranking linked.
 6. The scope: JavaScript/TypeScript today; remote URLs are issue-only; suggested tests are not executed.
 7. What the benchmarks did not catch: both suites passed while FixMap could not find chalk's own color-detection code, because a directory blocklist ran after git had already applied `.gitignore` and a frequency cutoff suppressed the word "color" in a library about color. Pointing it at a repository it had never been run on found that; the benchmark never would have.
 8. Ask for technical criticism of the evaluation and useful next signals.
@@ -170,7 +170,7 @@ claude mcp add fixmap -- npx -y @aryam/fixmap@latest mcp
 1. One pain sentence.
 2. The public repository command.
 3. A screenshot or short terminal video of the real output.
-4. One evidence sentence: 12 held-out pinned bugs, `8/12` top-1 and `9/12` top-3, with the full result and the three misses public.
+4. One evidence sentence: 12 held-out pinned bugs, `7/12` top-1 and `9/12` top-3, with the full result and the three misses public.
 5. Repository link and a specific feedback question.
 
 Avoid generic feature lists and unsupported superlatives.
@@ -194,10 +194,10 @@ The latest work includes:
 - a shared CLI, MCP server, and GitHub Action workflow
 - a GitHub Marketplace listing for the Action
 - a production dependency audit gate with no high or critical findings
-- 189 automated tests, production builds, smoke tests, and a frozen cross-repository evaluation gate
+- 234 automated tests, production builds, smoke tests, and frozen cross-repository and adversarial evaluation gates
 - a new 24-second product film on the README and live site
 
-The evaluation is intentionally public and modest. Across 12 pinned real bugs in repositories the ranker was never tuned against, FixMap ranks an expected file in the top 1 for 8 and in the top 3 for 9. Every per-case ranking is published, including the three misses, and 12 cases are not a general accuracy claim.
+The evaluation is intentionally public and modest. Across 12 pinned real bugs in repositories the ranker was never tuned against, FixMap ranks an expected file in the top 1 for 7 and in the top 3 for 9. Every per-case ranking is published, including the three misses, and 12 cases are not a general accuracy claim.
 
 Watch the film and try the live experience: https://fixmap-flax.vercel.app/#launch-film
 
@@ -207,7 +207,7 @@ Marketplace: https://github.com/marketplace/actions/fixmap
 
 npm: https://www.npmjs.com/package/@aryam/fixmap
 
-Release: https://github.com/aryamthecodebreaker/FixMap/releases/tag/v0.7.3
+Release: https://github.com/aryamthecodebreaker/FixMap/releases/tag/v0.7.4
 
 I would especially value feedback on the ranking explanations and which repository signals would make FixMap more useful before an agent starts editing.
 

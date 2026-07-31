@@ -55,7 +55,7 @@ describe("task grounding", () => {
     const grounding = analyzeTaskGrounding(repo, { issueText });
     const tokens = buildGroundedTaskTokens(grounding, { issueText });
 
-    expect(tokens).toContain("cach");
+    expect(tokens).toContain("cache");
     expect(tokens).toContain("threshold");
     expect(tokens).not.toContain("houdini");
     expect(tokens).not.toContain("partial");
@@ -78,6 +78,14 @@ describe("task grounding", () => {
     // vocabulary rather than a description of anything in the repository.
     const grounding = analyzeTaskGrounding(createRepo(), {
       issueText: "clean this up and make the general performance better overall"
+    });
+
+    expect(grounding.specificity).toBe("vague");
+  });
+
+  it("rejects generic improve-the-codebase wording as vague", () => {
+    const grounding = analyzeTaskGrounding(createRepo(), {
+      issueText: "improve the codebase quality and make things better overall please"
     });
 
     expect(grounding.specificity).toBe("vague");

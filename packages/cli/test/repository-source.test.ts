@@ -99,11 +99,18 @@ describe("GitHub issue source parsing", () => {
 
   it.each([
     "password reset emails fail",
-    "https://example.com/owner/repository/issues/123",
-    "https://github.com/owner/repository",
-    "https://github.com/owner/repository/pull/123"
+    "https://example.com/owner/repository/issues/123"
   ])("leaves non-issue task text unchanged: %s", (input) => {
     expect(parseGitHubIssueSource(input)).toBeUndefined();
+  });
+
+  it.each([
+    "https://github.com/owner/repository",
+    "https://github.com/owner/repository/pull/123",
+    "https://github.com/owner/repository/discussions/1",
+    "https://github.com/owner/repository/tree/main"
+  ])("rejects unsupported standalone GitHub URLs: %s", (input) => {
+    expect(() => parseGitHubIssueSource(input)).toThrow("Only canonical public GitHub issue URLs");
   });
 
   it.each([

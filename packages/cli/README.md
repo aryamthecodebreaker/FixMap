@@ -40,9 +40,11 @@ npx @aryam/fixmap plan --base main --head HEAD --format json --output fixmap-rep
 
 Public GitHub issue and repository URL modes are available in the CLI and MCP server for issue-only analysis. FixMap fetches issue context anonymously, shallow-clones the default branch into an isolated temporary directory, disables credentials and repository execution surfaces, and removes the checkout before returning. Clone locally to use `--diff`, `--base`, or `--head`.
 
+For long task text, use `--issue-file task.md`, `--issue @task.md`, or pipe text to `--issue -`. If a stale global installation shadows a pinned npx package on Windows, run `npm uninstall -g @aryam/fixmap` or use `npm exec --yes --package=@aryam/fixmap@0.7.4 -- fixmap ...`.
+
 ## MCP server
 
-FixMap ships as a Model Context Protocol server, so coding agents can request a plan themselves. One tool is exposed: `fixmap_plan`.
+FixMap ships as a Model Context Protocol server with `fixmap_plan` and `fixmap_verify`, so coding agents can plan first and compare the resulting diff with that plan afterwards.
 
 Claude Code:
 
@@ -67,9 +69,11 @@ Cursor, Windsurf, or any MCP client:
 
 ```text
 fixmap plan            Generate a FixMap report for a task or diff
+fixmap verify          Compare a saved plan with the diff that followed
 fixmap mcp             Run FixMap as an MCP server over stdio
 
 --issue <text|url>     Issue text, task description, or public GitHub issue URL
+--issue-file <file>    Read task text from a UTF-8 file, or - for stdin
 --diff <spec>          Git diff spec, such as main...HEAD
 --base <ref>           Base ref for diffing when --diff is not given
 --head <ref>           Head ref for diffing (defaults to HEAD)
