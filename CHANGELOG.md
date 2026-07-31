@@ -2,6 +2,43 @@
 
 All notable changes to FixMap are documented here.
 
+## 0.8.0 - 2026-08-01
+
+Closes all 22 open reports from a dogfooding sweep of v0.7.4.
+
+### Added
+
+- Go and Rust repositories now get a test command. Both toolchains have exactly one, so it can be routed rather than guessed at; a `cargo test` in a workspace is scoped to the crate holding the ranked file, for the same reason package scripts already are. Python is deliberately not routed — pytest, tox, unittest and nox are all plausible for a repository carrying a `pyproject.toml`, and FixMap cannot read which one it configures, so it names a runner in the diagnostic instead of claiming a command it cannot verify (#153, #134).
+- `fixmap doctor` reports the running version, the resolved path, any conflicting global install, and the Node version, exiting non-zero on a shadow. This was the first thing that went wrong in the original dogfooding session: a stale global made `npx @aryam/fixmap@0.7.3` run 0.3.1, so `verify` appeared not to exist in a release that shipped it (#148, following #103).
+- `plan --compare previous.json` prints what changed between two plans — files that entered or left, rank, score and confidence deltas, and whether task grounding changed. This makes FixMap's own feedback loop measurable in one command: add an identifier, watch the definition site rise (#154).
+- `--exclude` and `.fixmapignore` leave named paths out of ranking. FixMap's penalties know about conventions like `examples/`; they cannot know that a particular repository keeps a marketing site whose copy deliberately contains every symptom word the product documents. `--explain` reports an excluded file as excluded, naming the pattern that matched (#145).
+- `--limit` caps how many context files are reported, on the CLI and over MCP. The useful signal is usually the top one to three; the rest burns agent context (#149).
+- `--working-tree` maps staged and unstaged tracked changes against HEAD, with `--include-untracked` as a separate opt-in. Reaching this through `--diff HEAD` worked but swept in untracked files, which on an agent-driven checkout means scratch metadata ranking beside the edit (#147).
+- Progress phases on stderr for remote clones and scans, when stderr is a TTY or `FIXMAP_PROGRESS=1`. A cold clone sat silent for up to ninety seconds and read as hung (#150).
+- `fixmap_explain` over MCP, so an agent with no shell can ask why a file is missing instead of re-inventing the ranking (#144).
+- Pull request URLs are accepted as task input. GitHub serves a pull request's title and body from the same endpoint an issue uses, and "map what this PR is about" is a more common starting point than an issue link. Compare, tree, discussion and file URLs stay rejected: they carry no task text to rank against (#146).
+- The GitHub Action gains `mode: verify` with `report-path`, closing the plan-edit-verify loop for workflows that never touch the CLI or MCP (#151).
+
+### Fixed
+
+- Confidence is scarce again. It came from an absolute score threshold, so a real Zod task labeled all eight results high while the leader was nineteen points clear — teaching an agent that the eighth guess is as safe to edit as the first. High now requires leading, tying the lead within two points, or carrying definition-site evidence; and a leader that merely out-talks a definition site below it is capped at medium, because that competitor has the stronger kind of evidence (#143, addressing #140).
+- Language detection reads the root manifest instead of asking whether any scanned file ends in `.py`. clap-rs/clap is Rust and keeps one helper script under `.github/`, and was told to go inspect `pyproject.toml` (#152).
+- Diagnostics no longer echo unbounded user text. A pasted blob travelled verbatim into JSON reports, CI logs, and pull request comments — an observed message was 30,155 characters — and a mistyped `--diff` did the same twice over, because git echoes the failing command inside its own error message (#136, #139).
+- The file-mention pattern no longer backtracks quadratically. Its body run contains `.`, so it competed with the `\.` that follows: on an unbroken run with no extension the engine matched everything, failed, and retried one character shorter from every start position. 30,000 characters took 2.4 seconds, on a code path the Action feeds issue text from public pull requests. 120,000 characters now cost 297 ms. Found while fixing the diagnostic above; not separately reported.
+- `verify` honors `--output`. It was documented, accepted, and silently ignored: output went to stdout and no file was created (#141).
+- Duplicate `--repo`, `--format`, `--diff`, `--base`, `--head`, `--output`, `--report` and `--explain` flags now fail instead of silently keeping the last value. Only `--issue` did. Silent last-wins is worst for `--repo`, which then scans a different tree than the one named first, and `--format`, which hands a consumer a contract it did not ask for (#142).
+- The verify hint no longer prints `--diff <base>...HEAD` inside a copy-paste command. v0.7.4 stopped inventing `main...HEAD` and replaced it with a placeholder that looks runnable and is not; the command is now runnable as printed, with the part the user must supply on its own line outside it (#137).
+- MCP `fixmap_verify` accepts its report inline or as a file path, mirroring CLI `--report`. Requiring the object form rejected agents that had used the CLI first without naming a shape that would work, and forced the model to re-embed an entire plan in the tool call (#138).
+- `verify --format json` carries scan diagnostics, so both commands hand an agent the same `{code, severity, message, paths?}` entry shape and consuming either no longer requires branching on output shape (#133).
+- An empty diff explains itself instead of printing two `- None found` sections that read like a display bug (#135).
+- The README and the `fixmap_plan` tool description both said a high-confidence top result is right "about three quarters of the time". The measured figure in the table directly below it is 9/15 — 60%. Three quarters is the medium band. Found while re-checking the calibration numbers.
+
+### Evidence
+
+- All three accuracy suites are unchanged: internal 62.5/87.5, development regression 67/100/100, held-out 58.3/75/75. The adversarial suite remains 8/8 with a false-confidence rate of 0.0.
+- Top-1 calibration is unchanged as well (high 9/15, medium 6/8, low 2/4), because the confidence rules almost never disturb a genuine leader. That also means the suites cannot see that change: they score only the top-ranked file, and the fix is about the other seven rows. The evidence for it is measured behavior on the repositories in the reports — Zod and dayjs both go from 8/8 labeled high to 1/8, with the correct file keeping high in each.
+- Verified against the named repositories rather than fixtures alone: clap-rs/clap and spf13/cobra for test routing, Zod and dayjs for confidence, and a live pull request URL for the adapter change.
+
 ## 0.7.4 - 2026-07-31
 
 ### Fixed

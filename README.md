@@ -29,14 +29,16 @@ No clone, signup, configuration, or source upload is required.
 If an older FixMap is installed globally, some npm/npx combinations on Windows can resolve the old global `fixmap` shim even when a package version is pinned. Remove it with `npm uninstall -g @aryam/fixmap`, or use the unambiguous form:
 
 ```bash
-npm exec --yes --package=@aryam/fixmap@0.7.4 -- fixmap --version
+npm exec --yes --package=@aryam/fixmap@0.8.0 -- fixmap --version
 ```
 
 | Command | Answers |
 | --- | --- |
 | [`fixmap plan`](#cli) | Which files, tests, and risks should I look at first? |
 | [`fixmap plan --explain <path>`](#ask-why) | Why is the file I expected *not* in that list? |
+| [`fixmap plan --compare <file>`](#measure-a-better-task) | Did refining the task move the real file up? |
 | [`fixmap verify`](#verify-the-change-afterwards) | Did the change I made match the plan? |
+| [`fixmap doctor`](#check-the-install) | Am I running the version I asked for? |
 | [`fixmap mcp`](#mcp-server) | The same report, requested directly by an agent |
 
 The CLI points at the next useful command as you go, so `--explain` and `verify` surface when they apply rather than only living here.
@@ -121,6 +123,52 @@ or path from this file in the task to raise it.
 
 It distinguishes the cases that actually differ: the file was ranked, it scored below the cutoff, it was deliberately excluded (a test, a lockfile, generated output whose source was ranked instead), or the scan never saw it. When a scan hits its file limit, it says so rather than implying the path does not exist. Add `--format json` for the machine-readable form.
 
+### Measure a better task
+
+The habit worth having is: plan, add the identifier the task was missing, re-plan, and check whether the real file rose. `--compare` prints that instead of leaving you to diff two JSON files by eye:
+
+```bash
+npx -y @aryam/fixmap@latest plan --issue "ranking confidence" \
+  --format json --output before.json
+
+npx -y @aryam/fixmap@latest plan \
+  --issue "confidenceForEntry gives every top-8 file high confidence" \
+  --compare before.json
+```
+
+```text
+2 entered, 2 left, 6 moved. The leading file changed from
+scripts/evaluate-adversarial.mjs to packages/core/src/rank.ts.
+
+Task grounding changed from **descriptive** to **anchored**.
+
+## Moved
+- `packages/core/src/rank.ts` rose from rank 2 to 1, score 9 to 42, confidence medium to high
+```
+
+That is FixMap's own feedback loop, measured in one command: naming a symbol moved the fix site from second place to first and turned a descriptive task into an anchored one.
+
+### Keep the noise out
+
+Demo pages, marketing copy, and documentation often contain every symptom word a product documents, so they compete with the implementation. FixMap's built-in penalties cover conventions like `examples/`; a repository's own layout it cannot know:
+
+```bash
+npx -y @aryam/fixmap@latest plan --issue "password reset emails fail" \
+  --exclude apps/web --exclude 'docs/**' --limit 3
+```
+
+Patterns can also live in a `.fixmapignore` file at the repository root, one per line, gitignore-flavored. The two combine — a flag refines the file rather than replacing it. `--explain` reports an excluded file as excluded, naming the pattern, rather than claiming it scored too low.
+
+`--limit` caps how many context files come back. The useful signal is usually the top one to three; the rest burns agent context and invites drive-by edits.
+
+To map what you are editing right now, without crafting a git spec:
+
+```bash
+npx -y @aryam/fixmap@latest plan --working-tree --issue "reset flow"
+```
+
+That means staged and unstaged tracked changes against `HEAD`. Untracked files stay out unless you add `--include-untracked`, so agent metadata and scratch files do not rank beside real edits.
+
 ### Verify the change afterwards
 
 `plan` answers where to start. `verify` answers whether the change that followed matches the plan — by comparing the saved report against a real git diff:
@@ -151,9 +199,32 @@ It checks five things: edits in generated or retired locations, files the change
 
 Only a discarded, untracked generated edit exits non-zero. A committed generated release artifact is a warning: confirm its maintained source changed and it was rebuilt. Everything else is advisory because a plan can be wrong and a change can still be right.
 
+### Check the install
+
+An older global install can shadow the version npm was asked for, so a feature that shipped appears not to exist. `doctor` says which version is actually running and why:
+
+```bash
+npx -y @aryam/fixmap@latest doctor
+```
+
+```text
+# FixMap Doctor
+
+- ok  Running version: 0.8.0
+- PROBLEM  Global install: 0.3.1 (this process is 0.8.0)
+    A globally installed fixmap shadows the version npx was asked for. Run
+    `npm uninstall -g @aryam/fixmap`, or invoke the exact version with
+    `npm exec --package=@aryam/fixmap@<version> -- fixmap <command>`.
+- ok  Node version: 24.13.0
+```
+
+It exits non-zero when it finds a shadow, so a CI step fails rather than reading on.
+
 ### MCP server
 
-FixMap exposes two stdio tools: `fixmap_plan` builds the starting map, and `fixmap_verify` compares that JSON report with the diff produced after editing.
+FixMap exposes three stdio tools: `fixmap_plan` builds the starting map, `fixmap_verify` compares that JSON report with the diff produced after editing, and `fixmap_explain` answers why one file ranked where it did — or why it is missing — for agents that have no shell to run `--explain` in.
+
+`fixmap_plan` takes `limit` to cap how many context files come back, which matters when the useful signal is the top one to three and the rest is context budget. `fixmap_verify` accepts its report either inline or as a path to a saved JSON file, so a large plan need not be re-embedded in the tool call.
 
 Claude Code:
 
@@ -221,7 +292,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.7.4
+        uses: aryamthecodebreaker/FixMap@v0.8.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -325,11 +396,15 @@ Read the full [benchmark methodology and scanner measurements](docs/BENCHMARKS.m
 npm run evaluate:heldout
 ```
 
-## What changed in v0.7.4
+## What changed in v0.8.0
 
-v0.7.4 is a reliability release driven by 27 reproducible community reports. Ranking now favors exact definition sites over vocabulary-heavy consumers, filters URL and short-stem noise, handles homogeneous repositories without erasing every query term, and keeps examples and demo surfaces below first-party implementation unless the task targets them.
+v0.8.0 closes all 22 open reports from a dogfooding sweep of v0.7.4. Two themes run through it.
 
-The CLI now accepts `--issue-file`, stdin, and `@file`; rejects duplicate task flags and unsupported GitHub URLs; catches issue/repository mismatches and empty diffs; and emits next-step guidance that matches the actual result. MCP gains `fixmap_verify`, the Action fetches issue URLs consistently and validates format input, Python/no-runner reports explain missing test routes, issue-only risks are honestly low confidence, and tracked Action bundles no longer fail verification as discarded edits.
+**FixMap was accurate about JavaScript and imprecise about everything else.** Go and Rust repositories returned ranked files and no test command at all, which is ranking without any way to check the change. Both now route `go test ./...` and `cargo test`, workspace-scoped to the crate being edited. Language is read from the root manifest rather than by asking whether any file ends in `.py` — which had labeled clap-rs/clap, a Rust project with one helper script, a Python repository.
+
+**High confidence meant "in the list" rather than "the answer".** It came from an absolute score threshold, so a real Zod task labeled all eight results high while the leader was nineteen points clear. High is now reserved for a file that leads, ties the lead, or carries definition-site evidence, and a leader that merely out-talks a definition site below it is capped at medium.
+
+New surface: `fixmap doctor`, `plan --compare`, `--exclude` and `.fixmapignore`, `--limit`, `--working-tree`, progress phases on stderr, the `fixmap_explain` MCP tool, `mode: verify` for the Action, and pull request URLs accepted as task input. Fixed: `verify --output` created no file, duplicate `--repo`/`--format` flags silently kept the last value, and diagnostics echoed unbounded user text — including a quadratic-backtracking path that took 2.4 seconds on a 30,000-character paste, on a code path the Action feeds from public pull requests.
 
 [Inspect the changelog](CHANGELOG.md) · [See the held-out results](benchmarks/heldout/README.md) · [See every regression ranking](benchmarks/external/README.md) · [Audit the efficiency assumptions](docs/BENCHMARKS.md)
 
