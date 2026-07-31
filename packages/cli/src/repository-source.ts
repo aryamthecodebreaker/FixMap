@@ -71,6 +71,8 @@ export type ParsedGitHubIssueSource = {
   number: number;
   displayUrl: string;
   repositoryUrl: string;
+  /** True for a /pull/N URL. The fetch is identical; only the wording differs. */
+  isPullRequest?: boolean;
 };
 
 export type PublicGitHubIssue = {
@@ -92,14 +94,19 @@ export function parseGitHubIssueSource(input: string): ParsedGitHubIssueSource |
   const trimmed = input.trim();
   const looksLikeStandaloneGitHubUrl =
     /^https?:\/\/(?:[^/@\s]+@)?github\.com[\\/]\S+$/i.test(trimmed);
-  const looksLikeGitHubIssue =
+  // Pull request URLs are accepted alongside issue URLs. Agents and humans paste them
+  // constantly — "map what this PR is about" is a more common starting point than an issue
+  // link — and GitHub serves a PR's title and body from the same /issues/N endpoint, so
+  // this costs one path segment. Compare, tree, discussion and file URLs stay rejected:
+  // they carry no task text to rank against.
+  const looksLikeGitHubTask =
     /^https?:\/\/(?:[^/@\s]+@)?github\.com[\\/]/i.test(trimmed) &&
-    /[\\/]issues(?:[\\/]|%(?:2f|5c))/i.test(trimmed);
-  if (!looksLikeGitHubIssue) {
+    /[\\/](?:issues|pull)(?:[\\/]|%(?:2f|5c))/i.test(trimmed);
+  if (!looksLikeGitHubTask) {
     if (looksLikeStandaloneGitHubUrl) {
       throw new RepositorySourceError(
-        "Only canonical public GitHub issue URLs are supported as --issue input. " +
-        "Pull request, discussion, compare, tree, and file URLs are not fetched; use --diff on a local checkout or paste the task text."
+        "Only canonical public GitHub issue and pull request URLs are supported as --issue input. " +
+        "Discussion, compare, tree, and file URLs are not fetched; use --diff on a local checkout or paste the task text."
       );
     }
     return undefined;
@@ -140,28 +147,31 @@ export function parseGitHubIssueSource(input: string): ParsedGitHubIssueSource |
   const segments = url.pathname.split("/").filter(Boolean);
   const owner = segments[0] ?? "";
   const repository = segments[1] ?? "";
-  const issueSegment = segments[2] ?? "";
+  const kindSegment = (segments[2] ?? "").toLowerCase();
   const rawNumber = segments[3] ?? "";
   const number = Number(rawNumber);
   if (
     segments.length !== 4 ||
-    issueSegment.toLowerCase() !== "issues" ||
+    (kindSegment !== "issues" && kindSegment !== "pull") ||
     !GITHUB_NAME.test(owner) ||
     !GITHUB_NAME.test(repository) ||
     !/^[1-9]\d*$/.test(rawNumber) ||
     !Number.isSafeInteger(number)
   ) {
     throw new RepositorySourceError(
-      'GitHub issue URLs must use the form "https://github.com/owner/repository/issues/123".'
+      'GitHub issue URLs must use the form "https://github.com/owner/repository/issues/123", ' +
+      'and pull request URLs "https://github.com/owner/repository/pull/123".'
     );
   }
 
   const repositoryUrl = `https://github.com/${owner}/${repository}`;
+  const isPullRequest = kindSegment === "pull";
   return {
     owner,
     repository,
     number,
-    displayUrl: `${repositoryUrl}/issues/${number}`,
+    isPullRequest,
+    displayUrl: `${repositoryUrl}/${isPullRequest ? "pull" : "issues"}/${number}`,
     repositoryUrl
   };
 }
@@ -239,10 +249,13 @@ export async function fetchPublicGitHubIssue(
       "GitHub API returned an invalid response."
     );
   }
-  if (payload.pull_request) {
+  // A /pull/N URL is expected to come back as a pull request; an /issues/N URL that does
+  // is a number collision GitHub resolves to the pull request, and the caller should know
+  // they got something other than what they typed.
+  if (payload.pull_request && !source.isPullRequest) {
     throw new RepositorySourceError(
       `"${source.displayUrl}" resolves to a pull request, not an issue. ` +
-      "Use --diff on a local checkout or paste the pull request description."
+      `Use "${source.repositoryUrl}/pull/${source.number}" to plan from it.`
     );
   }
   if (typeof payload.title !== "string" || !payload.title.trim()) {
@@ -413,7 +426,7 @@ export async function buildReportForRepository(
     const body = issue.body.slice(0, MAX_GITHUB_ISSUE_BODY_CHARS);
     issueText = [issue.title, body].filter(Boolean).join("\n\n");
     issueDiagnostic = {
-      code: "remote-issue-fetched",
+      code: issueSource.isPullRequest ? "remote-pull-fetched" : "remote-issue-fetched",
       severity: "info",
       message:
         `Fetched ${issueSource.displayUrl} anonymously and used its title` +

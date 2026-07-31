@@ -1,8 +1,21 @@
 name: FixMap
 description: Map pull request changes to context files, test routes, and review risks.
 inputs:
+  mode:
+    description: >-
+      plan (default) maps the change to context files, test routes, and review risks.
+      verify compares a saved plan against the diff that followed it and needs report-path.
+    required: false
+    default: plan
+  report-path:
+    description: >-
+      Verify mode only. Path to the JSON plan this change was made from, usually restored
+      from an artifact saved by an earlier plan step.
+    required: false
   issue:
-    description: Issue, prompt, or review context for FixMap.
+    description: >-
+      Issue, prompt, or review context for FixMap. Accepts a public GitHub issue or pull
+      request URL, whose title and body are fetched as task text.
     required: false
   diff:
     description: Git diff spec, such as main...HEAD.
@@ -25,11 +38,15 @@ inputs:
     required: false
 outputs:
   report:
-    description: The complete FixMap report in the selected format.
+    description: The complete FixMap report, or verification, in the selected format.
   context-count:
-    description: Number of context files returned.
+    description: Number of context files returned. Plan mode only.
   test-route-count:
-    description: Number of test routes returned.
+    description: Number of test routes returned. Plan mode only.
+  finding-count:
+    description: Number of verification findings raised. Verify mode only.
+  changed-file-count:
+    description: Number of changed files compared against the plan. Verify mode only.
 branding:
   icon: map
   color: green

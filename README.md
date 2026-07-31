@@ -228,6 +228,28 @@ jobs:
 
 The Action upserts one marked pull-request comment, writes the complete report to the step summary, and exposes `report`, `context-count`, and `test-route-count` outputs. Pin a [release tag](https://github.com/aryamthecodebreaker/FixMap/releases); a floating `v1` tag will follow wider acceptance testing.
 
+To close the plan→edit→verify loop without leaving GitHub, save the plan as an artifact and check later pushes against it with `mode: verify`:
+
+```yaml
+      - id: plan
+        uses: aryamthecodebreaker/FixMap@v0.8.0
+        with:
+          format: json
+      - run: echo '${{ steps.plan.outputs.report }}' > fixmap-plan.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fixmap-plan
+          path: fixmap-plan.json
+
+      # In a later run, after the fix is pushed:
+      - uses: aryamthecodebreaker/FixMap@v0.8.0
+        with:
+          mode: verify
+          report-path: fixmap-plan.json
+```
+
+Verify mode exposes `finding-count` and `changed-file-count`, and fails the step only for an edit in a generated or retired location — the one finding that is wrong regardless of the task. Everything else is advisory, because a plan can be wrong and a change can still be right.
+
 On forked pull requests, GitHub supplies a read-only token. FixMap warns instead of failing and keeps the full report in the step summary and outputs. Do not switch to `pull_request_target` while checking out untrusted fork code just to restore comments.
 
 ## Why trust the output?

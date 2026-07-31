@@ -36,6 +36,7 @@ export type ScanDiagnostic = {
     | "repo-root-missing"
     | "gated-test-skipped"
     | "remote-issue-fetched"
+    | "remote-pull-fetched"
     | "remote-repo-fetched"
     | "remote-checkout-cleanup-failed"
     | "no-task-terms"

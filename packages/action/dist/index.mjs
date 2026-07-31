@@ -2003,6 +2003,129 @@ async function readIgnoreFile(repoRoot) {
   }
 }
 
+// packages/core/dist/verify.js
+function verifyPlan(report, repo) {
+  const changed = repo.changedFiles;
+  const findings = [];
+  if (changed.length === 0) {
+    return {
+      summary: "No changes to verify: the diff resolved to zero files.",
+      changedFiles: [],
+      findings,
+      diagnostics: repo.diagnostics
+    };
+  }
+  const planned = new Set(report.contextFiles.map((file) => file.path));
+  const fileByPath = new Map(repo.files.map((file) => [file.path, file]));
+  const isTest = (path) => fileByPath.get(path)?.isTest === true;
+  const maintainedStems = new Set(repo.files.filter((file) => file.isSource && !isGeneratedPath(file.path) && !isBackupPath(file.path)).map((file) => moduleStem(file.path)));
+  const tracked = new Set(repo.trackedFiles ?? []);
+  const discardedEdits = changed.filter((path) => isBackupPath(path) || isGeneratedPath(path) && maintainedStems.has(moduleStem(path)) && !tracked.has(path));
+  if (discardedEdits.length > 0) {
+    findings.push({
+      code: "edit-in-generated-location",
+      severity: "error",
+      paths: discardedEdits,
+      message: `${discardedEdits.length === 1 ? "A file was" : `${discardedEdits.length} files were`} edited in a generated or retired location. A build regenerates these, so the change will be lost. Edit the source they are produced from.`
+    });
+  }
+  const trackedGeneratedEdits = changed.filter((path) => isGeneratedPath(path) && maintainedStems.has(moduleStem(path)) && tracked.has(path));
+  if (trackedGeneratedEdits.length > 0) {
+    findings.push({
+      code: "tracked-generated-edit",
+      severity: "warning",
+      paths: trackedGeneratedEdits,
+      message: `${trackedGeneratedEdits.length === 1 ? "A committed generated artifact was" : `${trackedGeneratedEdits.length} committed generated artifacts were`} edited. Confirm the maintained source changed too and the artifact was rebuilt; tracked release artifacts are not treated as discarded edits.`
+    });
+  }
+  const unmapped = changed.filter((path) => !planned.has(path) && !isTest(path) && !discardedEdits.includes(path) && fileByPath.get(path)?.isSource !== false);
+  if (unmapped.length > 0) {
+    findings.push({
+      code: "unmapped-change",
+      severity: "warning",
+      paths: unmapped,
+      message: `${unmapped.length === 1 ? "One file" : `${unmapped.length} files`} changed that the plan did not rank. Either the task grew beyond the original description, or the ranking missed them \u2014 worth checking which.`
+    });
+  }
+  const leading = report.contextFiles[0];
+  if (leading && !changed.includes(leading.path)) {
+    findings.push({
+      code: "leading-file-untouched",
+      severity: leading.confidence === "high" ? "warning" : "info",
+      paths: [leading.path],
+      message: `The highest-ranked file was not changed (${leading.confidence} confidence). That is expected if it was only read for context, and worth a second look if it was not opened at all.`
+    });
+  }
+  const changedSource = changed.filter((path) => !isTest(path) && fileByPath.get(path)?.kind === "code");
+  const changedTests = changed.filter(isTest);
+  if (changedSource.length > 0 && changedTests.length === 0) {
+    const suggested = [...new Set(report.testRoutes.flatMap((route) => route.relatedFiles))].filter(isTest);
+    findings.push({
+      code: "no-test-changed",
+      severity: "warning",
+      paths: suggested,
+      message: suggested.length > 0 ? `Code changed but no test did. The plan routed ${suggested.length === 1 ? "this test" : "these tests"} as most related.` : "Code changed but no test did, and the plan found no related test to point at."
+    });
+  }
+  const plannedAreas = new Set(report.risks.map((risk) => risk.area));
+  const newRisks = buildRiskNotes(changed, changed).filter((risk) => !plannedAreas.has(risk.area));
+  for (const risk of newRisks) {
+    findings.push({
+      code: "new-risk-area",
+      severity: risk.severity === "high" ? "warning" : "info",
+      paths: changed.filter((path) => path.toLowerCase().includes(risk.area.split("-")[0] ?? risk.area)),
+      message: `The change touches ${risk.area}, which the original plan did not flag: ${risk.reason}.`
+    });
+  }
+  return {
+    summary: buildVerifySummary(changed.length, findings),
+    changedFiles: changed,
+    findings,
+    diagnostics: repo.diagnostics
+  };
+}
+function buildVerifySummary(changedCount, findings) {
+  const files = `${changedCount} changed ${changedCount === 1 ? "file" : "files"}`;
+  if (findings.length === 0) {
+    return `FixMap verified ${files} against the plan and found nothing to flag.`;
+  }
+  const errors = findings.filter((finding) => finding.severity === "error").length;
+  const warnings = findings.filter((finding) => finding.severity === "warning").length;
+  const counts = [
+    errors > 0 ? `${errors} ${errors === 1 ? "error" : "errors"}` : "",
+    warnings > 0 ? `${warnings} ${warnings === 1 ? "warning" : "warnings"}` : ""
+  ].filter(Boolean);
+  const tail = counts.length > 0 ? counts.join(" and ") : `${findings.length} note${findings.length === 1 ? "" : "s"}`;
+  return `FixMap verified ${files} against the plan and raised ${tail}.`;
+}
+function renderVerifyMarkdown(result) {
+  if (result.changedFiles.length === 0) {
+    return [
+      "# FixMap Verification",
+      "",
+      result.summary,
+      "",
+      "Nothing was compared against the plan. Run verify with a diff that contains the edit, such as `--diff HEAD~1...HEAD`.",
+      ""
+    ].join("\n");
+  }
+  const lines = ["# FixMap Verification", "", result.summary, "", "## Findings", ""];
+  if (result.findings.length === 0) {
+    lines.push("- None found");
+  } else {
+    for (const finding of result.findings) {
+      lines.push(`- **${finding.severity}** ${finding.message}`);
+      for (const path of finding.paths.slice(0, 8)) {
+        lines.push(`  - \`${path}\``);
+      }
+    }
+  }
+  lines.push("", "## Changed Files", "");
+  lines.push(...result.changedFiles.length > 0 ? result.changedFiles.map((path) => `- \`${path}\``) : ["- None found"]);
+  return `${lines.join("\n")}
+`;
+}
+
 // packages/action/src/github.ts
 var FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
 function buildPullRequestIssueText(event) {
@@ -2093,16 +2216,19 @@ function parseActionIssueSource(input) {
   }
   const segments = url.pathname.split("/").filter(Boolean);
   const number = Number(segments[3]);
-  if (url.protocol !== "https:" || url.hostname.toLowerCase() !== "github.com" || url.search || url.hash || segments.length !== 4 || segments[2]?.toLowerCase() !== "issues" || !segments[0] || !segments[1] || !/^[1-9]\d*$/.test(segments[3] ?? "") || !Number.isSafeInteger(number)) {
+  const kind = segments[2]?.toLowerCase();
+  if (url.protocol !== "https:" || url.hostname.toLowerCase() !== "github.com" || url.search || url.hash || segments.length !== 4 || kind !== "issues" && kind !== "pull" || !segments[0] || !segments[1] || !/^[1-9]\d*$/.test(segments[3] ?? "") || !Number.isSafeInteger(number)) {
     throw new Error(
-      "Only canonical public GitHub issue URLs are supported. Pull request, discussion, compare, tree, and file URLs are not fetched."
+      "Only canonical public GitHub issue and pull request URLs are supported. Discussion, compare, tree, and file URLs are not fetched."
     );
   }
+  const isPullRequest = kind === "pull";
   return {
     owner: segments[0],
     repository: segments[1],
     number,
-    displayUrl: `https://github.com/${segments[0]}/${segments[1]}/issues/${number}`
+    isPullRequest,
+    displayUrl: `https://github.com/${segments[0]}/${segments[1]}/${isPullRequest ? "pull" : "issues"}/${number}`
   };
 }
 async function fetchActionIssue(source) {
@@ -2122,7 +2248,12 @@ async function fetchActionIssue(source) {
     throw new Error(`Could not fetch public GitHub issue ${source.displayUrl}: GitHub returned HTTP ${response.status}.`);
   }
   const payload = await response.json();
-  if (payload.pull_request || typeof payload.title !== "string" || !payload.title.trim()) {
+  if (payload.pull_request && !source.isPullRequest) {
+    throw new Error(
+      `${source.displayUrl} resolves to a pull request, not an issue. Use https://github.com/${source.owner}/${source.repository}/pull/${source.number} instead.`
+    );
+  }
+  if (typeof payload.title !== "string" || !payload.title.trim()) {
     throw new Error(`Could not fetch public GitHub issue ${source.displayUrl}: the response was not an issue.`);
   }
   return {
@@ -2144,6 +2275,10 @@ async function runAction(env = process.env, dependencies = {}) {
   const baseRef = readInput("base", env) || (env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : void 0);
   const headRef = readInput("head", env) || (env.GITHUB_HEAD_REF ? "HEAD" : void 0);
   const format = parseFormat(readInput("format", env));
+  const mode = parseMode(readInput("mode", env));
+  if (mode === "verify") {
+    return runVerifyMode({ env, dependencies, readFile: readFile3, appendFile, stdout, format, diffSpec, baseRef, headRef });
+  }
   const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : void 0;
   if (issueSource && env.GITHUB_REPOSITORY && env.GITHUB_REPOSITORY.toLowerCase() !== `${issueSource.owner}/${issueSource.repository}`.toLowerCase()) {
     throw new Error(
@@ -2164,7 +2299,7 @@ async function runAction(env = process.env, dependencies = {}) {
   });
   if (issueSource) {
     report.diagnostics.unshift({
-      code: "remote-issue-fetched",
+      code: issueSource.isPullRequest ? "remote-pull-fetched" : "remote-issue-fetched",
       severity: "info",
       message: `Fetched ${issueSource.displayUrl} anonymously and used its title${fetchedIssue?.body ? " and body" : ""} as task context.`
     });
@@ -2194,6 +2329,80 @@ async function runAction(env = process.env, dependencies = {}) {
       );
     }
   }
+}
+function parseMode(value) {
+  if (!value) {
+    return "plan";
+  }
+  const normalized = value.toLowerCase();
+  if (normalized === "plan" || normalized === "verify") {
+    return normalized;
+  }
+  throw new Error(`Invalid mode input ${JSON.stringify(value)}; expected plan or verify.`);
+}
+async function runVerifyMode(context) {
+  const reportPath = readInput("report-path", context.env);
+  if (!reportPath) {
+    throw new Error(
+      "FixMap verify mode needs report-path pointing at the JSON plan this change was made from. Save one with a prior plan step using format: json, then download it as an artifact."
+    );
+  }
+  let report;
+  try {
+    report = JSON.parse(context.readFile(reportPath));
+  } catch (error) {
+    throw new Error(
+      `FixMap could not read the plan at "${reportPath}": ${error instanceof Error ? error.message : String(error)}.`
+    );
+  }
+  if (!Array.isArray(report.contextFiles)) {
+    throw new Error(`"${reportPath}" is not a FixMap JSON report: no contextFiles array.`);
+  }
+  const repo = await (context.dependencies.scanRepo ?? scanRepo)({
+    repoRoot: (context.dependencies.cwd ?? process.cwd)(),
+    diffSpec: context.diffSpec,
+    baseRef: context.baseRef,
+    headRef: context.headRef
+  });
+  const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
+  if (diffFailure) {
+    throw new Error(`${diffFailure.message} Verification needs a resolvable diff.`);
+  }
+  const result = verifyPlan(report, repo);
+  const markdown = renderVerifyMarkdown(result);
+  const output = context.format === "json" ? `${JSON.stringify(result, null, 2)}
+` : markdown;
+  context.stdout(output);
+  if (context.env.GITHUB_STEP_SUMMARY) {
+    context.appendFile(context.env.GITHUB_STEP_SUMMARY, fitStepSummary(markdown));
+  }
+  if (context.env.GITHUB_OUTPUT) {
+    context.appendFile(
+      context.env.GITHUB_OUTPUT,
+      renderVerifyOutputs(output, result, context.dependencies.uuid ?? randomUUID)
+    );
+  }
+  if (result.findings.some((finding) => finding.severity === "error")) {
+    throw new Error(
+      "FixMap verification found an edit in a generated or retired location, which the next build discards."
+    );
+  }
+}
+function renderVerifyOutputs(reportText, result, uuid = randomUUID) {
+  const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;
+  const terminated = reportText.endsWith("\n") ? reportText : `${reportText}
+`;
+  return [
+    `report<<${delimiter}
+`,
+    terminated,
+    `${delimiter}
+`,
+    `finding-count=${result.findings.length}
+`,
+    `changed-file-count=${result.changedFiles.length}
+`
+  ].join("");
 }
 function parseFormat(value) {
   if (!value) {
