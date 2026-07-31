@@ -9,7 +9,7 @@ const body = Geist({ subsets: ["latin"], variable: "--font-body" });
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://fixmap-flax.vercel.app"),
+  metadataBase: new URL("https://usefixmap.vercel.app"),
   title: { default: "FixMap — Know where to start", template: "%s | FixMap" },
   description:
     "Give FixMap a software problem. It finds the files most likely to matter, the checks to run, and the risks to review before anything changes.",
