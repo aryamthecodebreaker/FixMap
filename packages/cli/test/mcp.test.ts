@@ -108,6 +108,58 @@ describe("fixmap mcp server", () => {
     expect(verification.changedFiles).toContain("src/auth/reset-password.ts");
   });
 
+  it("accepts a report file path the way the CLI --report flag does", async () => {
+    const root = await createAuthFixture();
+    await exec("git", ["init"], { cwd: root });
+    await exec("git", ["config", "user.email", "fixmap@example.test"], { cwd: root });
+    await exec("git", ["config", "user.name", "FixMap Test"], { cwd: root });
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-m", "fixture"], { cwd: root });
+    await writeFile(
+      join(root, "src", "auth", "reset-password.ts"),
+      "export function sendResetEmail(email: string) { return email.trim(); }\n"
+    );
+    const planPath = join(root, "plan.json");
+    await writeFile(planPath, JSON.stringify({
+      summary: "",
+      contextFiles: [{
+        path: "src/auth/reset-password.ts",
+        score: 20,
+        confidence: "high",
+        reasons: ["path matches task terms"]
+      }],
+      testRoutes: [],
+      risks: [],
+      changedFiles: [],
+      diagnostics: []
+    }));
+    const client = await connectClient();
+
+    // Agents that used the CLI first pass a path. Requiring the object form also made the
+    // model re-embed an entire plan in the tool call, which is easy to truncate.
+    const result = await client.callTool({
+      name: "fixmap_verify",
+      arguments: { report: planPath, repo: root, diff: "HEAD", format: "json" }
+    });
+
+    expect(result.isError).toBeFalsy();
+    const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
+    expect((JSON.parse(text) as { changedFiles: string[] }).changedFiles)
+      .toContain("src/auth/reset-password.ts");
+  });
+
+  it("says why a report path did not work instead of only naming the object shape", async () => {
+    const client = await connectClient();
+
+    const missing = await client.callTool({
+      name: "fixmap_verify",
+      arguments: { report: join(tmpdir(), "fixmap-does-not-exist.json"), diff: "HEAD" }
+    });
+
+    expect(missing.isError).toBe(true);
+    expect((missing.content as Array<{ text: string }>)[0]?.text).toContain("could not be read");
+  });
+
   it("returns a markdown report for an issue", async () => {
     const root = await createAuthFixture();
     const client = await connectClient();

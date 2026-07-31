@@ -70,7 +70,7 @@ Options:
   --head <ref>        Head ref for diffing (defaults to HEAD)
   --repo <source>     Local path or public GitHub HTTPS URL (defaults to current directory)
   --format <fmt>      Output format: markdown (default) or json
-  --output <file>     Write the report to a file instead of stdout
+  --output <file>     Write the report or verification to a file instead of stdout
   --explain <path>    Explain why one file was ranked where it was, or left out
   --report <file>     Verify command only: the JSON report the change was planned from
   --help, -h          Show this help
@@ -120,7 +120,11 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 1;
   }
   if (options.command === "verify") {
-    return runVerify(options, { stdout, stderr });
+    return runVerify(options, {
+      stdout,
+      stderr,
+      writeReport: dependencies.writeReport ?? ((path, contents) => writeFile(path, contents, "utf8"))
+    });
   }
 
   try {
@@ -234,8 +238,6 @@ function nextCommandHint(options: CliOptions, report: FixMapReport): string | un
   if (options.output && options.format === "json") {
     const remoteIssue = options.issueText ? parseGitHubIssueSource(options.issueText) : undefined;
     const remoteRepo = /^https?:\/\//i.test(options.repo ?? "") || (remoteIssue && !options.repo);
-    const diff = options.diffSpec ??
-      (options.baseRef ? `${options.baseRef}...${options.headRef ?? "HEAD"}` : "<base>...HEAD");
     const repo = remoteRepo
       ? " --repo <local-checkout>"
       : options.repo
@@ -244,11 +246,36 @@ function nextCommandHint(options: CliOptions, report: FixMapReport): string | un
     const prefix = remoteRepo
       ? "\nAfter you clone and edit the scanned repository, check it against this plan:\n"
       : "\nAfter you make the change, check it against this plan:\n";
-    return `${prefix}  fixmap verify --report ${quoteCliValue(options.output)} --diff ${diff}${repo}\n`;
+    const command = `  fixmap verify --report ${quoteCliValue(options.output)}`;
+
+    // An issue-only plan has no base to name. Inventing one was #110; printing the
+    // placeholder `<base>...HEAD` inside a copy-paste command replaced that with a line
+    // that looks runnable and is not. Keep the command runnable-as-printed and put the
+    // part the user must supply on its own line, outside it.
+    const diff = options.diffSpec ??
+      (options.baseRef ? `${options.baseRef}...${options.headRef ?? "HEAD"}` : undefined);
+    if (!diff) {
+      return `${prefix}${command}${repo}\n` +
+        "Add --diff with the range holding your edit, such as HEAD~1...HEAD.\n";
+    }
+    return `${prefix}${command} --diff ${diff}${repo}\n`;
   }
 
   return undefined;
 }
+
+const SINGLE_VALUE_FLAGS = new Set([
+  "--issue",
+  "--issue-file",
+  "--diff",
+  "--base",
+  "--head",
+  "--repo",
+  "--format",
+  "--report",
+  "--explain",
+  "--output"
+]);
 
 export function parseArgs(args: string[]): CliOptions {
   const command = args[0] ?? "";
@@ -264,7 +291,7 @@ export function parseArgs(args: string[]): CliOptions {
   let reportPath: string | undefined;
   const unknownArgs: string[] = [];
   const invalidValues: string[] = [];
-  let issueCount = 0;
+  const flagCounts = new Map<string, number>();
 
   for (let index = 1; index < args.length; index += 1) {
     const rawArg = args[index];
@@ -288,16 +315,27 @@ export function parseArgs(args: string[]): CliOptions {
       }
     };
 
+    // Every one of these takes a single value, so a repeat is a mistake rather than a
+    // refinement. Silently keeping the last one is worst for --repo, which then scans a
+    // different tree than the one the user named first, and --format, which hands the
+    // consumer a contract it did not ask for.
+    if (SINGLE_VALUE_FLAGS.has(arg)) {
+      const occurrence = (flagCounts.get(arg) ?? 0) + 1;
+      flagCounts.set(arg, occurrence);
+      if (occurrence > 1) {
+        consumeValue();
+        invalidValues.push(`pass only one ${arg} value`);
+        continue;
+      }
+    }
+
     if (arg === "--issue") {
       consumeValue();
-      issueCount += 1;
-      if (issueCount > 1) invalidValues.push("pass only one --issue value");
-      else if (value?.trim()) issueText = value;
+      if (value?.trim()) issueText = value;
       else invalidValues.push('--issue requires non-empty text or a GitHub issue URL');
     } else if (arg === "--issue-file") {
       consumeValue();
-      if (issueFile !== undefined) invalidValues.push("pass only one --issue-file value");
-      else if (value?.trim()) issueFile = value.trim();
+      if (value?.trim()) issueFile = value.trim();
       else invalidValues.push("--issue-file requires a UTF-8 file path or - for stdin");
     } else if (arg === "--diff") {
       consumeValue();
@@ -405,7 +443,11 @@ function readVersion(): string {
  */
 async function runVerify(
   options: CliOptions,
-  io: { stdout: (text: string) => void; stderr: (text: string) => void }
+  io: {
+    stdout: (text: string) => void;
+    stderr: (text: string) => void;
+    writeReport: (path: string, contents: string) => Promise<void>;
+  }
 ): Promise<number> {
   if (!options.reportPath) {
     io.stderr("Provide --report with the JSON report this change was planned from.\n");
@@ -449,11 +491,22 @@ async function runVerify(
     }
 
     const result = verifyPlan(report, repo);
-    io.stdout(
-      options.format === "json"
-        ? `${JSON.stringify(result, null, 2)}\n`
-        : renderVerifyMarkdown(result)
-    );
+    const rendered = options.format === "json"
+      ? `${JSON.stringify(result, null, 2)}\n`
+      : renderVerifyMarkdown(result);
+    if (options.output) {
+      try {
+        await io.writeReport(options.output, rendered);
+      } catch (error) {
+        io.stderr(
+          `Could not write verification to "${options.output}": ` +
+          `${error instanceof Error ? error.message : String(error)}\n`
+        );
+        return 1;
+      }
+    } else {
+      io.stdout(rendered);
+    }
     // A generated-location edit is discarded by the next build, so it fails the command
     // rather than being reported and ignored. Everything else is advisory.
     return result.findings.some((finding) => finding.severity === "error") ? 1 : 0;

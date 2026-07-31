@@ -92,7 +92,13 @@ const VERIFY_TOOL = {
   inputSchema: {
     type: "object" as const,
     properties: {
-      report: { type: "object", description: "The JSON FixMap report returned by fixmap_plan" },
+      report: {
+        description:
+          "The FixMap report to verify against, either as the JSON object returned by " +
+          "fixmap_plan or as a path to a local JSON report file such as \"./fixmap-report.json\". " +
+          "Prefer the path when the plan is large.",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
       diff: { type: "string", description: "Git diff spec, such as main...HEAD" },
       base: { type: "string", description: "Base git ref when diff is omitted" },
       head: { type: "string", description: "Head git ref, defaults to HEAD" },
@@ -259,10 +265,11 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
   }
-  const report = record.report as Partial<FixMapReport> | undefined;
-  if (typeof report !== "object" || report === null || !Array.isArray(report.contextFiles)) {
-    return { success: false, message: '"report" must be a FixMap JSON report with a contextFiles array.' };
+  const loaded = loadVerifyReport(record.report);
+  if (!loaded.success) {
+    return { success: false, message: loaded.message };
   }
+  const report = loaded.report;
   for (const name of ["diff", "base", "head", "repo"] as const) {
     const value = record[name];
     if (value !== undefined && (typeof value !== "string" || !value.trim())) {
@@ -279,7 +286,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
   return {
     success: true,
     value: {
-      report: report as FixMapReport,
+      report,
       ...(typeof record.diff === "string" ? { diff: record.diff.trim() } : {}),
       ...(typeof record.base === "string" ? { base: record.base.trim() } : {}),
       ...(typeof record.head === "string" ? { head: record.head.trim() } : {}),
@@ -287,6 +294,60 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
       ...(format === "markdown" || format === "json" ? { format } : {})
     }
   };
+}
+
+type LoadedReport =
+  | { success: true; report: FixMapReport }
+  | { success: false; message: string };
+
+/**
+ * Accepts the report either inline or as a path to a JSON file, mirroring CLI
+ * `--report plan.json`. Agents reaching for MCP after using the CLI pass a path, and the
+ * object-only rule both rejected them without naming the working shape and forced the
+ * model to re-embed an entire plan in the tool call — token-heavy and easy to truncate.
+ */
+function loadVerifyReport(input: unknown): LoadedReport {
+  if (typeof input === "string") {
+    const path = input.trim();
+    if (!path) {
+      return { success: false, message: '"report" must be a FixMap report object or a path to a FixMap JSON report.' };
+    }
+    let contents: string;
+    try {
+      contents = readFileSync(path, "utf8");
+    } catch (error) {
+      return {
+        success: false,
+        message: `"report" looked like a file path but could not be read: ${error instanceof Error ? error.message : String(error)}.`
+      };
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(contents);
+    } catch (error) {
+      return {
+        success: false,
+        message: `"report" pointed at ${path}, which is not valid JSON: ${error instanceof Error ? error.message : String(error)}.`
+      };
+    }
+    return asFixMapReport(parsed, `the JSON in ${path}`);
+  }
+  return asFixMapReport(input, '"report"');
+}
+
+function asFixMapReport(candidate: unknown, label: string): LoadedReport {
+  if (
+    typeof candidate !== "object" ||
+    candidate === null ||
+    Array.isArray(candidate) ||
+    !Array.isArray((candidate as Partial<FixMapReport>).contextFiles)
+  ) {
+    return {
+      success: false,
+      message: `${label} must be a FixMap JSON report with a contextFiles array, or a path to one.`
+    };
+  }
+  return { success: true, report: candidate as FixMapReport };
 }
 
 export async function runMcpServer(): Promise<void> {

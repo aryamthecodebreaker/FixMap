@@ -61,6 +61,37 @@ describe("buildFixMapReport", () => {
     expect(diagnostic?.message).toContain("flurbulator");
   });
 
+  it("does not let a giant task token become a giant diagnostic", async () => {
+    const root = await createAuthFixture();
+    // A pasted blob with no spaces, which used to travel verbatim into the message and
+    // from there into JSON reports, CI logs, and pull request comments.
+    const blob = "z".repeat(30_000);
+
+    const report = await buildFixMapReport({ repoRoot: root, issueText: `flurbulator ${blob} telemetry` });
+
+    const diagnostic = report.diagnostics.find((entry) => entry.code === "no-context-match");
+    expect(diagnostic).toBeDefined();
+    expect(diagnostic!.message.length).toBeLessThan(600);
+    expect(diagnostic!.message).not.toContain("z".repeat(100));
+    // The terms a reader can act on survive.
+    expect(diagnostic!.message).toContain("flurbulator");
+  });
+
+  it("does not let a giant diff spec become a giant diagnostic", async () => {
+    const root = await createAuthFixture();
+    const spec = `notadiff${"Y".repeat(5_000)}`;
+
+    const report = await buildFixMapReport({ repoRoot: root, issueText: "password reset", diffSpec: spec });
+
+    const diagnostic = report.diagnostics.find((entry) => entry.code === "diff-unavailable");
+    expect(diagnostic).toBeDefined();
+    expect(diagnostic!.message.length).toBeLessThan(600);
+    // git echoes the failing command back, so the spec appeared twice: once interpolated
+    // and once inside git's own error text.
+    expect(diagnostic!.message).not.toContain("Y".repeat(200));
+    expect(diagnostic!.message).toContain("notadiff");
+  });
+
   it("does not report a term diagnostic when context files are found", async () => {
     const root = await createAuthFixture();
 

@@ -145,7 +145,8 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "you",
   "your"
 ]);
-var FILE_MENTION_PATTERN = /[A-Za-z0-9_@$][A-Za-z0-9_.$/\\-]*\.(?:[cm]?[jt]sx?|json|ya?ml|mdx?|css|scss|less|html|py|rb|rs|go|java|kt|c|cc|cpp|h|hpp|d\.ts)\b/g;
+var MAX_FILE_MENTION_LENGTH = 200;
+var FILE_MENTION_PATTERN = new RegExp(`[A-Za-z0-9_@$][A-Za-z0-9_.$/\\\\-]{0,${MAX_FILE_MENTION_LENGTH}}\\.(?:[cm]?[jt]sx?|json|ya?ml|mdx?|css|scss|less|html|py|rb|rs|go|java|kt|c|cc|cpp|h|hpp|d\\.ts)\\b`, "g");
 var MEMBER_MENTION_PATTERN = /\b(?:window|globalThis|process|request|response|req|res|this)\.([$A-Za-z_][$A-Za-z0-9_$]*)\b/g;
 var FILE_EXTENSIONS = /* @__PURE__ */ new Set([
   "c",
@@ -318,7 +319,11 @@ function extractDiffContentLines(diffText) {
 function tokenizeText(text) {
   return new Set(text.replace(/\bhttp\s*\/\s*([123])\b/gi, "http h$1").replace(/https?:\/\/[^\s<>()\[\]{}]+/gi, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token) => token.trim()).filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token)).map((token) => normalizeToken(token)).filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token)));
 }
+var MAX_SEARCHABLE_TOKEN_LENGTH = 64;
 function isSearchableToken(token) {
+  if (token.length > MAX_SEARCHABLE_TOKEN_LENGTH) {
+    return false;
+  }
   return token.length >= 3 || /^[a-z]\d$/i.test(token);
 }
 function normalizeToken(token) {
@@ -1165,6 +1170,13 @@ function extractEnvNames(textSample) {
   return [...names].sort((a, b) => a.localeCompare(b));
 }
 
+// packages/core/dist/text.js
+var DIAGNOSTIC_TERM_LIMIT = 48;
+var DIAGNOSTIC_SPEC_LIMIT = 80;
+function truncateForDiagnostic(value, limit) {
+  return value.length <= limit ? value : `${value.slice(0, limit)}\u2026`;
+}
+
 // packages/core/dist/report.js
 var MAX_REPORTED_TERMS = 8;
 function buildReportFromRepo(repo, input) {
@@ -1267,7 +1279,7 @@ function findEmptyResultDiagnostics(repo, contextFiles, issueText) {
       message: "No context files: the task text contained no searchable term. Every word was a common word, a language keyword, or shorter than three characters. Name the failing behavior, a symbol, or a file path."
     }];
   }
-  const preview = terms.slice(0, MAX_REPORTED_TERMS).join(", ");
+  const preview = terms.slice(0, MAX_REPORTED_TERMS).map((term) => truncateForDiagnostic(term, DIAGNOSTIC_TERM_LIMIT)).join(", ");
   const remainder = terms.length > MAX_REPORTED_TERMS ? ` (+${terms.length - MAX_REPORTED_TERMS} more)` : "";
   return [{
     code: "no-context-match",
@@ -1654,11 +1666,12 @@ async function readDiff(repoRoot, diffSpec, diagnostics) {
       diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS)
     };
   } catch (error) {
-    const detail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    const rawDetail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    const detail = truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2);
     diagnostics.push({
       code: "diff-unavailable",
       severity: "warning",
-      message: `Could not resolve git diff "${diffSpec}": ${detail}. Results use the task text only.`
+      message: `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ${detail}. Results use the task text only.`
     });
     return { changedFiles: [], diffText: "" };
   }

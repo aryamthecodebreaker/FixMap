@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, extname, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
 import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS } from "./paths.js";
+import { DIAGNOSTIC_SPEC_LIMIT, truncateForDiagnostic } from "./text.js";
 import type { FixMapInput, PackageScript, RepoFile, RepoMap } from "./types.js";
 
 const WALK_IGNORED_DIRS = new Set([...ALWAYS_IGNORED_DIRS, ...GENERATED_DIRS]);
@@ -294,11 +295,16 @@ async function readDiff(
       diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS)
     };
   } catch (error) {
-    const detail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    // git echoes the failing command back, so its own message contains the spec a second
+    // time. Truncating only the interpolation above would leave the full string in `detail`.
+    const rawDetail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    const detail = truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2);
     diagnostics.push({
       code: "diff-unavailable",
       severity: "warning",
-      message: `Could not resolve git diff "${diffSpec}": ${detail}. Results use the task text only.`
+      message:
+        `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ` +
+        `${detail}. Results use the task text only.`
     });
     return { changedFiles: [], diffText: "" };
   }

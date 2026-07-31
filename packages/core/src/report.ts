@@ -7,6 +7,7 @@ import type { RankingShape, TaskGrounding } from "./grounding.js";
 import { rankContextFiles } from "./rank.js";
 import { extractTaskSignals, tokenizePath } from "./signals.js";
 import { findGatedTestDiagnostics } from "./test-gates.js";
+import { DIAGNOSTIC_TERM_LIMIT, truncateForDiagnostic } from "./text.js";
 import type { FixMapReport, RankedFile, RepoMap, RiskNote, ScanDiagnostic, TestRoute } from "./types.js";
 
 const MAX_REPORTED_TERMS = 8;
@@ -167,7 +168,10 @@ function findEmptyResultDiagnostics(
     }];
   }
 
-  const preview = terms.slice(0, MAX_REPORTED_TERMS).join(", ");
+  const preview = terms
+    .slice(0, MAX_REPORTED_TERMS)
+    .map((term) => truncateForDiagnostic(term, DIAGNOSTIC_TERM_LIMIT))
+    .join(", ");
   const remainder = terms.length > MAX_REPORTED_TERMS ? ` (+${terms.length - MAX_REPORTED_TERMS} more)` : "";
   return [{
     code: "no-context-match",
