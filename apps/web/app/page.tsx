@@ -55,7 +55,7 @@ const commands = [
     command: "claude mcp add fixmap -- npx -y @aryam/fixmap mcp",
     question: "Can my agent just ask for it?",
     answer:
-      "One stdio MCP tool. Claude Code, Cursor, Windsurf, and any other MCP client get the same report without a human running anything. Analysis stays on your machine.",
+      "Two stdio MCP tools cover plan and verify. Claude Code, Cursor, Windsurf, and any other MCP client can map the task, then compare the resulting diff without a human running the CLI. Analysis stays on your machine.",
     badge: "for agents"
   }
 ];
@@ -312,9 +312,9 @@ export default function HomePage() {
 
         <p className="evidence-verdict">
           Plan around the <strong>{percent(heldoutTop3, heldout.cases)}</strong>, not the{" "}
-          {percent(regressionTop3, regression.cases)}. Top-1 does not degrade on unseen code—it is slightly higher
-          there—so the signals FixMap ranks on genuinely transfer. The top-3 gap between the two columns is what
-          fitting bought on the tuned set, and nothing more.
+          {percent(regressionTop3, regression.cases)}. Held-out Top-1 is lower than the development suite, and the
+          confidence intervals overlap substantially at this sample size. The top-3 gap between the two columns is
+          what fitting bought on the tuned set, and nothing more.
         </p>
 
         <p className="evidence-disclaimer">
