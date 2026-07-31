@@ -47,9 +47,10 @@ const PLAN_TOOL = {
     "the test commands most likely to validate a change, and the areas that deserve review attention. " +
     "Run this before editing code so the change starts from the right context. " +
     "Provide at least one of issue, diff, or base. " +
-    // Agents otherwise read a ranked list as a settled answer. On the frozen suites the
-    // top result is correct about three quarters of the time when labeled high
-    // confidence, so the ranking is a lead to verify rather than a conclusion.
+    // Agents otherwise read a ranked list as a settled answer. On the frozen suites a top
+    // result labeled high confidence is the correct fixing file 9 times out of 15, so the
+    // ranking is a lead to verify rather than a conclusion. High is also deliberately
+    // scarce: it marks the file that led, not every file worth reading.
     "Treat the result as a starting map, not proof the task is valid: check the analysis " +
     "block before editing, and when it reports unresolved or unverified identifiers, vague " +
     "task grounding, an incomplete scan, or a clustered ranking, widen the search or ask for " +

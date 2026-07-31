@@ -196,7 +196,7 @@ Treat FixMap's output as a starting map, not proof that the task is valid.
    relates to the requested behavior.
 ```
 
-This matters because the ranking is a lead, not a conclusion: across the frozen suites, a top result labeled *high confidence* is the correct fixing file about three quarters of the time.
+This matters because the ranking is a lead, not a conclusion: across the frozen suites, a top result labeled *high confidence* is the correct fixing file 9 times out of 15 — [measured below](#does-the-confidence-label-mean-anything), not asserted.
 
 ### GitHub Action
 
@@ -281,6 +281,8 @@ A confidence label is only useful if it predicts something. Across all 27 cases 
 | low | 2 / 4 | 50% | <sub>95% CI 15–85%</sub> |
 
 The bands are not monotonic in this 27-case sample, so the label is a heuristic rather than a calibrated probability. **High confidence still means “check this lead first,” not certainty.** The intervals overlap heavily at these sample sizes, and the raw counts are published so the limitation is visible.
+
+Since v0.8.0 the label is also **scarce**. It used to come from an absolute score threshold, which on a real Zod task labeled all eight results high while the leader was nineteen points ahead of the runner-up — telling an agent the eighth guess was as safe to edit as the first. High is now reserved for a file that leads, ties the lead within two points, or carries definition-site evidence of its own; and a leader that merely out-talks a definition site below it is capped at medium, because that competitor has the stronger kind of evidence. The table above is unchanged by this: it scores only the top-ranked file, and these rules almost always leave a genuine leader alone. What changed is the other seven rows, which no longer borrow the leader's certainty.
 
 ### Does it stay quiet when it should?
 

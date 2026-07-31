@@ -833,6 +833,7 @@ var DEFINITION_IDENTIFIER_BOOST = 24;
 var DEFINITION_LITERAL_BOOST = 8;
 var MAX_DEFINITION_IDENTIFIERS = 2;
 var TASK_MATCHED_DEFINITION_BOOST = 4;
+var HIGH_CONFIDENCE_MARGIN = 2;
 var REPORT_SCORE_CUTOFF = 4;
 function rankContextFiles(repo, input, limit = 8, minScore = REPORT_SCORE_CUTOFF) {
   const signals = extractTaskSignals({
@@ -986,12 +987,27 @@ function rankContextFiles(repo, input, limit = 8, minScore = REPORT_SCORE_CUTOFF
   applyImportProximity(scored, repo);
   const ranked = scored.filter((file) => file.score >= minScore).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, limit);
   const clustered = isClusteredRanking(ranked);
-  return ranked.map((entry) => ({
+  const leadIsContested = hasContestedLead(ranked);
+  return ranked.map((entry, position) => ({
     path: entry.path,
     score: entry.score,
-    confidence: confidenceForEntry(entry, grounding, clustered),
+    confidence: confidenceForEntry(entry, grounding, clustered, {
+      position,
+      topScore: ranked[0]?.score ?? entry.score,
+      leadIsContested
+    }),
     reasons: entry.reasons.length > 0 ? entry.reasons : ["source file baseline"]
   }));
+}
+function hasContestedLead(ranked) {
+  const leader = ranked[0];
+  if (!leader || hasDefinitionEvidence(leader)) {
+    return false;
+  }
+  return ranked.slice(1).some((entry) => hasDefinitionEvidence(entry));
+}
+function hasDefinitionEvidence(entry) {
+  return entry.reasons.some((reason) => reason.startsWith("defines task identifiers:") || reason.startsWith("exact task literal at definition:"));
 }
 function applyImportProximity(scored, repo) {
   const seedEntries = scored.filter((entry) => entry.score >= 8 && hasDirectEvidence(entry)).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, MAX_PROXIMITY_SEEDS);
@@ -1021,11 +1037,18 @@ function proximityReason(hit) {
   }
   return hit.direction === "imported-by" ? `imported by ranked file ${hit.seed}` : `imports ranked file ${hit.seed}`;
 }
-function confidenceForEntry(entry, grounding, clustered) {
+function confidenceForEntry(entry, grounding, clustered, shape) {
   if (entry.isChanged || entry.reasons.includes("explicitly named in the task")) {
     return "high";
   }
   let confidence = entry.score >= 14 ? "high" : entry.score >= 8 ? "medium" : "low";
+  const leads = shape.position === 0 || entry.score >= shape.topScore - HIGH_CONFIDENCE_MARGIN;
+  if (!leads && !hasDirectEvidence(entry)) {
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (shape.position === 0 && shape.leadIsContested) {
+    confidence = capConfidence(confidence, "medium");
+  }
   const supportedIdentifierCount = grounding.identifiers.filter((identifier) => identifier.status === "exact-definition" || identifier.status === "exact-text" || identifier.status === "partial-definition").length;
   if (grounding.unresolvedIdentifiers.length > 0) {
     if (supportedIdentifierCount === 0) {
