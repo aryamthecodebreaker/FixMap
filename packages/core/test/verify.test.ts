@@ -157,4 +157,39 @@ describe("verifyPlan", () => {
     expect(markdown).toContain("**error**");
     expect(markdown).toContain("`dist/auth/reset-password.js`");
   });
+
+  it("explains an empty diff instead of rendering empty sections", () => {
+    const markdown = renderVerifyMarkdown(verifyPlan(planFor("src/auth/reset-password.ts"), repoWith([])));
+
+    // "## Findings - None found" is accurate and reads like a missing-data bug.
+    expect(markdown).not.toContain("None found");
+    expect(markdown).not.toContain("## Findings");
+    expect(markdown).toContain("zero files");
+    expect(markdown).toContain("HEAD~1...HEAD");
+  });
+
+  it("carries scan diagnostics so verify JSON reports what plan JSON does", () => {
+    const repo = repoWith(["src/auth/reset-password.ts"]);
+    repo.diagnostics = [{
+      code: "scan-limit-reached",
+      severity: "warning",
+      message: "Stopped scanning after 25,000 files."
+    }];
+
+    const result = verifyPlan(planFor("src/auth/reset-password.ts"), repo);
+
+    expect(result.diagnostics).toEqual(repo.diagnostics);
+    // Both commands now hand an agent the same three concepts, so consuming either does
+    // not require branching on the output shape.
+    expect(Object.keys(result)).toEqual(
+      expect.arrayContaining(["summary", "changedFiles", "findings", "diagnostics"])
+    );
+  });
+
+  it("carries diagnostics even when the diff resolved to nothing", () => {
+    const repo = repoWith([]);
+    repo.diagnostics = [{ code: "diff-unavailable", severity: "warning", message: "Could not resolve git diff." }];
+
+    expect(verifyPlan(planFor("src/auth/reset-password.ts"), repo).diagnostics).toEqual(repo.diagnostics);
+  });
 });

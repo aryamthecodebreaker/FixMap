@@ -4,6 +4,77 @@ import { createRequire as __fixmapCreateRequire } from 'module'; const require =
 import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
 
+// packages/core/dist/plan.js
+import { readFile as readFile2 } from "node:fs/promises";
+import { join as join2 } from "node:path";
+
+// packages/core/dist/exclude.js
+var COMMENT = /^\s*#/;
+var NO_EXCLUSIONS = {
+  excludes: () => false,
+  reasonFor: () => void 0,
+  patterns: []
+};
+function buildPathExcluder(patterns) {
+  const cleaned = patterns.map((pattern) => pattern.trim()).filter((pattern) => pattern.length > 0 && !COMMENT.test(pattern));
+  if (cleaned.length === 0) {
+    return NO_EXCLUSIONS;
+  }
+  const matchers = cleaned.map((pattern) => ({ pattern, test: compile(pattern) }));
+  const cache = /* @__PURE__ */ new Map();
+  const reasonFor = (path) => {
+    if (cache.has(path)) {
+      return cache.get(path);
+    }
+    const hit = matchers.find((matcher) => matcher.test(path))?.pattern;
+    cache.set(path, hit);
+    return hit;
+  };
+  return {
+    excludes: (path) => reasonFor(path) !== void 0,
+    reasonFor,
+    patterns: cleaned
+  };
+}
+function parseIgnoreFile(contents) {
+  return contents.split(/\r?\n/);
+}
+function compile(pattern) {
+  const anchored = pattern.startsWith("/");
+  const directoryOnly = pattern.endsWith("/");
+  const body = pattern.replace(/^\//, "").replace(/\/$/, "");
+  if (body.length === 0) {
+    return () => false;
+  }
+  const source = `${anchored ? "^" : "(?:^|/)"}${globToRegExp(body)}${directoryOnly ? "/" : "(?:/|$)"}`;
+  const expression = new RegExp(source);
+  return (path) => expression.test(directoryOnly ? `${path}/` : path);
+}
+function globToRegExp(glob) {
+  let source = "";
+  for (let index = 0; index < glob.length; index += 1) {
+    const character = glob[index];
+    if (character === "*") {
+      if (glob[index + 1] === "*") {
+        source += ".*";
+        index += 1;
+        if (glob[index + 1] === "/") {
+          index += 1;
+        }
+      } else {
+        source += "[^/]*";
+      }
+      continue;
+    }
+    if (character === "?") {
+      source += "[^/]";
+      continue;
+    }
+    source += character.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  return source;
+}
+
 // packages/core/dist/signals.js
 var TOKEN_SPLIT = /[^a-zA-Z0-9]+/g;
 var STOP_WORDS = /* @__PURE__ */ new Set([
@@ -145,7 +216,8 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "you",
   "your"
 ]);
-var FILE_MENTION_PATTERN = /[A-Za-z0-9_@$][A-Za-z0-9_.$/\\-]*\.(?:[cm]?[jt]sx?|json|ya?ml|mdx?|css|scss|less|html|py|rb|rs|go|java|kt|c|cc|cpp|h|hpp|d\.ts)\b/g;
+var MAX_FILE_MENTION_LENGTH = 200;
+var FILE_MENTION_PATTERN = new RegExp(`[A-Za-z0-9_@$][A-Za-z0-9_.$/\\\\-]{0,${MAX_FILE_MENTION_LENGTH}}\\.(?:[cm]?[jt]sx?|json|ya?ml|mdx?|css|scss|less|html|py|rb|rs|go|java|kt|c|cc|cpp|h|hpp|d\\.ts)\\b`, "g");
 var MEMBER_MENTION_PATTERN = /\b(?:window|globalThis|process|request|response|req|res|this)\.([$A-Za-z_][$A-Za-z0-9_$]*)\b/g;
 var FILE_EXTENSIONS = /* @__PURE__ */ new Set([
   "c",
@@ -318,7 +390,11 @@ function extractDiffContentLines(diffText) {
 function tokenizeText(text) {
   return new Set(text.replace(/\bhttp\s*\/\s*([123])\b/gi, "http h$1").replace(/https?:\/\/[^\s<>()\[\]{}]+/gi, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token) => token.trim()).filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token)).map((token) => normalizeToken(token)).filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token)));
 }
+var MAX_SEARCHABLE_TOKEN_LENGTH = 64;
 function isSearchableToken(token) {
+  if (token.length > MAX_SEARCHABLE_TOKEN_LENGTH) {
+    return false;
+  }
   return token.length >= 3 || /^[a-z]\d$/i.test(token);
 }
 function normalizeToken(token) {
@@ -490,6 +566,107 @@ function pathMatchesMention(path, mention) {
 }
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// packages/core/dist/languages.js
+var ROOT_MANIFESTS = {
+  "cargo.toml": "rust",
+  "go.mod": "go",
+  "pyproject.toml": "python",
+  "setup.py": "python",
+  "setup.cfg": "python",
+  "package.json": "node"
+};
+var EXTENSION_LANGUAGES = {
+  ".py": "python",
+  ".go": "go",
+  ".rs": "rust",
+  ".ts": "node",
+  ".tsx": "node",
+  ".js": "node",
+  ".jsx": "node",
+  ".mjs": "node",
+  ".cjs": "node"
+};
+function detectPrimaryLanguage(repo) {
+  const manifests = rootManifestLanguages(repo.files);
+  if (manifests.size === 1) {
+    const [language, manifest2] = [...manifests][0];
+    return { language, evidence: manifest2 };
+  }
+  const shares = countCodeFiles(repo.files);
+  const candidates = manifests.size > 1 ? [...manifests.keys()] : [...shares.keys()];
+  const leader = candidates.map((language) => ({ language, count: shares.get(language) ?? 0 })).sort((a, b) => b.count - a.count || a.language.localeCompare(b.language))[0];
+  if (!leader || leader.count === 0) {
+    return { language: "unknown", evidence: "no root manifest and no recognizable source files" };
+  }
+  const total = [...shares.values()].reduce((sum, count) => sum + count, 0);
+  const share = Math.round(leader.count / total * 100);
+  const manifest = manifests.get(leader.language);
+  return {
+    language: leader.language,
+    evidence: manifest ? `${manifest} and ${share}% of source files` : `${share}% of source files`
+  };
+}
+function rootManifestLanguages(files) {
+  const found = /* @__PURE__ */ new Map();
+  for (const file of files) {
+    if (file.path.includes("/")) {
+      continue;
+    }
+    const language = ROOT_MANIFESTS[file.path.toLowerCase()];
+    if (language && !found.has(language)) {
+      found.set(language, file.path);
+    }
+  }
+  return found;
+}
+function countCodeFiles(files) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const file of files) {
+    if (file.isTest) {
+      continue;
+    }
+    const language = EXTENSION_LANGUAGES[file.extension];
+    if (language) {
+      counts.set(language, (counts.get(language) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+function manifestTestCommand(language, packageDir) {
+  if (language === "go") {
+    return {
+      command: "go test ./...",
+      reason: "go.mod at the repository root"
+    };
+  }
+  if (language === "rust") {
+    return packageDir ? {
+      command: `cargo test --manifest-path ${packageDir}/Cargo.toml`,
+      reason: `nearest crate (${packageDir}) declared by Cargo.toml`
+    } : { command: "cargo test", reason: "Cargo.toml at the repository root" };
+  }
+  return void 0;
+}
+function suggestedRunner(language, files) {
+  if (language === "python") {
+    const names = new Set(files.map((file) => file.path.toLowerCase()));
+    if (names.has("tox.ini")) {
+      return "tox";
+    }
+    if (names.has("pytest.ini") || names.has("pyproject.toml") || names.has("setup.cfg")) {
+      return "pytest";
+    }
+    return "pytest or unittest";
+  }
+  if (language === "go") {
+    return "go test ./...";
+  }
+  if (language === "rust") {
+    return "cargo test";
+  }
+  return void 0;
 }
 
 // packages/core/dist/import-graph.js
@@ -727,8 +904,11 @@ var DEFINITION_IDENTIFIER_BOOST = 24;
 var DEFINITION_LITERAL_BOOST = 8;
 var MAX_DEFINITION_IDENTIFIERS = 2;
 var TASK_MATCHED_DEFINITION_BOOST = 4;
+var HIGH_CONFIDENCE_MARGIN = 2;
 var REPORT_SCORE_CUTOFF = 4;
-function rankContextFiles(repo, input, limit = 8, minScore = REPORT_SCORE_CUTOFF) {
+var DEFAULT_CONTEXT_FILE_LIMIT = 8;
+function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minScore = REPORT_SCORE_CUTOFF) {
+  const exclude = input.exclude ?? NO_EXCLUSIONS;
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
     diffText: input.diffText ?? "",
@@ -742,7 +922,7 @@ function rankContextFiles(repo, input, limit = 8, minScore = REPORT_SCORE_CUTOFF
   });
   const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path));
   const taskTargetsEvaluation = hasAny(taskTokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
-  const scannable = repo.files.filter((file) => mentionedPaths.has(file.path) || file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
+  const scannable = repo.files.filter((file) => !exclude.excludes(file.path) && (mentionedPaths.has(file.path) || file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation)));
   const maintainedStems = new Set(scannable.filter((file) => !isGeneratedPath(file.path) && !isBackupPath(file.path)).map((file) => moduleStem(file.path)));
   const candidates = scannable.filter((file) => mentionedPaths.has(file.path) || signals.changedFiles.has(file.path) || !isGeneratedPath(file.path) || !maintainedStems.has(moduleStem(file.path)));
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeFileContent(file.textSample)]));
@@ -880,12 +1060,27 @@ function rankContextFiles(repo, input, limit = 8, minScore = REPORT_SCORE_CUTOFF
   applyImportProximity(scored, repo);
   const ranked = scored.filter((file) => file.score >= minScore).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, limit);
   const clustered = isClusteredRanking(ranked);
-  return ranked.map((entry) => ({
+  const leadIsContested = hasContestedLead(ranked);
+  return ranked.map((entry, position) => ({
     path: entry.path,
     score: entry.score,
-    confidence: confidenceForEntry(entry, grounding, clustered),
+    confidence: confidenceForEntry(entry, grounding, clustered, {
+      position,
+      topScore: ranked[0]?.score ?? entry.score,
+      leadIsContested
+    }),
     reasons: entry.reasons.length > 0 ? entry.reasons : ["source file baseline"]
   }));
+}
+function hasContestedLead(ranked) {
+  const leader = ranked[0];
+  if (!leader || hasDefinitionEvidence(leader)) {
+    return false;
+  }
+  return ranked.slice(1).some((entry) => hasDefinitionEvidence(entry));
+}
+function hasDefinitionEvidence(entry) {
+  return entry.reasons.some((reason) => reason.startsWith("defines task identifiers:") || reason.startsWith("exact task literal at definition:"));
 }
 function applyImportProximity(scored, repo) {
   const seedEntries = scored.filter((entry) => entry.score >= 8 && hasDirectEvidence(entry)).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, MAX_PROXIMITY_SEEDS);
@@ -915,11 +1110,18 @@ function proximityReason(hit) {
   }
   return hit.direction === "imported-by" ? `imported by ranked file ${hit.seed}` : `imports ranked file ${hit.seed}`;
 }
-function confidenceForEntry(entry, grounding, clustered) {
+function confidenceForEntry(entry, grounding, clustered, shape) {
   if (entry.isChanged || entry.reasons.includes("explicitly named in the task")) {
     return "high";
   }
   let confidence = entry.score >= 14 ? "high" : entry.score >= 8 ? "medium" : "low";
+  const leads = shape.position === 0 || entry.score >= shape.topScore - HIGH_CONFIDENCE_MARGIN;
+  if (!leads && !hasDirectEvidence(entry)) {
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (shape.position === 0 && shape.leadIsContested) {
+    confidence = capConfidence(confidence, "medium");
+  }
   const supportedIdentifierCount = grounding.identifiers.filter((identifier) => identifier.status === "exact-definition" || identifier.status === "exact-text" || identifier.status === "partial-definition").length;
   if (grounding.unresolvedIdentifiers.length > 0) {
     if (supportedIdentifierCount === 0) {
@@ -1165,6 +1367,13 @@ function extractEnvNames(textSample) {
   return [...names].sort((a, b) => a.localeCompare(b));
 }
 
+// packages/core/dist/text.js
+var DIAGNOSTIC_TERM_LIMIT = 48;
+var DIAGNOSTIC_SPEC_LIMIT = 80;
+function truncateForDiagnostic(value, limit) {
+  return value.length <= limit ? value : `${value.slice(0, limit)}\u2026`;
+}
+
 // packages/core/dist/report.js
 var MAX_REPORTED_TERMS = 8;
 function buildReportFromRepo(repo, input) {
@@ -1174,8 +1383,9 @@ function buildReportFromRepo(repo, input) {
   });
   const contextFiles = grounding.specificity === "vague" ? [] : rankContextFiles(repo, {
     issueText: input.issueText,
-    diffText: repo.diffText
-  });
+    diffText: repo.diffText,
+    exclude: input.exclude
+  }, input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT);
   const ranking = buildRankingShape(contextFiles);
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
@@ -1204,11 +1414,12 @@ function findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes) {
   if (testRoutes.length > 0 || !contextFiles.some((entry) => repo.files.find((file) => file.path === entry.path)?.kind === "code")) {
     return [];
   }
-  const hasPython = repo.files.some((file) => file.extension === ".py");
+  const { language, evidence } = detectPrimaryLanguage(repo);
+  const runner = suggestedRunner(language, repo.files);
   return [{
     code: "no-test-route",
     severity: "warning",
-    message: hasPython ? "No test command was routed. This Python repository has no supported package-script route; inspect pyproject.toml, tox.ini, or the test directory and choose the project runner explicitly." : "No test command was routed. FixMap found code context but no supported package test script, so tests were not assumed to be absent."
+    message: runner ? `No test command was routed. FixMap read this as a ${language} repository (${evidence}) and found no supported package script; \`${runner}\` is the runner that fits, but confirm it against the project's own configuration before relying on it.` : "No test command was routed. FixMap found code context but no supported package test script, so tests were not assumed to be absent."
   }];
 }
 function findTaskDiagnostics(grounding, ranking) {
@@ -1267,7 +1478,7 @@ function findEmptyResultDiagnostics(repo, contextFiles, issueText) {
       message: "No context files: the task text contained no searchable term. Every word was a common word, a language keyword, or shorter than three characters. Name the failing behavior, a symbol, or a file path."
     }];
   }
-  const preview = terms.slice(0, MAX_REPORTED_TERMS).join(", ");
+  const preview = terms.slice(0, MAX_REPORTED_TERMS).map((term) => truncateForDiagnostic(term, DIAGNOSTIC_TERM_LIMIT)).join(", ");
   const remainder = terms.length > MAX_REPORTED_TERMS ? ` (+${terms.length - MAX_REPORTED_TERMS} more)` : "";
   return [{
     code: "no-context-match",
@@ -1309,7 +1520,30 @@ function buildTestRoutes(repo, contextPaths) {
     if (routes.length === 3)
       break;
   }
+  if (routes.length === 0) {
+    const manifestRoute = buildManifestTestRoute(repo, codeContextPaths, relatedTests);
+    if (manifestRoute) {
+      routes.push(manifestRoute);
+    }
+  }
   return routes;
+}
+function buildManifestTestRoute(repo, codeContextPaths, relatedTests) {
+  const { language } = detectPrimaryLanguage(repo);
+  const crateDir = language === "rust" ? nearestManifestDir(repo, codeContextPaths, "Cargo.toml") : "";
+  const route = manifestTestCommand(language, crateDir);
+  if (!route) {
+    return void 0;
+  }
+  return {
+    command: route.command,
+    reason: route.reason,
+    relatedFiles: scopeToPackage(relatedTests.length > 0 ? relatedTests : codeContextPaths, crateDir)
+  };
+}
+function nearestManifestDir(repo, contextPaths, manifest) {
+  const manifestDirs = repo.files.filter((file) => file.path === manifest || file.path.endsWith(`/${manifest}`)).map((file) => file.path.split("/").slice(0, -1).join("/")).filter(Boolean);
+  return manifestDirs.filter((dir) => contextPaths.some((path) => path.startsWith(`${dir}/`))).sort((a, b) => b.split("/").length - a.split("/").length || a.localeCompare(b))[0] ?? "";
 }
 var RISK_RULES = [
   { area: "authentication", severity: "high", tokens: ["auth", "login", "password"], reason: "authentication-related files are affected" },
@@ -1478,7 +1712,7 @@ async function scanRepo(input) {
   const trackedFiles = await listTrackedPaths(input.repoRoot);
   const packageScripts = await readPackageScripts(input.repoRoot, files, diagnostics);
   const diffSpec = resolveDiffSpec(input);
-  const diff = await readDiff(input.repoRoot, diffSpec, diagnostics);
+  const diff = input.workingTree ? await readWorkingTree(input.repoRoot, input.includeUntracked === true, diagnostics) : await readDiff(input.repoRoot, diffSpec, diagnostics);
   return {
     root: input.repoRoot,
     files,
@@ -1654,11 +1888,38 @@ async function readDiff(repoRoot, diffSpec, diagnostics) {
       diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS)
     };
   } catch (error) {
-    const detail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    const rawDetail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    const detail = truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2);
     diagnostics.push({
       code: "diff-unavailable",
       severity: "warning",
-      message: `Could not resolve git diff "${diffSpec}": ${detail}. Results use the task text only.`
+      message: `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ${detail}. Results use the task text only.`
+    });
+    return { changedFiles: [], diffText: "" };
+  }
+}
+async function readWorkingTree(repoRoot, includeUntracked, diagnostics) {
+  try {
+    const [{ stdout: names }, { stdout: diffText }] = await Promise.all([
+      exec("git", ["diff", "--relative", "--name-only", "HEAD"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", "--relative", "HEAD"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
+    ]);
+    const tracked = names.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath);
+    const untracked = includeUntracked ? await listUntrackedPaths(repoRoot) : [];
+    const changedFiles = [.../* @__PURE__ */ new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
+    diagnostics.push({
+      code: "working-tree-diff",
+      severity: "info",
+      message: changedFiles.length === 0 ? "Working-tree mode found no changes against HEAD; results use the task text only." : `Working-tree mode used ${changedFiles.length} changed ${changedFiles.length === 1 ? "path" : "paths"} against HEAD${includeUntracked ? ", including untracked files" : " (untracked files excluded; pass --include-untracked to add them)"}.`,
+      paths: changedFiles.slice(0, 8)
+    });
+    return { changedFiles, diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS) };
+  } catch (error) {
+    const rawDetail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    diagnostics.push({
+      code: "diff-unavailable",
+      severity: "warning",
+      message: `Could not read the working tree: ${truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2)}. Results use the task text only.`
     });
     return { changedFiles: [], diffText: "" };
   }
@@ -1715,7 +1976,154 @@ function normalizePath(path) {
 // packages/core/dist/plan.js
 async function buildFixMapReport(input) {
   const repo = await scanRepo(input);
-  return buildReportFromRepo(repo, { issueText: input.issueText });
+  const exclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
+  const report = buildReportFromRepo(repo, {
+    issueText: input.issueText,
+    limit: input.limit,
+    exclude
+  });
+  if (exclude.patterns.length > 0) {
+    report.diagnostics.push({
+      code: "paths-excluded",
+      severity: "info",
+      message: `${exclude.patterns.length} exclusion ${exclude.patterns.length === 1 ? "pattern" : "patterns"} removed paths from ranking: ${exclude.patterns.join(", ")}. Run --explain on a file you expected to see if this is why it is absent.`
+    });
+  }
+  return report;
+}
+async function resolveExclusions(repoRoot, patterns) {
+  const combined = [...await readIgnoreFile(repoRoot), ...patterns];
+  return combined.length > 0 ? buildPathExcluder(combined) : NO_EXCLUSIONS;
+}
+async function readIgnoreFile(repoRoot) {
+  try {
+    return parseIgnoreFile(await readFile2(join2(repoRoot, ".fixmapignore"), "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+// packages/core/dist/verify.js
+function verifyPlan(report, repo) {
+  const changed = repo.changedFiles;
+  const findings = [];
+  if (changed.length === 0) {
+    return {
+      summary: "No changes to verify: the diff resolved to zero files.",
+      changedFiles: [],
+      findings,
+      diagnostics: repo.diagnostics
+    };
+  }
+  const planned = new Set(report.contextFiles.map((file) => file.path));
+  const fileByPath = new Map(repo.files.map((file) => [file.path, file]));
+  const isTest = (path) => fileByPath.get(path)?.isTest === true;
+  const maintainedStems = new Set(repo.files.filter((file) => file.isSource && !isGeneratedPath(file.path) && !isBackupPath(file.path)).map((file) => moduleStem(file.path)));
+  const tracked = new Set(repo.trackedFiles ?? []);
+  const discardedEdits = changed.filter((path) => isBackupPath(path) || isGeneratedPath(path) && maintainedStems.has(moduleStem(path)) && !tracked.has(path));
+  if (discardedEdits.length > 0) {
+    findings.push({
+      code: "edit-in-generated-location",
+      severity: "error",
+      paths: discardedEdits,
+      message: `${discardedEdits.length === 1 ? "A file was" : `${discardedEdits.length} files were`} edited in a generated or retired location. A build regenerates these, so the change will be lost. Edit the source they are produced from.`
+    });
+  }
+  const trackedGeneratedEdits = changed.filter((path) => isGeneratedPath(path) && maintainedStems.has(moduleStem(path)) && tracked.has(path));
+  if (trackedGeneratedEdits.length > 0) {
+    findings.push({
+      code: "tracked-generated-edit",
+      severity: "warning",
+      paths: trackedGeneratedEdits,
+      message: `${trackedGeneratedEdits.length === 1 ? "A committed generated artifact was" : `${trackedGeneratedEdits.length} committed generated artifacts were`} edited. Confirm the maintained source changed too and the artifact was rebuilt; tracked release artifacts are not treated as discarded edits.`
+    });
+  }
+  const unmapped = changed.filter((path) => !planned.has(path) && !isTest(path) && !discardedEdits.includes(path) && fileByPath.get(path)?.isSource !== false);
+  if (unmapped.length > 0) {
+    findings.push({
+      code: "unmapped-change",
+      severity: "warning",
+      paths: unmapped,
+      message: `${unmapped.length === 1 ? "One file" : `${unmapped.length} files`} changed that the plan did not rank. Either the task grew beyond the original description, or the ranking missed them \u2014 worth checking which.`
+    });
+  }
+  const leading = report.contextFiles[0];
+  if (leading && !changed.includes(leading.path)) {
+    findings.push({
+      code: "leading-file-untouched",
+      severity: leading.confidence === "high" ? "warning" : "info",
+      paths: [leading.path],
+      message: `The highest-ranked file was not changed (${leading.confidence} confidence). That is expected if it was only read for context, and worth a second look if it was not opened at all.`
+    });
+  }
+  const changedSource = changed.filter((path) => !isTest(path) && fileByPath.get(path)?.kind === "code");
+  const changedTests = changed.filter(isTest);
+  if (changedSource.length > 0 && changedTests.length === 0) {
+    const suggested = [...new Set(report.testRoutes.flatMap((route) => route.relatedFiles))].filter(isTest);
+    findings.push({
+      code: "no-test-changed",
+      severity: "warning",
+      paths: suggested,
+      message: suggested.length > 0 ? `Code changed but no test did. The plan routed ${suggested.length === 1 ? "this test" : "these tests"} as most related.` : "Code changed but no test did, and the plan found no related test to point at."
+    });
+  }
+  const plannedAreas = new Set(report.risks.map((risk) => risk.area));
+  const newRisks = buildRiskNotes(changed, changed).filter((risk) => !plannedAreas.has(risk.area));
+  for (const risk of newRisks) {
+    findings.push({
+      code: "new-risk-area",
+      severity: risk.severity === "high" ? "warning" : "info",
+      paths: changed.filter((path) => path.toLowerCase().includes(risk.area.split("-")[0] ?? risk.area)),
+      message: `The change touches ${risk.area}, which the original plan did not flag: ${risk.reason}.`
+    });
+  }
+  return {
+    summary: buildVerifySummary(changed.length, findings),
+    changedFiles: changed,
+    findings,
+    diagnostics: repo.diagnostics
+  };
+}
+function buildVerifySummary(changedCount, findings) {
+  const files = `${changedCount} changed ${changedCount === 1 ? "file" : "files"}`;
+  if (findings.length === 0) {
+    return `FixMap verified ${files} against the plan and found nothing to flag.`;
+  }
+  const errors = findings.filter((finding) => finding.severity === "error").length;
+  const warnings = findings.filter((finding) => finding.severity === "warning").length;
+  const counts = [
+    errors > 0 ? `${errors} ${errors === 1 ? "error" : "errors"}` : "",
+    warnings > 0 ? `${warnings} ${warnings === 1 ? "warning" : "warnings"}` : ""
+  ].filter(Boolean);
+  const tail = counts.length > 0 ? counts.join(" and ") : `${findings.length} note${findings.length === 1 ? "" : "s"}`;
+  return `FixMap verified ${files} against the plan and raised ${tail}.`;
+}
+function renderVerifyMarkdown(result) {
+  if (result.changedFiles.length === 0) {
+    return [
+      "# FixMap Verification",
+      "",
+      result.summary,
+      "",
+      "Nothing was compared against the plan. Run verify with a diff that contains the edit, such as `--diff HEAD~1...HEAD`.",
+      ""
+    ].join("\n");
+  }
+  const lines = ["# FixMap Verification", "", result.summary, "", "## Findings", ""];
+  if (result.findings.length === 0) {
+    lines.push("- None found");
+  } else {
+    for (const finding of result.findings) {
+      lines.push(`- **${finding.severity}** ${finding.message}`);
+      for (const path of finding.paths.slice(0, 8)) {
+        lines.push(`  - \`${path}\``);
+      }
+    }
+  }
+  lines.push("", "## Changed Files", "");
+  lines.push(...result.changedFiles.length > 0 ? result.changedFiles.map((path) => `- \`${path}\``) : ["- None found"]);
+  return `${lines.join("\n")}
+`;
 }
 
 // packages/action/src/github.ts
@@ -1808,16 +2216,19 @@ function parseActionIssueSource(input) {
   }
   const segments = url.pathname.split("/").filter(Boolean);
   const number = Number(segments[3]);
-  if (url.protocol !== "https:" || url.hostname.toLowerCase() !== "github.com" || url.search || url.hash || segments.length !== 4 || segments[2]?.toLowerCase() !== "issues" || !segments[0] || !segments[1] || !/^[1-9]\d*$/.test(segments[3] ?? "") || !Number.isSafeInteger(number)) {
+  const kind = segments[2]?.toLowerCase();
+  if (url.protocol !== "https:" || url.hostname.toLowerCase() !== "github.com" || url.search || url.hash || segments.length !== 4 || kind !== "issues" && kind !== "pull" || !segments[0] || !segments[1] || !/^[1-9]\d*$/.test(segments[3] ?? "") || !Number.isSafeInteger(number)) {
     throw new Error(
-      "Only canonical public GitHub issue URLs are supported. Pull request, discussion, compare, tree, and file URLs are not fetched."
+      "Only canonical public GitHub issue and pull request URLs are supported. Discussion, compare, tree, and file URLs are not fetched."
     );
   }
+  const isPullRequest = kind === "pull";
   return {
     owner: segments[0],
     repository: segments[1],
     number,
-    displayUrl: `https://github.com/${segments[0]}/${segments[1]}/issues/${number}`
+    isPullRequest,
+    displayUrl: `https://github.com/${segments[0]}/${segments[1]}/${isPullRequest ? "pull" : "issues"}/${number}`
   };
 }
 async function fetchActionIssue(source) {
@@ -1837,7 +2248,12 @@ async function fetchActionIssue(source) {
     throw new Error(`Could not fetch public GitHub issue ${source.displayUrl}: GitHub returned HTTP ${response.status}.`);
   }
   const payload = await response.json();
-  if (payload.pull_request || typeof payload.title !== "string" || !payload.title.trim()) {
+  if (payload.pull_request && !source.isPullRequest) {
+    throw new Error(
+      `${source.displayUrl} resolves to a pull request, not an issue. Use https://github.com/${source.owner}/${source.repository}/pull/${source.number} instead.`
+    );
+  }
+  if (typeof payload.title !== "string" || !payload.title.trim()) {
     throw new Error(`Could not fetch public GitHub issue ${source.displayUrl}: the response was not an issue.`);
   }
   return {
@@ -1851,14 +2267,18 @@ var STEP_SUMMARY_LIMIT_BYTES = 1024 * 1024;
 var TRUNCATION_FOOTER = "\n\n> FixMap report truncated to fit GitHub's 1 MiB step-summary limit. The complete report remains available through the `report` output.\n";
 async function runAction(env = process.env, dependencies = {}) {
   const appendFile = dependencies.appendFile ?? ((path, contents) => appendFileSync(path, contents));
-  const readFile2 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
+  const readFile3 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
   const stdout = dependencies.stdout ?? ((text) => process.stdout.write(text));
-  const event = readEvent(env.GITHUB_EVENT_PATH, readFile2);
+  const event = readEvent(env.GITHUB_EVENT_PATH, readFile3);
   const rawIssue = readInput("issue", env) || buildPullRequestIssueText(event);
   const diffSpec = readInput("diff", env);
   const baseRef = readInput("base", env) || (env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : void 0);
   const headRef = readInput("head", env) || (env.GITHUB_HEAD_REF ? "HEAD" : void 0);
   const format = parseFormat(readInput("format", env));
+  const mode = parseMode(readInput("mode", env));
+  if (mode === "verify") {
+    return runVerifyMode({ env, dependencies, readFile: readFile3, appendFile, stdout, format, diffSpec, baseRef, headRef });
+  }
   const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : void 0;
   if (issueSource && env.GITHUB_REPOSITORY && env.GITHUB_REPOSITORY.toLowerCase() !== `${issueSource.owner}/${issueSource.repository}`.toLowerCase()) {
     throw new Error(
@@ -1879,7 +2299,7 @@ async function runAction(env = process.env, dependencies = {}) {
   });
   if (issueSource) {
     report.diagnostics.unshift({
-      code: "remote-issue-fetched",
+      code: issueSource.isPullRequest ? "remote-pull-fetched" : "remote-issue-fetched",
       severity: "info",
       message: `Fetched ${issueSource.displayUrl} anonymously and used its title${fetchedIssue?.body ? " and body" : ""} as task context.`
     });
@@ -1909,6 +2329,80 @@ async function runAction(env = process.env, dependencies = {}) {
       );
     }
   }
+}
+function parseMode(value) {
+  if (!value) {
+    return "plan";
+  }
+  const normalized = value.toLowerCase();
+  if (normalized === "plan" || normalized === "verify") {
+    return normalized;
+  }
+  throw new Error(`Invalid mode input ${JSON.stringify(value)}; expected plan or verify.`);
+}
+async function runVerifyMode(context) {
+  const reportPath = readInput("report-path", context.env);
+  if (!reportPath) {
+    throw new Error(
+      "FixMap verify mode needs report-path pointing at the JSON plan this change was made from. Save one with a prior plan step using format: json, then download it as an artifact."
+    );
+  }
+  let report;
+  try {
+    report = JSON.parse(context.readFile(reportPath));
+  } catch (error) {
+    throw new Error(
+      `FixMap could not read the plan at "${reportPath}": ${error instanceof Error ? error.message : String(error)}.`
+    );
+  }
+  if (!Array.isArray(report.contextFiles)) {
+    throw new Error(`"${reportPath}" is not a FixMap JSON report: no contextFiles array.`);
+  }
+  const repo = await (context.dependencies.scanRepo ?? scanRepo)({
+    repoRoot: (context.dependencies.cwd ?? process.cwd)(),
+    diffSpec: context.diffSpec,
+    baseRef: context.baseRef,
+    headRef: context.headRef
+  });
+  const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
+  if (diffFailure) {
+    throw new Error(`${diffFailure.message} Verification needs a resolvable diff.`);
+  }
+  const result = verifyPlan(report, repo);
+  const markdown = renderVerifyMarkdown(result);
+  const output = context.format === "json" ? `${JSON.stringify(result, null, 2)}
+` : markdown;
+  context.stdout(output);
+  if (context.env.GITHUB_STEP_SUMMARY) {
+    context.appendFile(context.env.GITHUB_STEP_SUMMARY, fitStepSummary(markdown));
+  }
+  if (context.env.GITHUB_OUTPUT) {
+    context.appendFile(
+      context.env.GITHUB_OUTPUT,
+      renderVerifyOutputs(output, result, context.dependencies.uuid ?? randomUUID)
+    );
+  }
+  if (result.findings.some((finding) => finding.severity === "error")) {
+    throw new Error(
+      "FixMap verification found an edit in a generated or retired location, which the next build discards."
+    );
+  }
+}
+function renderVerifyOutputs(reportText, result, uuid = randomUUID) {
+  const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;
+  const terminated = reportText.endsWith("\n") ? reportText : `${reportText}
+`;
+  return [
+    `report<<${delimiter}
+`,
+    terminated,
+    `${delimiter}
+`,
+    `finding-count=${result.findings.length}
+`,
+    `changed-file-count=${result.changedFiles.length}
+`
+  ].join("");
 }
 function parseFormat(value) {
   if (!value) {
@@ -1957,12 +2451,12 @@ function readInput(name, env) {
   const value = env[githubName] || env[shellSafeName];
   return value?.trim() || void 0;
 }
-function readEvent(eventPath, readFile2) {
+function readEvent(eventPath, readFile3) {
   if (!eventPath) {
     return void 0;
   }
   try {
-    return JSON.parse(readFile2(eventPath));
+    return JSON.parse(readFile3(eventPath));
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`FixMap could not read the GitHub event payload: ${detail}`);

@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, extname, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
 import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS } from "./paths.js";
+import { DIAGNOSTIC_SPEC_LIMIT, truncateForDiagnostic } from "./text.js";
 import type { FixMapInput, PackageScript, RepoFile, RepoMap } from "./types.js";
 
 const WALK_IGNORED_DIRS = new Set([...ALWAYS_IGNORED_DIRS, ...GENERATED_DIRS]);
@@ -30,7 +31,12 @@ const GIT_MAX_BUFFER = 10 * 1024 * 1024;
 const exec = promisify(execFile);
 type ScanState = { count: number; limitReported: boolean };
 
-export async function scanRepo(input: Pick<FixMapInput, "repoRoot" | "baseRef" | "headRef" | "diffSpec">): Promise<RepoMap> {
+export async function scanRepo(
+  input: Pick<
+    FixMapInput,
+    "repoRoot" | "baseRef" | "headRef" | "diffSpec" | "workingTree" | "includeUntracked"
+  >
+): Promise<RepoMap> {
   if (!(await isDirectory(input.repoRoot))) {
     return {
       root: input.repoRoot,
@@ -52,7 +58,9 @@ export async function scanRepo(input: Pick<FixMapInput, "repoRoot" | "baseRef" |
   const trackedFiles = await listTrackedPaths(input.repoRoot);
   const packageScripts = await readPackageScripts(input.repoRoot, files, diagnostics);
   const diffSpec = resolveDiffSpec(input);
-  const diff = await readDiff(input.repoRoot, diffSpec, diagnostics);
+  const diff = input.workingTree
+    ? await readWorkingTree(input.repoRoot, input.includeUntracked === true, diagnostics)
+    : await readDiff(input.repoRoot, diffSpec, diagnostics);
 
   return {
     root: input.repoRoot,
@@ -294,11 +302,66 @@ async function readDiff(
       diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS)
     };
   } catch (error) {
-    const detail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    // git echoes the failing command back, so its own message contains the spec a second
+    // time. Truncating only the interpolation above would leave the full string in `detail`.
+    const rawDetail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    const detail = truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2);
     diagnostics.push({
       code: "diff-unavailable",
       severity: "warning",
-      message: `Could not resolve git diff "${diffSpec}": ${detail}. Results use the task text only.`
+      message:
+        `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ` +
+        `${detail}. Results use the task text only.`
+    });
+    return { changedFiles: [], diffText: "" };
+  }
+}
+
+/**
+ * "Map what I am touching right now."
+ *
+ * Reaching this through `--diff HEAD` worked but was neither obvious nor quite right: it
+ * swept in untracked files, which on an agent-driven checkout means .claude/ metadata and
+ * scratch notes ranking beside the edit. Staged and unstaged tracked changes are what
+ * "what I am working on" means; untracked files are a separate, opt-in question.
+ */
+async function readWorkingTree(
+  repoRoot: string,
+  includeUntracked: boolean,
+  diagnostics: RepoMap["diagnostics"]
+): Promise<{ changedFiles: string[]; diffText: string }> {
+  try {
+    const [{ stdout: names }, { stdout: diffText }] = await Promise.all([
+      exec("git", ["diff", "--relative", "--name-only", "HEAD"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", "--relative", "HEAD"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
+    ]);
+    const tracked = names
+      .split(/\r?\n/)
+      .map((path) => path.trim())
+      .filter(Boolean)
+      .map(normalizePath);
+    const untracked = includeUntracked ? await listUntrackedPaths(repoRoot) : [];
+    const changedFiles = [...new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
+
+    diagnostics.push({
+      code: "working-tree-diff",
+      severity: "info",
+      message: changedFiles.length === 0
+        ? "Working-tree mode found no changes against HEAD; results use the task text only."
+        : `Working-tree mode used ${changedFiles.length} changed ${changedFiles.length === 1 ? "path" : "paths"} ` +
+          `against HEAD${includeUntracked ? ", including untracked files" : " (untracked files excluded; pass --include-untracked to add them)"}.`,
+      paths: changedFiles.slice(0, 8)
+    });
+
+    return { changedFiles, diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS) };
+  } catch (error) {
+    const rawDetail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    diagnostics.push({
+      code: "diff-unavailable",
+      severity: "warning",
+      message:
+        `Could not read the working tree: ${truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2)}. ` +
+        "Results use the task text only."
     });
     return { changedFiles: [], diffText: "" };
   }

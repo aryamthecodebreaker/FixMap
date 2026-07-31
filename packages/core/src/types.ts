@@ -5,6 +5,10 @@ export type FixMapInput = {
   baseRef?: string | undefined;
   headRef?: string | undefined;
   diffSpec?: string | undefined;
+  /** Map what is being edited right now: staged and unstaged changes against HEAD. */
+  workingTree?: boolean | undefined;
+  /** Untracked files are opt-in even in working-tree mode; agent metadata lives there. */
+  includeUntracked?: boolean | undefined;
 };
 
 export type RepoFile = {
@@ -32,6 +36,7 @@ export type ScanDiagnostic = {
     | "repo-root-missing"
     | "gated-test-skipped"
     | "remote-issue-fetched"
+    | "remote-pull-fetched"
     | "remote-repo-fetched"
     | "remote-checkout-cleanup-failed"
     | "no-task-terms"
@@ -41,9 +46,18 @@ export type ScanDiagnostic = {
     | "identifier-unverified"
     | "vague-task"
     | "flat-ranking"
-    | "no-test-route";
+    | "no-test-route"
+    | "paths-excluded"
+    | "working-tree-diff";
   message: string;
   severity: "info" | "warning" | "error";
+  /**
+   * The files this diagnostic is about, when it is about specific files. Optional so a
+   * diagnostic concerning the task or the scan as a whole carries nothing misleading, and
+   * so a `ScanDiagnostic` and a `VerifyFinding` share one entry shape: an agent consuming
+   * both commands reads `{code, severity, message, paths?}` either way.
+   */
+  paths?: string[];
 };
 
 export type RepoMap = {
@@ -132,4 +146,11 @@ export type VerifyResult = {
   summary: string;
   changedFiles: string[];
   findings: VerifyFinding[];
+  /**
+   * Scan-level notes from resolving the diff, carried so `verify --format json` reports
+   * the same three kinds of thing `plan --format json` does: a summary, the files, and
+   * everything the caller should know about. `findings` remain the plan-versus-diff
+   * comparison; `diagnostics` are what FixMap noticed while looking.
+   */
+  diagnostics: ScanDiagnostic[];
 };

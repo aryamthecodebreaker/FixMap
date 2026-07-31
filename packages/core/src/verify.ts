@@ -19,7 +19,8 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
     return {
       summary: "No changes to verify: the diff resolved to zero files.",
       changedFiles: [],
-      findings
+      findings,
+      diagnostics: repo.diagnostics
     };
   }
 
@@ -128,7 +129,8 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
   return {
     summary: buildVerifySummary(changed.length, findings),
     changedFiles: changed,
-    findings
+    findings,
+    diagnostics: repo.diagnostics
   };
 }
 
@@ -148,6 +150,21 @@ function buildVerifySummary(changedCount: number, findings: VerifyFinding[]): st
 }
 
 export function renderVerifyMarkdown(result: VerifyResult): string {
+  // Nothing changed, so there is nothing to have findings *about*. Printing two empty
+  // sections is technically accurate and reads like a display bug — the honest rendering
+  // says why the sections are absent and what would make them appear.
+  if (result.changedFiles.length === 0) {
+    return [
+      "# FixMap Verification",
+      "",
+      result.summary,
+      "",
+      "Nothing was compared against the plan. Run verify with a diff that contains the edit, " +
+      "such as `--diff HEAD~1...HEAD`.",
+      ""
+    ].join("\n");
+  }
+
   const lines = ["# FixMap Verification", "", result.summary, "", "## Findings", ""];
   if (result.findings.length === 0) {
     lines.push("- None found");

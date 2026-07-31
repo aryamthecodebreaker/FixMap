@@ -92,7 +92,21 @@ describe("GitHub issue source parsing", () => {
       owner: "owner",
       repository: "repository",
       number: 123,
+      isPullRequest: false,
       displayUrl: "https://github.com/owner/repository/issues/123",
+      repositoryUrl: "https://github.com/owner/repository"
+    });
+  });
+
+  it("accepts a pull request URL, which is what people actually paste", () => {
+    // Agents and humans start from PR links more often than issue links. GitHub serves a
+    // PR's title and body from the same /issues/N endpoint, so this costs one path segment.
+    expect(parseGitHubIssueSource("https://github.com/owner/repository/pull/123")).toEqual({
+      owner: "owner",
+      repository: "repository",
+      number: 123,
+      isPullRequest: true,
+      displayUrl: "https://github.com/owner/repository/pull/123",
       repositoryUrl: "https://github.com/owner/repository"
     });
   });
@@ -106,11 +120,12 @@ describe("GitHub issue source parsing", () => {
 
   it.each([
     "https://github.com/owner/repository",
-    "https://github.com/owner/repository/pull/123",
     "https://github.com/owner/repository/discussions/1",
-    "https://github.com/owner/repository/tree/main"
-  ])("rejects unsupported standalone GitHub URLs: %s", (input) => {
-    expect(() => parseGitHubIssueSource(input)).toThrow("Only canonical public GitHub issue URLs");
+    "https://github.com/owner/repository/tree/main",
+    "https://github.com/owner/repository/compare/main...feature"
+  ])("still rejects GitHub URLs that carry no task text: %s", (input) => {
+    expect(() => parseGitHubIssueSource(input))
+      .toThrow("Only canonical public GitHub issue and pull request URLs");
   });
 
   it.each([
@@ -160,6 +175,30 @@ describe("GitHub issue fetching", () => {
         })
       })
     );
+  });
+
+  it("fetches a pull request body when the URL asked for one", async () => {
+    const pullSource = {
+      owner: "owner",
+      repository: "repository",
+      number: 123,
+      isPullRequest: true,
+      displayUrl: "https://github.com/owner/repository/pull/123",
+      repositoryUrl: "https://github.com/owner/repository"
+    };
+    const fetchImplementation = vi.fn(async () =>
+      new Response(JSON.stringify({
+        title: "Fix reset emails",
+        body: "Rewrites the mailer transport.",
+        pull_request: { url: "https://api.github.com/repos/owner/repository/pulls/123" }
+      }), { status: 200 })
+    ) as unknown as typeof fetch;
+
+    // The same endpoint serves both; a pull_request field is expected here, not a failure.
+    await expect(fetchPublicGitHubIssue(pullSource, fetchImplementation)).resolves.toEqual({
+      title: "Fix reset emails",
+      body: "Rewrites the mailer transport."
+    });
   });
 
   it.each([
@@ -329,6 +368,7 @@ describe("repository acquisition", () => {
       owner: "owner",
       repository: "repository",
       number: 123,
+      isPullRequest: false,
       displayUrl: "https://github.com/owner/repository/issues/123",
       repositoryUrl: "https://github.com/owner/repository"
     });

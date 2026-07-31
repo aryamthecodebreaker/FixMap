@@ -25,12 +25,30 @@ export type RepositoryPlanInput = {
   diffSpec?: string | undefined;
   baseRef?: string | undefined;
   headRef?: string | undefined;
+  workingTree?: boolean | undefined;
+  includeUntracked?: boolean | undefined;
+  limit?: number | undefined;
+  exclude?: string[] | undefined;
 };
 
 export type ClonedRepository = {
   ref: string;
   revision: string;
 };
+
+/**
+ * A cold `--repo https://github.com/...` sits silent for thirty to ninety seconds while it
+ * clones, which reads as hung — in CI logs and agent transcripts especially, where there is
+ * no cursor to suggest anything is happening. Agents kill the process and retry.
+ *
+ * Phases go to stderr so stdout stays a clean pipe for JSON and markdown, and only when
+ * someone is watching: a TTY, or FIXMAP_PROGRESS=1 for CI logs that want them.
+ */
+export function reportProgress(phase: string): void {
+  if (process.env.FIXMAP_PROGRESS === "1" || process.stderr.isTTY) {
+    process.stderr.write(`fixmap: ${phase}\n`);
+  }
+}
 
 export type RepositorySourceDependencies = {
   clonePublicRepository?: (
@@ -53,6 +71,8 @@ export type ParsedGitHubIssueSource = {
   number: number;
   displayUrl: string;
   repositoryUrl: string;
+  /** True for a /pull/N URL. The fetch is identical; only the wording differs. */
+  isPullRequest?: boolean;
 };
 
 export type PublicGitHubIssue = {
@@ -74,14 +94,19 @@ export function parseGitHubIssueSource(input: string): ParsedGitHubIssueSource |
   const trimmed = input.trim();
   const looksLikeStandaloneGitHubUrl =
     /^https?:\/\/(?:[^/@\s]+@)?github\.com[\\/]\S+$/i.test(trimmed);
-  const looksLikeGitHubIssue =
+  // Pull request URLs are accepted alongside issue URLs. Agents and humans paste them
+  // constantly — "map what this PR is about" is a more common starting point than an issue
+  // link — and GitHub serves a PR's title and body from the same /issues/N endpoint, so
+  // this costs one path segment. Compare, tree, discussion and file URLs stay rejected:
+  // they carry no task text to rank against.
+  const looksLikeGitHubTask =
     /^https?:\/\/(?:[^/@\s]+@)?github\.com[\\/]/i.test(trimmed) &&
-    /[\\/]issues(?:[\\/]|%(?:2f|5c))/i.test(trimmed);
-  if (!looksLikeGitHubIssue) {
+    /[\\/](?:issues|pull)(?:[\\/]|%(?:2f|5c))/i.test(trimmed);
+  if (!looksLikeGitHubTask) {
     if (looksLikeStandaloneGitHubUrl) {
       throw new RepositorySourceError(
-        "Only canonical public GitHub issue URLs are supported as --issue input. " +
-        "Pull request, discussion, compare, tree, and file URLs are not fetched; use --diff on a local checkout or paste the task text."
+        "Only canonical public GitHub issue and pull request URLs are supported as --issue input. " +
+        "Discussion, compare, tree, and file URLs are not fetched; use --diff on a local checkout or paste the task text."
       );
     }
     return undefined;
@@ -122,28 +147,31 @@ export function parseGitHubIssueSource(input: string): ParsedGitHubIssueSource |
   const segments = url.pathname.split("/").filter(Boolean);
   const owner = segments[0] ?? "";
   const repository = segments[1] ?? "";
-  const issueSegment = segments[2] ?? "";
+  const kindSegment = (segments[2] ?? "").toLowerCase();
   const rawNumber = segments[3] ?? "";
   const number = Number(rawNumber);
   if (
     segments.length !== 4 ||
-    issueSegment.toLowerCase() !== "issues" ||
+    (kindSegment !== "issues" && kindSegment !== "pull") ||
     !GITHUB_NAME.test(owner) ||
     !GITHUB_NAME.test(repository) ||
     !/^[1-9]\d*$/.test(rawNumber) ||
     !Number.isSafeInteger(number)
   ) {
     throw new RepositorySourceError(
-      'GitHub issue URLs must use the form "https://github.com/owner/repository/issues/123".'
+      'GitHub issue URLs must use the form "https://github.com/owner/repository/issues/123", ' +
+      'and pull request URLs "https://github.com/owner/repository/pull/123".'
     );
   }
 
   const repositoryUrl = `https://github.com/${owner}/${repository}`;
+  const isPullRequest = kindSegment === "pull";
   return {
     owner,
     repository,
     number,
-    displayUrl: `${repositoryUrl}/issues/${number}`,
+    isPullRequest,
+    displayUrl: `${repositoryUrl}/${isPullRequest ? "pull" : "issues"}/${number}`,
     repositoryUrl
   };
 }
@@ -221,10 +249,13 @@ export async function fetchPublicGitHubIssue(
       "GitHub API returned an invalid response."
     );
   }
-  if (payload.pull_request) {
+  // A /pull/N URL is expected to come back as a pull request; an /issues/N URL that does
+  // is a number collision GitHub resolves to the pull request, and the caller should know
+  // they got something other than what they typed.
+  if (payload.pull_request && !source.isPullRequest) {
     throw new RepositorySourceError(
       `"${source.displayUrl}" resolves to a pull request, not an issue. ` +
-      "Use --diff on a local checkout or paste the pull request description."
+      `Use "${source.repositoryUrl}/pull/${source.number}" to plan from it.`
     );
   }
   if (typeof payload.title !== "string" || !payload.title.trim()) {
@@ -389,12 +420,13 @@ export async function buildReportForRepository(
   let issueDiagnostic: ScanDiagnostic | undefined;
   if (issueSource) {
     const fetchPublicIssue = dependencies.fetchPublicIssue ?? fetchPublicGitHubIssue;
+    reportProgress(`fetching ${issueSource.displayUrl}`);
     const issue = await fetchPublicIssue(issueSource);
     const truncated = issue.body.length > MAX_GITHUB_ISSUE_BODY_CHARS;
     const body = issue.body.slice(0, MAX_GITHUB_ISSUE_BODY_CHARS);
     issueText = [issue.title, body].filter(Boolean).join("\n\n");
     issueDiagnostic = {
-      code: "remote-issue-fetched",
+      code: issueSource.isPullRequest ? "remote-pull-fetched" : "remote-issue-fetched",
       severity: "info",
       message:
         `Fetched ${issueSource.displayUrl} anonymously and used its title` +
@@ -409,13 +441,19 @@ export async function buildReportForRepository(
   return withRepositorySource(
     source,
     async (resolvedSource) => {
+      reportProgress(`scanning ${resolvedSource.repoRoot}`);
       const report = await buildFixMapReport({
         repoRoot: resolvedSource.repoRoot,
         issueText,
         diffSpec: input.diffSpec,
         baseRef: input.baseRef,
-        headRef: input.headRef
+        headRef: input.headRef,
+        workingTree: input.workingTree,
+        includeUntracked: input.includeUntracked,
+        limit: input.limit,
+        exclude: input.exclude
       });
+      reportProgress(`ranked ${report.contextFiles.length} context files`);
       const sourceDiagnostics = [issueDiagnostic, resolvedSource.diagnostic].filter(
         (diagnostic): diagnostic is ScanDiagnostic => diagnostic !== undefined
       );
@@ -483,7 +521,9 @@ export async function withRepositorySource<T>(
 
     let cloned: ClonedRepository;
     try {
+      reportProgress(`cloning ${source.displayUrl}`);
       cloned = await clonePublicRepository(source.cloneUrl, checkoutRoot, hooksDirectory);
+      reportProgress(`cloned ${cloned.ref}@${cloned.revision}`);
     } catch (error) {
       throw new RepositorySourceError(
         `Could not fetch public GitHub repository "${source.displayUrl}": ${errorDetail(error)}.`
