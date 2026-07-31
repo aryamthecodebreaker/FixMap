@@ -1,6 +1,10 @@
-export { buildFixMapReport } from "./plan.js";
+export { buildFixMapReport, resolveExclusions } from "./plan.js";
+export { buildPathExcluder, NO_EXCLUSIONS } from "./exclude.js";
+export type { PathExcluder } from "./exclude.js";
+export { compareReports, renderComparisonMarkdown } from "./compare.js";
+export type { ReportComparison } from "./compare.js";
 export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
-export { explainFile } from "./explain.js";
+export { explainFile, renderExplanationMarkdown } from "./explain.js";
 export type { FileExplanation } from "./explain.js";
 export {
   analyzeTaskGrounding,

@@ -4,6 +4,77 @@ import { createRequire as __fixmapCreateRequire } from 'module'; const require =
 import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
 
+// packages/core/dist/plan.js
+import { readFile as readFile2 } from "node:fs/promises";
+import { join as join2 } from "node:path";
+
+// packages/core/dist/exclude.js
+var COMMENT = /^\s*#/;
+var NO_EXCLUSIONS = {
+  excludes: () => false,
+  reasonFor: () => void 0,
+  patterns: []
+};
+function buildPathExcluder(patterns) {
+  const cleaned = patterns.map((pattern) => pattern.trim()).filter((pattern) => pattern.length > 0 && !COMMENT.test(pattern));
+  if (cleaned.length === 0) {
+    return NO_EXCLUSIONS;
+  }
+  const matchers = cleaned.map((pattern) => ({ pattern, test: compile(pattern) }));
+  const cache = /* @__PURE__ */ new Map();
+  const reasonFor = (path) => {
+    if (cache.has(path)) {
+      return cache.get(path);
+    }
+    const hit = matchers.find((matcher) => matcher.test(path))?.pattern;
+    cache.set(path, hit);
+    return hit;
+  };
+  return {
+    excludes: (path) => reasonFor(path) !== void 0,
+    reasonFor,
+    patterns: cleaned
+  };
+}
+function parseIgnoreFile(contents) {
+  return contents.split(/\r?\n/);
+}
+function compile(pattern) {
+  const anchored = pattern.startsWith("/");
+  const directoryOnly = pattern.endsWith("/");
+  const body = pattern.replace(/^\//, "").replace(/\/$/, "");
+  if (body.length === 0) {
+    return () => false;
+  }
+  const source = `${anchored ? "^" : "(?:^|/)"}${globToRegExp(body)}${directoryOnly ? "/" : "(?:/|$)"}`;
+  const expression = new RegExp(source);
+  return (path) => expression.test(directoryOnly ? `${path}/` : path);
+}
+function globToRegExp(glob) {
+  let source = "";
+  for (let index = 0; index < glob.length; index += 1) {
+    const character = glob[index];
+    if (character === "*") {
+      if (glob[index + 1] === "*") {
+        source += ".*";
+        index += 1;
+        if (glob[index + 1] === "/") {
+          index += 1;
+        }
+      } else {
+        source += "[^/]*";
+      }
+      continue;
+    }
+    if (character === "?") {
+      source += "[^/]";
+      continue;
+    }
+    source += character.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  return source;
+}
+
 // packages/core/dist/signals.js
 var TOKEN_SPLIT = /[^a-zA-Z0-9]+/g;
 var STOP_WORDS = /* @__PURE__ */ new Set([
@@ -835,7 +906,9 @@ var MAX_DEFINITION_IDENTIFIERS = 2;
 var TASK_MATCHED_DEFINITION_BOOST = 4;
 var HIGH_CONFIDENCE_MARGIN = 2;
 var REPORT_SCORE_CUTOFF = 4;
-function rankContextFiles(repo, input, limit = 8, minScore = REPORT_SCORE_CUTOFF) {
+var DEFAULT_CONTEXT_FILE_LIMIT = 8;
+function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minScore = REPORT_SCORE_CUTOFF) {
+  const exclude = input.exclude ?? NO_EXCLUSIONS;
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
     diffText: input.diffText ?? "",
@@ -849,7 +922,7 @@ function rankContextFiles(repo, input, limit = 8, minScore = REPORT_SCORE_CUTOFF
   });
   const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path));
   const taskTargetsEvaluation = hasAny(taskTokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
-  const scannable = repo.files.filter((file) => mentionedPaths.has(file.path) || file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation));
+  const scannable = repo.files.filter((file) => !exclude.excludes(file.path) && (mentionedPaths.has(file.path) || file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation)));
   const maintainedStems = new Set(scannable.filter((file) => !isGeneratedPath(file.path) && !isBackupPath(file.path)).map((file) => moduleStem(file.path)));
   const candidates = scannable.filter((file) => mentionedPaths.has(file.path) || signals.changedFiles.has(file.path) || !isGeneratedPath(file.path) || !maintainedStems.has(moduleStem(file.path)));
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeFileContent(file.textSample)]));
@@ -1310,8 +1383,9 @@ function buildReportFromRepo(repo, input) {
   });
   const contextFiles = grounding.specificity === "vague" ? [] : rankContextFiles(repo, {
     issueText: input.issueText,
-    diffText: repo.diffText
-  });
+    diffText: repo.diffText,
+    exclude: input.exclude
+  }, input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT);
   const ranking = buildRankingShape(contextFiles);
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
@@ -1638,7 +1712,7 @@ async function scanRepo(input) {
   const trackedFiles = await listTrackedPaths(input.repoRoot);
   const packageScripts = await readPackageScripts(input.repoRoot, files, diagnostics);
   const diffSpec = resolveDiffSpec(input);
-  const diff = await readDiff(input.repoRoot, diffSpec, diagnostics);
+  const diff = input.workingTree ? await readWorkingTree(input.repoRoot, input.includeUntracked === true, diagnostics) : await readDiff(input.repoRoot, diffSpec, diagnostics);
   return {
     root: input.repoRoot,
     files,
@@ -1824,6 +1898,32 @@ async function readDiff(repoRoot, diffSpec, diagnostics) {
     return { changedFiles: [], diffText: "" };
   }
 }
+async function readWorkingTree(repoRoot, includeUntracked, diagnostics) {
+  try {
+    const [{ stdout: names }, { stdout: diffText }] = await Promise.all([
+      exec("git", ["diff", "--relative", "--name-only", "HEAD"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", "--relative", "HEAD"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
+    ]);
+    const tracked = names.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath);
+    const untracked = includeUntracked ? await listUntrackedPaths(repoRoot) : [];
+    const changedFiles = [.../* @__PURE__ */ new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
+    diagnostics.push({
+      code: "working-tree-diff",
+      severity: "info",
+      message: changedFiles.length === 0 ? "Working-tree mode found no changes against HEAD; results use the task text only." : `Working-tree mode used ${changedFiles.length} changed ${changedFiles.length === 1 ? "path" : "paths"} against HEAD${includeUntracked ? ", including untracked files" : " (untracked files excluded; pass --include-untracked to add them)"}.`,
+      paths: changedFiles.slice(0, 8)
+    });
+    return { changedFiles, diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS) };
+  } catch (error) {
+    const rawDetail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    diagnostics.push({
+      code: "diff-unavailable",
+      severity: "warning",
+      message: `Could not read the working tree: ${truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2)}. Results use the task text only.`
+    });
+    return { changedFiles: [], diffText: "" };
+  }
+}
 function detectPackageManager(files) {
   const paths = new Set(files.map((file) => file.path));
   if (paths.has("pnpm-lock.yaml"))
@@ -1876,7 +1976,31 @@ function normalizePath(path) {
 // packages/core/dist/plan.js
 async function buildFixMapReport(input) {
   const repo = await scanRepo(input);
-  return buildReportFromRepo(repo, { issueText: input.issueText });
+  const exclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
+  const report = buildReportFromRepo(repo, {
+    issueText: input.issueText,
+    limit: input.limit,
+    exclude
+  });
+  if (exclude.patterns.length > 0) {
+    report.diagnostics.push({
+      code: "paths-excluded",
+      severity: "info",
+      message: `${exclude.patterns.length} exclusion ${exclude.patterns.length === 1 ? "pattern" : "patterns"} removed paths from ranking: ${exclude.patterns.join(", ")}. Run --explain on a file you expected to see if this is why it is absent.`
+    });
+  }
+  return report;
+}
+async function resolveExclusions(repoRoot, patterns) {
+  const combined = [...await readIgnoreFile(repoRoot), ...patterns];
+  return combined.length > 0 ? buildPathExcluder(combined) : NO_EXCLUSIONS;
+}
+async function readIgnoreFile(repoRoot) {
+  try {
+    return parseIgnoreFile(await readFile2(join2(repoRoot, ".fixmapignore"), "utf8"));
+  } catch {
+    return [];
+  }
 }
 
 // packages/action/src/github.ts
@@ -2012,9 +2136,9 @@ var STEP_SUMMARY_LIMIT_BYTES = 1024 * 1024;
 var TRUNCATION_FOOTER = "\n\n> FixMap report truncated to fit GitHub's 1 MiB step-summary limit. The complete report remains available through the `report` output.\n";
 async function runAction(env = process.env, dependencies = {}) {
   const appendFile = dependencies.appendFile ?? ((path, contents) => appendFileSync(path, contents));
-  const readFile2 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
+  const readFile3 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
   const stdout = dependencies.stdout ?? ((text) => process.stdout.write(text));
-  const event = readEvent(env.GITHUB_EVENT_PATH, readFile2);
+  const event = readEvent(env.GITHUB_EVENT_PATH, readFile3);
   const rawIssue = readInput("issue", env) || buildPullRequestIssueText(event);
   const diffSpec = readInput("diff", env);
   const baseRef = readInput("base", env) || (env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : void 0);
@@ -2118,12 +2242,12 @@ function readInput(name, env) {
   const value = env[githubName] || env[shellSafeName];
   return value?.trim() || void 0;
 }
-function readEvent(eventPath, readFile2) {
+function readEvent(eventPath, readFile3) {
   if (!eventPath) {
     return void 0;
   }
   try {
-    return JSON.parse(readFile2(eventPath));
+    return JSON.parse(readFile3(eventPath));
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`FixMap could not read the GitHub event payload: ${detail}`);

@@ -5,6 +5,10 @@ export type FixMapInput = {
   baseRef?: string | undefined;
   headRef?: string | undefined;
   diffSpec?: string | undefined;
+  /** Map what is being edited right now: staged and unstaged changes against HEAD. */
+  workingTree?: boolean | undefined;
+  /** Untracked files are opt-in even in working-tree mode; agent metadata lives there. */
+  includeUntracked?: boolean | undefined;
 };
 
 export type RepoFile = {
@@ -41,7 +45,9 @@ export type ScanDiagnostic = {
     | "identifier-unverified"
     | "vague-task"
     | "flat-ranking"
-    | "no-test-route";
+    | "no-test-route"
+    | "paths-excluded"
+    | "working-tree-diff";
   message: string;
   severity: "info" | "warning" | "error";
   /**

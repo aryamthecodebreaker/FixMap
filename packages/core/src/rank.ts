@@ -1,3 +1,5 @@
+import { NO_EXCLUSIONS } from "./exclude.js";
+import type { PathExcluder } from "./exclude.js";
 import { buildImportGraph, findImportProximity } from "./import-graph.js";
 import type { ImportProximity } from "./import-graph.js";
 import {
@@ -59,14 +61,21 @@ type DefinitionSignal = { identifier: string; pattern: RegExp };
 
 export const REPORT_SCORE_CUTOFF = 4;
 
+export const DEFAULT_CONTEXT_FILE_LIMIT = 8;
+
 export function rankContextFiles(
   repo: RepoMap,
-  input: { issueText?: string | undefined; diffText?: string | undefined },
-  limit = 8,
+  input: {
+    issueText?: string | undefined;
+    diffText?: string | undefined;
+    exclude?: PathExcluder | undefined;
+  },
+  limit = DEFAULT_CONTEXT_FILE_LIMIT,
   // `explainFile` lowers this to see what a file scored below the reporting cutoff.
   // Ranking never calls it with anything but the default.
   minScore = REPORT_SCORE_CUTOFF
 ): RankedFile[] {
+  const exclude = input.exclude ?? NO_EXCLUSIONS;
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
     diffText: input.diffText ?? "",
@@ -81,12 +90,16 @@ export function rankContextFiles(
 
   const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path));
   const taskTargetsEvaluation = hasAny(taskTokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
+  // Excluded before anything else reads the candidate set. The boilerplate threshold below
+  // is a share of that set, so removing files later would leave scoring computed against a
+  // population that no longer exists.
   const scannable = repo.files.filter((file) =>
-    mentionedPaths.has(file.path) ||
+    !exclude.excludes(file.path) &&
+    (mentionedPaths.has(file.path) ||
     (file.isSource &&
       !file.isTest &&
       !LOCKFILES.has(file.path.split("/").pop() ?? "") &&
-      (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation))
+      (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation)))
   );
   // Generated output is kept only when the source it came from is absent. chalk's sole
   // color-detection implementation lives in `source/vendor/`, so it stays; a committed

@@ -4,8 +4,9 @@ import {
   buildRankingShape
 } from "./grounding.js";
 import type { RankingShape, TaskGrounding } from "./grounding.js";
+import type { PathExcluder } from "./exclude.js";
 import { detectPrimaryLanguage, manifestTestCommand, suggestedRunner } from "./languages.js";
-import { rankContextFiles } from "./rank.js";
+import { DEFAULT_CONTEXT_FILE_LIMIT, rankContextFiles } from "./rank.js";
 import { extractTaskSignals, tokenizePath } from "./signals.js";
 import { findGatedTestDiagnostics } from "./test-gates.js";
 import { DIAGNOSTIC_TERM_LIMIT, truncateForDiagnostic } from "./text.js";
@@ -19,7 +20,11 @@ const MAX_REPORTED_TERMS = 8;
 // advertises, and the drift would always favor the demo.
 export function buildReportFromRepo(
   repo: RepoMap,
-  input: { issueText?: string | undefined }
+  input: {
+    issueText?: string | undefined;
+    limit?: number | undefined;
+    exclude?: PathExcluder | undefined;
+  }
 ): FixMapReport {
   const grounding = analyzeTaskGrounding(repo, {
     issueText: input.issueText,
@@ -27,10 +32,15 @@ export function buildReportFromRepo(
   });
   const contextFiles = grounding.specificity === "vague"
     ? []
-    : rankContextFiles(repo, {
-      issueText: input.issueText,
-      diffText: repo.diffText
-    });
+    : rankContextFiles(
+      repo,
+      {
+        issueText: input.issueText,
+        diffText: repo.diffText,
+        exclude: input.exclude
+      },
+      input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT
+    );
   const ranking = buildRankingShape(contextFiles);
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);

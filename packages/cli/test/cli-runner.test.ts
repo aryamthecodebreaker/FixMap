@@ -180,6 +180,137 @@ describe("CLI argument handling", () => {
     expect(io.stderr.join("")).toContain("--diff main...HEAD");
   });
 
+  it.each([
+    ["--limit", ["plan", "--issue", "x", "--limit", "0"]],
+    ["--limit", ["plan", "--issue", "x", "--limit", "21"]],
+    ["--limit", ["plan", "--issue", "x", "--limit", "three"]]
+  ])("rejects an out-of-range %s", (_flag, args) => {
+    expect(parseArgs(args).invalidValues.join(" ")).toContain("--limit received");
+  });
+
+  it("accumulates --exclude rather than rejecting the second one", () => {
+    // The one repeatable flag: naming several directories to leave out is the normal use.
+    const parsed = parseArgs(["plan", "--issue", "x", "--exclude", "apps/web", "--exclude", "docs/**"]);
+
+    expect(parsed.exclude).toEqual(["apps/web", "docs/**"]);
+    expect(parsed.invalidValues).toEqual([]);
+  });
+
+  it("passes limit and exclusions through to the report builder", async () => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+
+    await runCli(
+      ["plan", "--issue", "reset fails", "--limit", "3", "--exclude", "apps/web"],
+      { ...io.dependencies, buildReport }
+    );
+
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({
+      limit: 3,
+      exclude: ["apps/web"]
+    }));
+  });
+
+  it("refuses --working-tree together with an explicit diff", async () => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+
+    const exitCode = await runCli(
+      ["plan", "--issue", "x", "--working-tree", "--diff", "main...HEAD"],
+      { ...io.dependencies, buildReport }
+    );
+
+    expect(exitCode).toBe(1);
+    expect(buildReport).not.toHaveBeenCalled();
+    expect(io.stderr.join("")).toContain("not both");
+  });
+
+  it("refuses --include-untracked without --working-tree", async () => {
+    const io = capture();
+
+    const exitCode = await runCli(["plan", "--issue", "x", "--include-untracked"], io.dependencies);
+
+    expect(exitCode).toBe(1);
+    expect(io.stderr.join("")).toContain("only applies with --working-tree");
+  });
+
+  it("compares a plan against an earlier report", async () => {
+    const io = capture();
+    const directory = await mkdtemp(join(tmpdir(), "fixmap-compare-"));
+    const previousPath = join(directory, "previous.json");
+    await writeFile(previousPath, JSON.stringify({
+      ...report,
+      contextFiles: [
+        { path: "src/other.ts", score: 12, confidence: "medium", reasons: [] },
+        { path: "src/index.ts", score: 10, confidence: "low", reasons: [] }
+      ]
+    }), "utf8");
+
+    const exitCode = await runCli(
+      ["plan", "--issue", "reset fails", "--compare", previousPath],
+      { ...io.dependencies, buildReport: vi.fn(async () => report) }
+    );
+
+    expect(exitCode).toBe(0);
+    const output = io.stdout.join("");
+    expect(output).toContain("# FixMap Plan Comparison");
+    expect(output).toContain("src/other.ts");
+    // The delta is the answer; the full report is what the previous run already gave.
+    expect(output).not.toContain("## Test Route");
+  });
+
+  it("fails with guidance when the comparison target is not a report", async () => {
+    const io = capture();
+    const directory = await mkdtemp(join(tmpdir(), "fixmap-compare-bad-"));
+    const badPath = join(directory, "notes.json");
+    await writeFile(badPath, JSON.stringify({ hello: "world" }), "utf8");
+
+    const exitCode = await runCli(
+      ["plan", "--issue", "reset fails", "--compare", badPath],
+      { ...io.dependencies, buildReport: vi.fn(async () => report) }
+    );
+
+    expect(exitCode).toBe(1);
+    expect(io.stderr.join("")).toContain("no contextFiles array");
+  });
+
+  it("reports a healthy install and exits zero", async () => {
+    const io = capture();
+
+    const exitCode = await runCli(["doctor"], {
+      ...io.dependencies,
+      runDoctor: async () => ({
+        healthy: true,
+        findings: [{ label: "Running version", value: "0.8.0", ok: true }]
+      })
+    });
+
+    expect(exitCode).toBe(0);
+    expect(io.stdout.join("")).toContain("No install problems detected");
+  });
+
+  it("exits non-zero when doctor finds a shadowing install", async () => {
+    const io = capture();
+
+    // The #103 footgun: npx asked for 0.7.3 and got 0.3.1, so verify "did not exist".
+    const exitCode = await runCli(["doctor"], {
+      ...io.dependencies,
+      runDoctor: async () => ({
+        healthy: false,
+        findings: [{
+          label: "Global install",
+          value: "0.3.1 (this process is 0.8.0)",
+          ok: false,
+          advice: "Run `npm uninstall -g @aryam/fixmap`."
+        }]
+      })
+    });
+
+    expect(exitCode).toBe(1);
+    expect(io.stdout.join("")).toContain("PROBLEM");
+    expect(io.stdout.join("")).toContain("npm uninstall -g");
+  });
+
   it("requires a task signal before invoking the report builder", async () => {
     const io = capture();
     const buildReport = vi.fn(async () => report);
@@ -188,6 +319,6 @@ describe("CLI argument handling", () => {
 
     expect(exitCode).toBe(1);
     expect(buildReport).not.toHaveBeenCalled();
-    expect(io.stderr.join("")).toContain("Provide --issue, --diff, or --base/--head");
+    expect(io.stderr.join("")).toContain("Provide --issue, --diff, --base/--head, or --working-tree");
   });
 });

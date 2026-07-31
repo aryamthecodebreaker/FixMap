@@ -25,12 +25,30 @@ export type RepositoryPlanInput = {
   diffSpec?: string | undefined;
   baseRef?: string | undefined;
   headRef?: string | undefined;
+  workingTree?: boolean | undefined;
+  includeUntracked?: boolean | undefined;
+  limit?: number | undefined;
+  exclude?: string[] | undefined;
 };
 
 export type ClonedRepository = {
   ref: string;
   revision: string;
 };
+
+/**
+ * A cold `--repo https://github.com/...` sits silent for thirty to ninety seconds while it
+ * clones, which reads as hung — in CI logs and agent transcripts especially, where there is
+ * no cursor to suggest anything is happening. Agents kill the process and retry.
+ *
+ * Phases go to stderr so stdout stays a clean pipe for JSON and markdown, and only when
+ * someone is watching: a TTY, or FIXMAP_PROGRESS=1 for CI logs that want them.
+ */
+export function reportProgress(phase: string): void {
+  if (process.env.FIXMAP_PROGRESS === "1" || process.stderr.isTTY) {
+    process.stderr.write(`fixmap: ${phase}\n`);
+  }
+}
 
 export type RepositorySourceDependencies = {
   clonePublicRepository?: (
@@ -389,6 +407,7 @@ export async function buildReportForRepository(
   let issueDiagnostic: ScanDiagnostic | undefined;
   if (issueSource) {
     const fetchPublicIssue = dependencies.fetchPublicIssue ?? fetchPublicGitHubIssue;
+    reportProgress(`fetching ${issueSource.displayUrl}`);
     const issue = await fetchPublicIssue(issueSource);
     const truncated = issue.body.length > MAX_GITHUB_ISSUE_BODY_CHARS;
     const body = issue.body.slice(0, MAX_GITHUB_ISSUE_BODY_CHARS);
@@ -409,13 +428,19 @@ export async function buildReportForRepository(
   return withRepositorySource(
     source,
     async (resolvedSource) => {
+      reportProgress(`scanning ${resolvedSource.repoRoot}`);
       const report = await buildFixMapReport({
         repoRoot: resolvedSource.repoRoot,
         issueText,
         diffSpec: input.diffSpec,
         baseRef: input.baseRef,
-        headRef: input.headRef
+        headRef: input.headRef,
+        workingTree: input.workingTree,
+        includeUntracked: input.includeUntracked,
+        limit: input.limit,
+        exclude: input.exclude
       });
+      reportProgress(`ranked ${report.contextFiles.length} context files`);
       const sourceDiagnostics = [issueDiagnostic, resolvedSource.diagnostic].filter(
         (diagnostic): diagnostic is ScanDiagnostic => diagnostic !== undefined
       );
@@ -483,7 +508,9 @@ export async function withRepositorySource<T>(
 
     let cloned: ClonedRepository;
     try {
+      reportProgress(`cloning ${source.displayUrl}`);
       cloned = await clonePublicRepository(source.cloneUrl, checkoutRoot, hooksDirectory);
+      reportProgress(`cloned ${cloned.ref}@${cloned.revision}`);
     } catch (error) {
       throw new RepositorySourceError(
         `Could not fetch public GitHub repository "${source.displayUrl}": ${errorDetail(error)}.`

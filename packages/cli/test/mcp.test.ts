@@ -53,7 +53,87 @@ describe("fixmap mcp server", () => {
     expect(parsePlanArguments({ issue: "   " })).toEqual({ success: true, value: {} });
   });
 
-  it("advertises plan and verify tools", async () => {
+  it("explains why a file was left out, without a shell", async () => {
+    const root = await createAuthFixture();
+    const client = await connectClient();
+
+    // MCP-only agents could not ask this before: --explain was CLI-only, so the answer to
+    // "why is my file missing" was to re-invent the ranking.
+    const result = await client.callTool({
+      name: "fixmap_explain",
+      arguments: {
+        path: "src/auth/reset-password.ts",
+        issue: "password reset emails fail",
+        repo: root,
+        format: "json"
+      }
+    });
+
+    expect(result.isError).toBeFalsy();
+    const text = (result.content as Array<{ text: string }>)[0]?.text ?? "";
+    const explanation = JSON.parse(text) as { path: string; status: string };
+    expect(explanation.path).toBe("src/auth/reset-password.ts");
+    expect(explanation.status).toBe("ranked");
+  });
+
+  it("explains a file the exclusions removed as excluded", async () => {
+    const root = await createAuthFixture();
+    const client = await connectClient();
+
+    const result = await client.callTool({
+      name: "fixmap_explain",
+      arguments: {
+        path: "src/auth/reset-password.ts",
+        issue: "password reset emails fail",
+        repo: root,
+        exclude: ["src/auth"],
+        format: "json"
+      }
+    });
+
+    expect((JSON.parse((result.content as Array<{ text: string }>)[0]!.text) as { status: string }).status)
+      .toBe("excluded");
+  });
+
+  it("refuses to explain against a remote repository", async () => {
+    const client = await connectClient();
+
+    const result = await client.callTool({
+      name: "fixmap_explain",
+      arguments: { path: "src/index.ts", repo: "https://github.com/colinhacks/zod" }
+    });
+
+    expect(result.isError).toBe(true);
+    expect((result.content as Array<{ text: string }>)[0]?.text).toContain("local checkout");
+  });
+
+  it("validates limit and exclude before doing repository work", () => {
+    expect(parsePlanArguments({ issue: "task", limit: 0 }).success).toBe(false);
+    expect(parsePlanArguments({ issue: "task", limit: 21 }).success).toBe(false);
+    expect(parsePlanArguments({ issue: "task", limit: 2.5 }).success).toBe(false);
+    expect(parsePlanArguments({ issue: "task", exclude: "apps/web" }).success).toBe(false);
+    expect(parsePlanArguments({ issue: "task", limit: 3, exclude: ["apps/web"] })).toEqual({
+      success: true,
+      value: { issue: "task", limit: 3, exclude: ["apps/web"] }
+    });
+  });
+
+  it("caps the reported context files through MCP", async () => {
+    const root = await createAuthFixture();
+    const client = await connectClient();
+
+    const result = await client.callTool({
+      name: "fixmap_plan",
+      arguments: { issue: "password reset emails fail", repo: root, limit: 1, format: "json" }
+    });
+
+    const report = JSON.parse((result.content as Array<{ text: string }>)[0]!.text) as {
+      contextFiles: unknown[];
+    };
+    expect(report.contextFiles).toHaveLength(1);
+  });
+
+  it("advertises plan, verify, and explain tools", async () => {
     const client = await connectClient();
 
     const tools = await client.listTools();
@@ -69,6 +149,10 @@ describe("fixmap mcp server", () => {
     expect(plan?.inputSchema.properties?.issue?.description).toContain("GitHub issue URL");
     expect(verify).toBeDefined();
     expect(Object.keys(verify?.inputSchema.properties ?? {})).toContain("report");
+    const explain = tools.tools.find((tool) => tool.name === "fixmap_explain");
+    expect(explain).toBeDefined();
+    expect(Object.keys(explain?.inputSchema.properties ?? {})).toContain("path");
+    expect(explain?.inputSchema.required).toContain("path");
   });
 
   it("verifies a plan against a local diff through MCP", async () => {

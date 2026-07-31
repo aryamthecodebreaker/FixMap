@@ -5,9 +5,12 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
+  explainFile,
+  renderExplanationMarkdown,
   renderJsonReport,
   renderMarkdownReport,
   renderVerifyMarkdown,
+  resolveExclusions,
   scanRepo,
   verifyPlan,
   type FixMapReport
@@ -17,12 +20,25 @@ import {
   type RepositorySourceDependencies
 } from "./repository-source.js";
 
+export const MAX_MCP_LIMIT = 20;
+
 type PlanArguments = {
   issue?: string;
   diff?: string;
   base?: string;
   head?: string;
   repo?: string;
+  format?: "markdown" | "json";
+  limit?: number;
+  exclude?: string[];
+};
+
+type ExplainArguments = {
+  path: string;
+  issue?: string;
+  diff?: string;
+  repo?: string;
+  exclude?: string[];
   format?: "markdown" | "json";
 };
 
@@ -77,8 +93,58 @@ const PLAN_TOOL = {
         type: "string",
         enum: ["markdown", "json"],
         description: "Report format, markdown by default"
+      },
+      limit: {
+        type: "number",
+        description:
+          `Maximum context files to return, 1 to ${MAX_MCP_LIMIT}, default 8. ` +
+          "Lower it when context budget matters: the useful signal is usually the top one to three."
+      },
+      exclude: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Path patterns to leave out of ranking, gitignore-flavored, such as \"apps/web\" or \"docs/**\". " +
+          "A .fixmapignore file in the repository is applied as well."
       }
     },
+    additionalProperties: false
+  }
+};
+
+const EXPLAIN_TOOL = {
+  name: "fixmap_explain",
+  title: "FixMap explain",
+  description:
+    "Answer why one specific file was ranked where it was, or left out of a plan entirely. " +
+    "Use this when a file you expected is missing from fixmap_plan, or when a ranked file looks wrong: " +
+    "it separates the cases that actually differ — ranked, scored below the cutoff, tied but outside " +
+    "the reported limit, deliberately excluded, or never scanned — instead of leaving you to guess. " +
+    "Needs a local checkout, because it re-ranks the repository rather than reading a saved report.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      path: {
+        type: "string",
+        description: "Repository-relative path to explain, such as \"src/auth/reset-password.ts\""
+      },
+      issue: {
+        type: "string",
+        description: "The same task signal used for the plan, so the explanation matches that ranking"
+      },
+      diff: { type: "string", description: "Git diff spec, such as main...HEAD" },
+      repo: {
+        type: "string",
+        description: "Local repository path, defaults to the server working directory. Remote URLs are not supported."
+      },
+      exclude: {
+        type: "array",
+        items: { type: "string" },
+        description: "The same exclusion patterns used for the plan"
+      },
+      format: { type: "string", enum: ["markdown", "json"], description: "Output format, markdown by default" }
+    },
+    required: ["path"],
     additionalProperties: false
   }
 };
@@ -116,7 +182,9 @@ export function createFixMapMcpServer(
 ): Server {
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [PLAN_TOOL, VERIFY_TOOL] }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [PLAN_TOOL, VERIFY_TOOL, EXPLAIN_TOOL]
+  }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name === VERIFY_TOOL.name) {
@@ -143,6 +211,47 @@ export function createFixMapMcpServer(
         const text = args.format === "json"
           ? `${JSON.stringify(result, null, 2)}\n`
           : renderVerifyMarkdown(result);
+        return { content: [{ type: "text", text }] };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }]
+        };
+      }
+    }
+
+    if (request.params.name === EXPLAIN_TOOL.name) {
+      const parsed = parseExplainArguments(request.params.arguments ?? {});
+      if (!parsed.success) {
+        return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${parsed.message}` }] };
+      }
+      const args = parsed.value;
+      // Explaining re-ranks the repository rather than reading a saved report, so it needs
+      // the tree on disk. Same constraint the CLI states.
+      if (/^https?:\/\//i.test(args.repo ?? "")) {
+        return {
+          isError: true,
+          content: [{
+            type: "text",
+            text: "explain needs a local checkout; clone the repository and point repo at the directory."
+          }]
+        };
+      }
+      try {
+        const repoRoot = args.repo ?? process.cwd();
+        const repo = await scanRepo({ repoRoot, diffSpec: args.diff });
+        const explanation = explainFile(
+          repo,
+          {
+            issueText: args.issue,
+            diffText: repo.diffText,
+            exclude: await resolveExclusions(repoRoot, args.exclude ?? [])
+          },
+          args.path
+        );
+        const text = args.format === "json"
+          ? `${JSON.stringify(explanation, null, 2)}\n`
+          : renderExplanationMarkdown(explanation);
         return { content: [{ type: "text", text }] };
       } catch (error) {
         return {
@@ -181,7 +290,9 @@ export function createFixMapMcpServer(
         issueText: args.issue,
         diffSpec: args.diff,
         baseRef: args.base,
-        headRef: args.head
+        headRef: args.head,
+        limit: args.limit,
+        exclude: args.exclude
       }, repositorySourceDependencies);
     } catch (error) {
       return {
@@ -219,7 +330,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "format"]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "format", "limit", "exclude"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return {
@@ -238,6 +349,14 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   if (format !== undefined && format !== "markdown" && format !== "json") {
     return { success: false, message: '"format" must be either "markdown" or "json".' };
   }
+  const limit = validateLimit(record.limit);
+  if (!limit.success) {
+    return limit;
+  }
+  const exclude = validateExclude(record.exclude);
+  if (!exclude.success) {
+    return exclude;
+  }
 
   const value: PlanArguments = {};
   for (const name of ["issue", "diff", "base", "head", "repo"] as const) {
@@ -249,7 +368,86 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   if (format === "markdown" || format === "json") {
     value.format = format;
   }
+  if (limit.value !== undefined) {
+    value.limit = limit.value;
+  }
+  if (exclude.value.length > 0) {
+    value.exclude = exclude.value;
+  }
   return { success: true, value };
+}
+
+function validateLimit(
+  candidate: unknown
+): { success: true; value: number | undefined } | { success: false; message: string } {
+  if (candidate === undefined) {
+    return { success: true, value: undefined };
+  }
+  if (
+    typeof candidate !== "number" ||
+    !Number.isSafeInteger(candidate) ||
+    candidate < 1 ||
+    candidate > MAX_MCP_LIMIT
+  ) {
+    return { success: false, message: `"limit" must be a whole number from 1 to ${MAX_MCP_LIMIT}.` };
+  }
+  return { success: true, value: candidate };
+}
+
+function validateExclude(
+  candidate: unknown
+): { success: true; value: string[] } | { success: false; message: string } {
+  if (candidate === undefined) {
+    return { success: true, value: [] };
+  }
+  if (!Array.isArray(candidate) || candidate.some((entry) => typeof entry !== "string")) {
+    return { success: false, message: '"exclude" must be an array of path patterns.' };
+  }
+  return { success: true, value: (candidate as string[]).map((entry) => entry.trim()).filter(Boolean) };
+}
+
+export function parseExplainArguments(
+  input: unknown
+): { success: true; value: ExplainArguments } | { success: false; message: string } {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return { success: false, message: "tool arguments must be an object." };
+  }
+  const record = input as Record<string, unknown>;
+  const allowed = new Set(["path", "issue", "diff", "repo", "exclude", "format"]);
+  const unknown = Object.keys(record).filter((key) => !allowed.has(key));
+  if (unknown.length > 0) {
+    return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
+  }
+  for (const name of ["path", "issue", "diff", "repo"] as const) {
+    const value = record[name];
+    if (value !== undefined && typeof value !== "string") {
+      return { success: false, message: `"${name}" must be a string.` };
+    }
+  }
+  const path = typeof record.path === "string" ? record.path.trim() : "";
+  if (!path) {
+    return { success: false, message: '"path" is required and must be a repository-relative file path.' };
+  }
+  const format = record.format;
+  if (format !== undefined && format !== "markdown" && format !== "json") {
+    return { success: false, message: '"format" must be either "markdown" or "json".' };
+  }
+  const exclude = validateExclude(record.exclude);
+  if (!exclude.success) {
+    return exclude;
+  }
+
+  return {
+    success: true,
+    value: {
+      path,
+      ...(typeof record.issue === "string" && record.issue.trim() ? { issue: record.issue.trim() } : {}),
+      ...(typeof record.diff === "string" && record.diff.trim() ? { diff: record.diff.trim() } : {}),
+      ...(typeof record.repo === "string" && record.repo.trim() ? { repo: record.repo.trim() } : {}),
+      ...(exclude.value.length > 0 ? { exclude: exclude.value } : {}),
+      ...(format === "markdown" || format === "json" ? { format } : {})
+    }
+  };
 }
 
 type VerifyArgumentsValidation =

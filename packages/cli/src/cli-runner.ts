@@ -3,15 +3,19 @@ import { writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  compareReports,
   explainFile,
+  renderComparisonMarkdown,
+  renderExplanationMarkdown,
   renderJsonReport,
   renderVerifyMarkdown,
+  resolveExclusions,
   verifyPlan,
   renderMarkdownReport,
   scanRepo,
-  type FileExplanation,
   type FixMapReport
 } from "@aryam/fixmap-core";
+import { runDoctorChecks, renderDoctorReport, type DoctorReport } from "./doctor.js";
 import {
   buildReportForRepository,
   parseGitHubIssueSource,
@@ -30,6 +34,11 @@ export type CliOptions = {
   output?: string | undefined;
   explainPath?: string | undefined;
   reportPath?: string | undefined;
+  comparePath?: string | undefined;
+  limit?: number | undefined;
+  exclude: string[];
+  workingTree: boolean;
+  includeUntracked: boolean;
   unknownArgs: string[];
   invalidValues: string[];
 };
@@ -38,6 +47,7 @@ export type CliDependencies = {
   buildReport?: (input: RepositoryPlanInput) => Promise<FixMapReport>;
   readVersion?: () => string;
   runMcpServer?: () => Promise<void>;
+  runDoctor?: () => Promise<DoctorReport>;
   stderr?: (text: string) => void;
   stdout?: (text: string) => void;
   writeReport?: (path: string, contents: string) => Promise<void>;
@@ -60,6 +70,7 @@ Usage:
 Commands:
   plan                Generate a FixMap report for a task or diff
   verify              Compare a saved report against the diff that followed it
+  doctor              Check the FixMap install for stale global or npx shadows
   mcp                 Run FixMap as an MCP server over stdio for AI coding agents
 
 Options:
@@ -68,13 +79,21 @@ Options:
   --diff <spec>       Git diff spec, such as main...HEAD
   --base <ref>        Base ref for diffing when --diff is not given
   --head <ref>        Head ref for diffing (defaults to HEAD)
+  --working-tree      Map staged and unstaged changes against HEAD
+  --include-untracked With --working-tree, also include untracked files
   --repo <source>     Local path or public GitHub HTTPS URL (defaults to current directory)
+  --limit <n>         Maximum context files to report (default 8, max 20)
+  --exclude <glob>    Path pattern to leave out of ranking (repeatable)
   --format <fmt>      Output format: markdown (default) or json
   --output <file>     Write the report or verification to a file instead of stdout
   --explain <path>    Explain why one file was ranked where it was, or left out
+  --compare <file>    Compare this plan against an earlier JSON report
   --report <file>     Verify command only: the JSON report the change was planned from
   --help, -h          Show this help
   --version, -v       Show the FixMap version
+
+A repository may also list exclusion patterns in .fixmapignore, one per line.
+Set FIXMAP_PROGRESS=1 to print scan and clone phases to stderr.
 `;
 
 export async function runCli(args: string[], dependencies: CliDependencies = {}): Promise<number> {
@@ -100,6 +119,14 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     });
     await runMcpServer();
     return 0;
+  }
+
+  if (args[0] === "doctor") {
+    const report = await (dependencies.runDoctor ?? runDoctorChecks)();
+    stdout(renderDoctorReport(report));
+    // Non-zero on a detected shadow: a script that runs doctor in CI should fail there,
+    // not read the text and carry on.
+    return report.healthy ? 0 : 1;
   }
 
   const options = parseArgs(args);
@@ -134,8 +161,17 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 1;
   }
 
-  if (!options.issueText && !options.diffSpec && !options.baseRef) {
-    stderr("Provide --issue, --diff, or --base/--head so FixMap has a task signal.\n");
+  if (!options.issueText && !options.diffSpec && !options.baseRef && !options.workingTree) {
+    stderr("Provide --issue, --diff, --base/--head, or --working-tree so FixMap has a task signal.\n");
+    return 1;
+  }
+
+  if (options.includeUntracked && !options.workingTree) {
+    stderr("--include-untracked only applies with --working-tree.\n");
+    return 1;
+  }
+  if (options.workingTree && (options.diffSpec || options.baseRef)) {
+    stderr("Use either --working-tree or --diff/--base, not both: they name different sets of changes.\n");
     return 1;
   }
 
@@ -148,12 +184,23 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       return 1;
     }
     try {
-      const repo = await scanRepo({ repoRoot: options.repo ?? process.cwd() });
-      const explanation = explainFile(repo, { issueText: options.issueText }, options.explainPath);
+      const repoRoot = options.repo ?? process.cwd();
+      const repo = await scanRepo({ repoRoot });
+      const explanation = explainFile(
+        repo,
+        {
+          issueText: options.issueText,
+          // Without this, a file left out by .fixmapignore would be reported as having
+          // scored below the cutoff — a false answer to the exact question --explain exists
+          // to answer.
+          exclude: await resolveExclusions(repoRoot, options.exclude)
+        },
+        options.explainPath
+      );
       stdout(
         options.format === "json"
           ? `${JSON.stringify(explanation, null, 2)}\n`
-          : renderExplanation(explanation)
+          : renderExplanationMarkdown(explanation)
       );
       return 0;
     } catch (error) {
@@ -169,7 +216,11 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       issueText: options.issueText,
       diffSpec: options.diffSpec,
       baseRef: options.baseRef,
-      headRef: options.headRef
+      headRef: options.headRef,
+      workingTree: options.workingTree,
+      includeUntracked: options.includeUntracked,
+      limit: options.limit,
+      exclude: options.exclude
     });
   } catch (error) {
     stderr(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -192,6 +243,34 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       );
       return 1;
     }
+  }
+
+  // The habit worth having: plan, add the identifier the task was missing, re-plan, and
+  // check whether the real file rose. When comparing, the delta is the answer — the full
+  // report is what the reader already has from the previous run.
+  if (options.comparePath) {
+    let previous: FixMapReport;
+    try {
+      previous = JSON.parse(readFileSync(options.comparePath, "utf8")) as FixMapReport;
+    } catch (error) {
+      stderr(
+        `Could not read "${options.comparePath}": ${error instanceof Error ? error.message : String(error)}\n` +
+        "Save one first with: fixmap plan --issue \"...\" --format json --output previous.json\n"
+      );
+      return 1;
+    }
+    if (!Array.isArray(previous.contextFiles)) {
+      stderr(`"${options.comparePath}" is not a FixMap JSON report: no contextFiles array.\n`);
+      return 1;
+    }
+
+    const comparison = compareReports(previous, report);
+    stdout(
+      options.format === "json"
+        ? `${JSON.stringify(comparison, null, 2)}\n`
+        : renderComparisonMarkdown(comparison)
+    );
+    return 0;
   }
 
   const rendered = options.format === "json" ? renderJsonReport(report) : renderMarkdownReport(report);
@@ -264,6 +343,8 @@ function nextCommandHint(options: CliOptions, report: FixMapReport): string | un
   return undefined;
 }
 
+// --exclude is deliberately absent: it is the one flag that accumulates, because naming
+// several directories to leave out is the normal way to use it.
 const SINGLE_VALUE_FLAGS = new Set([
   "--issue",
   "--issue-file",
@@ -274,8 +355,12 @@ const SINGLE_VALUE_FLAGS = new Set([
   "--format",
   "--report",
   "--explain",
+  "--compare",
+  "--limit",
   "--output"
 ]);
+
+export const MAX_CONTEXT_FILE_LIMIT = 20;
 
 export function parseArgs(args: string[]): CliOptions {
   const command = args[0] ?? "";
@@ -289,6 +374,11 @@ export function parseArgs(args: string[]): CliOptions {
   let output: string | undefined;
   let explainPath: string | undefined;
   let reportPath: string | undefined;
+  let comparePath: string | undefined;
+  let limit: number | undefined;
+  let workingTree = false;
+  let includeUntracked = false;
+  const exclude: string[] = [];
   const unknownArgs: string[] = [];
   const invalidValues: string[] = [];
   const flagCounts = new Map<string, number>();
@@ -368,6 +458,28 @@ export function parseArgs(args: string[]): CliOptions {
       consumeValue();
       if (value?.trim()) explainPath = value.trim();
       else invalidValues.push("--explain requires a repository-relative file path");
+    } else if (arg === "--compare") {
+      consumeValue();
+      if (value?.trim()) comparePath = value.trim();
+      else invalidValues.push("--compare requires a path to an earlier FixMap JSON report");
+    } else if (arg === "--exclude") {
+      consumeValue();
+      if (value?.trim()) exclude.push(value.trim());
+      else invalidValues.push("--exclude requires a path or glob pattern");
+    } else if (arg === "--limit") {
+      consumeValue();
+      const parsed = Number(value);
+      if (value?.trim() && Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= MAX_CONTEXT_FILE_LIMIT) {
+        limit = parsed;
+      } else {
+        invalidValues.push(
+          `--limit received ${JSON.stringify(value ?? "(missing)")}; expected a whole number from 1 to ${MAX_CONTEXT_FILE_LIMIT}`
+        );
+      }
+    } else if (arg === "--working-tree") {
+      workingTree = true;
+    } else if (arg === "--include-untracked") {
+      includeUntracked = true;
     } else if (arg === "--output") {
       consumeValue();
       if (value?.trim()) output = value;
@@ -389,6 +501,11 @@ export function parseArgs(args: string[]): CliOptions {
     output,
     explainPath,
     reportPath,
+    comparePath,
+    limit,
+    exclude,
+    workingTree,
+    includeUntracked,
     unknownArgs,
     invalidValues
   };
@@ -516,14 +633,3 @@ async function runVerify(
   }
 }
 
-/** Renders one file's explanation. The summary carries the answer; reasons show the working. */
-function renderExplanation(explanation: FileExplanation): string {
-  const lines = [`# Why ${explanation.path}`, "", explanation.summary];
-  if (explanation.reasons.length > 0) {
-    lines.push("", "## Signals", "");
-    for (const reason of explanation.reasons) {
-      lines.push(`- ${reason}`);
-    }
-  }
-  return `${lines.join("\n")}\n`;
-}
