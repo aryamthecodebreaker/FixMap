@@ -9,7 +9,7 @@
     "url": "git+https://github.com/aryamthecodebreaker/FixMap.git",
     "directory": "packages/cli"
   },
-  "homepage": "https://fixmap-flax.vercel.app",
+  "homepage": "https://usefixmap.vercel.app",
   "bugs": {
     "url": "https://github.com/aryamthecodebreaker/FixMap/issues"
   },
