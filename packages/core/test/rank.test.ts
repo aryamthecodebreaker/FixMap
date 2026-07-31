@@ -1100,4 +1100,122 @@ describe("rankContextFiles", () => {
     expect(ranked[0]?.path).toBe("source/vendor/supports-color/index.js");
     expect(ranked[0]?.reasons.join(" ")).not.toContain("machine-generated bundle");
   });
+
+  it("reserves high confidence for a file that actually leads", () => {
+    // Measured on a real Zod task: the top eight scored 43, 24, 22, 20, 20, 20, 19, 19 and
+    // every one was labeled high, which tells an agent the eighth guess is as safe to edit
+    // as a leader nineteen points ahead.
+    const files = [
+      {
+        path: "src/json-schema-processors.ts",
+        extension: ".ts",
+        sizeBytes: 400,
+        isSource: true,
+        isTest: false,
+        kind: "code" as const,
+        textSample: "export function stringProcessor() { return 'json schema string format processor'; }"
+      },
+      ...["to-json-schema", "json-schema", "from-json-schema", "schema-generator", "errors"].map((name) => ({
+        path: `src/${name}.ts`,
+        extension: ".ts",
+        sizeBytes: 400,
+        isSource: true,
+        isTest: false,
+        kind: "code" as const,
+        textSample: "json schema string invalid produces format processor conversion"
+      }))
+    ];
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "stringProcessor produces invalid JSON Schema" });
+    const high = ranked.filter((file) => file.confidence === "high");
+
+    expect(ranked[0]?.path).toBe("src/json-schema-processors.ts");
+    expect(high).toHaveLength(1);
+    // The rest are a neighborhood to read, which is what medium already means.
+    expect(ranked.slice(1).every((file) => file.confidence !== "high")).toBe(true);
+  });
+
+  it("keeps high for a runner-up that ties the lead", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: ["src/alpha-handler.ts", "src/beta-handler.ts"].map((path) => ({
+        path,
+        extension: ".ts",
+        sizeBytes: 400,
+        isSource: true,
+        isTest: false,
+        kind: "code" as const,
+        textSample: "export function retryTimeout() { return 'retry timeout backoff handler'; }"
+      }))
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "retryTimeout backoff handler never fires" });
+
+    // Identical evidence scores identically; demoting one of a genuine tie would be as
+    // misleading as promoting all eight.
+    expect(ranked[0]?.score).toBe(ranked[1]?.score);
+    expect(ranked[1]?.confidence).toBe(ranked[0]?.confidence);
+  });
+
+  it("caps a vocabulary-dense lead that a definition site disputes", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          // Dense enough in task vocabulary to outscore the definition site outright.
+          path: "src/format/token/year/timezone/offset/parse.js",
+          extension: ".js",
+          sizeBytes: 900,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample:
+            "format token year parse formatting fallback timezone offset custom locale ordinal weekday meridiem padding"
+        },
+        {
+          path: "src/constant.js",
+          extension: ".js",
+          sizeBytes: 80,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export const REGEX_FORMAT = 1;"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText:
+        "REGEX_FORMAT year token formatting falls through to timezone offset " +
+        "locale ordinal weekday meridiem padding parse"
+    });
+
+    // The fixture only tests what it claims if the consumer really does lead.
+    expect(ranked[0]?.path).toBe("src/format/token/year/timezone/offset/parse.js");
+    expect(ranked[0]!.score).toBeGreaterThan(ranked[1]!.score);
+    // An agent that opens only the first result never sees the definition site, so the
+    // label must not claim the lead settled it.
+    expect(ranked[0]?.confidence).not.toBe("high");
+    // The definition site keeps its own standing: that evidence is why it is here.
+    expect(ranked.find((file) => file.path === "src/constant.js")?.confidence).toBe("high");
+  });
 });

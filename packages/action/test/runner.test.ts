@@ -89,4 +89,87 @@ describe("GitHub Action runner", () => {
       issueText: "Reset emails fail\n\nPassword reset is broken"
     }));
   });
+
+  it("fetches a pull request URL and names it as one", async () => {
+    const buildReport = vi.fn(async () => structuredClone(report));
+    const stdout = vi.fn();
+
+    await runAction({
+      GITHUB_REPOSITORY: "owner/repository",
+      INPUT_ISSUE: "https://github.com/owner/repository/pull/123"
+    }, {
+      buildReport,
+      fetchIssue: async () => ({ title: "Fix reset emails", body: "Rewrites the mailer." }),
+      stdout
+    });
+
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({
+      issueText: "Fix reset emails\n\nRewrites the mailer."
+    }));
+    expect(stdout.mock.calls[0]?.[0]).toContain("/pull/123");
+  });
+
+  it("verifies a saved plan against the diff in verify mode", async () => {
+    const stdout = vi.fn();
+    const writes: Array<{ path: string; contents: string }> = [];
+
+    await runAction({
+      INPUT_MODE: "verify",
+      INPUT_REPORT_PATH: "plan.json",
+      INPUT_DIFF: "main...HEAD",
+      GITHUB_OUTPUT: "/tmp/output"
+    }, {
+      readFile: () => JSON.stringify(report),
+      appendFile: (path, contents) => writes.push({ path, contents }),
+      scanRepo: async () => scannedRepo(["src/auth.ts"]),
+      uuid: () => "stable-id",
+      stdout
+    });
+
+    expect(stdout.mock.calls[0]?.[0]).toContain("# FixMap Verification");
+    expect(writes[0]?.contents).toContain("changed-file-count=1");
+  });
+
+  it("says what verify mode needs when report-path is missing", async () => {
+    await expect(runAction({ INPUT_MODE: "verify", INPUT_DIFF: "main...HEAD" }, { stdout: vi.fn() }))
+      .rejects.toThrow("report-path");
+  });
+
+  it("rejects an unknown mode rather than silently planning", async () => {
+    await expect(runAction({ INPUT_MODE: "audit", INPUT_ISSUE: "x" }, { stdout: vi.fn() }))
+      .rejects.toThrow("expected plan or verify");
+  });
+
+  it("fails the step when verification finds an edit the build discards", async () => {
+    // The one finding that is wrong regardless of the task, so it must not be scrolled past.
+    await expect(runAction({
+      INPUT_MODE: "verify",
+      INPUT_REPORT_PATH: "plan.json",
+      INPUT_DIFF: "main...HEAD"
+    }, {
+      readFile: () => JSON.stringify(report),
+      scanRepo: async () => scannedRepo(["dist/auth.js"]),
+      stdout: vi.fn()
+    })).rejects.toThrow("generated or retired location");
+  });
 });
+
+function scannedRepo(changedFiles: string[]) {
+  return {
+    root: "/repo",
+    files: [{
+      path: "src/auth.ts",
+      extension: ".ts",
+      sizeBytes: 10,
+      isSource: true,
+      isTest: false,
+      kind: "code" as const,
+      textSample: ""
+    }],
+    packageScripts: [],
+    changedFiles,
+    diffText: "",
+    packageManager: "npm" as const,
+    diagnostics: []
+  };
+}

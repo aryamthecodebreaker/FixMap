@@ -5,6 +5,7 @@
 // like the tool has nothing to say for itself. Every branch below reports a specific,
 // checkable cause rather than a score.
 
+import type { PathExcluder } from "./exclude.js";
 import { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
 import { REPORT_SCORE_CUTOFF, rankContextFiles } from "./rank.js";
 import { extractFileMentions } from "./signals.js";
@@ -23,10 +24,28 @@ export type FileExplanation = {
 
 export function explainFile(
   repo: RepoMap,
-  input: { issueText?: string | undefined; diffText?: string | undefined },
+  input: {
+    issueText?: string | undefined;
+    diffText?: string | undefined;
+    exclude?: PathExcluder | undefined;
+  },
   targetPath: string
 ): FileExplanation {
   const path = targetPath.replace(/\\/g, "/").replace(/^\.\//, "");
+
+  // Asked first, because an excluded file has no score to report and "scored below the
+  // cutoff" would be a false explanation for a deliberate omission.
+  const excludedBy = input.exclude?.reasonFor(path);
+  if (excludedBy) {
+    return {
+      path,
+      status: "excluded",
+      reasons: [],
+      summary:
+        `Excluded: matched the exclusion pattern "${excludedBy}". ` +
+        "Remove it from .fixmapignore or --exclude to let this file rank."
+    };
+  }
 
   const reported = rankContextFiles(repo, input);
   const position = reported.findIndex((file) => file.path === path);
@@ -66,6 +85,18 @@ export function explainFile(
       : `Scored ${scored?.score ?? 0}, below the ${reported.length > 0 ? `lowest reported score of ${lowestReported}` : `reporting cutoff of ${REPORT_SCORE_CUTOFF}`}. ` +
         "Name a symbol, error string, or path from this file in the task to raise it."
   };
+}
+
+/** Renders one file's explanation. The summary carries the answer; reasons show the working. */
+export function renderExplanationMarkdown(explanation: FileExplanation): string {
+  const lines = [`# Why ${explanation.path}`, "", explanation.summary];
+  if (explanation.reasons.length > 0) {
+    lines.push("", "## Signals", "");
+    for (const reason of explanation.reasons) {
+      lines.push(`- ${reason}`);
+    }
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 type Exclusion = { status: "excluded" | "not-scanned"; summary: string };

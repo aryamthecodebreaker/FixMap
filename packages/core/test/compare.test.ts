@@ -1,0 +1,102 @@
+import { describe, expect, it } from "vitest";
+import { compareReports, renderComparisonMarkdown } from "../src/compare.js";
+import type { FixMapReport, RankedFile } from "../src/types.js";
+
+function reportOf(files: Array<Partial<RankedFile> & { path: string }>): FixMapReport {
+  return {
+    summary: "",
+    contextFiles: files.map((file) => ({
+      path: file.path,
+      score: file.score ?? 10,
+      confidence: file.confidence ?? "medium",
+      reasons: file.reasons ?? []
+    })),
+    testRoutes: [],
+    risks: [],
+    changedFiles: [],
+    diagnostics: []
+  };
+}
+
+describe("compareReports", () => {
+  it("reports a file that rose after the task was refined", () => {
+    // The loop FixMap is for: name the identifier, re-plan, watch the fix site climb.
+    const previous = reportOf([
+      { path: "src/plugin/parser.js", score: 21, confidence: "high" },
+      { path: "src/constant.js", score: 20, confidence: "medium" }
+    ]);
+    const current = reportOf([
+      { path: "src/constant.js", score: 44, confidence: "high" },
+      { path: "src/plugin/parser.js", score: 21, confidence: "medium" }
+    ]);
+
+    const comparison = compareReports(previous, current);
+
+    expect(comparison.moved.map((delta) => delta.path)).toEqual(["src/constant.js", "src/plugin/parser.js"]);
+    const constant = comparison.moved.find((delta) => delta.path === "src/constant.js")!;
+    expect(constant.previousRank).toBe(2);
+    expect(constant.currentRank).toBe(1);
+    expect(constant.previousConfidence).toBe("medium");
+    expect(constant.currentConfidence).toBe("high");
+    expect(comparison.summary).toContain("leading file changed");
+  });
+
+  it("separates files that entered from files that left", () => {
+    const comparison = compareReports(
+      reportOf([{ path: "a.ts" }, { path: "b.ts" }]),
+      reportOf([{ path: "a.ts" }, { path: "c.ts" }])
+    );
+
+    expect(comparison.entered.map((delta) => delta.path)).toEqual(["c.ts"]);
+    expect(comparison.left.map((delta) => delta.path)).toEqual(["b.ts"]);
+    expect(comparison.unchanged.map((delta) => delta.path)).toEqual(["a.ts"]);
+  });
+
+  it("says plainly when refining the task changed nothing", () => {
+    const report = reportOf([{ path: "a.ts" }, { path: "b.ts" }]);
+
+    const comparison = compareReports(report, report);
+
+    expect(comparison.summary).toContain("changed nothing");
+    expect(comparison.moved).toEqual([]);
+  });
+
+  it("notes a grounding change, which is usually why the ranking moved", () => {
+    const previous = reportOf([{ path: "a.ts" }]);
+    const current = reportOf([{ path: "a.ts" }]);
+    previous.analysis = {
+      grounding: {
+        specificity: "vague",
+        identifiers: [],
+        unresolvedIdentifiers: [],
+        partiallyResolvedIdentifiers: [],
+        unverifiedIdentifiers: [],
+        scanComplete: true
+      },
+      ranking: { topScore: 10, runnerUpScore: null, topGap: null, clustered: false },
+      nextAction: ""
+    };
+    current.analysis = {
+      ...previous.analysis,
+      grounding: { ...previous.analysis.grounding, specificity: "anchored" }
+    };
+
+    const comparison = compareReports(previous, current);
+
+    expect(comparison.groundingChanged).toBe(true);
+    expect(renderComparisonMarkdown(comparison)).toContain("vague");
+    expect(renderComparisonMarkdown(comparison)).toContain("anchored");
+  });
+
+  it("renders the movement as markdown", () => {
+    const markdown = renderComparisonMarkdown(compareReports(
+      reportOf([{ path: "a.ts", score: 10, confidence: "medium" }]),
+      reportOf([{ path: "a.ts", score: 30, confidence: "high" }, { path: "b.ts" }])
+    ));
+
+    expect(markdown).toContain("# FixMap Plan Comparison");
+    expect(markdown).toContain("## Entered");
+    expect(markdown).toContain("`b.ts`");
+    expect(markdown).toContain("confidence medium to high");
+  });
+});

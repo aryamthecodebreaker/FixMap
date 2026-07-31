@@ -55,7 +55,7 @@ const commands = [
     command: "claude mcp add fixmap -- npx -y @aryam/fixmap mcp",
     question: "Can my agent just ask for it?",
     answer:
-      "Two stdio MCP tools cover plan and verify. Claude Code, Cursor, Windsurf, and any other MCP client can map the task, then compare the resulting diff without a human running the CLI. Analysis stays on your machine.",
+      "Three stdio MCP tools cover plan, verify, and explain. Claude Code, Cursor, Windsurf, and any other MCP client can map the task, ask why a file was left out, then compare the resulting diff — without a human running the CLI. Analysis stays on your machine.",
     badge: "for agents"
   }
 ];
@@ -136,12 +136,12 @@ export default function HomePage() {
             </p>
             <p className="terminal-label">CONTEXT</p>
             <p><strong>01</strong> src/auth/reset-password.ts <b>high</b></p>
-            <p><strong>02</strong> src/email/templates/reset.ts <b>high</b></p>
+            <p><strong>02</strong> src/email/templates/reset.ts <i>medium</i></p>
             <p><strong>03</strong> src/auth/token-store.ts <i>medium</i></p>
             <p className="terminal-label">TEST ROUTE</p>
             <p><strong>→</strong> npm run test</p>
             <p className="terminal-label">RISK</p>
-            <p><strong>!</strong> authentication · high severity</p>
+            <p><strong>!</strong> authentication · low severity</p>
           </div>
         </div>
       </section>
@@ -170,7 +170,7 @@ export default function HomePage() {
             <li>
               <h3>Ranked files, with reasons</h3>
               <p>
-                <code>src/auth/reset-password.ts</code> — score 27, high confidence, because it
+                <code>src/auth/reset-password.ts</code> — score 47, high confidence, because it
                 <em> defines TOKEN_TTL_MINUTES</em>, its path matches the task, and it declares
                 two more symbols the task names. Every point is traceable to a signal you can
                 disagree with.

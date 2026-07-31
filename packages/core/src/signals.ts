@@ -140,8 +140,18 @@ const STOP_WORDS = new Set([
   "your"
 ]);
 
+// The body run is bounded rather than `*` on purpose. It contains `.`, so it competes with
+// the `\.` that follows it: on a long unbroken run with no extension the engine matches the
+// whole run, fails, and retries one character shorter from every start position — quadratic.
+// A 30,000-character paste took 2.4 seconds here, and the Action feeds this pattern issue
+// text from public pull requests. No real path mention is longer than this bound.
+const MAX_FILE_MENTION_LENGTH = 200;
 const FILE_MENTION_PATTERN =
-  /[A-Za-z0-9_@$][A-Za-z0-9_.$/\\-]*\.(?:[cm]?[jt]sx?|json|ya?ml|mdx?|css|scss|less|html|py|rb|rs|go|java|kt|c|cc|cpp|h|hpp|d\.ts)\b/g;
+  new RegExp(
+    `[A-Za-z0-9_@$][A-Za-z0-9_.$/\\\\-]{0,${MAX_FILE_MENTION_LENGTH}}` +
+    "\\.(?:[cm]?[jt]sx?|json|ya?ml|mdx?|css|scss|less|html|py|rb|rs|go|java|kt|c|cc|cpp|h|hpp|d\\.ts)\\b",
+    "g"
+  );
 const MEMBER_MENTION_PATTERN =
   /\b(?:window|globalThis|process|request|response|req|res|this)\.([$A-Za-z_][$A-Za-z0-9_$]*)\b/g;
 const FILE_EXTENSIONS = new Set([
@@ -342,7 +352,15 @@ export function tokenizeText(text: string): Set<string> {
   );
 }
 
+// An unbroken alphanumeric run this long is a hash, a base64 blob, or a paste artifact,
+// never a term someone is searching for. Dropping it here rather than at the point of
+// display means it can neither pollute a diagnostic nor score a file for matching noise.
+const MAX_SEARCHABLE_TOKEN_LENGTH = 64;
+
 function isSearchableToken(token: string): boolean {
+  if (token.length > MAX_SEARCHABLE_TOKEN_LENGTH) {
+    return false;
+  }
   return token.length >= 3 || /^[a-z]\d$/i.test(token);
 }
 

@@ -155,4 +155,33 @@ describe("extractTaskSignals", () => {
     expect(signals.exactFragments).not.toContain("@eslint/core");
     expect(signals.exactFragments).toContain("@eslint/config-helpers");
   });
+
+  it("stays linear on a long unbroken run instead of backtracking quadratically", () => {
+    // The file-mention pattern's body run contains ".", so it competed with the "\." that
+    // follows it: on an unbroken run with no extension the engine matched the whole run,
+    // failed, and retried one character shorter from every start position. 30,000
+    // characters took 2.4 seconds, and the Action feeds this pattern issue text from
+    // public pull requests. Scaling is what this asserts, not absolute time, since CI
+    // machines vary too much for a millisecond budget to mean anything.
+    const measure = (length: number) => {
+      const text = `flurbulator ${"z".repeat(length)} telemetry`;
+      const started = performance.now();
+      extractTaskSignals({ issueText: text });
+      return performance.now() - started;
+    };
+
+    measure(20_000);
+    const small = Math.max(measure(20_000), 1);
+    const large = measure(80_000);
+
+    // Four times the input must not cost anything like sixteen times the work.
+    expect(large / small).toBeLessThan(8);
+  });
+
+  it("ignores a token too long to be a real search term", () => {
+    const signals = extractTaskSignals({ issueText: `reset ${"z".repeat(5_000)} password` });
+
+    expect(signals.tokens).toContain("reset");
+    expect([...signals.tokens].every((token) => token.length <= 64)).toBe(true);
+  });
 });

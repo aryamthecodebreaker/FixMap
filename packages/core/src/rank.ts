@@ -1,3 +1,5 @@
+import { NO_EXCLUSIONS } from "./exclude.js";
+import type { PathExcluder } from "./exclude.js";
 import { buildImportGraph, findImportProximity } from "./import-graph.js";
 import type { ImportProximity } from "./import-graph.js";
 import {
@@ -50,20 +52,30 @@ const DEFINITION_IDENTIFIER_BOOST = 24;
 const DEFINITION_LITERAL_BOOST = 8;
 const MAX_DEFINITION_IDENTIFIERS = 2;
 const TASK_MATCHED_DEFINITION_BOOST = 4;
+// How close to the leader a file must score to share its "high" label. Two points matches
+// the window `isClusteredRanking` already treats as indistinguishable.
+const HIGH_CONFIDENCE_MARGIN = 2;
 
 type ScoredFile = { path: string; score: number; isChanged: boolean; reasons: string[] };
 type DefinitionSignal = { identifier: string; pattern: RegExp };
 
 export const REPORT_SCORE_CUTOFF = 4;
 
+export const DEFAULT_CONTEXT_FILE_LIMIT = 8;
+
 export function rankContextFiles(
   repo: RepoMap,
-  input: { issueText?: string | undefined; diffText?: string | undefined },
-  limit = 8,
+  input: {
+    issueText?: string | undefined;
+    diffText?: string | undefined;
+    exclude?: PathExcluder | undefined;
+  },
+  limit = DEFAULT_CONTEXT_FILE_LIMIT,
   // `explainFile` lowers this to see what a file scored below the reporting cutoff.
   // Ranking never calls it with anything but the default.
   minScore = REPORT_SCORE_CUTOFF
 ): RankedFile[] {
+  const exclude = input.exclude ?? NO_EXCLUSIONS;
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
     diffText: input.diffText ?? "",
@@ -78,12 +90,16 @@ export function rankContextFiles(
 
   const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path));
   const taskTargetsEvaluation = hasAny(taskTokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
+  // Excluded before anything else reads the candidate set. The boilerplate threshold below
+  // is a share of that set, so removing files later would leave scoring computed against a
+  // population that no longer exists.
   const scannable = repo.files.filter((file) =>
-    mentionedPaths.has(file.path) ||
+    !exclude.excludes(file.path) &&
+    (mentionedPaths.has(file.path) ||
     (file.isSource &&
       !file.isTest &&
       !LOCKFILES.has(file.path.split("/").pop() ?? "") &&
-      (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation))
+      (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation)))
   );
   // Generated output is kept only when the source it came from is absent. chalk's sole
   // color-detection implementation lives in `source/vendor/`, so it stays; a committed
@@ -296,14 +312,48 @@ export function rankContextFiles(
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
     .slice(0, limit);
   const clustered = isClusteredRanking(ranked);
+  const leadIsContested = hasContestedLead(ranked);
 
   return ranked
-    .map((entry) => ({
+    .map((entry, position) => ({
       path: entry.path,
       score: entry.score,
-      confidence: confidenceForEntry(entry, grounding, clustered),
+      confidence: confidenceForEntry(entry, grounding, clustered, {
+        position,
+        topScore: ranked[0]?.score ?? entry.score,
+        leadIsContested
+      }),
       reasons: entry.reasons.length > 0 ? entry.reasons : ["source file baseline"]
     }));
+}
+
+/**
+ * Is the leading file's claim disputed by a definition site behind it?
+ *
+ * #102 established that a file defining the symbol a task names is a better answer than a
+ * file that merely talks about it a lot, however dense that talk is. So when the leader
+ * carries no definition evidence of its own and something below it does, the lead is not
+ * decisive — it is one of two plausible answers, and the one below has the stronger kind
+ * of evidence. Saying "high" there is the expensive failure, because an agent that opens
+ * only the first result never sees the competitor.
+ *
+ * Score margin is deliberately not part of this. A definition site six points back is
+ * still the definition site; ranking it lower is exactly the vocabulary-density bias the
+ * boost exists to correct, so a margin would reintroduce the thing being guarded against.
+ */
+function hasContestedLead(ranked: ScoredFile[]): boolean {
+  const leader = ranked[0];
+  if (!leader || hasDefinitionEvidence(leader)) {
+    return false;
+  }
+  return ranked.slice(1).some((entry) => hasDefinitionEvidence(entry));
+}
+
+function hasDefinitionEvidence(entry: ScoredFile): boolean {
+  return entry.reasons.some((reason) =>
+    reason.startsWith("defines task identifiers:") ||
+    reason.startsWith("exact task literal at definition:")
+  );
 }
 
 function applyImportProximity(scored: ScoredFile[], repo: RepoMap): void {
@@ -343,7 +393,8 @@ function proximityReason(hit: ImportProximity): string {
 function confidenceForEntry(
   entry: ScoredFile,
   grounding: TaskGrounding,
-  clustered: boolean
+  clustered: boolean,
+  shape: { position: number; topScore: number; leadIsContested: boolean }
 ): RankedFile["confidence"] {
   if (entry.isChanged || entry.reasons.includes("explicitly named in the task")) {
     return "high";
@@ -351,6 +402,20 @@ function confidenceForEntry(
 
   let confidence: RankedFile["confidence"] =
     entry.score >= 14 ? "high" : entry.score >= 8 ? "medium" : "low";
+
+  // An absolute threshold alone says nothing about whether this file beat the others.
+  // On a real Zod task the top eight scored 43, 24, 22, 20, 20, 20, 19, 19 and every one
+  // of them was labeled high — teaching an agent that the eighth guess is as safe to edit
+  // as a leader nineteen points ahead. High is now reserved for a file that actually leads,
+  // ties the lead, or carries definition-site evidence of its own; the rest are a
+  // neighborhood to read, which is what medium already means.
+  const leads = shape.position === 0 || entry.score >= shape.topScore - HIGH_CONFIDENCE_MARGIN;
+  if (!leads && !hasDirectEvidence(entry)) {
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (shape.position === 0 && shape.leadIsContested) {
+    confidence = capConfidence(confidence, "medium");
+  }
   const supportedIdentifierCount = grounding.identifiers.filter((identifier) =>
     identifier.status === "exact-definition" ||
     identifier.status === "exact-text" ||
