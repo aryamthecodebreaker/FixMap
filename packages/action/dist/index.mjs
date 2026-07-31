@@ -497,6 +497,107 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// packages/core/dist/languages.js
+var ROOT_MANIFESTS = {
+  "cargo.toml": "rust",
+  "go.mod": "go",
+  "pyproject.toml": "python",
+  "setup.py": "python",
+  "setup.cfg": "python",
+  "package.json": "node"
+};
+var EXTENSION_LANGUAGES = {
+  ".py": "python",
+  ".go": "go",
+  ".rs": "rust",
+  ".ts": "node",
+  ".tsx": "node",
+  ".js": "node",
+  ".jsx": "node",
+  ".mjs": "node",
+  ".cjs": "node"
+};
+function detectPrimaryLanguage(repo) {
+  const manifests = rootManifestLanguages(repo.files);
+  if (manifests.size === 1) {
+    const [language, manifest2] = [...manifests][0];
+    return { language, evidence: manifest2 };
+  }
+  const shares = countCodeFiles(repo.files);
+  const candidates = manifests.size > 1 ? [...manifests.keys()] : [...shares.keys()];
+  const leader = candidates.map((language) => ({ language, count: shares.get(language) ?? 0 })).sort((a, b) => b.count - a.count || a.language.localeCompare(b.language))[0];
+  if (!leader || leader.count === 0) {
+    return { language: "unknown", evidence: "no root manifest and no recognizable source files" };
+  }
+  const total = [...shares.values()].reduce((sum, count) => sum + count, 0);
+  const share = Math.round(leader.count / total * 100);
+  const manifest = manifests.get(leader.language);
+  return {
+    language: leader.language,
+    evidence: manifest ? `${manifest} and ${share}% of source files` : `${share}% of source files`
+  };
+}
+function rootManifestLanguages(files) {
+  const found = /* @__PURE__ */ new Map();
+  for (const file of files) {
+    if (file.path.includes("/")) {
+      continue;
+    }
+    const language = ROOT_MANIFESTS[file.path.toLowerCase()];
+    if (language && !found.has(language)) {
+      found.set(language, file.path);
+    }
+  }
+  return found;
+}
+function countCodeFiles(files) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const file of files) {
+    if (file.isTest) {
+      continue;
+    }
+    const language = EXTENSION_LANGUAGES[file.extension];
+    if (language) {
+      counts.set(language, (counts.get(language) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+function manifestTestCommand(language, packageDir) {
+  if (language === "go") {
+    return {
+      command: "go test ./...",
+      reason: "go.mod at the repository root"
+    };
+  }
+  if (language === "rust") {
+    return packageDir ? {
+      command: `cargo test --manifest-path ${packageDir}/Cargo.toml`,
+      reason: `nearest crate (${packageDir}) declared by Cargo.toml`
+    } : { command: "cargo test", reason: "Cargo.toml at the repository root" };
+  }
+  return void 0;
+}
+function suggestedRunner(language, files) {
+  if (language === "python") {
+    const names = new Set(files.map((file) => file.path.toLowerCase()));
+    if (names.has("tox.ini")) {
+      return "tox";
+    }
+    if (names.has("pytest.ini") || names.has("pyproject.toml") || names.has("setup.cfg")) {
+      return "pytest";
+    }
+    return "pytest or unittest";
+  }
+  if (language === "go") {
+    return "go test ./...";
+  }
+  if (language === "rust") {
+    return "cargo test";
+  }
+  return void 0;
+}
+
 // packages/core/dist/import-graph.js
 var JS_EXTENSIONS = /* @__PURE__ */ new Set([".cjs", ".cts", ".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"]);
 var RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
@@ -1216,11 +1317,12 @@ function findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes) {
   if (testRoutes.length > 0 || !contextFiles.some((entry) => repo.files.find((file) => file.path === entry.path)?.kind === "code")) {
     return [];
   }
-  const hasPython = repo.files.some((file) => file.extension === ".py");
+  const { language, evidence } = detectPrimaryLanguage(repo);
+  const runner = suggestedRunner(language, repo.files);
   return [{
     code: "no-test-route",
     severity: "warning",
-    message: hasPython ? "No test command was routed. This Python repository has no supported package-script route; inspect pyproject.toml, tox.ini, or the test directory and choose the project runner explicitly." : "No test command was routed. FixMap found code context but no supported package test script, so tests were not assumed to be absent."
+    message: runner ? `No test command was routed. FixMap read this as a ${language} repository (${evidence}) and found no supported package script; \`${runner}\` is the runner that fits, but confirm it against the project's own configuration before relying on it.` : "No test command was routed. FixMap found code context but no supported package test script, so tests were not assumed to be absent."
   }];
 }
 function findTaskDiagnostics(grounding, ranking) {
@@ -1321,7 +1423,30 @@ function buildTestRoutes(repo, contextPaths) {
     if (routes.length === 3)
       break;
   }
+  if (routes.length === 0) {
+    const manifestRoute = buildManifestTestRoute(repo, codeContextPaths, relatedTests);
+    if (manifestRoute) {
+      routes.push(manifestRoute);
+    }
+  }
   return routes;
+}
+function buildManifestTestRoute(repo, codeContextPaths, relatedTests) {
+  const { language } = detectPrimaryLanguage(repo);
+  const crateDir = language === "rust" ? nearestManifestDir(repo, codeContextPaths, "Cargo.toml") : "";
+  const route = manifestTestCommand(language, crateDir);
+  if (!route) {
+    return void 0;
+  }
+  return {
+    command: route.command,
+    reason: route.reason,
+    relatedFiles: scopeToPackage(relatedTests.length > 0 ? relatedTests : codeContextPaths, crateDir)
+  };
+}
+function nearestManifestDir(repo, contextPaths, manifest) {
+  const manifestDirs = repo.files.filter((file) => file.path === manifest || file.path.endsWith(`/${manifest}`)).map((file) => file.path.split("/").slice(0, -1).join("/")).filter(Boolean);
+  return manifestDirs.filter((dir) => contextPaths.some((path) => path.startsWith(`${dir}/`))).sort((a, b) => b.split("/").length - a.split("/").length || a.localeCompare(b))[0] ?? "";
 }
 var RISK_RULES = [
   { area: "authentication", severity: "high", tokens: ["auth", "login", "password"], reason: "authentication-related files are affected" },

@@ -4,6 +4,7 @@ import {
   buildRankingShape
 } from "./grounding.js";
 import type { RankingShape, TaskGrounding } from "./grounding.js";
+import { detectPrimaryLanguage, manifestTestCommand, suggestedRunner } from "./languages.js";
 import { rankContextFiles } from "./rank.js";
 import { extractTaskSignals, tokenizePath } from "./signals.js";
 import { findGatedTestDiagnostics } from "./test-gates.js";
@@ -69,13 +70,22 @@ function findMissingTestRouteDiagnostics(
     return [];
   }
 
-  const hasPython = repo.files.some((file) => file.extension === ".py");
+  // Which language this is decides the wording, and asking "is there any .py file" got
+  // that wrong: clap-rs/clap is Rust and keeps a few helper scripts, so it was told to go
+  // read pyproject.toml. The root manifest is the deliberate declaration; a stray file
+  // extension is incidental.
+  const { language, evidence } = detectPrimaryLanguage(repo);
+  const runner = suggestedRunner(language, repo.files);
+
   return [{
     code: "no-test-route",
     severity: "warning",
-    message: hasPython
-      ? "No test command was routed. This Python repository has no supported package-script route; inspect pyproject.toml, tox.ini, or the test directory and choose the project runner explicitly."
-      : "No test command was routed. FixMap found code context but no supported package test script, so tests were not assumed to be absent."
+    message: runner
+      ? `No test command was routed. FixMap read this as a ${language} repository (${evidence}) ` +
+        `and found no supported package script; \`${runner}\` is the runner that fits, ` +
+        "but confirm it against the project's own configuration before relying on it."
+      : "No test command was routed. FixMap found code context but no supported package test script, " +
+        "so tests were not assumed to be absent."
   }];
 }
 
@@ -229,7 +239,54 @@ export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRout
     if (routes.length === 3) break;
   }
 
+  // Node package scripts are the only route FixMap knew, so a Go or Rust repository got
+  // ranked files and an empty command list — ranking without a way to check the change is
+  // half the job. Their toolchains each have exactly one test command, so it can be routed
+  // rather than guessed at.
+  if (routes.length === 0) {
+    const manifestRoute = buildManifestTestRoute(repo, codeContextPaths, relatedTests);
+    if (manifestRoute) {
+      routes.push(manifestRoute);
+    }
+  }
+
   return routes;
+}
+
+function buildManifestTestRoute(
+  repo: RepoMap,
+  codeContextPaths: string[],
+  relatedTests: string[]
+): TestRoute | undefined {
+  const { language } = detectPrimaryLanguage(repo);
+  const crateDir = language === "rust" ? nearestManifestDir(repo, codeContextPaths, "Cargo.toml") : "";
+  const route = manifestTestCommand(language, crateDir);
+  if (!route) {
+    return undefined;
+  }
+
+  return {
+    command: route.command,
+    reason: route.reason,
+    relatedFiles: scopeToPackage(relatedTests.length > 0 ? relatedTests : codeContextPaths, crateDir)
+  };
+}
+
+/**
+ * The deepest directory that both holds the named manifest and contains a top context
+ * file. Scoping a workspace command to the crate being edited keeps the route honest for
+ * the same reason package scripts are scoped: a command that cannot reach a file should
+ * not list it.
+ */
+function nearestManifestDir(repo: RepoMap, contextPaths: string[], manifest: string): string {
+  const manifestDirs = repo.files
+    .filter((file) => file.path === manifest || file.path.endsWith(`/${manifest}`))
+    .map((file) => file.path.split("/").slice(0, -1).join("/"))
+    .filter(Boolean);
+
+  return manifestDirs
+    .filter((dir) => contextPaths.some((path) => path.startsWith(`${dir}/`)))
+    .sort((a, b) => b.split("/").length - a.split("/").length || a.localeCompare(b))[0] ?? "";
 }
 
 const RISK_RULES: { area: string; severity: RiskNote["severity"]; tokens: string[]; reason: string }[] = [

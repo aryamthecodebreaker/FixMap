@@ -9,6 +9,8 @@ export {
   buildRankingShape
 } from "./grounding.js";
 export { buildImportGraph, findImportProximity } from "./import-graph.js";
+export { detectPrimaryLanguage } from "./languages.js";
+export type { LanguageDetection, PrimaryLanguage } from "./languages.js";
 export { rankContextFiles } from "./rank.js";
 export { buildRiskNotes, buildSummary, buildTestRoutes, renderJsonReport, renderMarkdownReport } from "./report.js";
 export { scanRepo } from "./repo-scan.js";
