@@ -31,21 +31,21 @@ These 12 repositories were selected **after** the v0.7.1 ranker was finished, by
 
 ## Results
 
-Measured 2026-07-26 (Node v24, `rankContextFiles` with a top-5 window):
+Measured 2026-07-31 (Node v24, `rankContextFiles` with a top-5 window):
 
 | Metric | Held-out (12 cases) | Regression suite (15 cases) |
 | --- | ---: | ---: |
-| top-1 | **8/12 (66.7%)** | 9/15 (60.0%) |
+| top-1 | **7/12 (58.3%)** | 10/15 (66.7%) |
 | top-3 | **9/12 (75.0%)** | 15/15 (100.0%) |
 | top-5 | **9/12 (75.0%)** | 15/15 (100.0%) |
 
 Read those two columns together, because the gap is the point.
 
-Top-1 does not degrade on unseen repositories — it is slightly higher. That is the strongest single piece of evidence in this repository: the signals FixMap ranks on (exact definitions, path and content matches, import proximity, changed files) transfer to code it was never shaped by.
+Top-1 is lower on the untouched held-out repositories than on the development suite. The difference is small enough that the confidence intervals overlap substantially, but it is still the honest result to publish rather than a number to explain away.
 
 Top-3 and top-5 drop from 100% to 75%. That difference is what tuning bought on the regression suite and nothing more. **75% is the honest number to plan around**, and 100% should not be quoted as an accuracy claim.
 
-The three misses — `jestjs/jest`, `vitejs/vite`, and `vuejs/core` — are recorded in [`results.json`](results.json) with their actual top-five rankings. They are not removed, reweighted, or explained away.
+The three misses — `socketio/socket.io`, `vitejs/vite`, and `vuejs/core` — are recorded in [`results.json`](results.json) with their actual top-five rankings. They are not removed, reweighted, or explained away.
 
 ## Confidence calibration
 
@@ -53,11 +53,11 @@ Both suites record the confidence label on the top-ranked file, so the label can
 
 | Top result labeled | Correct | Accuracy |
 | --- | ---: | ---: |
-| high | 11 / 15 | 73% |
-| medium | 5 / 8 | 63% |
-| low | 1 / 4 | 25% |
+| high | 9 / 15 | 60% |
+| medium | 6 / 8 | 75% |
+| low | 2 / 4 | 50% |
 
-The ordering is monotonic, which is the property that matters — the label discriminates. But high does not mean certain, and a 15-case band cannot carry a precise percentage. Counts are published so readers can weigh that themselves. Per-suite figures are in each `results.json` under `calibration`.
+The ordering is not monotonic in this small sample, so the labels must not be read as calibrated probabilities. Counts are published so readers can weigh that limitation themselves. Per-suite figures are in each `results.json` under `calibration`.
 
 ## Running it
 

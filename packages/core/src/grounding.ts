@@ -8,7 +8,7 @@ import type {
 
 const MAX_IDENTIFIER_MATCHED_FILES = 5;
 const VAGUE_TASK_PATTERN =
-  /\b(?:improve|better|clean\s+up|cleanup|refactor|developer\s+experience|dx|general|overall|errors?|reliability|performance)\b/i;
+  /\b(?:improve|better|clean\s+up|cleanup|refactor|developer\s+experience|dx|general|overall|errors?|reliability|performance|codebase|quality|make|things?|please)\b/i;
 // Same vocabulary, global, for stripping rather than detecting. A `g` regex carries
 // lastIndex between calls, so detection keeps its own non-global copy.
 const VAGUE_TASK_TERMS = new RegExp(VAGUE_TASK_PATTERN.source, "gi");

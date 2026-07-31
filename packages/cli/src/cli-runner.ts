@@ -12,11 +12,16 @@ import {
   type FileExplanation,
   type FixMapReport
 } from "@aryam/fixmap-core";
-import { buildReportForRepository, type RepositoryPlanInput } from "./repository-source.js";
+import {
+  buildReportForRepository,
+  parseGitHubIssueSource,
+  type RepositoryPlanInput
+} from "./repository-source.js";
 
 export type CliOptions = {
   command: string;
   issueText: string;
+  issueFile?: string | undefined;
   repo?: string | undefined;
   diffSpec?: string | undefined;
   baseRef?: string | undefined;
@@ -36,6 +41,7 @@ export type CliDependencies = {
   stderr?: (text: string) => void;
   stdout?: (text: string) => void;
   writeReport?: (path: string, contents: string) => Promise<void>;
+  readIssueFile?: (path: string | number) => string;
 };
 
 export const USAGE = `FixMap maps an issue, prompt, or diff to context files, test routes, and review risks.
@@ -43,6 +49,8 @@ export const USAGE = `FixMap maps an issue, prompt, or diff to context files, te
 Usage:
   fixmap plan --issue "Users cannot reset passwords"
   fixmap plan --issue https://github.com/owner/repository/issues/123
+  fixmap plan --issue-file task.md
+  fixmap plan --issue -
   fixmap plan --issue "Fix login" --repo https://github.com/owner/repository
   fixmap plan --diff main...HEAD
   fixmap plan --base main --head HEAD --format json
@@ -56,6 +64,7 @@ Commands:
 
 Options:
   --issue <text|url>  Issue text, task description, or public GitHub issue URL
+  --issue-file <file> Read task text from a UTF-8 file (use - for stdin)
   --diff <spec>       Git diff spec, such as main...HEAD
   --base <ref>        Base ref for diffing when --diff is not given
   --head <ref>        Head ref for diffing (defaults to HEAD)
@@ -114,6 +123,13 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return runVerify(options, { stdout, stderr });
   }
 
+  try {
+    options.issueText = loadIssueText(options, dependencies.readIssueFile ?? defaultReadIssueFile);
+  } catch (error) {
+    stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
+
   if (!options.issueText && !options.diffSpec && !options.baseRef) {
     stderr("Provide --issue, --diff, or --base/--head so FixMap has a task signal.\n");
     return 1;
@@ -165,6 +181,13 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       );
       return 1;
     }
+    if (report.changedFiles.length === 0) {
+      stderr(
+        "The requested diff resolved to zero changed files and no --issue text was provided. " +
+        "Choose a non-empty diff or add --issue.\n"
+      );
+      return 1;
+    }
   }
 
   const rendered = options.format === "json" ? renderJsonReport(report) : renderMarkdownReport(report);
@@ -199,18 +222,29 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
  * the suggestion obviously useful and stays quiet otherwise.
  */
 function nextCommandHint(options: CliOptions, report: FixMapReport): string | undefined {
-  if (options.output && options.format === "json") {
-    const diff = options.diffSpec ?? "main...HEAD";
-    return `\nAfter you make the change, check it against this plan:\n  fixmap verify --report ${options.output} --diff ${diff}\n`;
+  if (report.contextFiles.length === 0 || report.analysis?.grounding.specificity === "vague") {
+    return `\n${report.analysis?.nextAction ?? "Add a concrete repository anchor and rerun FixMap."}\n`;
   }
 
   const leading = report.contextFiles[0];
-  const weak =
-    report.contextFiles.length === 0 ||
-    leading?.confidence === "low" ||
-    report.analysis?.ranking.clustered === true;
-  if (weak) {
-    return "\nExpected a file that is not listed? Ask why it was left out:\n  fixmap plan --issue \"<same task>\" --explain <path>\n";
+  if (leading?.confidence === "low" || report.analysis?.ranking.clustered === true) {
+    return `\n${report.analysis?.nextAction ?? "Refine the task with a concrete symbol, error, or path before editing."}\n`;
+  }
+
+  if (options.output && options.format === "json") {
+    const remoteIssue = options.issueText ? parseGitHubIssueSource(options.issueText) : undefined;
+    const remoteRepo = /^https?:\/\//i.test(options.repo ?? "") || (remoteIssue && !options.repo);
+    const diff = options.diffSpec ??
+      (options.baseRef ? `${options.baseRef}...${options.headRef ?? "HEAD"}` : "<base>...HEAD");
+    const repo = remoteRepo
+      ? " --repo <local-checkout>"
+      : options.repo
+        ? ` --repo ${quoteCliValue(options.repo)}`
+        : "";
+    const prefix = remoteRepo
+      ? "\nAfter you clone and edit the scanned repository, check it against this plan:\n"
+      : "\nAfter you make the change, check it against this plan:\n";
+    return `${prefix}  fixmap verify --report ${quoteCliValue(options.output)} --diff ${diff}${repo}\n`;
   }
 
   return undefined;
@@ -219,6 +253,7 @@ function nextCommandHint(options: CliOptions, report: FixMapReport): string | un
 export function parseArgs(args: string[]): CliOptions {
   const command = args[0] ?? "";
   let issueText = "";
+  let issueFile: string | undefined;
   let repo: string | undefined;
   let diffSpec: string | undefined;
   let baseRef: string | undefined;
@@ -229,6 +264,7 @@ export function parseArgs(args: string[]): CliOptions {
   let reportPath: string | undefined;
   const unknownArgs: string[] = [];
   const invalidValues: string[] = [];
+  let issueCount = 0;
 
   for (let index = 1; index < args.length; index += 1) {
     const rawArg = args[index];
@@ -243,7 +279,8 @@ export function parseArgs(args: string[]): CliOptions {
     const canConsumeFollowing =
       inlineValue === undefined &&
       followingValue !== undefined &&
-      !followingValue.startsWith("-");
+      (!followingValue.startsWith("-") ||
+        ((arg === "--issue" || arg === "--issue-file") && followingValue === "-"));
     const value = inlineValue ?? (canConsumeFollowing ? followingValue : undefined);
     const consumeValue = () => {
       if (canConsumeFollowing) {
@@ -253,8 +290,15 @@ export function parseArgs(args: string[]): CliOptions {
 
     if (arg === "--issue") {
       consumeValue();
-      if (value?.trim()) issueText = value;
+      issueCount += 1;
+      if (issueCount > 1) invalidValues.push("pass only one --issue value");
+      else if (value?.trim()) issueText = value;
       else invalidValues.push('--issue requires non-empty text or a GitHub issue URL');
+    } else if (arg === "--issue-file") {
+      consumeValue();
+      if (issueFile !== undefined) invalidValues.push("pass only one --issue-file value");
+      else if (value?.trim()) issueFile = value.trim();
+      else invalidValues.push("--issue-file requires a UTF-8 file path or - for stdin");
     } else if (arg === "--diff") {
       consumeValue();
       if (value?.trim()) diffSpec = value;
@@ -298,6 +342,7 @@ export function parseArgs(args: string[]): CliOptions {
   return {
     command,
     issueText,
+    issueFile,
     repo,
     diffSpec,
     baseRef,
@@ -309,6 +354,42 @@ export function parseArgs(args: string[]): CliOptions {
     unknownArgs,
     invalidValues
   };
+}
+
+function loadIssueText(
+  options: CliOptions,
+  read: (path: string | number) => string
+): string {
+  const implicitFile = options.issueText.startsWith("@") ? options.issueText.slice(1) : undefined;
+  const path = options.issueFile ?? implicitFile ?? (options.issueText === "-" ? "-" : undefined);
+  if (!path) {
+    return options.issueText.trim();
+  }
+  if (options.issueFile && options.issueText) {
+    throw new Error("Use either --issue or --issue-file, not both.");
+  }
+  const source = path === "-" ? 0 : path;
+  let text: string;
+  try {
+    text = read(source);
+  } catch (error) {
+    throw new Error(
+      `Could not read issue text from ${path === "-" ? "stdin" : `\"${path}\"`}: ` +
+      `${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+  if (!text.trim()) {
+    throw new Error(`Issue text from ${path === "-" ? "stdin" : `\"${path}\"`} was empty.`);
+  }
+  return text.trim();
+}
+
+function defaultReadIssueFile(path: string | number): string {
+  return readFileSync(path, "utf8");
+}
+
+function quoteCliValue(value: string): string {
+  return /\s/.test(value) ? `"${value.replaceAll('"', '\\"')}"` : value;
 }
 
 function readVersion(): string {

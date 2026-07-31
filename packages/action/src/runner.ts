@@ -7,6 +7,12 @@ import {
   isPermissionDeniedError,
   type PullRequestEvent
 } from "./github.js";
+import {
+  fetchActionIssue,
+  parseActionIssueSource,
+  type ActionIssueSource,
+  type ActionIssue
+} from "./issue-source.js";
 
 const STEP_SUMMARY_LIMIT_BYTES = 1024 * 1024;
 const TRUNCATION_FOOTER =
@@ -20,6 +26,7 @@ export type ActionDependencies = {
   readFile?: (path: string) => string;
   stdout?: (text: string) => void;
   uuid?: () => string;
+  fetchIssue?: (source: ActionIssueSource) => Promise<ActionIssue>;
 };
 
 export async function runAction(
@@ -30,11 +37,26 @@ export async function runAction(
   const readFile = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
   const stdout = dependencies.stdout ?? ((text) => process.stdout.write(text));
   const event = readEvent(env.GITHUB_EVENT_PATH, readFile);
-  const issue = readInput("issue", env) || buildPullRequestIssueText(event);
+  const rawIssue = readInput("issue", env) || buildPullRequestIssueText(event);
   const diffSpec = readInput("diff", env);
   const baseRef = readInput("base", env) || (env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : undefined);
   const headRef = readInput("head", env) || (env.GITHUB_HEAD_REF ? "HEAD" : undefined);
-  const format = readInput("format", env) === "json" ? "json" : "markdown";
+  const format = parseFormat(readInput("format", env));
+
+  const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : undefined;
+  if (issueSource && env.GITHUB_REPOSITORY &&
+    env.GITHUB_REPOSITORY.toLowerCase() !== `${issueSource.owner}/${issueSource.repository}`.toLowerCase()) {
+    throw new Error(
+      `Issue ${issueSource.displayUrl} belongs to ${issueSource.owner}/${issueSource.repository}, ` +
+      `but this Action is scanning ${env.GITHUB_REPOSITORY}.`
+    );
+  }
+  const fetchedIssue = issueSource
+    ? await (dependencies.fetchIssue ?? fetchActionIssue)(issueSource)
+    : undefined;
+  const issue = fetchedIssue
+    ? [fetchedIssue.title, fetchedIssue.body].filter(Boolean).join("\n\n")
+    : rawIssue;
 
   if (!issue && !diffSpec && !baseRef) {
     throw new Error("FixMap needs a pull_request event, an issue input, or a diff/base input to build a useful report.");
@@ -47,6 +69,13 @@ export async function runAction(
     baseRef,
     headRef
   });
+  if (issueSource) {
+    report.diagnostics.unshift({
+      code: "remote-issue-fetched",
+      severity: "info",
+      message: `Fetched ${issueSource.displayUrl} anonymously and used its title${fetchedIssue?.body ? " and body" : ""} as task context.`
+    });
+  }
   const markdown = renderMarkdownReport(report);
   const output = format === "json" ? renderJsonReport(report) : markdown;
 
@@ -75,6 +104,17 @@ export async function runAction(
       );
     }
   }
+}
+
+function parseFormat(value: string | undefined): "markdown" | "json" {
+  if (!value) {
+    return "markdown";
+  }
+  const normalized = value.toLowerCase();
+  if (normalized === "markdown" || normalized === "json") {
+    return normalized;
+  }
+  throw new Error(`Invalid format input ${JSON.stringify(value)}; expected markdown or json.`);
 }
 
 export function renderActionOutputs(

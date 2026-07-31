@@ -63,4 +63,30 @@ describe("GitHub Action runner", () => {
     expect(writes[1]?.contents).toContain("\nfixmap_stableid\ncontext-count=1\n");
     expect(stdout).toHaveBeenCalledOnce();
   });
+
+  it("accepts case-insensitive format input", async () => {
+    const stdout = vi.fn();
+    await runAction({ INPUT_ISSUE: "password reset", INPUT_FORMAT: "JSON" }, {
+      buildReport: vi.fn(async () => structuredClone(report)),
+      stdout
+    });
+
+    expect(stdout.mock.calls[0]?.[0]).toContain('"contextFiles"');
+  });
+
+  it("fetches same-repository GitHub issue URLs before ranking", async () => {
+    const buildReport = vi.fn(async () => structuredClone(report));
+    await runAction({
+      GITHUB_REPOSITORY: "owner/repository",
+      INPUT_ISSUE: "https://github.com/owner/repository/issues/123"
+    }, {
+      buildReport,
+      fetchIssue: async () => ({ title: "Reset emails fail", body: "Password reset is broken" }),
+      stdout: vi.fn()
+    });
+
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({
+      issueText: "Reset emails fail\n\nPassword reset is broken"
+    }));
+  });
 });

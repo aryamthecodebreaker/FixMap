@@ -3,6 +3,54 @@ import { rankContextFiles } from "../src/rank.js";
 import type { RepoMap } from "../src/types.js";
 
 describe("rankContextFiles", () => {
+  it("lets an exact definition site beat vocabulary-dense consumers", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "src/constant.js", extension: ".js", sizeBytes: 40, isSource: true,
+          isTest: false, kind: "code", textSample: "export const REGEX_FORMAT = /Y{1,4}/;"
+        },
+        {
+          path: "src/plugin/parser.js", extension: ".js", sizeBytes: 500, isSource: true,
+          isTest: false, kind: "code",
+          textSample: "format token year offset timezone fallback parser parse custom duration"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "REGEX_FORMAT matches Y and YYY as year tokens but format has no handler"
+    });
+
+    expect(ranked[0]?.path).toBe("src/constant.js");
+    expect(ranked[0]?.reasons).toContain("defines task identifiers: REGEX_FORMAT");
+  });
+
+  it("keeps task terms when every file shares the same vocabulary", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: Array.from({ length: 20 }, (_, index) => ({
+        path: `src/template-${index}.ts`, extension: ".ts", sizeBytes: 50, isSource: true,
+        isTest: false, kind: "code" as const, textSample: "password reset email token"
+      }))
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "password reset email token" });
+
+    expect(ranked).toHaveLength(8);
+    expect(ranked[0]?.reasons.join(" ")).toContain("password");
+  });
   it("prioritizes definitions whose compound name matches multiple task terms", () => {
     const repo: RepoMap = {
       root: "/repo",

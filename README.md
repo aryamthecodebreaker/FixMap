@@ -26,6 +26,12 @@ npx -y @aryam/fixmap@latest plan --issue https://github.com/aryamthecodebreaker/
 
 No clone, signup, configuration, or source upload is required.
 
+If an older FixMap is installed globally, some npm/npx combinations on Windows can resolve the old global `fixmap` shim even when a package version is pinned. Remove it with `npm uninstall -g @aryam/fixmap`, or use the unambiguous form:
+
+```bash
+npm exec --yes --package=@aryam/fixmap@0.7.4 -- fixmap --version
+```
+
 | Command | Answers |
 | --- | --- |
 | [`fixmap plan`](#cli) | Which files, tests, and risks should I look at first? |
@@ -88,6 +94,15 @@ npx -y @aryam/fixmap@latest plan \
 
 Remote repository mode is issue-only. Clone the repository locally when you need `--diff`, `--base`, or `--head`.
 
+For long or private task text, avoid shell command-length limits by reading UTF-8 text from a file or stdin:
+
+```bash
+npx -y @aryam/fixmap@latest plan --issue-file task.md
+Get-Content task.md -Raw | npx -y @aryam/fixmap@latest plan --issue -
+```
+
+`--issue @task.md` is also accepted as a file shorthand. Repeated `--issue` flags are rejected instead of silently discarding the earlier task.
+
 ### Ask why
 
 Every report explains the files it chose. `--explain` answers the harder question — why a file you expected is missing:
@@ -134,11 +149,11 @@ FixMap verified 3 changed files against the plan and raised 1 error and 2 warnin
 
 It checks five things: edits in generated or retired locations, files the change needed that the plan never ranked, an untouched leading file, source moving with no test moving, and risk areas the plan never flagged. Nothing is executed — both inputs are things you already have.
 
-Only a discarded edit exits non-zero, because that one is wrong regardless of the task. Everything else is advisory: a plan can be wrong and a change can still be right, and FixMap reports the gap rather than judging it. `verify` is CLI-only for now; MCP and Action support follow.
+Only a discarded, untracked generated edit exits non-zero. A committed generated release artifact is a warning: confirm its maintained source changed and it was rebuilt. Everything else is advisory because a plan can be wrong and a change can still be right.
 
 ### MCP server
 
-FixMap exposes one stdio tool, `fixmap_plan`, so an agent can request the same report directly.
+FixMap exposes two stdio tools: `fixmap_plan` builds the starting map, and `fixmap_verify` compares that JSON report with the diff produced after editing.
 
 Claude Code:
 
@@ -206,7 +221,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.7.3
+        uses: aryamthecodebreaker/FixMap@v0.7.4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -239,15 +254,15 @@ FixMap is measured against real issues that were later fixed by a merged pull re
 
 | | Held-out — 12 repos, **never tuned against** | Regression — 15 repos, guided development |
 | --- | ---: | ---: |
-| Fixing file ranked Top-1 | **8 / 12 — 67%** <br><sub>95% CI 39–86%</sub> | 9 / 15 — 60% <br><sub>95% CI 36–80%</sub> |
+| Fixing file ranked Top-1 | **7 / 12 — 58%** <br><sub>95% CI 32–81%</sub> | 10 / 15 — 67% <br><sub>95% CI 42–85%</sub> |
 | Fixing file ranked Top-3 | **9 / 12 — 75%** <br><sub>95% CI 47–91%</sub> | 15 / 15 — 100% <br><sub>95% CI 80–100%</sub> |
-| Wrong file ranked first while the right one was available | **1 / 12 — 8%** | 6 / 15 — 40% |
+| Wrong file ranked first while the right one was available | **2 / 12 — 17%** | 5 / 15 — 33% |
 
 **Plan around the held-out column.** The regression suite is where the ranking heuristics were developed — a case missed, the ranker changed — so its 100% describes fit, not accuracy on your repository.
 
 **And read the intervals, not the percentages.** At twelve cases one result flipping moves Top-3 from 67% to 83%. The honest statement is "somewhere in the region of three quarters", not "75%". Anyone quoting these figures to two significant figures, including us, is overstating them.
 
-Two things the point estimates hide. Held-out Top-1 (67%) is nearly its Top-3 (75%) — **when FixMap finds the file at all, it usually ranks it first**, which is what actually matters to an agent that opens one file. The tuned suite's 100% Top-3 conceals the opposite: in 40% of those cases something wrong ranks above the answer, so an agent following it opens the wrong file first.
+Two things the point estimates hide. Held-out Top-1 (58%) remains close to its Top-3 (75%) — **when FixMap finds the file at all, it usually ranks it first**, which is what actually matters to an agent that opens one file. The tuned suite's 100% Top-3 still conceals that in 33% of those cases something wrong ranks above the answer, so an agent following it opens the wrong file first.
 
 The three held-out misses are published with their real rankings in [`benchmarks/heldout/`](benchmarks/heldout), not removed or explained away.
 
@@ -261,11 +276,11 @@ A confidence label is only useful if it predicts something. Across all 27 cases 
 
 | Top result labeled | Correct fixing file | | |
 | --- | ---: | ---: | --- |
-| high | 11 / 15 | **73%** | <sub>95% CI 48–89%</sub> |
-| medium | 5 / 8 | 63% | <sub>95% CI 31–86%</sub> |
-| low | 1 / 4 | 25% | <sub>95% CI 5–70%</sub> |
+| high | 9 / 15 | **60%** | <sub>95% CI 36–80%</sub> |
+| medium | 6 / 8 | 75% | <sub>95% CI 41–93%</sub> |
+| low | 2 / 4 | 50% | <sub>95% CI 15–85%</sub> |
 
-The ordering holds, so the label carries real information — but **high confidence means roughly three in four, not certainty.** Treat the top result as a lead worth checking first, not a conclusion. The intervals overlap at these sample sizes, so read the ordering as directional rather than as three separate measured rates.
+The bands are not monotonic in this 27-case sample, so the label is a heuristic rather than a calibrated probability. **High confidence still means “check this lead first,” not certainty.** The intervals overlap heavily at these sample sizes, and the raw counts are published so the limitation is visible.
 
 ### Does it stay quiet when it should?
 
@@ -286,11 +301,11 @@ Read the full [benchmark methodology and scanner measurements](docs/BENCHMARKS.m
 npm run evaluate:heldout
 ```
 
-## What changed in v0.7.3
+## What changed in v0.7.4
 
-`fixmap verify` closes the loop: it compares a saved plan against the diff that followed, flagging edits a build will discard, files the change needed that the plan never ranked, source moving without tests, and risk the plan never mentioned.
+v0.7.4 is a reliability release driven by 27 reproducible community reports. Ranking now favors exact definition sites over vocabulary-heavy consumers, filters URL and short-stem noise, handles homogeneous repositories without erasing every query term, and keeps examples and demo surfaces below first-party implementation unless the task targets them.
 
-Test routes now list only the tests each command can actually run. Every route previously carried the same repository-wide list, so a report claimed `npm --prefix packages/core run test` would exercise another package's tests.
+The CLI now accepts `--issue-file`, stdin, and `@file`; rejects duplicate task flags and unsupported GitHub URLs; catches issue/repository mismatches and empty diffs; and emits next-step guidance that matches the actual result. MCP gains `fixmap_verify`, the Action fetches issue URLs consistently and validates format input, Python/no-runner reports explain missing test routes, issue-only risks are honestly low confidence, and tracked Action bundles no longer fail verification as discarded edits.
 
 [Inspect the changelog](CHANGELOG.md) · [See the held-out results](benchmarks/heldout/README.md) · [See every regression ranking](benchmarks/external/README.md) · [Audit the efficiency assumptions](docs/BENCHMARKS.md)
 

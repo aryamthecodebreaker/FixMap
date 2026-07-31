@@ -49,6 +49,7 @@ export async function scanRepo(input: Pick<FixMapInput, "repoRoot" | "baseRef" |
 
   const diagnostics: RepoMap["diagnostics"] = [];
   const files = await listFiles(input.repoRoot, diagnostics);
+  const trackedFiles = await listTrackedPaths(input.repoRoot);
   const packageScripts = await readPackageScripts(input.repoRoot, files, diagnostics);
   const diffSpec = resolveDiffSpec(input);
   const diff = await readDiff(input.repoRoot, diffSpec, diagnostics);
@@ -56,12 +57,26 @@ export async function scanRepo(input: Pick<FixMapInput, "repoRoot" | "baseRef" |
   return {
     root: input.repoRoot,
     files,
+    trackedFiles,
     packageScripts,
     changedFiles: diff.changedFiles,
     diffText: diff.diffText,
     packageManager: detectPackageManager(files),
     diagnostics
   };
+}
+
+async function listTrackedPaths(root: string): Promise<string[]> {
+  try {
+    const { stdout } = await exec(
+      "git",
+      ["ls-files", "--cached", "-z"],
+      { cwd: root, maxBuffer: GIT_MAX_BUFFER }
+    );
+    return stdout.split("\0").filter(Boolean).map(normalizePath);
+  } catch {
+    return [];
+  }
 }
 
 function resolveDiffSpec(input: Pick<FixMapInput, "baseRef" | "headRef" | "diffSpec">): string | undefined {

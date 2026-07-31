@@ -12,7 +12,7 @@ import type { RankedFile, RepoMap } from "./types.js";
 
 export type FileExplanation = {
   path: string;
-  status: "ranked" | "below-cutoff" | "excluded" | "not-scanned";
+  status: "ranked" | "below-cutoff" | "outside-limit" | "excluded" | "not-scanned";
   rank?: number;
   score?: number;
   confidence?: RankedFile["confidence"];
@@ -53,16 +53,18 @@ export function explainFile(
   const everything = rankContextFiles(repo, input, Number.MAX_SAFE_INTEGER, Number.NEGATIVE_INFINITY);
   const scored = everything.find((file) => file.path === path);
   const lowestReported = reported[reported.length - 1]?.score;
+  const outsideLimit = scored !== undefined && lowestReported !== undefined && scored.score >= lowestReported;
 
   return {
     path,
-    status: "below-cutoff",
+    status: outsideLimit ? "outside-limit" : "below-cutoff",
     score: scored?.score ?? 0,
     cutoff: lowestReported ?? REPORT_SCORE_CUTOFF,
     reasons: scored?.reasons ?? [],
-    summary:
-      `Scored ${scored?.score ?? 0}, below the ${reported.length > 0 ? `lowest reported score of ${lowestReported}` : `reporting cutoff of ${REPORT_SCORE_CUTOFF}`}. ` +
-      "Name a symbol, error string, or path from this file in the task to raise it."
+    summary: outsideLimit
+      ? `Scored ${scored.score}, tied with or above the lowest reported score of ${lowestReported}, but fell outside the top ${reported.length} after score and path tie-breaking.`
+      : `Scored ${scored?.score ?? 0}, below the ${reported.length > 0 ? `lowest reported score of ${lowestReported}` : `reporting cutoff of ${REPORT_SCORE_CUTOFF}`}. ` +
+        "Name a symbol, error string, or path from this file in the task to raise it."
   };
 }
 

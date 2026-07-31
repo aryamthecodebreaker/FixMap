@@ -72,10 +72,18 @@ export class RepositorySourceError extends Error {
 
 export function parseGitHubIssueSource(input: string): ParsedGitHubIssueSource | undefined {
   const trimmed = input.trim();
+  const looksLikeStandaloneGitHubUrl =
+    /^https?:\/\/(?:[^/@\s]+@)?github\.com[\\/]\S+$/i.test(trimmed);
   const looksLikeGitHubIssue =
     /^https?:\/\/(?:[^/@\s]+@)?github\.com[\\/]/i.test(trimmed) &&
     /[\\/]issues(?:[\\/]|%(?:2f|5c))/i.test(trimmed);
   if (!looksLikeGitHubIssue) {
+    if (looksLikeStandaloneGitHubUrl) {
+      throw new RepositorySourceError(
+        "Only canonical public GitHub issue URLs are supported as --issue input. " +
+        "Pull request, discussion, compare, tree, and file URLs are not fetched; use --diff on a local checkout or paste the task text."
+      );
+    }
     return undefined;
   }
   if (
@@ -351,14 +359,20 @@ export async function buildReportForRepository(
     : undefined;
   const repoInput = input.repo ?? issueSource?.repositoryUrl ?? process.cwd();
   const source = parseRepositorySource(repoInput);
+  const localRepositoryUrl = issueSource && source.kind === "local"
+    ? await findLocalGitHubRepositoryUrl(source.repoRoot)
+    : undefined;
   if (
     issueSource &&
-    source.kind === "github" &&
-    source.displayUrl.toLowerCase() !== issueSource.repositoryUrl.toLowerCase()
+    ((source.kind === "github" &&
+      source.displayUrl.toLowerCase() !== issueSource.repositoryUrl.toLowerCase()) ||
+      (source.kind === "local" && localRepositoryUrl &&
+        localRepositoryUrl.toLowerCase() !== issueSource.repositoryUrl.toLowerCase()))
   ) {
+    const actualRepository = source.kind === "github" ? source.displayUrl : localRepositoryUrl;
     throw new RepositorySourceError(
       `GitHub issue "${issueSource.displayUrl}" belongs to ${issueSource.repositoryUrl}, ` +
-      `but --repo points to ${source.displayUrl}. Remove --repo or use the matching repository.`
+      `but the scanned repository is ${actualRepository}. Remove --repo or use the matching repository.`
     );
   }
   if (
@@ -419,6 +433,23 @@ export async function buildReportForRepository(
       });
     }
   );
+}
+
+async function findLocalGitHubRepositoryUrl(repoRoot: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await exec(
+      "git",
+      ["-C", repoRoot, "remote", "get-url", "origin"],
+      { maxBuffer: GIT_MAX_BUFFER, windowsHide: true }
+    );
+    const remote = stdout.trim().replace(/\.git$/i, "");
+    const match = remote.match(/(?:https?:\/\/|ssh:\/\/git@|git@)github\.com[/:]([^/\s]+)\/([^/\s]+)$/i);
+    return match?.[1] && match[2]
+      ? `https://github.com/${match[1]}/${match[2]}`
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function withRepositorySource<T>(

@@ -2,15 +2,32 @@
 
 All notable changes to FixMap are documented here.
 
-## Unreleased
+## 0.7.4 - 2026-07-31
 
 ### Fixed
 
-- Risk notes are no longer derived from demo code. Express ships `examples/auth/`, which the ranker already deprioritizes as example code — but the risk map still read it, turning a low-confidence demo file into "**high** authentication: authentication-related files are affected" on a task about request body parsing. A risk derived from evidence the ranking itself discounted is precisely the confident-but-wrong output the diagnostics exist to prevent. Changed files still count wherever they live, because a diff is fact rather than a guess.
+- Definition sites now outweigh vocabulary-dense consumers, regex quantifiers contribute searchable repeated tokens, and example/demo/presentation surfaces receive a meaningful task-aware penalty (#102, #105, #128).
+- URL scheme and host text no longer becomes ranking evidence; unsupported standalone GitHub PR, discussion, compare, tree, and file URLs fail clearly; issue URLs are checked against local or remote repository identity (#109, #112, #113).
+- Short trailing-e words no longer collapse into three-letter noise stems, and generic improve-the-codebase wording is classified as vague and returns no edit list (#106, #108).
+- Homogeneous repositories keep task vocabulary when boilerplate filtering would otherwise remove every query term (#119).
+- Empty, vague, low-confidence, clustered, remote, and saved plans now receive accurate next-step guidance. Verify hints preserve explicit repository/diff context and never invent `main...HEAD`; empty diffs without task text fail clearly (#104, #110, #111, #121, #127).
+- `--explain` distinguishes score ties outside the top-N limit from files that actually scored below the reporting floor (#116).
+- Tracked generated release artifacts such as `packages/action/dist/index.mjs` produce a rebuild warning instead of a discarded-edit error (#107).
+- The GitHub Action fetches canonical issue URLs before ranking, rejects cross-repository issue input, and accepts format values case-insensitively while rejecting invalid values (#123, #124).
+- MCP trims whitespace-only inputs and rejects them as missing task signals (#125).
+- Issue-only risk notes use low severity and prospective wording; full severity is reserved for diff evidence (#126).
+- Reports with code context but no supported test runner emit an explicit `no-test-route` diagnostic, including Python guidance (#114).
+- The web demo now describes the measured `sendMail` ranking rather than implying the transport file wins (#129).
 
 ### Added
 
-- The CLI now points at the next useful command. Saving a JSON plan suggests the `verify` invocation for it; a weak, empty, or tightly clustered ranking suggests `--explain`. Hints go to stderr, so reports piped to a file, parsed as JSON, or posted by the Action are unchanged, and only one appears per run.
+- `--issue-file <path>`, `--issue -` stdin, and `--issue @path` support large/private task text without Windows command-line limits; duplicate `--issue` flags now fail instead of silently using the last value (#115, #117, #118).
+- MCP now exposes `fixmap_verify`, closing the plan-edit-verify loop for MCP-only agents (#120).
+- The README documents the npm/npx stale-global-shim failure mode and the unambiguous `npm exec --package ... -- fixmap` invocation (#103).
+
+### Evidence
+
+- Refreshed all recorded evaluation outputs after the ranking changes. The untouched held-out suite remains 9/12 Top-3 (75%) and is now 7/12 Top-1 (58%); the development regression suite improves to 10/15 Top-1 (67%) while remaining 15/15 Top-3/5. The adversarial suite remains 8/8 with zero false-confidence cases.
 
 ## 0.7.3 - 2026-07-26
 

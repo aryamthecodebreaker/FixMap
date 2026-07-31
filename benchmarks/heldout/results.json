@@ -1,12 +1,12 @@
 {
   "cases": 12,
-  "top1HitRate": 0.667,
+  "top1HitRate": 0.583,
   "top3HitRate": 0.75,
   "top5HitRate": 0.75,
   "intervals95": {
     "top1": [
-      0.391,
-      0.862
+      0.32,
+      0.807
     ],
     "top3": [
       0.468,
@@ -18,10 +18,11 @@
     ]
   },
   "misleadingTopResult": {
-    "cases": 1,
+    "cases": 2,
     "of": 12,
-    "rate": 0.083,
+    "rate": 0.167,
     "slugs": [
+      "jestjs/jest",
       "mochajs/mocha"
     ]
   },
@@ -29,11 +30,11 @@
     {
       "confidence": "high",
       "cases": 8,
-      "top1Correct": 6,
-      "top1Accuracy": 0.75,
+      "top1Correct": 5,
+      "top1Accuracy": 0.625,
       "interval95": [
-        0.409,
-        0.929
+        0.306,
+        0.863
       ]
     },
     {
@@ -72,9 +73,9 @@
       "top5": [
         "lib/document.js",
         "lib/helpers/setDefaultsOnInsert.js",
-        "lib/mongoose.js",
-        "lib/types/documentArray/methods/index.js",
-        "lib/helpers/update/modifiedPaths.js"
+        "lib/helpers/update/modifiedPaths.js",
+        "lib/helpers/common.js",
+        "lib/helpers/update/updatedPathsByArrayFilter.js"
       ],
       "topConfidence": "high",
       "top1": true,
@@ -89,10 +90,10 @@
       ],
       "top5": [
         "src/types/types-external.ts",
-        "src/core/immerClass.ts",
-        "src/core/proxy.ts",
         "src/immer.ts",
-        "src/plugins/arrayMethods.ts"
+        "src/plugins/patches.ts",
+        "src/core/immerClass.ts",
+        "src/core/proxy.ts"
       ],
       "topConfidence": "medium",
       "top1": true,
@@ -106,16 +107,16 @@
         "packages/jest-mock/src/index.ts"
       ],
       "top5": [
-        "packages/jest-test-result/src/types.ts",
         "packages/jest-config/src/readConfigFileAndSetRootDir.ts",
-        "packages/jest-config/src/resolveConfigPath.ts",
-        "packages/jest-core/src/plugins/TestNamePattern.ts",
-        "packages/jest-core/src/plugins/TestPathPattern.ts"
+        "packages/jest-core/src/TestScheduler.ts",
+        "packages/jest-mock/src/index.ts",
+        "packages/jest-runner/src/runTest.ts",
+        "packages/jest-runtime/src/internals/MockState.ts"
       ],
       "topConfidence": "medium",
       "top1": false,
-      "top3": false,
-      "top5Hit": false
+      "top3": true,
+      "top5Hit": true
     },
     {
       "slug": "knex/knex",
@@ -145,8 +146,8 @@
         ".github/CODE_OF_CONDUCT.md",
         "lib/errors.js",
         "lib/reporters/xunit.js",
-        "lib/cli/lookup-files.js",
-        "lib/mocha.cjs"
+        "lib/mocha.cjs",
+        "lib/reporters/base.js"
       ],
       "topConfidence": "high",
       "top1": false,
@@ -163,8 +164,8 @@
         "source/core/index.ts",
         "source/core/diagnostics-channel.ts",
         "source/core/response.ts",
-        "source/core/errors.ts",
-        "source/as-promise/index.ts"
+        "source/as-promise/index.ts",
+        "source/core/errors.ts"
       ],
       "topConfidence": "high",
       "top1": true,
@@ -178,16 +179,16 @@
         "packages/engine.io-client/lib/socket.ts"
       ],
       "top5": [
-        "packages/engine.io-client/lib/socket.ts",
         "packages/engine.io-client/lib/transports/polling-xhr.ts",
-        "packages/socket.io-client/lib/socket.ts",
         "packages/engine.io-client/lib/transports/websocket.ts",
-        "packages/engine.io-client/lib/transports/polling-xhr.node.ts"
+        "packages/engine.io-client/lib/transports/polling-xhr.node.ts",
+        "packages/engine.io-client/lib/transports/polling.ts",
+        "packages/socket.io-client/lib/url.ts"
       ],
       "topConfidence": "high",
-      "top1": true,
-      "top3": true,
-      "top5Hit": true
+      "top1": false,
+      "top3": false,
+      "top5Hit": false
     },
     {
       "slug": "sveltejs/svelte",
@@ -200,7 +201,7 @@
         "packages/svelte/src/internal/client/dom/operations.js",
         "packages/svelte/src/internal/client/errors.js",
         "packages/svelte/src/internal/client/warnings.js",
-        "packages/svelte/src/internal/client/dom/blocks/snippet.js"
+        "packages/svelte/src/internal/client/dom/hydration.js"
       ],
       "topConfidence": "high",
       "top1": true,
@@ -214,11 +215,11 @@
         "packages/vite/src/node/server/bundledDev.ts"
       ],
       "top5": [
-        ".github/ISSUE_TEMPLATE/bug_report.yml",
         "packages/vite/src/types/commonjs.d.ts",
-        "packages/vite/src/types/alias.d.ts",
-        "packages/vite/src/types/chokidar.d.ts",
-        "packages/vite/types/metadata.d.ts"
+        ".github/ISSUE_TEMPLATE/bug_report.yml",
+        "packages/vite/src/node/optimizer/rolldownDepPlugin.ts",
+        "packages/vite/src/node/plugins/worker.ts",
+        "packages/vite/src/node/plugins/workerImportMetaUrl.ts"
       ],
       "topConfidence": "low",
       "top1": false,
@@ -254,7 +255,7 @@
         "lib/winston/tail-file.js",
         "lib/winston/transports/console.js",
         "lib/winston/transports/http.js",
-        "lib/winston/transports/index.d.ts"
+        "lib/winston.js"
       ],
       "topConfidence": "low",
       "top1": true,

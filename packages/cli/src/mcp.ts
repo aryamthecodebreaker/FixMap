@@ -7,6 +7,9 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import {
   renderJsonReport,
   renderMarkdownReport,
+  renderVerifyMarkdown,
+  scanRepo,
+  verifyPlan,
   type FixMapReport
 } from "@aryam/fixmap-core";
 import {
@@ -26,6 +29,15 @@ type PlanArguments = {
 type PlanArgumentsValidation =
   | { success: true; value: PlanArguments }
   | { success: false; message: string };
+
+type VerifyArguments = {
+  report: FixMapReport;
+  diff?: string;
+  base?: string;
+  head?: string;
+  repo?: string;
+  format?: "markdown" | "json";
+};
 
 const PLAN_TOOL = {
   name: "fixmap_plan",
@@ -70,14 +82,69 @@ const PLAN_TOOL = {
   }
 };
 
+const VERIFY_TOOL = {
+  name: "fixmap_verify",
+  title: "FixMap verify",
+  description:
+    "Compare a FixMap plan with the git diff produced after editing. Flags unplanned files, " +
+    "missing test changes, new risk areas, and generated artifacts. Provide the JSON report " +
+    "returned by fixmap_plan plus diff or base/head, and run against a local checkout.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      report: { type: "object", description: "The JSON FixMap report returned by fixmap_plan" },
+      diff: { type: "string", description: "Git diff spec, such as main...HEAD" },
+      base: { type: "string", description: "Base git ref when diff is omitted" },
+      head: { type: "string", description: "Head git ref, defaults to HEAD" },
+      repo: { type: "string", description: "Local repository path, defaults to the server working directory" },
+      format: { type: "string", enum: ["markdown", "json"], description: "Output format, markdown by default" }
+    },
+    required: ["report"],
+    additionalProperties: false
+  }
+};
+
 export function createFixMapMcpServer(
   repositorySourceDependencies: RepositorySourceDependencies = {}
 ): Server {
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [PLAN_TOOL] }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [PLAN_TOOL, VERIFY_TOOL] }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (request.params.name === VERIFY_TOOL.name) {
+      const parsed = parseVerifyArguments(request.params.arguments ?? {});
+      if (!parsed.success) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Invalid arguments: ${parsed.message}` }]
+        };
+      }
+      const args = parsed.value;
+      try {
+        const repo = await scanRepo({
+          repoRoot: args.repo ?? process.cwd(),
+          diffSpec: args.diff,
+          baseRef: args.base,
+          headRef: args.head
+        });
+        const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
+        if (diffFailure) {
+          throw new Error(`${diffFailure.message} Verification needs a resolvable diff.`);
+        }
+        const result = verifyPlan(args.report, repo);
+        const text = args.format === "json"
+          ? `${JSON.stringify(result, null, 2)}\n`
+          : renderVerifyMarkdown(result);
+        return { content: [{ type: "text", text }] };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }]
+        };
+      }
+    }
+
     if (request.params.name !== PLAN_TOOL.name) {
       return {
         isError: true,
@@ -124,6 +191,12 @@ export function createFixMapMcpServer(
           content: [{ type: "text", text: `${diffFailure.message} No issue text was provided to fall back to.` }]
         };
       }
+      if (report.changedFiles.length === 0) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: "The requested diff resolved to zero changed files and no issue text was provided." }]
+        };
+      }
     }
 
     const text = args.format === "json" ? renderJsonReport(report) : renderMarkdownReport(report);
@@ -159,7 +232,61 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
     return { success: false, message: '"format" must be either "markdown" or "json".' };
   }
 
-  return { success: true, value: record as PlanArguments };
+  const value: PlanArguments = {};
+  for (const name of ["issue", "diff", "base", "head", "repo"] as const) {
+    const candidate = record[name];
+    if (typeof candidate === "string" && candidate.trim()) {
+      value[name] = candidate.trim();
+    }
+  }
+  if (format === "markdown" || format === "json") {
+    value.format = format;
+  }
+  return { success: true, value };
+}
+
+type VerifyArgumentsValidation =
+  | { success: true; value: VerifyArguments }
+  | { success: false; message: string };
+
+export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return { success: false, message: "tool arguments must be an object." };
+  }
+  const record = input as Record<string, unknown>;
+  const allowed = new Set(["report", "diff", "base", "head", "repo", "format"]);
+  const unknown = Object.keys(record).filter((key) => !allowed.has(key));
+  if (unknown.length > 0) {
+    return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
+  }
+  const report = record.report as Partial<FixMapReport> | undefined;
+  if (typeof report !== "object" || report === null || !Array.isArray(report.contextFiles)) {
+    return { success: false, message: '"report" must be a FixMap JSON report with a contextFiles array.' };
+  }
+  for (const name of ["diff", "base", "head", "repo"] as const) {
+    const value = record[name];
+    if (value !== undefined && (typeof value !== "string" || !value.trim())) {
+      return { success: false, message: `"${name}" must be a non-empty string.` };
+    }
+  }
+  if (!record.diff && !record.base) {
+    return { success: false, message: 'provide "diff" or "base"/"head" so FixMap can see what changed.' };
+  }
+  const format = record.format;
+  if (format !== undefined && format !== "markdown" && format !== "json") {
+    return { success: false, message: '"format" must be either "markdown" or "json".' };
+  }
+  return {
+    success: true,
+    value: {
+      report: report as FixMapReport,
+      ...(typeof record.diff === "string" ? { diff: record.diff.trim() } : {}),
+      ...(typeof record.base === "string" ? { base: record.base.trim() } : {}),
+      ...(typeof record.head === "string" ? { head: record.head.trim() } : {}),
+      ...(typeof record.repo === "string" ? { repo: record.repo.trim() } : {}),
+      ...(format === "markdown" || format === "json" ? { format } : {})
+    }
+  };
 }
 
 export async function runMcpServer(): Promise<void> {

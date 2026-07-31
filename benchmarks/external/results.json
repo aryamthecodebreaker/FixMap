@@ -1,12 +1,12 @@
 {
   "cases": 15,
-  "top1HitRate": 0.6,
+  "top1HitRate": 0.667,
   "top3HitRate": 1,
   "top5HitRate": 1,
   "intervals95": {
     "top1": [
-      0.357,
-      0.802
+      0.417,
+      0.848
     ],
     "top3": [
       0.796,
@@ -18,47 +18,46 @@
     ]
   },
   "misleadingTopResult": {
-    "cases": 6,
+    "cases": 5,
     "of": 15,
-    "rate": 0.4,
+    "rate": 0.333,
     "slugs": [
-      "debug-js/debug",
       "pinojs/pino",
-      "fastify/fastify",
       "vitest-dev/vitest",
       "webpack/webpack",
-      "prettier/prettier"
+      "reduxjs/redux-toolkit",
+      "honojs/hono"
     ]
   },
   "calibration": [
     {
       "confidence": "high",
       "cases": 7,
-      "top1Correct": 5,
-      "top1Accuracy": 0.714,
+      "top1Correct": 4,
+      "top1Accuracy": 0.571,
       "interval95": [
-        0.359,
-        0.918
+        0.25,
+        0.842
       ]
     },
     {
       "confidence": "medium",
       "cases": 6,
-      "top1Correct": 4,
-      "top1Accuracy": 0.667,
+      "top1Correct": 5,
+      "top1Accuracy": 0.833,
       "interval95": [
-        0.3,
-        0.903
+        0.436,
+        0.97
       ]
     },
     {
       "confidence": "low",
       "cases": 2,
-      "top1Correct": 0,
-      "top1Accuracy": 0,
+      "top1Correct": 1,
+      "top1Accuracy": 0.5,
       "interval95": [
-        0,
-        0.658
+        0.095,
+        0.905
       ]
     }
   ],
@@ -78,7 +77,7 @@
         "lib/request.js",
         "lib/response.js",
         "package.json",
-        "examples/error-pages/index.js",
+        "examples/auth/index.js",
         "examples/route-middleware/index.js"
       ],
       "topConfidence": "high",
@@ -111,14 +110,14 @@
         "src/node.js"
       ],
       "top5": [
-        "src/browser.js",
         "src/node.js",
+        "src/browser.js",
         "src/common.js",
         "README.md",
         "test.js"
       ],
       "topConfidence": "medium",
-      "top1": false,
+      "top1": true,
       "top3": true,
       "top5Hit": true
     },
@@ -130,10 +129,10 @@
       ],
       "top5": [
         "source/core/Ky.ts",
-        "source/types/hooks.ts",
         "source/errors/HTTPError.ts",
-        "source/types/options.ts",
-        "source/errors/SchemaValidationError.ts"
+        "readme.md",
+        "source/types/hooks.ts",
+        "source/types/options.ts"
       ],
       "topConfidence": "high",
       "top1": true,
@@ -150,8 +149,8 @@
         "packages/zod/src/v4/core/regexes.ts",
         "packages/zod/src/v4/classic/from-json-schema.ts",
         "packages/zod/src/v4/core/json-schema-processors.ts",
-        "packages/zod/src/v4/core/to-json-schema.ts",
-        "packages/zod/src/v4/mini/schemas.ts"
+        "packages/zod/src/v4/mini/schemas.ts",
+        "packages/zod/src/v4/core/parse.ts"
       ],
       "topConfidence": "high",
       "top1": true,
@@ -170,7 +169,7 @@
         "lib/multistream.js",
         "lib/transport.js",
         "pino.js",
-        "examples/transport.js"
+        "lib/levels.js"
       ],
       "topConfidence": "high",
       "top1": false,
@@ -184,14 +183,14 @@
         "lib/request.js"
       ],
       "top5": [
-        "fastify.js",
-        "lib/server.js",
         "lib/request.js",
-        "docs/Reference/TypeScript.md",
-        "types/request.d.ts"
+        "lib/server.js",
+        "docs/Reference/Routes.md",
+        "fastify.js",
+        "docs/Reference/Errors.md"
       ],
-      "topConfidence": "medium",
-      "top1": false,
+      "topConfidence": "high",
+      "top1": true,
       "top3": true,
       "top5Hit": true
     },
@@ -221,10 +220,10 @@
       ],
       "top5": [
         "packages/vitest/src/integrations/env/jsdom-keys.ts",
-        "packages/vitest/src/node/printError.ts",
         "packages/browser/src/client/tester/dialog.ts",
-        "packages/vitest/src/node/reporters/base.ts",
-        "packages/vitest/src/runtime/moduleRunner/moduleEvaluator.ts"
+        "docs/guide/browser/index.md",
+        "packages/vitest/src/node/printError.ts",
+        "packages/vitest/src/runtime/runner/suite.ts"
       ],
       "topConfidence": "low",
       "top1": false,
@@ -239,10 +238,10 @@
       ],
       "top5": [
         "lib/types/config-api.d.ts",
-        "lib/types/index.d.ts",
         "package.json",
-        "docs/src/use/configure/migration-guide.md",
-        "lib/config-api.js"
+        "lib/config-api.js",
+        "lib/types/index.d.ts",
+        "docs/src/use/configure/migration-guide.md"
       ],
       "topConfidence": "medium",
       "top1": true,
@@ -259,8 +258,8 @@
         "lib/dependencies/ImportMetaPlugin.js",
         "lib/WebpackOptionsApply.js",
         "lib/DefinePlugin.js",
-        "lib/dependencies/CreateRequireParserPlugin.js",
-        "lib/dependencies/LoaderPlugin.js"
+        "lib/EnvironmentPlugin.js",
+        "lib/dependencies/CreateRequireParserPlugin.js"
       ],
       "topConfidence": "high",
       "top1": false,
@@ -292,14 +291,14 @@
         "packages/toolkit/src/query/react/buildHooks.ts"
       ],
       "top5": [
-        "packages/toolkit/src/query/react/buildHooks.ts",
         "packages/toolkit/src/query/core/apiState.ts",
         "packages/toolkit/src/query/core/buildThunks.ts",
-        "packages/toolkit/src/query/react/module.ts",
-        "packages/toolkit/src/query/core/buildInitiate.ts"
+        "packages/toolkit/src/query/react/buildHooks.ts",
+        "packages/toolkit/src/listenerMiddleware/index.ts",
+        "packages/toolkit/etc/rtk-query-react.api.md"
       ],
-      "topConfidence": "high",
-      "top1": true,
+      "topConfidence": "medium",
+      "top1": false,
       "top3": true,
       "top5Hit": true
     },
@@ -310,14 +309,14 @@
         "src/language-css/print/comma-separated-value-group.js"
       ],
       "top5": [
-        "src/cli/format.js",
         "src/language-css/print/comma-separated-value-group.js",
         "src/language-js/print/member-chain.js",
         "scripts/build/builders/javascript-module.js",
-        "scripts/build/packages/prettier.js"
+        "website/playground/Playground.jsx",
+        "src/language-js/print/binaryish.js"
       ],
       "topConfidence": "low",
-      "top1": false,
+      "top1": true,
       "top3": true,
       "top5Hit": true
     },
@@ -328,14 +327,14 @@
         "src/adapter/aws-lambda/types.ts"
       ],
       "top5": [
-        "src/adapter/aws-lambda/types.ts",
         "src/adapter/aws-lambda/handler.ts",
+        "src/adapter/aws-lambda/types.ts",
         "src/adapter/aws-lambda/conninfo.ts",
         "src/adapter/lambda-edge/handler.ts",
         "src/jsx/context.ts"
       ],
       "topConfidence": "high",
-      "top1": true,
+      "top1": false,
       "top3": true,
       "top5Hit": true
     }

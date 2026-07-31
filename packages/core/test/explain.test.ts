@@ -102,6 +102,18 @@ describe("explainFile", () => {
     expect(explanation.path).toBe("src/auth/reset-password.ts");
   });
 
+  it("describes a top-N tie without claiming an equal score is lower", () => {
+    const repo = createRepo(Array.from({ length: 9 }, (_, index) =>
+      file(`src/${String.fromCharCode(97 + index)}.ts`, "password reset email token")
+    ));
+
+    const explanation = explainFile(repo, { issueText: "password reset email token" }, "src/i.ts");
+
+    expect(explanation.status).toBe("outside-limit");
+    expect(explanation.summary).toContain("outside the top 8");
+    expect(explanation.summary).not.toContain("below the lowest");
+  });
+
   // Guards the one real risk in this module: its exclusion rules mirror the candidate
   // filter inside rankContextFiles, and nothing else would catch the two drifting apart.
   it("agrees with the ranker about every file in the repository", () => {

@@ -1,11 +1,15 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 import { createFixMapMcpServer, parsePlanArguments } from "../src/mcp.js";
 import type { RepositorySourceDependencies } from "../src/repository-source.js";
+
+const exec = promisify(execFile);
 
 async function createAuthFixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "fixmap-mcp-"));
@@ -46,14 +50,16 @@ describe("fixmap mcp server", () => {
       success: false,
       message: "tool arguments must be an object."
     });
+    expect(parsePlanArguments({ issue: "   " })).toEqual({ success: true, value: {} });
   });
 
-  it("advertises the fixmap_plan tool", async () => {
+  it("advertises plan and verify tools", async () => {
     const client = await connectClient();
 
     const tools = await client.listTools();
 
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
+    const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
     expect(plan).toBeDefined();
     expect(plan?.description).toContain("test commands");
     expect(Object.keys(plan?.inputSchema.properties ?? {})).toEqual(
@@ -61,6 +67,45 @@ describe("fixmap mcp server", () => {
     );
     expect(plan?.inputSchema.properties?.repo?.description).toContain("public GitHub HTTPS");
     expect(plan?.inputSchema.properties?.issue?.description).toContain("GitHub issue URL");
+    expect(verify).toBeDefined();
+    expect(Object.keys(verify?.inputSchema.properties ?? {})).toContain("report");
+  });
+
+  it("verifies a plan against a local diff through MCP", async () => {
+    const root = await createAuthFixture();
+    await exec("git", ["init"], { cwd: root });
+    await exec("git", ["config", "user.email", "fixmap@example.test"], { cwd: root });
+    await exec("git", ["config", "user.name", "FixMap Test"], { cwd: root });
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-m", "fixture"], { cwd: root });
+    await writeFile(
+      join(root, "src", "auth", "reset-password.ts"),
+      "export function sendResetEmail(email: string) { return email.trim(); }\n"
+    );
+    const client = await connectClient();
+    const plan = {
+      summary: "",
+      contextFiles: [{
+        path: "src/auth/reset-password.ts",
+        score: 20,
+        confidence: "high",
+        reasons: ["path matches task terms"]
+      }],
+      testRoutes: [],
+      risks: [],
+      changedFiles: [],
+      diagnostics: []
+    };
+
+    const result = await client.callTool({
+      name: "fixmap_verify",
+      arguments: { report: plan, repo: root, diff: "HEAD", format: "json" }
+    });
+
+    expect(result.isError).toBeFalsy();
+    const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
+    const verification = JSON.parse(text) as { changedFiles: string[] };
+    expect(verification.changedFiles).toContain("src/auth/reset-password.ts");
   });
 
   it("returns a markdown report for an issue", async () => {

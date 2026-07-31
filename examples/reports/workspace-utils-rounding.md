@@ -4,7 +4,7 @@ FixMap found 2 context files and generated 3 test routes.
 
 ## Context Files
 
-- `packages/utils/src/currency.ts` (medium confidence, score 13): path matches task terms: currency; content matches task terms: round, cent; defines task identifiers: roundToCents
+- `packages/utils/src/currency.ts` (high confidence, score 33): path matches task terms: currency; content matches task terms: round, cent; defines task identifiers: roundToCents
 - `README.md` (low confidence, score 6): content matches task terms: round, cent, keep, fraction, format, currency
 
 ## Test Route

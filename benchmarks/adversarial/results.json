@@ -11,7 +11,8 @@
       "topConfidence": "low",
       "grounding": "descriptive",
       "diagnostics": [
-        "identifier-unverified"
+        "identifier-unverified",
+        "flat-ranking"
       ],
       "contextFileCount": 8,
       "overconfident": false,
@@ -45,7 +46,7 @@
       "diagnostics": [
         "identifier-unverified"
       ],
-      "contextFileCount": 6,
+      "contextFileCount": 5,
       "overconfident": false,
       "groundingOk": true,
       "diagnosticOk": true,
@@ -56,13 +57,12 @@
       "kind": "vague-task",
       "slug": "vitest-dev/vitest",
       "maxConfidence": "low",
-      "topConfidence": "low",
+      "topConfidence": null,
       "grounding": "vague",
       "diagnostics": [
-        "vague-task",
-        "flat-ranking"
+        "vague-task"
       ],
-      "contextFileCount": 8,
+      "contextFileCount": 0,
       "overconfident": false,
       "groundingOk": true,
       "diagnosticOk": true,
@@ -73,12 +73,12 @@
       "kind": "vague-task",
       "slug": "chalk/chalk",
       "maxConfidence": "low",
-      "topConfidence": "low",
+      "topConfidence": null,
       "grounding": "vague",
       "diagnostics": [
         "vague-task"
       ],
-      "contextFileCount": 1,
+      "contextFileCount": 0,
       "overconfident": false,
       "groundingOk": true,
       "diagnosticOk": true,
@@ -92,7 +92,7 @@
       "topConfidence": "medium",
       "grounding": "descriptive",
       "diagnostics": [],
-      "contextFileCount": 8,
+      "contextFileCount": 6,
       "overconfident": false,
       "groundingOk": true,
       "diagnosticOk": true,

@@ -34,8 +34,10 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
       .filter((file) => file.isSource && !isGeneratedPath(file.path) && !isBackupPath(file.path))
       .map((file) => moduleStem(file.path))
   );
+  const tracked = new Set(repo.trackedFiles ?? []);
   const discardedEdits = changed.filter((path) =>
-    isBackupPath(path) || (isGeneratedPath(path) && maintainedStems.has(moduleStem(path)))
+    isBackupPath(path) ||
+    (isGeneratedPath(path) && maintainedStems.has(moduleStem(path)) && !tracked.has(path))
   );
   if (discardedEdits.length > 0) {
     findings.push({
@@ -45,6 +47,20 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
       message:
         `${discardedEdits.length === 1 ? "A file was" : `${discardedEdits.length} files were`} edited in a generated or retired location. ` +
         "A build regenerates these, so the change will be lost. Edit the source they are produced from."
+    });
+  }
+
+  const trackedGeneratedEdits = changed.filter((path) =>
+    isGeneratedPath(path) && maintainedStems.has(moduleStem(path)) && tracked.has(path)
+  );
+  if (trackedGeneratedEdits.length > 0) {
+    findings.push({
+      code: "tracked-generated-edit",
+      severity: "warning",
+      paths: trackedGeneratedEdits,
+      message:
+        `${trackedGeneratedEdits.length === 1 ? "A committed generated artifact was" : `${trackedGeneratedEdits.length} committed generated artifacts were`} edited. ` +
+        "Confirm the maintained source changed too and the artifact was rebuilt; tracked release artifacts are not treated as discarded edits."
     });
   }
 

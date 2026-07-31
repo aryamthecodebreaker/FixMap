@@ -13,7 +13,7 @@ const presets = [
   },
   {
     label: "sendMail throws and password reset emails never arrive",
-    note: "The same bug with one symbol named. The transport file climbs, and the reason says why: it defines sendMail."
+    note: "The same bug with one symbol named. The transport rises into the top three, and its reason says why: it defines sendMail."
   },
   {
     label: "TOKEN_TTL_MINUTES is ignored, reset links expire immediately",
