@@ -63,7 +63,16 @@ export function analyzeTaskGrounding(
     unresolvedIdentifiers,
     partiallyResolvedIdentifiers,
     unverifiedIdentifiers,
-    scanComplete: !repo.diagnostics.some((diagnostic) => diagnostic.code === "scan-limit-reached")
+    // "Complete" has to mean every candidate was actually read, not merely that the file
+    // limit was never reached. A file past the sample ceiling, or one holding NUL bytes, is
+    // still listed and still scored on its path while its contents were never seen — so a
+    // report could claim a complete scan of a repository whose largest definition files went
+    // unread, which is exactly where an answer hides.
+    scanComplete:
+      !repo.diagnostics.some((diagnostic) =>
+        diagnostic.code === "scan-limit-reached" || diagnostic.code === "tracked-paths-absent"
+      ) &&
+      !repo.files.some((file) => file.isSource && !file.textSampleComplete)
   };
 }
 

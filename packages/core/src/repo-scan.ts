@@ -190,6 +190,7 @@ async function buildFilesFromPaths(
 
   reportAbsentTrackedPaths(diagnostics, absent);
   reportLinkedDuplicates(diagnostics, linked);
+  reportUnreadContent(diagnostics, results);
 
   return results.sort((a, b) => a.path.localeCompare(b.path));
 }
@@ -214,6 +215,34 @@ function reportAbsentTrackedPaths(diagnostics: RepoMap["diagnostics"], absent: s
       `and went unranked, mostly under ${summarizeSkippedScope(absent)}. ` +
       "That means a sparse or partial checkout, an uncommitted deletion, or a path this " +
       "filesystem could not create."
+  });
+}
+
+/**
+ * A source file whose contents were never read still ranks — on its path alone. That is the
+ * shape of the `got` miss behind #274: `source/core/index.ts` is 79KB, past the sample
+ * ceiling, so its entire content signal was silently absent and only an explicit path
+ * mention kept it visible. Naming those files lets a reader see that the ranking for them
+ * rests on the path and nothing else.
+ */
+function reportUnreadContent(diagnostics: RepoMap["diagnostics"], files: RepoFile[]): void {
+  const unread = files.filter((file) => file.isSource && !file.textSampleComplete);
+  if (unread.length === 0) return;
+
+  const sample = unread
+    .slice()
+    .sort((a, b) => b.sizeBytes - a.sizeBytes)
+    .slice(0, 3)
+    .map((file) => `${file.path} (${Math.round(file.sizeBytes / 1024).toLocaleString()}KB)`)
+    .join(", ");
+
+  diagnostics.push({
+    code: "content-unread",
+    severity: "warning",
+    message:
+      `${unread.length.toLocaleString()} source file${unread.length === 1 ? "" : "s"} could not be read as text and ` +
+      `rank${unread.length === 1 ? "s" : ""} on path alone — largest: ${sample}` +
+      `${unread.length > 3 ? ", …" : ""}. Files over ${(MAX_TEXT_SAMPLE_BYTES / 1000).toLocaleString()}KB are not sampled.`
   });
 }
 
