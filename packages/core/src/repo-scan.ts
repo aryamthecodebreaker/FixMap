@@ -358,9 +358,22 @@ async function readPackageScripts(root: string, files: RepoFile[], diagnostics: 
   const scripts: PackageScript[] = [];
 
   for (const manifest of manifests) {
+    const absolutePath = join(root, manifest.path);
+    let bytes: Buffer;
     try {
-      const raw = await readFile(join(root, manifest.path), "utf8");
-      const parsed = JSON.parse(raw) as { scripts?: Record<string, string> };
+      bytes = await readFile(absolutePath);
+    } catch {
+      diagnostics.push({
+        code: "package-json-invalid",
+        severity: "warning",
+        message: `Could not read ${manifest.path}; scripts from that package were skipped.`
+      });
+      continue;
+    }
+
+    const decoded = decodeManifest(bytes);
+    try {
+      const parsed = JSON.parse(decoded.text) as { scripts?: Record<string, string> };
       const packageDir = normalizePath(dirname(manifest.path));
       scripts.push(...Object.entries(parsed.scripts ?? {}).map(([name, command]) => ({
         name,
@@ -371,12 +384,36 @@ async function readPackageScripts(root: string, files: RepoFile[], diagnostics: 
       diagnostics.push({
         code: "package-json-invalid",
         severity: "warning",
-        message: `Could not parse ${manifest.path}; scripts from that package were skipped.`
+        message:
+          `Could not parse ${manifest.path}; scripts from that package were skipped.` +
+          // Encoding is no longer a cause of failure, so naming it here rules it out rather
+          // than sending someone to re-save a file whose real problem is a syntax error.
+          (decoded.encoding === "utf8" ? "" : ` It was decoded as ${decoded.encoding}, so the problem is the JSON itself, not the encoding.`)
       });
     }
   }
 
   return scripts;
+}
+
+/**
+ * `Set-Content -Encoding utf8` on Windows writes a byte order mark, and `JSON.parse` rejects
+ * one outright — so a perfectly valid manifest reported as invalid JSON and every script in
+ * it was skipped, which surfaced downstream as `no-test-route`. Decoding the common editor
+ * encodings first keeps `package-json-invalid` for genuinely broken syntax, and the encoding
+ * label is carried out so the diagnostic can say so when parsing still fails.
+ */
+function decodeManifest(bytes: Buffer): { text: string; encoding: string } {
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return { text: bytes.subarray(2).toString("utf16le"), encoding: "UTF-16LE" };
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return { text: bytes.subarray(2).swap16().toString("utf16le"), encoding: "UTF-16BE" };
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return { text: bytes.subarray(3).toString("utf8"), encoding: "UTF-8 with a byte order mark" };
+  }
+  return { text: bytes.toString("utf8"), encoding: "utf8" };
 }
 
 async function readDiff(
@@ -498,7 +535,16 @@ async function readTextSample(
   }
 
   try {
-    return { text: await readFile(path, "utf8"), complete: true };
+    const bytes = await readFile(path);
+    // A NUL byte does not occur in real source. Treating such a file as text produced a
+    // garbled sample that matched nothing, while the path still scored — so a binary blob
+    // named like source ranked on its name alone with no way to tell from the report.
+    // Reporting it as incomplete routes it through the same "content unavailable" handling
+    // as an oversized file.
+    if (bytes.includes(0)) {
+      return { text: "", complete: false };
+    }
+    return { text: bytes.toString("utf8"), complete: true };
   } catch {
     return { text: "", complete: false };
   }

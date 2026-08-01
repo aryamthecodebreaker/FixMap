@@ -1978,9 +1978,21 @@ async function readPackageScripts(root, files, diagnostics) {
   const manifests = files.filter((file) => file.path === "package.json" || file.path.endsWith("/package.json"));
   const scripts = [];
   for (const manifest of manifests) {
+    const absolutePath = join(root, manifest.path);
+    let bytes;
     try {
-      const raw = await readFile(join(root, manifest.path), "utf8");
-      const parsed = JSON.parse(raw);
+      bytes = await readFile(absolutePath);
+    } catch {
+      diagnostics.push({
+        code: "package-json-invalid",
+        severity: "warning",
+        message: `Could not read ${manifest.path}; scripts from that package were skipped.`
+      });
+      continue;
+    }
+    const decoded = decodeManifest(bytes);
+    try {
+      const parsed = JSON.parse(decoded.text);
       const packageDir = normalizePath(dirname(manifest.path));
       scripts.push(...Object.entries(parsed.scripts ?? {}).map(([name, command]) => ({
         name,
@@ -1991,11 +2003,25 @@ async function readPackageScripts(root, files, diagnostics) {
       diagnostics.push({
         code: "package-json-invalid",
         severity: "warning",
-        message: `Could not parse ${manifest.path}; scripts from that package were skipped.`
+        message: `Could not parse ${manifest.path}; scripts from that package were skipped.` + // Encoding is no longer a cause of failure, so naming it here rules it out rather
+        // than sending someone to re-save a file whose real problem is a syntax error.
+        (decoded.encoding === "utf8" ? "" : ` It was decoded as ${decoded.encoding}, so the problem is the JSON itself, not the encoding.`)
       });
     }
   }
   return scripts;
+}
+function decodeManifest(bytes) {
+  if (bytes.length >= 2 && bytes[0] === 255 && bytes[1] === 254) {
+    return { text: bytes.subarray(2).toString("utf16le"), encoding: "UTF-16LE" };
+  }
+  if (bytes.length >= 2 && bytes[0] === 254 && bytes[1] === 255) {
+    return { text: bytes.subarray(2).swap16().toString("utf16le"), encoding: "UTF-16BE" };
+  }
+  if (bytes.length >= 3 && bytes[0] === 239 && bytes[1] === 187 && bytes[2] === 191) {
+    return { text: bytes.subarray(3).toString("utf8"), encoding: "UTF-8 with a byte order mark" };
+  }
+  return { text: bytes.toString("utf8"), encoding: "utf8" };
 }
 async function readDiff(repoRoot, diffSpec, diagnostics) {
   if (!diffSpec) {
@@ -2074,7 +2100,11 @@ async function readTextSample(path, sizeBytes) {
     return { text: "", complete: false };
   }
   try {
-    return { text: await readFile(path, "utf8"), complete: true };
+    const bytes = await readFile(path);
+    if (bytes.includes(0)) {
+      return { text: "", complete: false };
+    }
+    return { text: bytes.toString("utf8"), complete: true };
   } catch {
     return { text: "", complete: false };
   }

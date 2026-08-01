@@ -298,6 +298,51 @@ describe("scanRepo", () => {
     expect(paths).not.toContain("node_modules/left-pad/index.js");
   });
 
+  // `Set-Content -Encoding utf8` writes a BOM and JSON.parse rejects one, so a valid
+  // manifest reported as invalid and every script in it was skipped.
+  it.each([
+    ["a UTF-8 byte order mark", (json: string) => Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(json, "utf8")])],
+    ["UTF-16LE", (json: string) => Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(json, "utf16le")])],
+    ["UTF-16BE", (json: string) => Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from(json, "utf16le").swap16()])]
+  ])("reads package scripts from a manifest saved with %s", async (_label, encode) => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-manifest-encoding-"));
+    await writeFile(join(root, "package.json"), encode(JSON.stringify({ name: "app", scripts: { test: "vitest run" } })));
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.packageScripts).toContainEqual({ name: "test", command: "vitest run", packageDir: "" });
+    expect(repo.diagnostics.map((entry) => entry.code)).not.toContain("package-json-invalid");
+  });
+
+  it("rules encoding out of the diagnostic when the JSON itself is broken", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-manifest-broken-"));
+    const broken = '{"name":"x","scripts":{"test":"vitest",}}';
+    await writeFile(join(root, "package.json"), Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(broken, "utf16le")]));
+
+    const repo = await scanRepo({ repoRoot: root });
+    const diagnostic = repo.diagnostics.find((entry) => entry.code === "package-json-invalid");
+
+    expect(diagnostic?.message).toContain("decoded as UTF-16LE");
+    expect(diagnostic?.message).toContain("not the encoding");
+  });
+
+  // A NUL byte never appears in real source. Sampling such a file as text produced a garbled
+  // sample whose stray identifiers still scored.
+  it("does not sample a source-named file containing NUL bytes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-binary-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(
+      join(root, "src", "weird.ts"),
+      Buffer.concat([Buffer.from("export const applyDiscount = "), Buffer.from([0x00, 0x01, 0xff]), Buffer.from(" junk")])
+    );
+
+    const repo = await scanRepo({ repoRoot: root });
+    const weird = repo.files.find((file) => file.path === "src/weird.ts");
+
+    expect(weird?.textSample).toBe("");
+    expect(weird?.textSampleComplete).toBe(false);
+  });
+
   // A sparse checkout lists paths in the index that are not on disk. Dropping them silently
   // let a partial scan read as a complete one, and --explain blamed .gitignore for a path
   // git tracks.
