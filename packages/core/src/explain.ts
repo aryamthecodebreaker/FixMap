@@ -127,12 +127,24 @@ function describeExclusion(
 ): Exclusion | null {
   const file = repo.files.find((entry) => entry.path === path);
   if (!file) {
-    const truncated = repo.diagnostics.some((diagnostic) => diagnostic.code === "scan-limit-reached");
+    if (repo.diagnostics.some((diagnostic) => diagnostic.code === "scan-limit-reached")) {
+      return {
+        status: "not-scanned",
+        summary: "Not scanned: the scan reached its file limit before this path. Point FixMap at a narrower directory."
+      };
+    }
+    // Git tracks the path but nothing is on disk. Blaming .gitignore sent people looking at
+    // ignore rules that never mentioned it, when the file is indexed and simply absent.
+    if (repo.trackedFiles?.includes(path)) {
+      return {
+        status: "not-scanned",
+        summary: "Not scanned: git tracks this path but no file is present on disk, so it was never read. " +
+          "That is usually a sparse or partial checkout — widen the cone to rank it — and otherwise a deletion."
+      };
+    }
     return {
       status: "not-scanned",
-      summary: truncated
-        ? "Not scanned: the scan reached its file limit before this path. Point FixMap at a narrower directory."
-        : "Not scanned: no such path in this repository, or it is ignored by .gitignore."
+      summary: "Not scanned: no such path in this repository, or it is ignored by .gitignore."
     };
   }
 

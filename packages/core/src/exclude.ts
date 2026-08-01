@@ -36,7 +36,7 @@ export const NO_EXCLUSIONS: PathExcluder = {
  */
 export function buildPathExcluder(patterns: string[]): PathExcluder {
   const cleaned = [...new Set(patterns
-    .map((pattern) => pattern.trim())
+    .map((pattern) => normalizeSeparators(pattern.trim()))
     .filter((pattern) => pattern.length > 0 && !COMMENT.test(pattern)))];
 
   if (cleaned.length === 0) {
@@ -72,6 +72,20 @@ export function buildPathExcluder(patterns: string[]): PathExcluder {
 /** Reads `.fixmapignore` from a repository root, if it has one. */
 export function parseIgnoreFile(contents: string): string[] {
   return contents.split(/\r?\n/);
+}
+
+/**
+ * Repository paths are always `/`-separated, so a pattern typed with `\` — which is what
+ * copying a path out of Explorer or PowerShell gives you — compiled to a literal backslash
+ * and silently matched nothing. Normalizing here covers `--exclude`, `.fixmapignore` and
+ * the Action input at once, because all three arrive through `buildPathExcluder`.
+ *
+ * The cost is that `\` can no longer escape a glob metacharacter. That is the right trade:
+ * this pattern subset has no escape syntax to speak of, and a Windows user typing a path
+ * separator is overwhelmingly more likely than anyone escaping a literal `*` in a filename.
+ */
+function normalizeSeparators(pattern: string): string {
+  return pattern.replace(/\\/g, "/");
 }
 
 function compile(pattern: string): (path: string) => boolean {

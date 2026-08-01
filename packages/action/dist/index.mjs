@@ -16,7 +16,7 @@ var NO_EXCLUSIONS = {
   patterns: []
 };
 function buildPathExcluder(patterns) {
-  const cleaned = [...new Set(patterns.map((pattern) => pattern.trim()).filter((pattern) => pattern.length > 0 && !COMMENT.test(pattern)))];
+  const cleaned = [...new Set(patterns.map((pattern) => normalizeSeparators(pattern.trim())).filter((pattern) => pattern.length > 0 && !COMMENT.test(pattern)))];
   if (cleaned.length === 0) {
     return NO_EXCLUSIONS;
   }
@@ -46,6 +46,9 @@ function buildPathExcluder(patterns) {
 }
 function parseIgnoreFile(contents) {
   return contents.split(/\r?\n/);
+}
+function normalizeSeparators(pattern) {
+  return pattern.replace(/\\/g, "/");
 }
 function compile(pattern) {
   const anchored = pattern.startsWith("/");
@@ -1727,7 +1730,7 @@ function listOrEmpty(lines) {
 
 // packages/core/dist/repo-scan.js
 import { execFile } from "node:child_process";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 var WALK_IGNORED_DIRS = /* @__PURE__ */ new Set([...ALWAYS_IGNORED_DIRS, ...GENERATED_DIRS]);
@@ -1816,6 +1819,9 @@ async function listGitPaths(root) {
 }
 async function buildFilesFromPaths(root, paths, diagnostics) {
   const results = [];
+  const absent = [];
+  const seenRealPaths = /* @__PURE__ */ new Map();
+  const linked = [];
   for (const [index, rawPath] of paths.entries()) {
     if (results.length >= MAX_SCANNED_FILES) {
       reportScanLimit(diagnostics, paths.slice(index).map(normalizePath));
@@ -1825,12 +1831,50 @@ async function buildFilesFromPaths(root, paths, diagnostics) {
     if (isInAlwaysIgnoredDir(relativePath)) {
       continue;
     }
-    const file = await toRepoFile(join(root, rawPath), relativePath);
-    if (file) {
-      results.push(file);
+    const scanned = await toRepoFile(join(root, rawPath), relativePath);
+    if (scanned.status === "absent") {
+      absent.push(relativePath);
+      continue;
     }
+    if (scanned.status !== "ok") {
+      continue;
+    }
+    const seenIndex = seenRealPaths.get(scanned.realPath);
+    if (seenIndex !== void 0) {
+      const seenFile = results[seenIndex];
+      if (await isSymbolicLink(join(root, seenFile.path))) {
+        linked.push({ path: seenFile.path, target: relativePath });
+        results[seenIndex] = scanned.file;
+      } else {
+        linked.push({ path: relativePath, target: seenFile.path });
+      }
+      continue;
+    }
+    seenRealPaths.set(scanned.realPath, results.length);
+    results.push(scanned.file);
   }
+  reportAbsentTrackedPaths(diagnostics, absent);
+  reportLinkedDuplicates(diagnostics, linked);
   return results.sort((a, b) => a.path.localeCompare(b.path));
+}
+function reportAbsentTrackedPaths(diagnostics, absent) {
+  if (absent.length === 0)
+    return;
+  diagnostics.push({
+    code: "tracked-paths-absent",
+    severity: "warning",
+    message: `${absent.length.toLocaleString()} tracked path${absent.length === 1 ? " is" : "s are"} not present on disk and went unranked, mostly under ${summarizeSkippedScope(absent)}. That means a sparse or partial checkout, an uncommitted deletion, or a path this filesystem could not create.`
+  });
+}
+function reportLinkedDuplicates(diagnostics, linked) {
+  if (linked.length === 0)
+    return;
+  const sample = linked.slice(0, 3).map((entry) => `${entry.path} -> ${entry.target}`).join(", ");
+  diagnostics.push({
+    code: "duplicate-real-path",
+    severity: "info",
+    message: `${linked.length.toLocaleString()} tracked path${linked.length === 1 ? "" : "s"} resolved to a file already scanned under another name and ${linked.length === 1 ? "was" : "were"} ranked once: ${sample}${linked.length > 3 ? ", \u2026" : ""}.`
+  });
 }
 async function walkFiles(root, current, diagnostics, state) {
   let entries;
@@ -1859,9 +1903,9 @@ async function walkFiles(root, current, diagnostics, state) {
       continue;
     }
     const absolutePath = join(current, entry.name);
-    const file = await toRepoFile(absolutePath, normalizePath(relative(root, absolutePath)));
-    if (file) {
-      results.push(file);
+    const scanned = await toRepoFile(absolutePath, normalizePath(relative(root, absolutePath)));
+    if (scanned.status === "ok") {
+      results.push(scanned.file);
       state.count += 1;
     }
   }
@@ -1872,24 +1916,42 @@ async function toRepoFile(absolutePath, relativePath) {
   try {
     fileStat = await stat(absolutePath);
   } catch {
-    return void 0;
+    return { status: "absent" };
   }
   if (!fileStat.isFile()) {
-    return void 0;
+    return { status: "not-a-file" };
   }
   const extension = extname(relativePath);
   const isSource = SOURCE_EXTENSIONS.has(extension);
   const sample = isSource ? await readTextSample(absolutePath, fileStat.size) : { text: "", complete: true };
   return {
-    path: relativePath,
-    extension,
-    sizeBytes: fileStat.size,
-    isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
-    isSource,
-    kind: classifyFile(relativePath, extension),
-    textSample: sample.text,
-    textSampleComplete: sample.complete
+    status: "ok",
+    realPath: await resolveRealPath(absolutePath),
+    file: {
+      path: relativePath,
+      extension,
+      sizeBytes: fileStat.size,
+      isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
+      isSource,
+      kind: classifyFile(relativePath, extension),
+      textSample: sample.text,
+      textSampleComplete: sample.complete
+    }
   };
+}
+async function resolveRealPath(absolutePath) {
+  try {
+    return await realpath(absolutePath);
+  } catch {
+    return absolutePath;
+  }
+}
+async function isSymbolicLink(absolutePath) {
+  try {
+    return (await lstat(absolutePath)).isSymbolicLink();
+  } catch {
+    return false;
+  }
 }
 function isInAlwaysIgnoredDir(relativePath) {
   return relativePath.split("/").slice(0, -1).some((segment) => ALWAYS_IGNORED_DIRS.has(segment));
@@ -1916,9 +1978,21 @@ async function readPackageScripts(root, files, diagnostics) {
   const manifests = files.filter((file) => file.path === "package.json" || file.path.endsWith("/package.json"));
   const scripts = [];
   for (const manifest of manifests) {
+    const absolutePath = join(root, manifest.path);
+    let bytes;
     try {
-      const raw = await readFile(join(root, manifest.path), "utf8");
-      const parsed = JSON.parse(raw);
+      bytes = await readFile(absolutePath);
+    } catch {
+      diagnostics.push({
+        code: "package-json-invalid",
+        severity: "warning",
+        message: `Could not read ${manifest.path}; scripts from that package were skipped.`
+      });
+      continue;
+    }
+    const decoded = decodeManifest(bytes);
+    try {
+      const parsed = JSON.parse(decoded.text);
       const packageDir = normalizePath(dirname(manifest.path));
       scripts.push(...Object.entries(parsed.scripts ?? {}).map(([name, command]) => ({
         name,
@@ -1929,11 +2003,25 @@ async function readPackageScripts(root, files, diagnostics) {
       diagnostics.push({
         code: "package-json-invalid",
         severity: "warning",
-        message: `Could not parse ${manifest.path}; scripts from that package were skipped.`
+        message: `Could not parse ${manifest.path}; scripts from that package were skipped.` + // Encoding is no longer a cause of failure, so naming it here rules it out rather
+        // than sending someone to re-save a file whose real problem is a syntax error.
+        (decoded.encoding === "utf8" ? "" : ` It was decoded as ${decoded.encoding}, so the problem is the JSON itself, not the encoding.`)
       });
     }
   }
   return scripts;
+}
+function decodeManifest(bytes) {
+  if (bytes.length >= 2 && bytes[0] === 255 && bytes[1] === 254) {
+    return { text: bytes.subarray(2).toString("utf16le"), encoding: "UTF-16LE" };
+  }
+  if (bytes.length >= 2 && bytes[0] === 254 && bytes[1] === 255) {
+    return { text: bytes.subarray(2).swap16().toString("utf16le"), encoding: "UTF-16BE" };
+  }
+  if (bytes.length >= 3 && bytes[0] === 239 && bytes[1] === 187 && bytes[2] === 191) {
+    return { text: bytes.subarray(3).toString("utf8"), encoding: "UTF-8 with a byte order mark" };
+  }
+  return { text: bytes.toString("utf8"), encoding: "utf8" };
 }
 async function readDiff(repoRoot, diffSpec, diagnostics) {
   if (!diffSpec) {
@@ -2012,7 +2100,11 @@ async function readTextSample(path, sizeBytes) {
     return { text: "", complete: false };
   }
   try {
-    return { text: await readFile(path, "utf8"), complete: true };
+    const bytes = await readFile(path);
+    if (bytes.includes(0)) {
+      return { text: "", complete: false };
+    }
+    return { text: bytes.toString("utf8"), complete: true };
   } catch {
     return { text: "", complete: false };
   }

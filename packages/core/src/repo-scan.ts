@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS } from "./paths.js";
@@ -121,6 +121,16 @@ async function buildFilesFromPaths(
   diagnostics: RepoMap["diagnostics"]
 ): Promise<RepoFile[]> {
   const results: RepoFile[] = [];
+  const absent: string[] = [];
+  // Git can hand back two tracked paths that are one file on disk: a symlink beside its
+  // target, or anything under a Windows junction. `stat` follows both, so each produced an
+  // identically scored row and one module filled two slots in the plan.
+  //
+  // The surviving row is the real file, never the link — editing through an alias is the
+  // same edit, but the real path is the one a reader can reason about. Keeping whichever
+  // git listed first would have made that an alphabetical accident.
+  const seenRealPaths = new Map<string, number>();
+  const linked: Array<{ path: string; target: string }> = [];
 
   for (const [index, rawPath] of paths.entries()) {
     if (results.length >= MAX_SCANNED_FILES) {
@@ -136,13 +146,78 @@ async function buildFilesFromPaths(
       continue;
     }
 
-    const file = await toRepoFile(join(root, rawPath), relativePath);
-    if (file) {
-      results.push(file);
+    const scanned = await toRepoFile(join(root, rawPath), relativePath);
+    if (scanned.status === "absent") {
+      absent.push(relativePath);
+      continue;
     }
+    if (scanned.status !== "ok") {
+      continue;
+    }
+
+    const seenIndex = seenRealPaths.get(scanned.realPath);
+    if (seenIndex !== undefined) {
+      const seenFile = results[seenIndex]!;
+      // Exactly one of the two can be the real file, so a single lstat settles it. This
+      // runs only on a collision, which is rare by definition.
+      if (await isSymbolicLink(join(root, seenFile.path))) {
+        linked.push({ path: seenFile.path, target: relativePath });
+        results[seenIndex] = scanned.file;
+      } else {
+        linked.push({ path: relativePath, target: seenFile.path });
+      }
+      continue;
+    }
+    seenRealPaths.set(scanned.realPath, results.length);
+    results.push(scanned.file);
   }
 
+  reportAbsentTrackedPaths(diagnostics, absent);
+  reportLinkedDuplicates(diagnostics, linked);
+
   return results.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/**
+ * A tracked path with nothing on disk was dropped silently, so the plan read as a complete
+ * scan when part of the repository had never been looked at. Several unrelated causes look
+ * identical from here — a sparse checkout, an uncommitted deletion, or a checkout that could
+ * not create the file at all, which is routine on Windows for paths past the length limit or
+ * with names NTFS rejects. Measuring the adversarial suite turned up webpack's long test
+ * fixture paths and a `日.js` doing exactly that. So the diagnostic reports what was observed
+ * and lists the causes rather than asserting one.
+ */
+function reportAbsentTrackedPaths(diagnostics: RepoMap["diagnostics"], absent: string[]): void {
+  if (absent.length === 0) return;
+
+  diagnostics.push({
+    code: "tracked-paths-absent",
+    severity: "warning",
+    message:
+      `${absent.length.toLocaleString()} tracked path${absent.length === 1 ? " is" : "s are"} not present on disk ` +
+      `and went unranked, mostly under ${summarizeSkippedScope(absent)}. ` +
+      "That means a sparse or partial checkout, an uncommitted deletion, or a path this " +
+      "filesystem could not create."
+  });
+}
+
+function reportLinkedDuplicates(
+  diagnostics: RepoMap["diagnostics"],
+  linked: Array<{ path: string; target: string }>
+): void {
+  if (linked.length === 0) return;
+
+  const sample = linked.slice(0, 3)
+    .map((entry) => `${entry.path} -> ${entry.target}`)
+    .join(", ");
+  diagnostics.push({
+    code: "duplicate-real-path",
+    severity: "info",
+    message:
+      `${linked.length.toLocaleString()} tracked path${linked.length === 1 ? "" : "s"} resolved to a file already ` +
+      `scanned under another name and ${linked.length === 1 ? "was" : "were"} ranked once: ${sample}` +
+      `${linked.length > 3 ? ", …" : ""}.`
+  });
 }
 
 async function walkFiles(
@@ -180,9 +255,9 @@ async function walkFiles(
     }
 
     const absolutePath = join(current, entry.name);
-    const file = await toRepoFile(absolutePath, normalizePath(relative(root, absolutePath)));
-    if (file) {
-      results.push(file);
+    const scanned = await toRepoFile(absolutePath, normalizePath(relative(root, absolutePath)));
+    if (scanned.status === "ok") {
+      results.push(scanned.file);
       state.count += 1;
     }
   }
@@ -190,15 +265,21 @@ async function walkFiles(
   return results;
 }
 
-async function toRepoFile(absolutePath: string, relativePath: string): Promise<RepoFile | undefined> {
+type ScannedFile =
+  | { status: "ok"; file: RepoFile; realPath: string }
+  /** Tracked by git but not on disk — a sparse or partial checkout. */
+  | { status: "absent" }
+  | { status: "not-a-file" };
+
+async function toRepoFile(absolutePath: string, relativePath: string): Promise<ScannedFile> {
   let fileStat;
   try {
     fileStat = await stat(absolutePath);
   } catch {
-    return undefined;
+    return { status: "absent" };
   }
   if (!fileStat.isFile()) {
-    return undefined;
+    return { status: "not-a-file" };
   }
 
   const extension = extname(relativePath);
@@ -208,15 +289,39 @@ async function toRepoFile(absolutePath: string, relativePath: string): Promise<R
     : { text: "", complete: true };
 
   return {
-    path: relativePath,
-    extension,
-    sizeBytes: fileStat.size,
-    isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
-    isSource,
-    kind: classifyFile(relativePath, extension),
-    textSample: sample.text,
-    textSampleComplete: sample.complete
+    status: "ok",
+    realPath: await resolveRealPath(absolutePath),
+    file: {
+      path: relativePath,
+      extension,
+      sizeBytes: fileStat.size,
+      isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
+      isSource,
+      kind: classifyFile(relativePath, extension),
+      textSample: sample.text,
+      textSampleComplete: sample.complete
+    }
   };
+}
+
+/**
+ * Falls back to the literal path when the real path cannot be read, which keeps an
+ * unreadable entry rankable rather than colliding every such file onto one key.
+ */
+async function resolveRealPath(absolutePath: string): Promise<string> {
+  try {
+    return await realpath(absolutePath);
+  } catch {
+    return absolutePath;
+  }
+}
+
+async function isSymbolicLink(absolutePath: string): Promise<boolean> {
+  try {
+    return (await lstat(absolutePath)).isSymbolicLink();
+  } catch {
+    return false;
+  }
 }
 
 function isInAlwaysIgnoredDir(relativePath: string): boolean {
@@ -257,9 +362,22 @@ async function readPackageScripts(root: string, files: RepoFile[], diagnostics: 
   const scripts: PackageScript[] = [];
 
   for (const manifest of manifests) {
+    const absolutePath = join(root, manifest.path);
+    let bytes: Buffer;
     try {
-      const raw = await readFile(join(root, manifest.path), "utf8");
-      const parsed = JSON.parse(raw) as { scripts?: Record<string, string> };
+      bytes = await readFile(absolutePath);
+    } catch {
+      diagnostics.push({
+        code: "package-json-invalid",
+        severity: "warning",
+        message: `Could not read ${manifest.path}; scripts from that package were skipped.`
+      });
+      continue;
+    }
+
+    const decoded = decodeManifest(bytes);
+    try {
+      const parsed = JSON.parse(decoded.text) as { scripts?: Record<string, string> };
       const packageDir = normalizePath(dirname(manifest.path));
       scripts.push(...Object.entries(parsed.scripts ?? {}).map(([name, command]) => ({
         name,
@@ -270,12 +388,36 @@ async function readPackageScripts(root: string, files: RepoFile[], diagnostics: 
       diagnostics.push({
         code: "package-json-invalid",
         severity: "warning",
-        message: `Could not parse ${manifest.path}; scripts from that package were skipped.`
+        message:
+          `Could not parse ${manifest.path}; scripts from that package were skipped.` +
+          // Encoding is no longer a cause of failure, so naming it here rules it out rather
+          // than sending someone to re-save a file whose real problem is a syntax error.
+          (decoded.encoding === "utf8" ? "" : ` It was decoded as ${decoded.encoding}, so the problem is the JSON itself, not the encoding.`)
       });
     }
   }
 
   return scripts;
+}
+
+/**
+ * `Set-Content -Encoding utf8` on Windows writes a byte order mark, and `JSON.parse` rejects
+ * one outright — so a perfectly valid manifest reported as invalid JSON and every script in
+ * it was skipped, which surfaced downstream as `no-test-route`. Decoding the common editor
+ * encodings first keeps `package-json-invalid` for genuinely broken syntax, and the encoding
+ * label is carried out so the diagnostic can say so when parsing still fails.
+ */
+function decodeManifest(bytes: Buffer): { text: string; encoding: string } {
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return { text: bytes.subarray(2).toString("utf16le"), encoding: "UTF-16LE" };
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return { text: bytes.subarray(2).swap16().toString("utf16le"), encoding: "UTF-16BE" };
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return { text: bytes.subarray(3).toString("utf8"), encoding: "UTF-8 with a byte order mark" };
+  }
+  return { text: bytes.toString("utf8"), encoding: "utf8" };
 }
 
 async function readDiff(
@@ -397,7 +539,16 @@ async function readTextSample(
   }
 
   try {
-    return { text: await readFile(path, "utf8"), complete: true };
+    const bytes = await readFile(path);
+    // A NUL byte does not occur in real source. Treating such a file as text produced a
+    // garbled sample that matched nothing, while the path still scored — so a binary blob
+    // named like source ranked on its name alone with no way to tell from the report.
+    // Reporting it as incomplete routes it through the same "content unavailable" handling
+    // as an oversized file.
+    if (bytes.includes(0)) {
+      return { text: "", complete: false };
+    }
+    return { text: bytes.toString("utf8"), complete: true };
   } catch {
     return { text: "", complete: false };
   }
