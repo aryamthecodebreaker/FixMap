@@ -35,6 +35,17 @@ export default function GetStartedPage() {
           <CopyCommand command="npm install --save-dev @aryam/fixmap" />
           <p>A project install is reached with <code>npx fixmap</code> inside the repository, or from an npm script.</p>
 
+          <h3>Safe PowerShell test project</h3>
+          <p>Create the directory before changing into it. If <code>cd</code> fails, PowerShell stays in the previous directory and a project-scoped npm install will go there instead.</p>
+          <CopyCommand command={`$fixmapTestPath = Join-Path $env:USERPROFILE "fixmaptesting"
+New-Item -ItemType Directory -Path $fixmapTestPath -Force -ErrorAction Stop | Out-Null
+Set-Location $fixmapTestPath -ErrorAction Stop
+npm init -y
+npm install --save-dev @aryam/fixmap
+npx fixmap --version
+npx fixmap plan --issue "password reset emails fail"`} />
+          <p>Use <code>Get-Location</code> before installing whenever a directory command reports an error.</p>
+
           <h3>Check what you are actually running</h3>
           <p>An older global install can shadow the version <code>npx</code> was asked for, which makes a feature that shipped look like it never existed. <code>doctor</code> reports the version in use, where it resolved from, and any conflicting global — and exits non-zero when it finds one:</p>
           <CopyCommand command="npx -y @aryam/fixmap@latest doctor" />
