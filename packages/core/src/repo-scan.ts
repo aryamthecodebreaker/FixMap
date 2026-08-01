@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
-import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS } from "./paths.js";
+import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS, isGeneratedPath } from "./paths.js";
 import { DIAGNOSTIC_SPEC_LIMIT, truncateForDiagnostic } from "./text.js";
 import type { FixMapInput, PackageScript, RepoFile, RepoMap } from "./types.js";
 
@@ -191,6 +191,7 @@ async function buildFilesFromPaths(
   reportAbsentTrackedPaths(diagnostics, absent);
   reportLinkedDuplicates(diagnostics, linked);
   reportUnreadContent(diagnostics, results);
+  reportGeneratedDominance(diagnostics, results);
 
   return results.sort((a, b) => a.path.localeCompare(b.path));
 }
@@ -243,6 +244,33 @@ function reportUnreadContent(diagnostics: RepoMap["diagnostics"], files: RepoFil
       `${unread.length.toLocaleString()} source file${unread.length === 1 ? "" : "s"} could not be read as text and ` +
       `rank${unread.length === 1 ? "s" : ""} on path alone — largest: ${sample}` +
       `${unread.length > 3 ? ", …" : ""}. Files over ${(MAX_TEXT_SAMPLE_BYTES / 1000).toLocaleString()}KB are not sampled.`
+  });
+}
+
+/**
+ * `GENERATED_DIRS` keeps build output out of a directory walk, but a repository that commits
+ * its `dist/` has those files in `git ls-files`, and they consume the scan budget before any
+ * first-party code is reached. The budget is not changed here — moving it without evidence
+ * would reshuffle ranking everywhere, since the boilerplate threshold is a share of the
+ * candidate set. Saying so lets a reader narrow `--repo` themselves, which is the fix that
+ * actually works.
+ */
+const GENERATED_DOMINANCE_SHARE = 0.4;
+const GENERATED_DOMINANCE_MINIMUM = 500;
+
+function reportGeneratedDominance(diagnostics: RepoMap["diagnostics"], files: RepoFile[]): void {
+  if (files.length < GENERATED_DOMINANCE_MINIMUM) return;
+  const generated = files.filter((file) => isGeneratedPath(file.path));
+  const share = generated.length / files.length;
+  if (share < GENERATED_DOMINANCE_SHARE) return;
+
+  diagnostics.push({
+    code: "generated-paths-dominant",
+    severity: "info",
+    message:
+      `${Math.round(share * 100)}% of the ${files.length.toLocaleString()} scanned files are committed build output ` +
+      `(mostly ${summarizeSkippedScope(generated.map((file) => file.path))}). They are penalized in ranking but still ` +
+      "consume the scan budget — point --repo at the source directory for a sharper result."
   });
 }
 

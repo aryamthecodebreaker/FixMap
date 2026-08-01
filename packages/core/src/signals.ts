@@ -309,7 +309,11 @@ export function extractFileMentions(text: string): Set<string> {
   // stripping URLs generally. This avoids turning badges, issue links and external docs
   // into ranking terms while restoring links such as .../blob/<sha>/src/core/index.ts#L4.
   for (const match of text.matchAll(
-    /https?:\/\/github\.com\/[^/\s]+\/[^/\s]+\/blob\/[0-9a-f]{7,64}\/([^\s#?]+)/gi
+    // blob, tree and blame all address a path in the repository; only the view differs, and
+    // a tree or blame link is the same deliberate "the code is here" gesture as a blob one.
+    // The ref is any branch, tag or sha — restricting to a hex sha kept only permalinks and
+    // dropped the branch links people paste far more often.
+    /https?:\/\/github\.com\/[^/\s]+\/[^/\s]+\/(?:blob|tree|blame)\/[^/\s]+\/([^\s#?]+)/gi
   )) {
     const encodedPath = match[1];
     if (!encodedPath) continue;

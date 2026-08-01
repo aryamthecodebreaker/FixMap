@@ -383,7 +383,13 @@ function isEscaped(text, index) {
 }
 function extractFileMentions(text) {
   const mentions = /* @__PURE__ */ new Set();
-  for (const match of text.matchAll(/https?:\/\/github\.com\/[^/\s]+\/[^/\s]+\/blob\/[0-9a-f]{7,64}\/([^\s#?]+)/gi)) {
+  for (const match of text.matchAll(
+    // blob, tree and blame all address a path in the repository; only the view differs, and
+    // a tree or blame link is the same deliberate "the code is here" gesture as a blob one.
+    // The ref is any branch, tag or sha — restricting to a hex sha kept only permalinks and
+    // dropped the branch links people paste far more often.
+    /https?:\/\/github\.com\/[^/\s]+\/[^/\s]+\/(?:blob|tree|blame)\/[^/\s]+\/([^\s#?]+)/gi
+  )) {
     const encodedPath = match[1];
     if (!encodedPath)
       continue;
@@ -435,12 +441,13 @@ function normalizeToken(token) {
     return normalizeVerbStem(token.slice(0, -2));
   if (token.length > 4 && /(?:sses|shes|ches|xes|zes)$/.test(token))
     return token.slice(0, -2);
-  if (token.length > 3 && token.endsWith("s"))
+  if (token.length > 3 && token.endsWith("s") && !/(?:ss|us|is)$/.test(token)) {
     return token.slice(0, -1);
+  }
   return token;
 }
 function normalizeVerbStem(stem) {
-  const deduplicated = /([a-z])\1$/.test(stem) ? stem.slice(0, -1) : stem;
+  const deduplicated = /([a-z])\1$/.test(stem) && !stem.endsWith("ss") ? stem.slice(0, -1) : stem;
   return TRAILING_E_VERB_STEMS.has(deduplicated) ? `${deduplicated}e` : deduplicated;
 }
 function tokenizePath(path) {
@@ -479,7 +486,15 @@ function analyzeTaskGrounding(repo, input) {
     unresolvedIdentifiers,
     partiallyResolvedIdentifiers,
     unverifiedIdentifiers,
-    scanComplete: !repo.diagnostics.some((diagnostic) => diagnostic.code === "scan-limit-reached")
+    // "Complete" has to mean every candidate was actually read, not merely that the file
+    // limit was never reached. A file past the sample ceiling, or one holding NUL bytes, is
+    // still listed and still scored on its path while its contents were never seen — so a
+    // report could claim a complete scan of a repository whose largest definition files went
+    // unread, which is exactly where an answer hides.
+    scanComplete: !repo.diagnostics.some((diagnostic) => diagnostic.code === "scan-limit-reached" || diagnostic.code === "tracked-paths-absent") && // Explicitly false, not merely absent: `textSampleComplete` is optional, and callers
+    // that build a RepoMap by hand — the browser demo, an MCP client — leave it undefined.
+    // Reading undefined as "incomplete" capped confidence for every one of them.
+    !repo.files.some((file) => file.isSource && file.textSampleComplete === false)
   };
 }
 function buildGroundedTaskTokens(grounding, input) {
@@ -945,7 +960,7 @@ var DEPLOYMENT_TERMS = [
   "500",
   "502"
 ];
-var LOCKFILES = /* @__PURE__ */ new Set(["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock"]);
+var LOCKFILES = /* @__PURE__ */ new Set(["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"]);
 var AUXILIARY_CODE_DIRS = /* @__PURE__ */ new Set(["demo", "demos", "example", "examples", "sample", "samples"]);
 var COMPILED_TO_SOURCE_MENTION_EXTENSIONS = {
   ".js": [".ts", ".tsx"],
@@ -1947,6 +1962,8 @@ async function buildFilesFromPaths(root, paths, diagnostics) {
   }
   reportAbsentTrackedPaths(diagnostics, absent);
   reportLinkedDuplicates(diagnostics, linked);
+  reportUnreadContent(diagnostics, results);
+  reportGeneratedDominance(diagnostics, results);
   return results.sort((a, b) => a.path.localeCompare(b.path));
 }
 function reportAbsentTrackedPaths(diagnostics, absent) {
@@ -1956,6 +1973,32 @@ function reportAbsentTrackedPaths(diagnostics, absent) {
     code: "tracked-paths-absent",
     severity: "warning",
     message: `${absent.length.toLocaleString()} tracked path${absent.length === 1 ? " is" : "s are"} not present on disk and went unranked, mostly under ${summarizeSkippedScope(absent)}. That means a sparse or partial checkout, an uncommitted deletion, or a path this filesystem could not create.`
+  });
+}
+function reportUnreadContent(diagnostics, files) {
+  const unread = files.filter((file) => file.isSource && file.textSampleComplete === false);
+  if (unread.length === 0)
+    return;
+  const sample = unread.slice().sort((a, b) => b.sizeBytes - a.sizeBytes).slice(0, 3).map((file) => `${file.path} (${Math.round(file.sizeBytes / 1024).toLocaleString()}KB)`).join(", ");
+  diagnostics.push({
+    code: "content-unread",
+    severity: "warning",
+    message: `${unread.length.toLocaleString()} source file${unread.length === 1 ? "" : "s"} could not be read as text and rank${unread.length === 1 ? "s" : ""} on path alone \u2014 largest: ${sample}${unread.length > 3 ? ", \u2026" : ""}. Files over ${(MAX_TEXT_SAMPLE_BYTES / 1e3).toLocaleString()}KB are not sampled.`
+  });
+}
+var GENERATED_DOMINANCE_SHARE = 0.4;
+var GENERATED_DOMINANCE_MINIMUM = 500;
+function reportGeneratedDominance(diagnostics, files) {
+  if (files.length < GENERATED_DOMINANCE_MINIMUM)
+    return;
+  const generated = files.filter((file) => isGeneratedPath(file.path));
+  const share = generated.length / files.length;
+  if (share < GENERATED_DOMINANCE_SHARE)
+    return;
+  diagnostics.push({
+    code: "generated-paths-dominant",
+    severity: "info",
+    message: `${Math.round(share * 100)}% of the ${files.length.toLocaleString()} scanned files are committed build output (mostly ${summarizeSkippedScope(generated.map((file) => file.path))}). They are penalized in ranking but still consume the scan budget \u2014 point --repo at the source directory for a sharper result.`
   });
 }
 function reportLinkedDuplicates(diagnostics, linked) {

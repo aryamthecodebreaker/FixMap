@@ -221,7 +221,9 @@ To map what you are editing right now, without crafting a git spec:
 npx -y @aryam/fixmap@latest plan --working-tree --issue "reset flow"
 ```
 
-That means staged and unstaged tracked changes against `HEAD`. Untracked files stay out unless you add `--include-untracked`, so agent metadata and scratch files do not rank beside real edits.
+That means staged and unstaged tracked changes against `HEAD`. Untracked files stay out of the **change set** unless you add `--include-untracked`, so agent metadata and scratch files are not reported as edits.
+
+They are still ranking candidates. The repository scan reads `git ls-files --others --exclude-standard`, so a new file you just wrote can appear in the context list without appearing in `changedFiles` — which is what you want, since a file an agent created moments ago is usually the most relevant thing in the repository. `--include-untracked` governs which files count as *changed*, not which files can be ranked.
 
 ### Verify the change afterwards
 
@@ -387,7 +389,7 @@ FixMap is deliberately inspectable:
 - **Explainable:** every ranked file includes reasons such as path matches, content matches, exact definitions, changed-file evidence, or import proximity.
 - **Local-first:** local repositories stay local; public URLs use an anonymous temporary checkout.
 - **Non-executing:** FixMap never installs dependencies or runs repository build, test, hook, or package scripts.
-- **Git-aware:** scans respect `.gitignore`; working-tree mode includes staged and unstaged tracked files, with untracked files only when `--include-untracked` is explicit; unresolved refs surface as errors.
+- **Git-aware:** scans respect `.gitignore`; working-tree mode reports staged and unstaged tracked files as changed, adding untracked ones only when `--include-untracked` is explicit, though untracked source is always a ranking candidate; unresolved refs surface as errors and exit non-zero.
 - **Monorepo-aware:** test routing understands npm, pnpm, Yarn, Bun, and workspace package boundaries.
 - **Bounded:** file counts, text samples, issue bodies, network responses, and remote-fetch time are capped with explicit diagnostics.
 
