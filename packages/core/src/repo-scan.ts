@@ -452,9 +452,10 @@ async function readDiff(
     diagnostics.push({
       code: "diff-unavailable",
       severity: "warning",
-      message:
-        `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ` +
-        `${detail}. Results use the task text only.`
+      message: describesMissingRepository(error)
+        ? `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ${NOT_A_GIT_CHECKOUT}`
+        : `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ` +
+          `${detail}. Results use the task text only.`
     });
     return { changedFiles: [], diffText: "" };
   }
@@ -502,12 +503,36 @@ async function readWorkingTree(
     diagnostics.push({
       code: "diff-unavailable",
       severity: "warning",
-      message:
-        `Could not read the working tree: ${truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2)}. ` +
-        "Results use the task text only."
+      message: describesMissingRepository(error)
+        ? `Could not read the working tree: ${NOT_A_GIT_CHECKOUT}`
+        : `Could not read the working tree: ${truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2)}. ` +
+          "Results use the task text only."
     });
     return { changedFiles: [], diffText: "" };
   }
+}
+
+/**
+ * A plain directory still ranks, because the scanner falls back to walking it — so pointing
+ * FixMap at an extracted tarball is a supported thing to do. Only the change-mapping modes
+ * need git, and echoing git's raw "fatal: not a git repository" left the reader to work out
+ * which of the two facts was the problem.
+ */
+const NOT_A_GIT_CHECKOUT =
+  "this directory is not a git checkout. Ranking still works from the task text; " +
+  "--diff, --base/--head and --working-tree need a repository with history.";
+
+/**
+ * `execFile` puts "Command failed: git ..." in `message` and git's own explanation in
+ * `stderr`, so matching on the message alone never saw the reason. Both are checked.
+ */
+function describesMissingRepository(error: unknown): boolean {
+  const candidate = error as { message?: unknown; stderr?: unknown };
+  const text = [
+    typeof candidate?.message === "string" ? candidate.message : "",
+    typeof candidate?.stderr === "string" ? candidate.stderr : ""
+  ].join("\n");
+  return /not a git repository|does not have a commit checked out/i.test(text);
 }
 
 function detectPackageManager(files: RepoFile[]): RepoMap["packageManager"] {

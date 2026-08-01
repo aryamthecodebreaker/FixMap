@@ -2044,7 +2044,7 @@ async function readDiff(repoRoot, diffSpec, diagnostics) {
     diagnostics.push({
       code: "diff-unavailable",
       severity: "warning",
-      message: `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ${detail}. Results use the task text only.`
+      message: describesMissingRepository(error) ? `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ${NOT_A_GIT_CHECKOUT}` : `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ${detail}. Results use the task text only.`
     });
     return { changedFiles: [], diffText: "" };
   }
@@ -2070,10 +2070,19 @@ async function readWorkingTree(repoRoot, includeUntracked, diagnostics) {
     diagnostics.push({
       code: "diff-unavailable",
       severity: "warning",
-      message: `Could not read the working tree: ${truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2)}. Results use the task text only.`
+      message: describesMissingRepository(error) ? `Could not read the working tree: ${NOT_A_GIT_CHECKOUT}` : `Could not read the working tree: ${truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2)}. Results use the task text only.`
     });
     return { changedFiles: [], diffText: "" };
   }
+}
+var NOT_A_GIT_CHECKOUT = "this directory is not a git checkout. Ranking still works from the task text; --diff, --base/--head and --working-tree need a repository with history.";
+function describesMissingRepository(error) {
+  const candidate = error;
+  const text = [
+    typeof candidate?.message === "string" ? candidate.message : "",
+    typeof candidate?.stderr === "string" ? candidate.stderr : ""
+  ].join("\n");
+  return /not a git repository|does not have a commit checked out/i.test(text);
 }
 function detectPackageManager(files) {
   const paths = new Set(files.map((file) => file.path));

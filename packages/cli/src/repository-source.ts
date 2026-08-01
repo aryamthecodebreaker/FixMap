@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import {
   buildFixMapReport,
@@ -45,9 +46,23 @@ export type ClonedRepository = {
  * someone is watching: a TTY, or FIXMAP_PROGRESS=1 for CI logs that want them.
  */
 export function reportProgress(phase: string): void {
-  if (process.env.FIXMAP_PROGRESS === "1" || process.stderr.isTTY) {
+  if (progressSuppressed(process.env.FIXMAP_PROGRESS)) return;
+  if (progressRequested(process.env.FIXMAP_PROGRESS) || process.stderr.isTTY) {
     process.stderr.write(`fixmap: ${phase}\n`);
   }
+}
+
+/**
+ * `FIXMAP_PROGRESS=true` reads as enabled to anyone who writes it, and silently did nothing.
+ * An explicit falsey value also has to turn progress off even on a TTY, or there is no way
+ * to silence it in a terminal.
+ */
+export function progressRequested(value: string | undefined): boolean {
+  return value !== undefined && ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
+export function progressSuppressed(value: string | undefined): boolean {
+  return value !== undefined && ["0", "false", "no", "off"].includes(value.trim().toLowerCase());
 }
 
 export type RepositorySourceDependencies = {
@@ -90,18 +105,62 @@ export class RepositorySourceError extends Error {
   override name = "RepositorySourceError";
 }
 
+/**
+ * The same helper is used to parse a task URL and to ask "is this a task URL at all?" — and
+ * in the second position throwing was wrong twice over: it made every probe site wrap itself
+ * in try/catch, and one that forgot printed a Node stack instead of a one-line error.
+ * Callers that only need the boolean use this; callers that need the diagnosis parse.
+ */
+export function tryParseGitHubIssueSource(input: string): ParsedGitHubIssueSource | undefined {
+  try {
+    return parseGitHubIssueSource(input);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Hosts and decorations a browser or API client adds that carry no meaning for us: `www.`
+ * is the same site, `api.` is the same issue behind a different path shape, and `?plain=1`
+ * or `#issuecomment-123` are viewer state. Rejecting these sent people to hand-edit a URL
+ * they had just copied, so they are rewritten to the canonical form instead. Everything
+ * genuinely ambiguous — other hosts, credentials, ports — still fails.
+ */
+function canonicalizeGitHubTaskUrl(url: URL): URL | undefined {
+  const canonical = new URL(url.href);
+  // Viewer state, never part of the identity of an issue.
+  canonical.search = "";
+  canonical.hash = "";
+
+  const hostname = canonical.hostname.toLowerCase();
+  if (hostname === "api.github.com") {
+    // https://api.github.com/repos/owner/repo/issues/123 -> the page it represents.
+    const segments = canonical.pathname.split("/").filter(Boolean);
+    if (segments.length !== 5 || segments[0] !== "repos") return undefined;
+    const kind = (segments[3] ?? "").toLowerCase();
+    if (kind !== "issues" && kind !== "pulls") return undefined;
+    return new URL(
+      `https://github.com/${segments[1]}/${segments[2]}/${kind === "pulls" ? "pull" : "issues"}/${segments[4]}`
+    );
+  }
+  if (hostname === "www.github.com") {
+    canonical.hostname = "github.com";
+  }
+  return canonical;
+}
+
 export function parseGitHubIssueSource(input: string): ParsedGitHubIssueSource | undefined {
   const trimmed = input.trim();
   const looksLikeStandaloneGitHubUrl =
-    /^https?:\/\/(?:[^/@\s]+@)?github\.com[\\/]\S+$/i.test(trimmed);
+    /^https?:\/\/(?:[^/@\s]+@)?(?:www\.|api\.)?github\.com[\\/]\S+$/i.test(trimmed);
   // Pull request URLs are accepted alongside issue URLs. Agents and humans paste them
   // constantly — "map what this PR is about" is a more common starting point than an issue
   // link — and GitHub serves a PR's title and body from the same /issues/N endpoint, so
   // this costs one path segment. Compare, tree, discussion and file URLs stay rejected:
   // they carry no task text to rank against.
   const looksLikeGitHubTask =
-    /^https?:\/\/(?:[^/@\s]+@)?github\.com[\\/]/i.test(trimmed) &&
-    /[\\/](?:issues|pull)(?:[\\/]|%(?:2f|5c))/i.test(trimmed);
+    /^https?:\/\/(?:[^/@\s]+@)?(?:www\.|api\.)?github\.com[\\/]/i.test(trimmed) &&
+    /[\\/](?:issues|pulls?)(?:[\\/]|%(?:2f|5c))/i.test(trimmed);
   if (!looksLikeGitHubTask) {
     if (looksLikeStandaloneGitHubUrl) {
       throw new RepositorySourceError(
@@ -121,23 +180,22 @@ export function parseGitHubIssueSource(input: string): ParsedGitHubIssueSource |
     );
   }
 
-  let url: URL;
+  let parsed: URL;
   try {
-    url = new URL(trimmed);
+    parsed = new URL(trimmed);
   } catch {
     throw new RepositorySourceError(
       'GitHub issue and pull request URLs must use canonical forms such as "https://github.com/owner/repository/issues/123" or "/pull/123".'
     );
   }
 
+  const url = canonicalizeGitHubTaskUrl(parsed);
   if (
-    url.protocol !== "https:" ||
-    url.hostname.toLowerCase() !== "github.com" ||
+    !url ||
+    parsed.protocol !== "https:" ||
     url.port ||
     url.username ||
-    url.password ||
-    url.search ||
-    url.hash
+    url.password
   ) {
     throw new RepositorySourceError(
       'Only canonical public GitHub issue and pull request URLs are supported: "https://github.com/owner/repository/issues/123" or "/pull/123".'
@@ -309,7 +367,30 @@ export function buildIsolatedGitEnvironment(
 }
 
 export function parseRepositorySource(input: string): ParsedRepositorySource {
-  const trimmed = input.trim();
+  let trimmed = input.trim();
+
+  // A `file:` URL names a directory that is already on disk, and agents emit them routinely.
+  // Rejecting it as "not a public HTTPS GitHub URL" described the wrong problem entirely.
+  if (/^file:\/\//i.test(trimmed)) {
+    try {
+      return { kind: "local", repoRoot: resolve(fileURLToPath(trimmed)) };
+    } catch {
+      throw new RepositorySourceError(
+        `"${trimmed}" is not a usable file URL. Pass the directory path directly instead.`
+      );
+    }
+  }
+
+  // `git@github.com:owner/repository.git` is what GitHub's own clone box offers, and it
+  // identifies exactly the repository the HTTPS URL does. FixMap only ever reads public
+  // repositories over HTTPS, so this is a rewrite, not added SSH support.
+  const scpStyle = trimmed.match(/^git@github\.com:([^/\s]+)\/(\S+?)(?:\.git)?\/?$/i);
+  if (scpStyle) {
+    trimmed = `https://github.com/${scpStyle[1]}/${scpStyle[2]}`;
+  } else if (/^ssh:\/\/git@github\.com\//i.test(trimmed)) {
+    trimmed = trimmed.replace(/^ssh:\/\/git@github\.com\//i, "https://github.com/").replace(/\.git\/?$/i, "");
+  }
+
   const looksLikeUrl = URL_SCHEME.test(trimmed) || SCP_STYLE_REMOTE.test(trimmed);
 
   if (!looksLikeUrl) {

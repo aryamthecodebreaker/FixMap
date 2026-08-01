@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildIsolatedGitEnvironment,
@@ -8,6 +9,9 @@ import {
   fetchPublicGitHubIssue,
   parseGitHubIssueSource,
   parseRepositorySource,
+  progressRequested,
+  progressSuppressed,
+  tryParseGitHubIssueSource,
   withRepositorySource,
   type ClonedRepository
 } from "../src/repository-source.js";
@@ -57,12 +61,13 @@ describe("repository source parsing", () => {
     });
   });
 
+  // `ssh://git@github.com/...`, `git@github.com:...` and `file:///...` used to live in this
+  // list. They are now normalized instead of rejected (#363, #364) and are asserted in
+  // "recoverable task URL shapes" below. Nothing that changes *what gets fetched* moved.
   it.each([
     "http://github.com/owner/repository",
     "git://github.com/owner/repository",
-    "ssh://git@github.com/owner/repository",
-    "git@github.com:owner/repository.git",
-    "file:///tmp/repository",
+    "ssh://git@gitlab.com/owner/repository",
     "https://gitlab.com/owner/repository",
     "https://github.com.evil.example/owner/repository",
     "https://github.com/owner/repository/tree/main",
@@ -128,13 +133,15 @@ describe("GitHub issue source parsing", () => {
       .toThrow("Only canonical public GitHub issue and pull request URLs");
   });
 
+  // `?query` and `#fragment` used to be rejected here. They are viewer state that never
+  // changes which issue is fetched, so they are now stripped (#365) and asserted in
+  // "recoverable task URL shapes" below. Everything that selects a different resource —
+  // scheme, host, credentials, encoded separators, extra path segments — still throws.
   it.each([
     "http://github.com/owner/repository/issues/123",
     "https://github.com/owner/repository/issues/0",
     "https://github.com/owner/repository/issues/not-a-number",
     "https://github.com/owner/repository/issues/123/comments",
-    "https://github.com/owner/repository/issues/123?notification_referrer_id=1",
-    "https://github.com/owner/repository/issues/123#issuecomment-1",
     "https://user:secret@github.com/owner/repository/issues/123",
     "https://github.com/owner/repository/issues%2F123",
     "https://github.com/owner\\repository\\issues\\123",
@@ -580,5 +587,66 @@ describe("repository acquisition", () => {
     expect(reports).toHaveLength(2);
     expect(new Set(checkoutRoots).size).toBe(2);
     await Promise.all(checkoutRoots.map((path) => expect(stat(dirname(path))).rejects.toThrow()));
+  });
+});
+
+describe("recoverable task URL shapes", () => {
+  // Everything a browser or an API client adds that does not change which issue is meant.
+  it.each([
+    ["a ?query", "https://github.com/owner/repository/issues/274?plain=1", "https://github.com/owner/repository/issues/274"],
+    ["a #fragment", "https://github.com/owner/repository/issues/274#issuecomment-1", "https://github.com/owner/repository/issues/274"],
+    ["a www. host", "https://www.github.com/owner/repository/issues/274", "https://github.com/owner/repository/issues/274"],
+    ["an api. host", "https://api.github.com/repos/owner/repository/issues/274", "https://github.com/owner/repository/issues/274"],
+    ["an api. pulls path", "https://api.github.com/repos/owner/repository/pulls/274", "https://github.com/owner/repository/pull/274"]
+  ])("normalizes %s", (_label, input, expected) => {
+    expect(parseGitHubIssueSource(input)?.displayUrl).toBe(expected);
+  });
+
+  it("still refuses anything that changes what would be fetched", () => {
+    // Not a GitHub task URL at all: the caller gets `undefined` and the text is ranked as
+    // task text, which is the correct reading of "https://evil.com/...".
+    expect(parseGitHubIssueSource("https://evil.com/owner/repository/issues/1")).toBeUndefined();
+    expect(parseGitHubIssueSource("https://github.com:8443/owner/repository/issues/1")).toBeUndefined();
+    // Recognizably a GitHub task URL, but unsafe — so this one is an error, not a shrug.
+    expect(() => parseGitHubIssueSource("https://user:pw@github.com/owner/repository/issues/1")).toThrow();
+  });
+
+  // The probe answers "is this a task URL?" and must never throw in boolean position; the
+  // throwing variant printed a Node stack instead of a one-line error.
+  it("returns undefined rather than throwing for shapes it cannot parse", () => {
+    expect(tryParseGitHubIssueSource("https://github.com/owner/repository/pull/158.patch")).toBeUndefined();
+    expect(tryParseGitHubIssueSource("not a url at all")).toBeUndefined();
+    expect(tryParseGitHubIssueSource("https://github.com/owner/repository/issues/274?plain=1")?.number).toBe(274);
+  });
+
+  it.each([
+    ["git@github.com:owner/repository.git", "https://github.com/owner/repository"],
+    ["git@github.com:owner/repository", "https://github.com/owner/repository"],
+    ["ssh://git@github.com/owner/repository.git", "https://github.com/owner/repository"]
+  ])("rewrites the SSH clone form %j to public HTTPS", (input, expected) => {
+    const source = parseRepositorySource(input);
+    expect(source.kind).toBe("github");
+    expect(source.kind === "github" && source.displayUrl).toBe(expected);
+  });
+
+  it("treats a file URL as the local directory it names", () => {
+    const source = parseRepositorySource(pathToFileURL(process.cwd()).href);
+    expect(source.kind).toBe("local");
+    expect(source.kind === "local" && source.repoRoot).toBe(process.cwd());
+  });
+});
+
+describe("progress environment values", () => {
+  it.each(["1", "true", "yes", "on", "TRUE", " yes "])("enables progress for %j", (value) => {
+    expect(progressRequested(value)).toBe(true);
+  });
+
+  it.each(["0", "false", "no", "off"])("silences progress for %j", (value) => {
+    expect(progressSuppressed(value)).toBe(true);
+  });
+
+  it("leaves the TTY default alone when unset", () => {
+    expect(progressRequested(undefined)).toBe(false);
+    expect(progressSuppressed(undefined)).toBe(false);
   });
 });
