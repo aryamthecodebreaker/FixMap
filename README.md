@@ -42,6 +42,26 @@ npm install --save-dev @aryam/fixmap
 
 A project install is reached with `npx fixmap` inside the repository, or from an npm script.
 
+#### Safe PowerShell test project
+
+The directory must exist before `Set-Location` succeeds. This complete sequence creates a
+scratch project first, stops on either directory error, installs FixMap in that project,
+and proves the resolved version:
+
+```powershell
+$fixmapTestPath = Join-Path $env:USERPROFILE "fixmaptesting"
+New-Item -ItemType Directory -Path $fixmapTestPath -Force -ErrorAction Stop | Out-Null
+Set-Location $fixmapTestPath -ErrorAction Stop
+npm init -y
+npm install --save-dev @aryam/fixmap
+npx fixmap --version
+npx fixmap plan --issue "password reset emails fail"
+```
+
+If `cd` or `Set-Location` fails, do not run the project-scoped `npm install` yet: PowerShell
+stays in the previous directory, so npm will install there. Run `Get-Location`, create or
+select the intended project directory, and then install.
+
 If an older FixMap is installed globally, some npm/npx combinations on Windows resolve the old global `fixmap` shim even when a version is pinned — so a feature that shipped looks like it never existed. `fixmap doctor` detects exactly this and exits non-zero:
 
 ```bash
@@ -397,13 +417,13 @@ A confidence label is only useful if it predicts something. Across all 27 cases 
 
 | Top result labeled | Correct fixing file | | |
 | --- | ---: | ---: | --- |
-| high | 9 / 15 | **60%** | <sub>95% CI 36–80%</sub> |
-| medium | 6 / 8 | 75% | <sub>95% CI 41–93%</sub> |
+| high | 6 / 12 | **50%** | <sub>95% CI 25–75%</sub> |
+| medium | 8 / 11 | 73% | <sub>95% CI 43–90%</sub> |
 | low | 2 / 4 | 50% | <sub>95% CI 15–85%</sub> |
 
 The bands are not monotonic in this 27-case sample, so the label is a heuristic rather than a calibrated probability. **High confidence still means “check this lead first,” not certainty.** The intervals overlap heavily at these sample sizes, and the raw counts are published so the limitation is visible.
 
-Since v0.8.0 the label is also **scarce**. It used to come from an absolute score threshold, which on a real Zod task labeled all eight results high while the leader was nineteen points ahead of the runner-up — telling an agent the eighth guess was as safe to edit as the first. High is now reserved for a file that leads, ties the lead within two points, or carries definition-site evidence of its own; and a leader that merely out-talks a definition site below it is capped at medium, because that competitor has the stronger kind of evidence. The table above is unchanged by this: it scores only the top-ranked file, and these rules almost always leave a genuine leader alone. What changed is the other seven rows, which no longer borrow the leader's certainty.
+Since v0.8.0 the label is also **scarce**. It used to come from an absolute score threshold, which on a real Zod task labeled all eight results high while the leader was nineteen points ahead of the runner-up — telling an agent the eighth guess was as safe to edit as the first. High is now reserved for a file that leads, ties the lead within two points, or carries definition-site evidence of its own; and a leader that merely out-talks a definition site below it is capped at medium. v0.8.1 also stops documentation code fences from claiming definition evidence and stops a non-leading explicit path from becoming high merely because it was named. The table above is regenerated from the current 15-case external and 12-case held-out suites.
 
 ### Does it stay quiet when it should?
 
@@ -423,6 +443,14 @@ Read the full [benchmark methodology and scanner measurements](docs/BENCHMARKS.m
 ```bash
 npm run evaluate:heldout
 ```
+
+## What changed in v0.8.1
+
+v0.8.1 resolves the complete 107-issue v0.8.0 dogfood backlog. CLI, MCP, and Action now share working-tree, limit, exclusion, format, and validation behavior where their interfaces support it; MCP adds compare and doctor; JSON ranks are explicit; explain resolves normalized absolute Windows paths; verify findings carry consistent risk paths and severity; and generated evaluation results and presentation docs no longer outrank maintained implementation.
+
+Installation is now a release gate rather than a documentation promise. The publish workflow verifies npm `latest`, canonical package homepages, the CLI's exact core dependency, a clean global install with a real plan, the MCP Registry version, and the source commit before it creates the GitHub release. The website includes the complete install paths, all five MCP tools, and a realistic Plan → edit carefully → Verify agent conversation.
+
+[See the 107-issue verification ledger](docs/releases/v0.8.1-issue-verification.md) · [Inspect the changelog](CHANGELOG.md) · [Open the v0.8.1 release](https://github.com/aryamthecodebreaker/FixMap/releases/tag/v0.8.1)
 
 ## What changed in v0.8.0
 
