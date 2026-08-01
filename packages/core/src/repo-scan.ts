@@ -226,7 +226,7 @@ function reportAbsentTrackedPaths(diagnostics: RepoMap["diagnostics"], absent: s
  * rests on the path and nothing else.
  */
 function reportUnreadContent(diagnostics: RepoMap["diagnostics"], files: RepoFile[]): void {
-  const unread = files.filter((file) => file.isSource && !file.textSampleComplete);
+  const unread = files.filter((file) => file.isSource && file.textSampleComplete === false);
   if (unread.length === 0) return;
 
   const sample = unread

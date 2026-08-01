@@ -72,7 +72,10 @@ export function analyzeTaskGrounding(
       !repo.diagnostics.some((diagnostic) =>
         diagnostic.code === "scan-limit-reached" || diagnostic.code === "tracked-paths-absent"
       ) &&
-      !repo.files.some((file) => file.isSource && !file.textSampleComplete)
+      // Explicitly false, not merely absent: `textSampleComplete` is optional, and callers
+      // that build a RepoMap by hand — the browser demo, an MCP client — leave it undefined.
+      // Reading undefined as "incomplete" capped confidence for every one of them.
+      !repo.files.some((file) => file.isSource && file.textSampleComplete === false)
   };
 }
 
