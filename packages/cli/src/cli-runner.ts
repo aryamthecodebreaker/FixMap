@@ -51,7 +51,7 @@ export type CliDependencies = {
   stderr?: (text: string) => void;
   stdout?: (text: string) => void;
   writeReport?: (path: string, contents: string) => Promise<void>;
-  readIssueFile?: (path: string | number) => string;
+  readIssueFile?: (path: string | number) => string | Buffer;
 };
 
 export const USAGE = `FixMap maps an issue, prompt, or diff to context files, test routes, and review risks.
@@ -82,7 +82,7 @@ Commands:
 
 Options:
   --issue <text|url>  Task text, or a public GitHub issue or pull request URL
-  --issue-file <file> Read task text from a UTF-8 file (use - for stdin)
+  --issue-file <file> Read task text from a UTF-8 or UTF-16 file (use - for stdin)
   --diff <spec>       Git diff spec, such as main...HEAD (the repository scan can still rank untracked candidates)
   --base <ref>        Base ref for diffing when --diff is not given
   --head <ref>        Head ref for diffing (defaults to HEAD)
@@ -154,11 +154,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return report.healthy ? 0 : 1;
   }
 
-  if ((args[0] === "plan" || args[0] === "verify") && (args[1] === "--help" || args[1] === "-h")) {
-    if (args.length > 2) {
-      stderr(`Help takes no additional options.\n\n${USAGE}`);
-      return 1;
-    }
+  if ((args[0] === "plan" || args[0] === "verify") && args.slice(1).some((arg) => arg === "--help" || arg === "-h")) {
     stdout(USAGE);
     return 0;
   }
@@ -629,7 +625,7 @@ export function parseArgs(args: string[]): CliOptions {
 
 function loadIssueText(
   options: CliOptions,
-  read: (path: string | number) => string
+  read: (path: string | number) => string | Buffer
 ): string {
   const implicitFile = options.issueText.startsWith("@") ? options.issueText.slice(1) : undefined;
   const path = options.issueFile ?? implicitFile ?? (options.issueText === "-" ? "-" : undefined);
@@ -640,23 +636,41 @@ function loadIssueText(
     throw new Error("Use either --issue or --issue-file, not both.");
   }
   const source = path === "-" ? 0 : path;
-  let text: string;
+  let raw: string | Buffer;
   try {
-    text = read(source);
+    raw = read(source);
   } catch (error) {
     throw new Error(
       `Could not read issue text from ${path === "-" ? "stdin" : `\"${path}\"`}: ` +
       `${error instanceof Error ? error.message : String(error)}`
     );
   }
+  const text = decodeIssueText(raw);
   if (!text.trim()) {
     throw new Error(`Issue text from ${path === "-" ? "stdin" : `\"${path}\"`} was empty.`);
   }
   return text.trim();
 }
 
-function defaultReadIssueFile(path: string | number): string {
-  return readFileSync(path, "utf8");
+function defaultReadIssueFile(path: string | number): Buffer {
+  return readFileSync(path);
+}
+
+/** Decode the encodings commonly produced by editors on every supported platform. */
+function decodeIssueText(raw: string | Buffer): string {
+  if (typeof raw === "string") return raw.replace(/^\uFEFF/, "");
+  if (raw.length >= 2 && raw[0] === 0xff && raw[1] === 0xfe) {
+    return raw.subarray(2).toString("utf16le").replace(/^\uFEFF/, "");
+  }
+  if (raw.length >= 2 && raw[0] === 0xfe && raw[1] === 0xff) {
+    const swapped = Buffer.allocUnsafe(raw.length - 2);
+    for (let index = 2; index + 1 < raw.length; index += 2) {
+      swapped[index - 2] = raw[index + 1]!;
+      swapped[index - 1] = raw[index]!;
+    }
+    return swapped.toString("utf16le").replace(/^\uFEFF/, "");
+  }
+  return raw.toString("utf8").replace(/^\uFEFF/, "");
 }
 
 function quoteCliValue(value: string): string {

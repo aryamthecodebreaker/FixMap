@@ -109,6 +109,17 @@ describe("verifyPlan", () => {
     expect(finding?.paths).toEqual(["test/reset-password.test.ts"]);
   });
 
+  it("anchors no-test-changed to the changed source when routes have no test files", () => {
+    const plan = planFor("src/auth/reset-password.ts");
+    plan.testRoutes = [{ command: "npm test", reason: "root script", relatedFiles: [] }];
+
+    const result = verifyPlan(plan, repoWith(["src/auth/reset-password.ts"]));
+    const finding = result.findings.find((entry) => entry.code === "no-test-changed");
+
+    expect(finding?.paths).toEqual(["src/auth/reset-password.ts"]);
+    expect(finding?.message).toContain("npm test");
+  });
+
   it("notes an untouched leading file without calling it wrong", () => {
     const result = verifyPlan(
       planFor("src/auth/reset-password.ts"),

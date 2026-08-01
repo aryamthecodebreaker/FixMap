@@ -2127,10 +2127,11 @@ function verifyPlan(report, repo) {
   const changedTests = changed.filter(isTest);
   if (changedSource.length > 0 && changedTests.length === 0) {
     const suggested = [...new Set(report.testRoutes.flatMap((route) => route.relatedFiles))].filter(isTest);
+    const anchors = suggested.length > 0 ? suggested : changedSource;
     findings.push({
       code: "no-test-changed",
       severity: "warning",
-      paths: suggested,
+      paths: anchors,
       message: suggested.length > 0 ? `Code changed but no test did. The plan routed ${suggested.length === 1 ? "this test" : "these tests"} as most related.` : report.testRoutes.length > 0 ? `Code changed but no test did. Run the routed ${report.testRoutes.length === 1 ? "command" : "commands"}: ${report.testRoutes.map((route) => route.command).join(", ")}.` : "Code changed but no test did, and the plan found no related test to point at."
     });
   }
