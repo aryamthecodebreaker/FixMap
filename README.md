@@ -24,9 +24,31 @@ Give FixMap a public GitHub issue. It fetches the task, infers the repository, s
 npx -y @aryam/fixmap@latest plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/59
 ```
 
-No clone, signup, configuration, or source upload is required.
+No clone, signup, configuration, or source upload is required. Requires Node.js 20.11 or newer.
 
-If an older FixMap is installed globally, some npm/npx combinations on Windows can resolve the old global `fixmap` shim even when a package version is pinned. Remove it with `npm uninstall -g @aryam/fixmap`, or use the unambiguous form:
+### Installing
+
+`npx` fetches FixMap for that run and leaves nothing behind, which is the right default for trying it. Once it is part of your routine, install it and drop the `npx -y` prefix:
+
+```bash
+npm install -g @aryam/fixmap
+```
+
+Or pin it to one project, so everyone working on that repository gets the same version:
+
+```bash
+npm install --save-dev @aryam/fixmap
+```
+
+A project install is reached with `npx fixmap` inside the repository, or from an npm script.
+
+If an older FixMap is installed globally, some npm/npx combinations on Windows resolve the old global `fixmap` shim even when a version is pinned — so a feature that shipped looks like it never existed. `fixmap doctor` detects exactly this and exits non-zero:
+
+```bash
+npx -y @aryam/fixmap@latest doctor
+```
+
+Remove the stale copy with `npm uninstall -g @aryam/fixmap`, or use the unambiguous form:
 
 ```bash
 npm exec --yes --package=@aryam/fixmap@0.8.0 -- fixmap --version
