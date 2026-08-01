@@ -6,7 +6,7 @@ A reproducible evaluation of FixMap's context ranking against real, already-fixe
 
 ## Dataset
 
-[`dataset.json`](dataset.json) contains 15 cases across 15 MIT-licensed repositories:
+[`dataset.json`](dataset.json) contains 16 cases across 16 MIT-licensed repositories:
 
 | Repository | License | Issue | Fixing PR | Pinned base SHA |
 | --- | --- | --- | --- | --- |
@@ -25,6 +25,7 @@ A reproducible evaluation of FixMap's context ranking against real, already-fixe
 | reduxjs/redux-toolkit | MIT | [#5156](https://github.com/reduxjs/redux-toolkit/issues/5156) | [#5344](https://github.com/reduxjs/redux-toolkit/pull/5344) | `e4725cece4b4` |
 | prettier/prettier | MIT | [#5738](https://github.com/prettier/prettier/issues/5738) | [#19687](https://github.com/prettier/prettier/pull/19687) | `1cfcbbb99342` |
 | honojs/hono | MIT | [#3281](https://github.com/honojs/hono/issues/3281) | [#5142](https://github.com/honojs/hono/pull/5142) | `cadff88bba34` |
+| sindresorhus/got | MIT | [#2459](https://github.com/sindresorhus/got/issues/2459) | [#2460](https://github.com/sindresorhus/got/pull/2460) | `28c0ca3c6571` |
 
 Each case pins the fixing PR's **base commit** (the repository state while the bug existed), uses the linked issue title plus the first 600 characters of its body as the task text, and uses the PR's changed source files as the expected answer. The fixed input cap can end mid-token and can omit file hints that appear later in an issue; this is part of the frozen benchmark rather than something adjusted after seeing rankings.
 
@@ -46,21 +47,21 @@ The first run shallow-clones each repository at its pinned SHA into the OS temp 
 
 ## Results
 
-Measured 2026-07-26 on the dataset above (Node v24, `rankContextFiles` with a top-5 window):
+Measured 2026-08-01 on the dataset above (Node v24, `rankContextFiles` with a top-5 window):
 
 | Metric | Hit rate |
 | --- | --- |
-| top-1 | 9/15 (60%) |
-| top-3 | 15/15 (100%) |
-| top-5 | 15/15 (100%) |
+| top-1 | 11/16 (68.8%) |
+| top-3 | 16/16 (100%) |
+| top-5 | 16/16 (100%) |
 
-The freshly measured pre-change baseline on the expanded 15-case dataset was 6/15 (40%) Top-1, 10/15 (67%) Top-3, and 10/15 (67%) Top-5. It was measured with the current dataset against the untouched pre-v0.7.1 ranker; it was not copied from the stale historical `results.json`.
+The freshly measured pre-change baseline on the original expanded 15-case dataset was 6/15 (40%) Top-1, 10/15 (67%) Top-3, and 10/15 (67%) Top-5. It was measured against the untouched pre-v0.7.1 ranker; it was not copied from the stale historical `results.json`.
 
 The v0.7.1 changes add honest identifier grounding and general ranking evidence for member references, explicit paths and literals, type-focused tasks, HTTP/2 naming, and issue-template noise. Those changes move the expected fixing file into the Top-3 for all five previously missed cases. They do not special-case repository names or expected paths.
 
-The Chalk case is a deliberate guard against blanket vendor exclusion: its only color-detection implementation is `source/vendor/supports-color/index.js`, which remains the Top-1 result. FixMap trusts `git ls-files --exclude-standard`, then drops generated output only when its maintained source counterpart is present.
+The Chalk case is a deliberate guard against blanket vendor exclusion: its only color-detection implementation is `source/vendor/supports-color/index.js`, which remains the Top-1 result. FixMap trusts `git ls-files --exclude-standard`, then drops generated output only when its maintained source counterpart is present. The got case moved here from held-out when its GitHub blob permalink exposed a ranking regression and informed the fix; retaining it as unseen evidence would have been dishonest.
 
-The exact per-case top-five rankings are checked in at [`results.json`](results.json). Fifteen cases are useful regression evidence, not a general claim that FixMap is 100% accurate.
+The exact per-case top-five rankings are checked in at [`results.json`](results.json). Sixteen cases are useful regression evidence, not a general claim that FixMap is 100% accurate.
 
 The `--gate` floors (top-1 ≥ 0.3, top-3 ≥ 0.5, top-5 ≥ 0.5) exist only to catch ranking collapses in the scheduled run. They are deliberately below measured performance and are not accuracy claims or targets.
 

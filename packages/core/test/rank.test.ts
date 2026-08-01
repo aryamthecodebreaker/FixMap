@@ -1070,6 +1070,50 @@ describe("rankContextFiles", () => {
       .toContain("machine-generated bundle deprioritized");
   });
 
+  it("deprioritizes pretty-printed webpack bundles with short lines", () => {
+    const bundle = [
+      "var __webpack_require__ = {};",
+      "var webpackChunkapp = [];",
+      ...Array.from({ length: 120 }, (_, index) =>
+        `webpackChunkapp.push([${index}, function resetPasswordEmail() {}]);`)
+    ].join("\n");
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "src/auth/reset-password.ts",
+          extension: ".ts",
+          sizeBytes: 120,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function resetPasswordEmail() { return sendReset(); }"
+        },
+        {
+          path: "public/assets/app.js",
+          extension: ".js",
+          sizeBytes: bundle.length,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: bundle
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "resetPasswordEmail fails" });
+
+    expect(bundle.length / bundle.split("\n").length).toBeLessThan(100);
+    expect(ranked[0]?.path).toBe("src/auth/reset-password.ts");
+    expect(ranked.find((file) => file.path === "public/assets/app.js")?.reasons)
+      .toContain("machine-generated bundle deprioritized");
+  });
+
   it("leaves readable vendored source alone, however long the file", () => {
     const vendored = Array.from(
       { length: 400 },

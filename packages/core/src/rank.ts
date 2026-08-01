@@ -40,6 +40,16 @@ const BUNDLED_OUTPUT_PENALTY = 12;
 // untouched — chalk's `source/vendor/supports-color/index.js` stays rankable.
 const BUNDLED_LINE_LENGTH = 400;
 const MIN_BUNDLE_SAMPLE_BYTES = 2_000;
+const BUNDLE_MARKERS = [
+  /\b__webpack_require__\b/,
+  /\bwebpackChunk[A-Za-z0-9_$]*\b/,
+  /\/\*\s*webpack\/runtime\//,
+  /\/\*\s*harmony (?:export|import)\s*\*\//,
+  /\b__commonJS\s*=/,
+  /\b__toESM\s*=/,
+  /\b__defProp\s*=/,
+  /\/\/# sourceMappingURL=/
+] as const;
 const EXPLICIT_PATH_BOOST = 40;
 const EXACT_LITERAL_BOOST = 8;
 const MEMBER_MENTION_BOOST = 8;
@@ -580,7 +590,15 @@ function isBundledOutput(textSample: string): boolean {
     return false;
   }
   const lineCount = textSample.split("\n").length;
-  return textSample.length / lineCount >= BUNDLED_LINE_LENGTH;
+  if (textSample.length / lineCount >= BUNDLED_LINE_LENGTH) {
+    return true;
+  }
+
+  // Modern development bundles are often pretty-printed to a few dozen characters per
+  // line, so line length alone misses them. Two independent bundler fingerprints keep
+  // this conservative: readable vendored source with one helper-like identifier is not
+  // penalized, while webpack/esbuild runtime output is.
+  return BUNDLE_MARKERS.filter((marker) => marker.test(textSample)).length >= 2;
 }
 
 function isTypeDeclarationPath(path: string): boolean {

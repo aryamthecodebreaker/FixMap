@@ -1,26 +1,26 @@
 {
-  "cases": 15,
-  "top1HitRate": 0.667,
+  "cases": 16,
+  "top1HitRate": 0.688,
   "top3HitRate": 1,
   "top5HitRate": 1,
   "intervals95": {
     "top1": [
-      0.417,
-      0.848
+      0.444,
+      0.858
     ],
     "top3": [
-      0.796,
+      0.806,
       1
     ],
     "top5": [
-      0.796,
+      0.806,
       1
     ]
   },
   "misleadingTopResult": {
     "cases": 5,
-    "of": 15,
-    "rate": 0.333,
+    "of": 16,
+    "rate": 0.313,
     "slugs": [
       "pinojs/pino",
       "vitest-dev/vitest",
@@ -32,12 +32,12 @@
   "calibration": [
     {
       "confidence": "high",
-      "cases": 6,
-      "top1Correct": 3,
-      "top1Accuracy": 0.5,
+      "cases": 7,
+      "top1Correct": 4,
+      "top1Accuracy": 0.571,
       "interval95": [
-        0.188,
-        0.812
+        0.25,
+        0.842
       ]
     },
     {
@@ -335,6 +335,24 @@
       ],
       "topConfidence": "high",
       "top1": false,
+      "top3": true,
+      "top5Hit": true
+    },
+    {
+      "slug": "sindresorhus/got",
+      "issue": 2459,
+      "expected": [
+        "source/core/index.ts"
+      ],
+      "top5": [
+        "source/core/index.ts",
+        "source/core/diagnostics-channel.ts",
+        "source/core/response.ts",
+        "source/as-promise/index.ts",
+        "source/core/errors.ts"
+      ],
+      "topConfidence": "high",
+      "top1": true,
       "top3": true,
       "top5Hit": true
     }

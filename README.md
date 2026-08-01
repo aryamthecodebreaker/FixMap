@@ -21,8 +21,11 @@ Paste a GitHub issue URL, describe a task, or point at a diff. FixMap returns ra
 Give FixMap a public GitHub issue. It fetches the task, infers the repository, scans an isolated temporary checkout, and removes that checkout when the report is complete:
 
 ```bash
-npx -y @aryam/fixmap@latest plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/152
+npx -y @aryam/fixmap@latest aryamthecodebreaker/FixMap#152
 ```
+
+Already installed? The same command is simply `fixmap aryamthecodebreaker/FixMap#152`.
+The explicit `fixmap plan --issue <url>` form remains supported for scripts.
 
 No clone, signup, configuration, or source upload is required. Requires Node.js 20.11 or newer.
 
@@ -389,41 +392,41 @@ Public repository inputs accept only canonical credential-free `https://github.c
 
 Most tools show you the benchmark they tuned on. Here is both.
 
-![FixMap benchmark: the fixing file ranked in the top three for 9 of 12 held-out repositories never tuned against and 15 of 15 in the regression suite, with a 1.75-second median scan and rank.](docs/assets/fixmap-benchmark.svg)
+![FixMap benchmark: the fixing file ranked in the top three for 8 of 12 held-out repositories never tuned against and 16 of 16 in the regression suite, with a 1.75-second median scan and rank.](docs/assets/fixmap-benchmark.svg)
 
 FixMap is measured against real issues that were later fixed by a merged pull request. Each case pins the commit *before* the fix, feeds FixMap the issue text a maintainer actually wrote, and checks whether the file that fix changed appears in the ranking. Cases are chosen mechanically, and every input and output is checked in.
 
-| | Held-out — 12 repos, **never tuned against** | Regression — 15 repos, guided development |
+| | Held-out — 12 repos, **never tuned against** | Regression — 16 repos, guided development |
 | --- | ---: | ---: |
-| Fixing file ranked Top-1 | **7 / 12 — 58%** <br><sub>95% CI 32–81%</sub> | 10 / 15 — 67% <br><sub>95% CI 42–85%</sub> |
-| Fixing file ranked Top-3 | **9 / 12 — 75%** <br><sub>95% CI 47–91%</sub> | 15 / 15 — 100% <br><sub>95% CI 80–100%</sub> |
-| Wrong file ranked first while the right one was available | **2 / 12 — 17%** | 5 / 15 — 33% |
+| Fixing file ranked Top-1 | **7 / 12 — 58%** <br><sub>95% CI 32–81%</sub> | 11 / 16 — 69% <br><sub>95% CI 44–86%</sub> |
+| Fixing file ranked Top-3 | **8 / 12 — 67%** <br><sub>95% CI 39–86%</sub> | 16 / 16 — 100% <br><sub>95% CI 81–100%</sub> |
+| Wrong file ranked first while the right one was available | **2 / 12 — 17%** | 5 / 16 — 31% |
 
 **Plan around the held-out column.** The regression suite is where the ranking heuristics were developed — a case missed, the ranker changed — so its 100% describes fit, not accuracy on your repository.
 
-**And read the intervals, not the percentages.** At twelve cases one result flipping moves Top-3 from 67% to 83%. The honest statement is "somewhere in the region of three quarters", not "75%". Anyone quoting these figures to two significant figures, including us, is overstating them.
+**And read the intervals, not the percentages.** At twelve cases one result flipping moves Top-3 by eight points. The honest statement is "roughly two thirds, with a wide interval", not a precise success probability. Anyone quoting these figures to two significant figures, including us, is overstating them.
 
-Two things the point estimates hide. Held-out Top-1 (58%) remains close to its Top-3 (75%) — **when FixMap finds the file at all, it usually ranks it first**, which is what actually matters to an agent that opens one file. The tuned suite's 100% Top-3 still conceals that in 33% of those cases something wrong ranks above the answer, so an agent following it opens the wrong file first.
+Two things the point estimates hide. Held-out Top-1 (58%) remains close to its Top-3 (67%) — **when FixMap finds the file at all, it usually ranks it first**, which is what actually matters to an agent that opens one file. The tuned suite's 100% Top-3 still conceals that in 31% of those cases something wrong ranks above the answer, so an agent following it opens the wrong file first.
 
 The three held-out misses are published with their real rankings in [`benchmarks/heldout/`](benchmarks/heldout), not removed or explained away.
 
-Held-out repositories: mongoose, immer, jest, knex, mocha, got, socket.io, svelte, vite, vue, winston, yargs. Regression repositories: Express, Axios, debug, ky, Zod, Pino, Fastify, Chalk, Vitest, ESLint, Webpack, Undici, Redux Toolkit, Prettier, Hono.
+Held-out repositories: mongoose, immer, jest, knex, mocha, React Hook Form, socket.io, svelte, vite, vue, winston, yargs. Regression repositories: Express, Axios, debug, ky, Zod, Pino, Fastify, Chalk, Vitest, ESLint, Webpack, Undici, Redux Toolkit, Prettier, Hono, and got.
 
 Median scan and rank across the pinned repositories is **1.75 s**, measured over three warm runs each.
 
 ### Does the confidence label mean anything?
 
-A confidence label is only useful if it predicts something. Across all 27 cases in both suites, when the top-ranked file is labeled:
+A confidence label is only useful if it predicts something. Across all 28 cases in both suites, when the top-ranked file is labeled:
 
 | Top result labeled | Correct fixing file | | |
 | --- | ---: | ---: | --- |
-| high | 6 / 12 | **50%** | <sub>95% CI 25–75%</sub> |
-| medium | 8 / 11 | 73% | <sub>95% CI 43–90%</sub> |
+| high | 7 / 13 | **54%** | <sub>95% CI 29–77%</sub> |
+| medium | 9 / 11 | 82% | <sub>95% CI 52–95%</sub> |
 | low | 2 / 4 | 50% | <sub>95% CI 15–85%</sub> |
 
-The bands are not monotonic in this 27-case sample, so the label is a heuristic rather than a calibrated probability. **High confidence still means “check this lead first,” not certainty.** The intervals overlap heavily at these sample sizes, and the raw counts are published so the limitation is visible.
+The bands are not monotonic in this 28-case sample, so the label is a heuristic rather than a calibrated probability. **High confidence still means “check this lead first,” not certainty.** The intervals overlap heavily at these sample sizes, and the raw counts are published so the limitation is visible.
 
-Since v0.8.0 the label is also **scarce**. It used to come from an absolute score threshold, which on a real Zod task labeled all eight results high while the leader was nineteen points ahead of the runner-up — telling an agent the eighth guess was as safe to edit as the first. High is now reserved for a file that leads, ties the lead within two points, or carries definition-site evidence of its own; and a leader that merely out-talks a definition site below it is capped at medium. v0.8.1 also stops documentation code fences from claiming definition evidence and stops a non-leading explicit path from becoming high merely because it was named. The table above is regenerated from the current 15-case external and 12-case held-out suites.
+Since v0.8.0 the label is also **scarce**. It used to come from an absolute score threshold, which on a real Zod task labeled all eight results high while the leader was nineteen points ahead of the runner-up — telling an agent the eighth guess was as safe to edit as the first. High is now reserved for a file that leads, ties the lead within two points, or carries definition-site evidence of its own; and a leader that merely out-talks a definition site below it is capped at medium. v0.8.1 also stops documentation code fences from claiming definition evidence and stops a non-leading explicit path from becoming high merely because it was named. The table above is regenerated from the current 16-case regression and 12-case held-out suites.
 
 ### Does it stay quiet when it should?
 

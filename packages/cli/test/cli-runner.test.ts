@@ -28,6 +28,36 @@ function capture() {
 }
 
 describe("CLI argument handling", () => {
+  it.each(["--help", "-h"])("shows command help for plan %s", async (flag) => {
+    const io = capture();
+    const exitCode = await runCli(["plan", flag], io.dependencies);
+
+    expect(exitCode).toBe(0);
+    expect(io.stdout.join("")).toContain("fixmap owner/repository#123");
+    expect(io.stderr).toEqual([]);
+  });
+
+  it("expands the compact GitHub issue shorthand into a normal plan", async () => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+
+    const exitCode = await runCli(["owner/repository#123"], { ...io.dependencies, buildReport });
+
+    expect(exitCode).toBe(0);
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({
+      issueText: "https://github.com/owner/repository/issues/123"
+    }));
+  });
+
+  it("accepts a canonical GitHub issue URL without plan --issue", async () => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+    const url = "https://github.com/owner/repository/issues/123";
+
+    expect(await runCli([url], { ...io.dependencies, buildReport })).toBe(0);
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({ issueText: url }));
+  });
+
   it.each([
     ["--version"],
     ["-v"],
@@ -184,6 +214,45 @@ describe("CLI argument handling", () => {
     );
 
     expect(io.stderr.join("")).toContain("--diff main...HEAD");
+  });
+
+  it("keeps working-tree mode in the copy-paste verify hint", async () => {
+    const io = capture();
+    const writeReport = vi.fn(async () => undefined);
+
+    await runCli(
+      ["plan", "--issue", "reset fails", "--working-tree", "--include-untracked", "--format", "json", "--output", "report.json"],
+      { ...io.dependencies, buildReport: vi.fn(async () => report), writeReport }
+    );
+
+    expect(io.stderr.join(""))
+      .toContain("fixmap verify --report report.json --working-tree --include-untracked");
+  });
+
+  it("names both missing verify inputs when neither was provided", async () => {
+    const io = capture();
+
+    expect(await runCli(["verify"], io.dependencies)).toBe(1);
+    expect(io.stderr.join("")).toContain("Provide --report");
+    expect(io.stderr.join("")).toContain("Also provide --diff, --base/--head, or --working-tree");
+  });
+
+  it("recognizes a comparison JSON passed where verify needs a plan", async () => {
+    const io = capture();
+    const directory = await mkdtemp(join(tmpdir(), "fixmap-comparison-as-plan-"));
+    const comparisonPath = join(directory, "comparison.json");
+    await writeFile(comparisonPath, JSON.stringify({
+      summary: "same",
+      entered: [],
+      left: [],
+      moved: [],
+      confidenceChanged: [],
+      unchanged: [],
+      groundingChanged: false
+    }));
+
+    expect(await runCli(["verify", "--report", comparisonPath, "--diff", "HEAD"], io.dependencies)).toBe(1);
+    expect(io.stderr.join("")).toContain("comparison result, not a plan report");
   });
 
   it.each([

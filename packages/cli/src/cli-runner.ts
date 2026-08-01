@@ -57,6 +57,8 @@ export type CliDependencies = {
 export const USAGE = `FixMap maps an issue, prompt, or diff to context files, test routes, and review risks.
 
 Usage:
+  fixmap owner/repository#123
+  fixmap https://github.com/owner/repository/issues/123
   fixmap plan --issue "Users cannot reset passwords"
   fixmap plan --issue https://github.com/owner/repository/issues/123
   fixmap plan --issue https://github.com/owner/repository/pull/123
@@ -109,6 +111,8 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   const stdout = dependencies.stdout ?? ((text: string) => process.stdout.write(text));
   const stderr = dependencies.stderr ?? ((text: string) => process.stderr.write(text));
 
+  args = expandIssueShorthand(args);
+
   if (args.length === 0) {
     stdout(USAGE);
     return 1;
@@ -148,6 +152,15 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     // Non-zero on a detected shadow: a script that runs doctor in CI should fail there,
     // not read the text and carry on.
     return report.healthy ? 0 : 1;
+  }
+
+  if ((args[0] === "plan" || args[0] === "verify") && (args[1] === "--help" || args[1] === "-h")) {
+    if (args.length > 2) {
+      stderr(`Help takes no additional options.\n\n${USAGE}`);
+      return 1;
+    }
+    stdout(USAGE);
+    return 0;
   }
 
   const options = parseArgs(args);
@@ -396,6 +409,10 @@ function nextCommandHint(options: CliOptions, report: FixMapReport): string | un
     // placeholder `<base>...HEAD` inside a copy-paste command replaced that with a line
     // that looks runnable and is not. Keep the command runnable-as-printed and put the
     // part the user must supply on its own line, outside it.
+    if (options.workingTree) {
+      return `${prefix}${command} --working-tree${options.includeUntracked ? " --include-untracked" : ""}${repo}\n`;
+    }
+
     const diff = options.diffSpec ??
       (options.baseRef ? `${options.baseRef}...${options.headRef ?? "HEAD"}` : undefined);
     if (!diff) {
@@ -406,6 +423,34 @@ function nextCommandHint(options: CliOptions, report: FixMapReport): string | un
   }
 
   return undefined;
+}
+
+/**
+ * The common first run should read like a destination, not parser plumbing. A canonical
+ * GitHub issue/PR URL and GitHub's familiar owner/repository#number shorthand both mean
+ * `plan --issue`; every existing explicit command remains valid.
+ */
+export function expandIssueShorthand(args: string[]): string[] {
+  const first = args[0]?.trim();
+  if (!first) return args;
+
+  if (/^https?:\/\/github\.com\//i.test(first)) {
+    try {
+      if (parseGitHubIssueSource(first)) {
+        return ["plan", "--issue", first, ...args.slice(1)];
+      }
+    } catch {
+      // Route malformed GitHub task URLs through the normal plan validation so the user
+      // receives its specific canonical-URL guidance rather than "unknown command".
+      return ["plan", "--issue", first, ...args.slice(1)];
+    }
+  }
+
+  const shorthand = first.match(/^([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9._-]+)#([1-9]\d*)$/);
+  if (!shorthand) return args;
+
+  const [, owner, repository, number] = shorthand;
+  return ["plan", "--issue", `https://github.com/${owner}/${repository}/issues/${number}`, ...args.slice(1)];
 }
 
 // --exclude is deliberately absent: it is the one flag that accumulates, because naming
@@ -654,7 +699,10 @@ async function runVerify(
     return 1;
   }
   if (!options.reportPath) {
-    io.stderr("Provide --report with the JSON report this change was planned from.\n");
+    const changeSource = !options.diffSpec && !options.baseRef && !options.workingTree
+      ? " Also provide --diff, --base/--head, or --working-tree so FixMap can see what changed."
+      : "";
+    io.stderr(`Provide --report with the JSON report this change was planned from.${changeSource}\n`);
     return 1;
   }
   if (!options.diffSpec && !options.baseRef && !options.workingTree) {
@@ -677,6 +725,13 @@ async function runVerify(
     return 1;
   }
   if (!Array.isArray(report.contextFiles)) {
+    if (isReportComparison(report)) {
+      io.stderr(
+        `"${options.reportPath}" is a FixMap comparison result, not a plan report. ` +
+        "Pass the original JSON plan written by fixmap plan --format json.\n"
+      );
+      return 1;
+    }
     io.stderr(`"${options.reportPath}" is not a FixMap JSON report: no contextFiles array.\n`);
     return 1;
   }
@@ -719,6 +774,13 @@ async function runVerify(
     io.stderr(`${error instanceof Error ? error.message : String(error)}\n`);
     return 1;
   }
+}
+
+function isReportComparison(candidate: unknown): boolean {
+  if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return false;
+  const record = candidate as Record<string, unknown>;
+  return ["entered", "left", "moved", "confidenceChanged", "unchanged"]
+    .every((key) => Array.isArray(record[key]));
 }
 
 function describeUnsupportedTaskUrl(issueText: string): string | undefined {

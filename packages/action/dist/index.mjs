@@ -380,6 +380,19 @@ function isEscaped(text, index) {
 }
 function extractFileMentions(text) {
   const mentions = /* @__PURE__ */ new Set();
+  for (const match of text.matchAll(/https?:\/\/github\.com\/[^/\s]+\/[^/\s]+\/blob\/[0-9a-f]{7,64}\/([^\s#?]+)/gi)) {
+    const encodedPath = match[1];
+    if (!encodedPath)
+      continue;
+    let path = encodedPath;
+    try {
+      path = decodeURIComponent(encodedPath);
+    } catch {
+    }
+    const file = path.match(FILE_MENTION_PATTERN)?.[0];
+    if (file && file.length >= 4)
+      mentions.add(file.replace(/\\/g, "/"));
+  }
   const withoutUrls = text.includes("://") ? text.replace(/https?:\/\/\S+/gi, " ") : text;
   for (const match of withoutUrls.matchAll(FILE_MENTION_PATTERN)) {
     const cleaned = match[0].replace(/\\/g, "/").replace(/^\.\.?\//, "");
@@ -918,6 +931,16 @@ var BACKUP_COPY_PENALTY = 10;
 var BUNDLED_OUTPUT_PENALTY = 12;
 var BUNDLED_LINE_LENGTH = 400;
 var MIN_BUNDLE_SAMPLE_BYTES = 2e3;
+var BUNDLE_MARKERS = [
+  /\b__webpack_require__\b/,
+  /\bwebpackChunk[A-Za-z0-9_$]*\b/,
+  /\/\*\s*webpack\/runtime\//,
+  /\/\*\s*harmony (?:export|import)\s*\*\//,
+  /\b__commonJS\s*=/,
+  /\b__toESM\s*=/,
+  /\b__defProp\s*=/,
+  /\/\/# sourceMappingURL=/
+];
 var EXPLICIT_PATH_BOOST = 40;
 var EXACT_LITERAL_BOOST = 8;
 var MEMBER_MENTION_BOOST = 8;
@@ -1274,7 +1297,10 @@ function isBundledOutput(textSample) {
     return false;
   }
   const lineCount = textSample.split("\n").length;
-  return textSample.length / lineCount >= BUNDLED_LINE_LENGTH;
+  if (textSample.length / lineCount >= BUNDLED_LINE_LENGTH) {
+    return true;
+  }
+  return BUNDLE_MARKERS.filter((marker) => marker.test(textSample)).length >= 2;
 }
 function isTypeDeclarationPath(path) {
   return /\.d\.(?:ts|mts|cts)$/i.test(path);

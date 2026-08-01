@@ -1,7 +1,7 @@
 {
   "cases": 12,
   "top1HitRate": 0.583,
-  "top3HitRate": 0.75,
+  "top3HitRate": 0.667,
   "top5HitRate": 0.75,
   "intervals95": {
     "top1": [
@@ -9,8 +9,8 @@
       0.807
     ],
     "top3": [
-      0.468,
-      0.911
+      0.391,
+      0.862
     ],
     "top5": [
       0.468,
@@ -29,22 +29,22 @@
   "calibration": [
     {
       "confidence": "high",
-      "cases": 8,
-      "top1Correct": 5,
-      "top1Accuracy": 0.625,
+      "cases": 6,
+      "top1Correct": 3,
+      "top1Accuracy": 0.5,
       "interval95": [
-        0.306,
-        0.863
+        0.188,
+        0.812
       ]
     },
     {
       "confidence": "medium",
-      "cases": 2,
-      "top1Correct": 1,
-      "top1Accuracy": 0.5,
+      "cases": 4,
+      "top1Correct": 3,
+      "top1Accuracy": 0.75,
       "interval95": [
-        0.095,
-        0.905
+        0.301,
+        0.954
       ]
     },
     {
@@ -77,7 +77,7 @@
         "lib/helpers/common.js",
         "lib/helpers/update/updatedPathsByArrayFilter.js"
       ],
-      "topConfidence": "high",
+      "topConfidence": "medium",
       "top1": true,
       "top3": true,
       "top5Hit": true
@@ -108,14 +108,14 @@
       ],
       "top5": [
         "packages/jest-config/src/readConfigFileAndSetRootDir.ts",
+        "packages/jest-config/src/resolveConfigPath.ts",
         "packages/jest-core/src/TestScheduler.ts",
         "packages/jest-mock/src/index.ts",
-        "packages/jest-runner/src/runTest.ts",
-        "packages/jest-runtime/src/internals/MockState.ts"
+        "packages/jest-resolve/src/resolver.ts"
       ],
       "topConfidence": "medium",
       "top1": false,
-      "top3": true,
+      "top3": false,
       "top5Hit": true
     },
     {
@@ -143,11 +143,11 @@
         "lib/reporters/xunit.js"
       ],
       "top5": [
-        ".github/CODE_OF_CONDUCT.md",
         "lib/errors.js",
         "lib/reporters/xunit.js",
         "lib/mocha.cjs",
-        "lib/reporters/base.js"
+        "lib/reporters/base.js",
+        "lib/reporters/html.js"
       ],
       "topConfidence": "high",
       "top1": false,
@@ -155,19 +155,19 @@
       "top5Hit": true
     },
     {
-      "slug": "sindresorhus/got",
-      "issue": 2459,
+      "slug": "react-hook-form/react-hook-form",
+      "issue": 13608,
       "expected": [
-        "source/core/index.ts"
+        "src/logic/createFormControl.ts"
       ],
       "top5": [
-        "source/core/index.ts",
-        "source/core/diagnostics-channel.ts",
-        "source/core/response.ts",
-        "source/as-promise/index.ts",
-        "source/core/errors.ts"
+        "src/logic/createFormControl.ts",
+        "src/types/form.ts",
+        "src/useController.ts",
+        "src/__typetest__/form-state-subscribe.test-d.ts",
+        "src/useFormState.ts"
       ],
-      "topConfidence": "high",
+      "topConfidence": "medium",
       "top1": true,
       "top3": true,
       "top5Hit": true

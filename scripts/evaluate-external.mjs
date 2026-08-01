@@ -63,7 +63,7 @@ const rate = (key) => results.filter((result) => result[key]).length / results.l
 // moves 9/12 by eight points. The Wilson score interval is reported next to every rate
 // so a reader sees the real precision instead of inferring it from the decimals. It is
 // used rather than the normal approximation because that one misbehaves near 0 and 1,
-// which is exactly where a 15/15 result sits.
+// which is exactly where a perfect result sits.
 function wilsonInterval(successes, total, z = 1.96) {
   if (total === 0) {
     return null;

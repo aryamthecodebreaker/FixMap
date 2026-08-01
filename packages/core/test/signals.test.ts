@@ -99,6 +99,17 @@ describe("extractTaskSignals", () => {
     expect(signals.tokens).toContain("window");
   });
 
+  it("preserves file paths from immutable GitHub blob permalinks", () => {
+    const signals = extractTaskSignals({
+      issueText:
+        "The comment is wrong at https://github.com/sindresorhus/got/blob/e5e645a7d6deeec02933bf474727a541775772c7/source/core/index.ts#L1088-L1089"
+    });
+
+    expect(signals.fileMentions).toContain("source/core/index.ts");
+    expect(signals.tokens).not.toContain("github");
+    expect(signals.tokens).not.toContain("sindresorhus");
+  });
+
   it("keeps short trailing-e words readable instead of emitting three-letter stems", () => {
     const signals = extractTaskSignals({ issueText: "files site make" });
 

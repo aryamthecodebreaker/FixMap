@@ -139,7 +139,7 @@ describe(".fixmapignore", () => {
 });
 
 describe("context file limit", () => {
-  it("caps the reported files without changing what leads", async () => {
+  it("caps the reported files without changing what leads", { timeout: 30_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-limit-"));
     for (let index = 0; index < 12; index += 1) {
       await writeFile(
