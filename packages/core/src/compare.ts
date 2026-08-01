@@ -93,7 +93,7 @@ export function compareReports(previous: FixMapReport, current: FixMapReport): R
   const currentGrounding = current.analysis?.grounding.specificity;
 
   return {
-    summary: buildSummary(entered, left, [...moved, ...confidenceChanged], previous.contextFiles[0], current.contextFiles[0]),
+    summary: buildSummary(entered, left, moved, confidenceChanged, previous.contextFiles[0], current.contextFiles[0]),
     entered,
     left,
     moved,
@@ -106,24 +106,29 @@ export function compareReports(previous: FixMapReport, current: FixMapReport): R
 }
 
 function indexByPath(files: RankedFile[]): Map<string, { rank: number; file: RankedFile }> {
-  return new Map(files.map((file, index) => [file.path, { rank: index + 1, file }]));
+  return new Map(files.map((file, index) => [
+    file.path,
+    { rank: Number.isSafeInteger(file.rank) && file.rank > 0 ? file.rank : index + 1, file }
+  ]));
 }
 
 function buildSummary(
   entered: RankDelta[],
   left: RankDelta[],
   moved: RankDelta[],
+  confidenceChanged: RankDelta[],
   previousLeader: RankedFile | undefined,
   currentLeader: RankedFile | undefined
 ): string {
-  if (entered.length === 0 && left.length === 0 && moved.length === 0) {
+  if (entered.length === 0 && left.length === 0 && moved.length === 0 && confidenceChanged.length === 0) {
     return "Both plans rank the same files in the same order. Refining the task changed nothing.";
   }
 
   const parts = [
     entered.length > 0 ? `${entered.length} entered` : "",
     left.length > 0 ? `${left.length} left` : "",
-    moved.length > 0 ? `${moved.length} moved` : ""
+    moved.length > 0 ? `${moved.length} moved` : "",
+    confidenceChanged.length > 0 ? `${confidenceChanged.length} changed confidence` : ""
   ].filter(Boolean);
 
   // The leading file is the one an agent opens, so a change there is the headline.

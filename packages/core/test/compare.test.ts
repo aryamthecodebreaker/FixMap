@@ -69,7 +69,25 @@ describe("compareReports", () => {
     );
     expect(comparison.moved).toEqual([]);
     expect(comparison.confidenceChanged[0]?.status).toBe("confidence-changed");
+    expect(comparison.summary).toBe("1 changed confidence.");
     expect(renderComparisonMarkdown(comparison)).toContain("Confidence changed");
+  });
+
+  it("uses explicit report ranks instead of array positions", () => {
+    const previous = reportOf([{ path: "a.ts" }, { path: "b.ts" }]);
+    const current = reportOf([{ path: "b.ts" }, { path: "a.ts" }]);
+    previous.contextFiles[0]!.rank = 2;
+    previous.contextFiles[1]!.rank = 1;
+    current.contextFiles[0]!.rank = 1;
+    current.contextFiles[1]!.rank = 2;
+
+    const comparison = compareReports(previous, current);
+
+    expect(comparison.moved).toEqual([]);
+    expect(comparison.unchanged.map((delta) => [delta.path, delta.currentRank])).toEqual([
+      ["b.ts", 1],
+      ["a.ts", 2]
+    ]);
   });
 
   it("notes a grounding change, which is usually why the ranking moved", () => {

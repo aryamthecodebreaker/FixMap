@@ -37,6 +37,15 @@ describe("CLI argument handling", () => {
     expect(io.stderr).toEqual([]);
   });
 
+  it.each(["--help", "-h"])("shows help when %s follows other plan arguments", async (flag) => {
+    const io = capture();
+    const exitCode = await runCli(["plan", "--issue", "reset fails", flag], io.dependencies);
+
+    expect(exitCode).toBe(0);
+    expect(io.stdout.join("")).toContain("fixmap plan --issue");
+    expect(io.stderr).toEqual([]);
+  });
+
   it("expands the compact GitHub issue shorthand into a normal plan", async () => {
     const io = capture();
     const buildReport = vi.fn(async () => report);
@@ -128,6 +137,24 @@ describe("CLI argument handling", () => {
     expect(exitCode).toBe(0);
     expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({
       issueText: "password reset emails fail"
+    }));
+  });
+
+  it.each([
+    ["UTF-8 BOM", Buffer.from([0xef, 0xbb, 0xbf, ...Buffer.from("password reset")])],
+    ["UTF-16 LE", Buffer.from([0xff, 0xfe, ...Buffer.from("password reset", "utf16le")])],
+    ["UTF-16 BE", Buffer.from([0xfe, 0xff, 0x00, 0x70, 0x00, 0x61, 0x00, 0x73, 0x00, 0x73])]
+  ])("decodes %s issue files", async (_label, contents) => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+
+    expect(await runCli(["plan", "--issue-file", "task.txt"], {
+      ...io.dependencies,
+      buildReport,
+      readIssueFile: () => contents
+    })).toBe(0);
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({
+      issueText: expect.stringMatching(/^pass/)
     }));
   });
 

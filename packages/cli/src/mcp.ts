@@ -194,7 +194,9 @@ const VERIFY_TOOL = {
 const COMPARE_TOOL = {
   name: "fixmap_compare",
   title: "FixMap compare",
-  description: "Compare an earlier FixMap JSON report with a current report without rescanning.",
+  description:
+    "Compare an earlier FixMap JSON report with a current report without rescanning. " +
+    "Returns files that entered, left, moved, changed confidence, or stayed unchanged.",
   inputSchema: {
     type: "object" as const,
     properties: {
