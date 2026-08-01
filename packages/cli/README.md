@@ -9,7 +9,7 @@ FixMap turns an issue, prompt, or git diff into ranked context files, test route
 Paste a public GitHub issue URL; FixMap fetches its task context and infers the repository:
 
 ```bash
-npx -y @aryam/fixmap plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/59
+npx -y @aryam/fixmap plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/152
 ```
 
 Or supply your own task and public repository:

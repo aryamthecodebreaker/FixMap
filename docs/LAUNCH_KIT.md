@@ -8,7 +8,7 @@ Let a developer try FixMap on a real public repository in one command, without c
 
 ```bash
 npx -y @aryam/fixmap@latest plan \
-  --issue https://github.com/aryamthecodebreaker/FixMap/issues/59
+  --issue https://github.com/aryamthecodebreaker/FixMap/issues/152
 ```
 
 The report ranks likely files with reasons, suggests test routes, and names risks and diagnostics. Public URL analysis is issue-only; diff analysis still requires a local checkout.
@@ -184,7 +184,7 @@ I have been building FixMap to make that handoff explicit.
 Give it a public GitHub issue URL and it returns ranked context files with reasons, suggested test routes, risk notes, and diagnostics—without an account or API key:
 
 ```text
-npx -y @aryam/fixmap@latest plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/59
+npx -y @aryam/fixmap@latest plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/152
 ```
 
 The latest work includes:

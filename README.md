@@ -21,7 +21,7 @@ Paste a GitHub issue URL, describe a task, or point at a diff. FixMap returns ra
 Give FixMap a public GitHub issue. It fetches the task, infers the repository, scans an isolated temporary checkout, and removes that checkout when the report is complete:
 
 ```bash
-npx -y @aryam/fixmap@latest plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/59
+npx -y @aryam/fixmap@latest plan --issue https://github.com/aryamthecodebreaker/FixMap/issues/152
 ```
 
 No clone, signup, configuration, or source upload is required. Requires Node.js 20.11 or newer.
