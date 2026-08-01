@@ -270,7 +270,7 @@ function buildManifestTestRoute(
 ): TestRoute | undefined {
   const { language } = detectPrimaryLanguage(repo);
   const crateDir = language === "rust" ? nearestManifestDir(repo, codeContextPaths, "Cargo.toml") : "";
-  const route = manifestTestCommand(language, crateDir);
+  const route = manifestTestCommand(language, crateDir, repo.files);
   if (!route) {
     return undefined;
   }

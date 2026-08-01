@@ -610,6 +610,11 @@ var ROOT_MANIFESTS = {
   "pyproject.toml": "python",
   "setup.py": "python",
   "setup.cfg": "python",
+  // A requirements-only project is still declaring Python at the root; it just predates
+  // pyproject.toml. Leaving these out labeled such repositories by extension share, which
+  // reads as a guess when the root was in fact explicit.
+  "requirements.txt": "python",
+  "pipfile": "python",
   "package.json": "node"
 };
 var EXTENSION_LANGUAGES = {
@@ -629,7 +634,8 @@ function detectPrimaryLanguage(repo) {
     const [language, manifest2] = [...manifests][0];
     return { language, evidence: manifest2 };
   }
-  const shares = countCodeFiles(repo.files);
+  const files = repo.files;
+  const shares = countCodeFiles(files);
   const candidates = manifests.size > 1 ? [...manifests.keys()] : [...shares.keys()];
   const leader = candidates.map((language) => ({ language, count: shares.get(language) ?? 0 })).sort((a, b) => b.count - a.count || a.language.localeCompare(b.language))[0];
   if (!leader || leader.count === 0) {
@@ -638,9 +644,13 @@ function detectPrimaryLanguage(repo) {
   const total = [...shares.values()].reduce((sum, count) => sum + count, 0);
   const share = Math.round(leader.count / total * 100);
   const manifest = manifests.get(leader.language);
+  if (manifest) {
+    return { language: leader.language, evidence: `${manifest} and ${share}% of source files` };
+  }
+  const nested = nearestManifest(files, leader.language);
   return {
     language: leader.language,
-    evidence: manifest ? `${manifest} and ${share}% of source files` : `${share}% of source files`
+    evidence: nested ? `${nested.path} and ${share}% of source files` : `${share}% of source files`
   };
 }
 function rootManifestLanguages(files) {
@@ -656,6 +666,18 @@ function rootManifestLanguages(files) {
   }
   return found;
 }
+function nearestManifest(files, language) {
+  const candidates = files.filter((file) => {
+    const name = file.path.split("/").pop()?.toLowerCase() ?? "";
+    return ROOT_MANIFESTS[name] === language;
+  }).sort((a, b) => a.path.split("/").length - b.path.split("/").length || a.path.localeCompare(b.path));
+  const nearest = candidates[0];
+  if (!nearest)
+    return void 0;
+  const segments = nearest.path.split("/");
+  segments.pop();
+  return { path: nearest.path, packageDir: segments.join("/") };
+}
 function countCodeFiles(files) {
   const counts = /* @__PURE__ */ new Map();
   for (const file of files) {
@@ -669,12 +691,19 @@ function countCodeFiles(files) {
   }
   return counts;
 }
-function manifestTestCommand(language, packageDir) {
+function manifestTestCommand(language, packageDir, files = []) {
   if (language === "go") {
-    return {
-      command: "go test ./...",
-      reason: "go.mod at the repository root"
-    };
+    const manifest = nearestManifest(files, "go");
+    if (!manifest) {
+      return { command: "go test ./...", reason: "Go source files; no go.mod was found" };
+    }
+    if (manifest.packageDir) {
+      return {
+        command: `go test ./...`,
+        reason: `nearest module (${manifest.packageDir}) declared by ${manifest.path}; run it from that directory`
+      };
+    }
+    return { command: "go test ./...", reason: "go.mod at the repository root" };
   }
   if (language === "rust") {
     return packageDir ? {
@@ -686,7 +715,7 @@ function manifestTestCommand(language, packageDir) {
 }
 function suggestedRunner(language, files) {
   if (language === "python") {
-    const names = new Set(files.map((file) => file.path.toLowerCase()));
+    const names = new Set(files.map((file) => file.path.split("/").pop()?.toLowerCase() ?? ""));
     if (names.has("tox.ini")) {
       return "tox";
     }
@@ -705,8 +734,8 @@ function suggestedRunner(language, files) {
 }
 
 // packages/core/dist/import-graph.js
-var JS_EXTENSIONS = /* @__PURE__ */ new Set([".cjs", ".cts", ".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"]);
-var RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+var JS_EXTENSIONS = /* @__PURE__ */ new Set([".cjs", ".cts", ".js", ".jsx", ".mjs", ".mts", ".svelte", ".ts", ".tsx", ".vue"]);
+var RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"];
 var COMPILED_TO_SOURCE = {
   ".js": [".ts", ".tsx"],
   ".mjs": [".mts"],
@@ -1587,7 +1616,7 @@ function buildTestRoutes(repo, contextPaths) {
 function buildManifestTestRoute(repo, codeContextPaths, relatedTests) {
   const { language } = detectPrimaryLanguage(repo);
   const crateDir = language === "rust" ? nearestManifestDir(repo, codeContextPaths, "Cargo.toml") : "";
-  const route = manifestTestCommand(language, crateDir);
+  const route = manifestTestCommand(language, crateDir, repo.files);
   if (!route) {
     return void 0;
   }
@@ -1736,20 +1765,30 @@ import { promisify } from "node:util";
 var WALK_IGNORED_DIRS = /* @__PURE__ */ new Set([...ALWAYS_IGNORED_DIRS, ...GENERATED_DIRS]);
 var SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
   ".cjs",
+  ".cs",
   ".css",
+  ".cts",
   ".go",
+  ".java",
   ".js",
   ".json",
   ".jsx",
   ".md",
   ".mjs",
+  ".mts",
+  ".php",
   ".py",
+  ".rb",
   ".rs",
+  ".svelte",
   ".ts",
   ".tsx",
+  ".vue",
   ".yaml",
   ".yml"
 ]);
+var SFC_EXTENSIONS = /* @__PURE__ */ new Set([".vue", ".svelte"]);
+var SFC_SCRIPT_BLOCK = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
 var TEST_PATTERNS = [/\.test\./, /\.spec\./, /(^|\/|\\)__tests__(\/|\\)/, /(^|\/|\\)tests?(\/|\\)/];
 var MAX_TEXT_SAMPLE_BYTES = 64e3;
 var MAX_DIFF_TEXT_CHARS = 2e5;
@@ -1924,6 +1963,9 @@ async function toRepoFile(absolutePath, relativePath) {
   const extension = extname(relativePath);
   const isSource = SOURCE_EXTENSIONS.has(extension);
   const sample = isSource ? await readTextSample(absolutePath, fileStat.size) : { text: "", complete: true };
+  if (SFC_EXTENSIONS.has(extension) && sample.text) {
+    sample.text = extractScriptBlocks(sample.text);
+  }
   return {
     status: "ok",
     realPath: await resolveRealPath(absolutePath),
@@ -1945,6 +1987,11 @@ async function resolveRealPath(absolutePath) {
   } catch {
     return absolutePath;
   }
+}
+function extractScriptBlocks(text) {
+  const blocks = [...text.matchAll(SFC_SCRIPT_BLOCK)].map((match) => match[1] ?? "");
+  const joined = blocks.join("\n").trim();
+  return joined || text;
 }
 async function isSymbolicLink(absolutePath) {
   try {

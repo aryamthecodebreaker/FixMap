@@ -21,6 +21,11 @@ const ROOT_MANIFESTS: Readonly<Record<string, PrimaryLanguage>> = {
   "pyproject.toml": "python",
   "setup.py": "python",
   "setup.cfg": "python",
+  // A requirements-only project is still declaring Python at the root; it just predates
+  // pyproject.toml. Leaving these out labeled such repositories by extension share, which
+  // reads as a guess when the root was in fact explicit.
+  "requirements.txt": "python",
+  "pipfile": "python",
   "package.json": "node"
 };
 
@@ -53,7 +58,8 @@ export function detectPrimaryLanguage(repo: RepoMap): LanguageDetection {
   // Two toolchains declare themselves at the root — a Rust crate with a docs site, say.
   // Neither manifest settles it, so the code does, restricted to the languages that
   // actually claimed the root.
-  const shares = countCodeFiles(repo.files);
+  const files = repo.files;
+  const shares = countCodeFiles(files);
   const candidates = manifests.size > 1 ? [...manifests.keys()] : [...shares.keys()];
   const leader = candidates
     .map((language) => ({ language, count: shares.get(language) ?? 0 }))
@@ -66,10 +72,18 @@ export function detectPrimaryLanguage(repo: RepoMap): LanguageDetection {
   const total = [...shares.values()].reduce((sum, count) => sum + count, 0);
   const share = Math.round((leader.count / total) * 100);
   const manifest = manifests.get(leader.language);
+  if (manifest) {
+    return { language: leader.language, evidence: `${manifest} and ${share}% of source files` };
+  }
+
+  // The root said nothing, so a nested manifest is the strongest declaration available.
+  // It corroborates the extension share rather than overriding it — the leader was already
+  // chosen by the code, and this only names the manifest that agrees with it.
+  const nested = nearestManifest(files, leader.language);
   return {
     language: leader.language,
-    evidence: manifest
-      ? `${manifest} and ${share}% of source files`
+    evidence: nested
+      ? `${nested.path} and ${share}% of source files`
       : `${share}% of source files`
   };
 }
@@ -88,6 +102,36 @@ function rootManifestLanguages(files: RepoFile[]): Map<PrimaryLanguage, string> 
   }
 
   return found;
+}
+
+/**
+ * A monorepo can declare a toolchain without declaring it at the top: `services/api/go.mod`
+ * with no root manifest is an ordinary layout, and root-only detection saw nothing there.
+ *
+ * This stays deliberately secondary to the root. The root manifest is a statement about the
+ * whole repository; a nested one is a statement about a subtree, and treating the two as
+ * equal is how a Rust crate with a docs site gets called a Node project. So this is consulted
+ * only when the root is silent, and the shallowest manifest wins as the closest thing to a
+ * declaration about the repository as a whole.
+ */
+export function nearestManifest(
+  files: RepoFile[],
+  language: PrimaryLanguage
+): { path: string; packageDir: string } | undefined {
+  const candidates = files
+    .filter((file) => {
+      const name = file.path.split("/").pop()?.toLowerCase() ?? "";
+      return ROOT_MANIFESTS[name] === language;
+    })
+    .sort((a, b) =>
+      a.path.split("/").length - b.path.split("/").length || a.path.localeCompare(b.path)
+    );
+
+  const nearest = candidates[0];
+  if (!nearest) return undefined;
+  const segments = nearest.path.split("/");
+  segments.pop();
+  return { path: nearest.path, packageDir: segments.join("/") };
 }
 
 function countCodeFiles(files: RepoFile[]): Map<PrimaryLanguage, number> {
@@ -119,13 +163,24 @@ function countCodeFiles(files: RepoFile[]): Map<PrimaryLanguage, number> {
  */
 export function manifestTestCommand(
   language: PrimaryLanguage,
-  packageDir: string
+  packageDir: string,
+  files: RepoFile[] = []
 ): { command: string; reason: string } | undefined {
   if (language === "go") {
-    return {
-      command: "go test ./...",
-      reason: "go.mod at the repository root"
-    };
+    // The reason used to assert "go.mod at the repository root" unconditionally, including
+    // when Go had been inferred purely from extension share and no root go.mod existed. A
+    // reason that names evidence which is not there is worse than no reason.
+    const manifest = nearestManifest(files, "go");
+    if (!manifest) {
+      return { command: "go test ./...", reason: "Go source files; no go.mod was found" };
+    }
+    if (manifest.packageDir) {
+      return {
+        command: `go test ./...`,
+        reason: `nearest module (${manifest.packageDir}) declared by ${manifest.path}; run it from that directory`
+      };
+    }
+    return { command: "go test ./...", reason: "go.mod at the repository root" };
   }
   if (language === "rust") {
     return packageDir
@@ -141,7 +196,12 @@ export function manifestTestCommand(
 /** The runner to name when there is nothing to route, so the warning is actionable. */
 export function suggestedRunner(language: PrimaryLanguage, files: RepoFile[]): string | undefined {
   if (language === "python") {
-    const names = new Set(files.map((file) => file.path.toLowerCase()));
+    // Matching on the basename rather than the full path: a repository whose only manifest
+    // is `svc/pyproject.toml` configures pytest exactly as much as one that keeps it at the
+    // root, and the vaguer "pytest or unittest" was hedging against nothing.
+    const names = new Set(
+      files.map((file) => file.path.split("/").pop()?.toLowerCase() ?? "")
+    );
     if (names.has("tox.ini")) {
       return "tox";
     }

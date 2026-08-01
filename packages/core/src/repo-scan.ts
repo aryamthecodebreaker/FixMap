@@ -9,20 +9,36 @@ import type { FixMapInput, PackageScript, RepoFile, RepoMap } from "./types.js";
 const WALK_IGNORED_DIRS = new Set([...ALWAYS_IGNORED_DIRS, ...GENERATED_DIRS]);
 const SOURCE_EXTENSIONS = new Set([
   ".cjs",
+  ".cs",
   ".css",
+  ".cts",
   ".go",
+  ".java",
   ".js",
   ".json",
   ".jsx",
   ".md",
   ".mjs",
+  ".mts",
+  ".php",
   ".py",
+  ".rb",
   ".rs",
+  ".svelte",
   ".ts",
   ".tsx",
+  ".vue",
   ".yaml",
   ".yml"
 ]);
+
+/**
+ * A single-file component is mostly template and style. Sampling the whole file let markup
+ * and CSS class names outvote the logic underneath, so only the script block is read — that
+ * is where the identifiers a task names actually live.
+ */
+const SFC_EXTENSIONS = new Set([".vue", ".svelte"]);
+const SFC_SCRIPT_BLOCK = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
 const TEST_PATTERNS = [/\.test\./, /\.spec\./, /(^|\/|\\)__tests__(\/|\\)/, /(^|\/|\\)tests?(\/|\\)/];
 const MAX_TEXT_SAMPLE_BYTES = 64_000;
 const MAX_DIFF_TEXT_CHARS = 200_000;
@@ -287,6 +303,9 @@ async function toRepoFile(absolutePath: string, relativePath: string): Promise<S
   const sample = isSource
     ? await readTextSample(absolutePath, fileStat.size)
     : { text: "", complete: true };
+  if (SFC_EXTENSIONS.has(extension) && sample.text) {
+    sample.text = extractScriptBlocks(sample.text);
+  }
 
   return {
     status: "ok",
@@ -314,6 +333,17 @@ async function resolveRealPath(absolutePath: string): Promise<string> {
   } catch {
     return absolutePath;
   }
+}
+
+/**
+ * Falls back to the whole file when there is no script block, because a component that is
+ * pure template still has class and prop names worth matching — better a weak signal than
+ * an empty one.
+ */
+function extractScriptBlocks(text: string): string {
+  const blocks = [...text.matchAll(SFC_SCRIPT_BLOCK)].map((match) => match[1] ?? "");
+  const joined = blocks.join("\n").trim();
+  return joined || text;
 }
 
 async function isSymbolicLink(absolutePath: string): Promise<boolean> {
