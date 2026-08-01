@@ -42,7 +42,7 @@ export const siteStats = {
 
 export const commands = {
   publicIssue:
-    "npx -y @aryam/fixmap@latest aryamthecodebreaker/FixMap#152",
+    "npx -y @aryam/fixmap@latest plan --issue https://github.com/chalk/chalk/issues/624",
   localTask: "npx -y @aryam/fixmap@latest plan --issue \"password reset emails fail\"",
   diff: "npx -y @aryam/fixmap@latest plan --diff main...HEAD",
   verify: "npx -y @aryam/fixmap@latest verify --report fixmap-report.json --diff main...HEAD",

@@ -9,11 +9,8 @@ FixMap turns an issue, prompt, or git diff into ranked context files, test route
 Paste a public GitHub issue URL; FixMap fetches its task context and infers the repository:
 
 ```bash
-npx -y @aryam/fixmap@latest aryamthecodebreaker/FixMap#152
+npx -y @aryam/fixmap@latest plan --issue https://github.com/chalk/chalk/issues/624
 ```
-
-With FixMap installed globally, use `fixmap owner/repository#123`. The longer
-`fixmap plan --issue <url>` form remains supported for scripts and existing integrations.
 
 Or supply your own task and public repository:
 
