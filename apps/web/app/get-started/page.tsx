@@ -27,7 +27,19 @@ export default function GetStartedPage() {
           <h3>Or work inside a local repository</h3>
           <CopyCommand command={commands.localTask} />
           <CopyCommand command={commands.diff} />
-          <p className="small-note">Requires Node.js 20.11 or newer. <code>npx</code> runs the package without a permanent global install.</p>
+
+          <h3>Install it, if you use it often</h3>
+          <p>Every command above uses <code>npx</code>, which fetches FixMap for that run and leaves nothing behind. That is the right default for trying it. Once it is part of your routine, install it and drop the <code>npx -y</code> prefix:</p>
+          <CopyCommand command="npm install -g @aryam/fixmap" />
+          <p>Or pin it to one project, so everyone working on that repository gets the same version:</p>
+          <CopyCommand command="npm install --save-dev @aryam/fixmap" />
+          <p>A project install is reached with <code>npx fixmap</code> inside the repository, or from an npm script.</p>
+
+          <h3>Check what you are actually running</h3>
+          <p>An older global install can shadow the version <code>npx</code> was asked for, which makes a feature that shipped look like it never existed. <code>doctor</code> reports the version in use, where it resolved from, and any conflicting global — and exits non-zero when it finds one:</p>
+          <CopyCommand command="npx -y @aryam/fixmap@latest doctor" />
+
+          <p className="small-note">Requires Node.js 20.11 or newer. No account, API key, or model call at any point.</p>
         </div>
       </section>
 
