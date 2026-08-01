@@ -50,7 +50,7 @@ describe("fixmap mcp server", () => {
       success: false,
       message: "tool arguments must be an object."
     });
-    expect(parsePlanArguments({ issue: "   " })).toEqual({ success: true, value: {} });
+    expect(parsePlanArguments({ issue: "   " })).toEqual({ success: false, message: '"issue" must not be blank.' });
   });
 
   it("explains why a file was left out, without a shell", async () => {
@@ -133,7 +133,7 @@ describe("fixmap mcp server", () => {
     expect(report.contextFiles).toHaveLength(1);
   });
 
-  it("advertises plan, verify, and explain tools", async () => {
+  it("advertises the complete plan, explain, compare, verify, and doctor workflow", async () => {
     const client = await connectClient();
 
     const tools = await client.listTools();
@@ -153,6 +153,24 @@ describe("fixmap mcp server", () => {
     expect(explain).toBeDefined();
     expect(Object.keys(explain?.inputSchema.properties ?? {})).toContain("path");
     expect(explain?.inputSchema.required).toContain("path");
+    expect(tools.tools.find((tool) => tool.name === "fixmap_compare")).toBeDefined();
+    expect(tools.tools.find((tool) => tool.name === "fixmap_doctor")).toBeDefined();
+  });
+
+  it("compares two reports through MCP", async () => {
+    const client = await connectClient();
+    const base = { summary: "", testRoutes: [], risks: [], changedFiles: [], diagnostics: [] };
+    const result = await client.callTool({
+      name: "fixmap_compare",
+      arguments: {
+        previous: { ...base, contextFiles: [{ rank: 1, path: "a.ts", score: 10, confidence: "medium", reasons: [] }] },
+        current: { ...base, contextFiles: [{ rank: 1, path: "a.ts", score: 10, confidence: "high", reasons: [] }] },
+        format: "JSON"
+      }
+    });
+    expect(result.isError).not.toBe(true);
+    const comparison = JSON.parse((result.content as Array<{ text: string }>)[0]!.text) as { confidenceChanged: unknown[] };
+    expect(comparison.confidenceChanged).toHaveLength(1);
   });
 
   it("verifies a plan against a local diff through MCP", async () => {

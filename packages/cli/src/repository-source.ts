@@ -117,7 +117,7 @@ export function parseGitHubIssueSource(input: string): ParsedGitHubIssueSource |
     /%(?:2f|5c)/i.test(trimmed)
   ) {
     throw new RepositorySourceError(
-      'GitHub issue URLs must use the canonical form "https://github.com/owner/repository/issues/123".'
+      'GitHub issue and pull request URLs must use canonical forms such as "https://github.com/owner/repository/issues/123" or "/pull/123".'
     );
   }
 
@@ -126,7 +126,7 @@ export function parseGitHubIssueSource(input: string): ParsedGitHubIssueSource |
     url = new URL(trimmed);
   } catch {
     throw new RepositorySourceError(
-      'GitHub issue URLs must use the form "https://github.com/owner/repository/issues/123".'
+      'GitHub issue and pull request URLs must use canonical forms such as "https://github.com/owner/repository/issues/123" or "/pull/123".'
     );
   }
 
@@ -140,7 +140,7 @@ export function parseGitHubIssueSource(input: string): ParsedGitHubIssueSource |
     url.hash
   ) {
     throw new RepositorySourceError(
-      'Only canonical public GitHub issue URLs are supported: "https://github.com/owner/repository/issues/123".'
+      'Only canonical public GitHub issue and pull request URLs are supported: "https://github.com/owner/repository/issues/123" or "/pull/123".'
     );
   }
 
@@ -408,11 +408,11 @@ export async function buildReportForRepository(
   }
   if (
     source.kind === "github" &&
-    (input.diffSpec !== undefined || input.baseRef !== undefined || input.headRef !== undefined)
+    (input.diffSpec !== undefined || input.baseRef !== undefined || input.headRef !== undefined || input.workingTree || input.includeUntracked)
   ) {
     throw new RepositorySourceError(
-      "Git diff options are not supported with a temporary GitHub URL checkout yet. " +
-      "Use --issue only, or clone the repository locally before using --diff, --base, or --head."
+      "Git diff options are not supported with a temporary GitHub URL checkout. Working-tree options are also local-only. " +
+      "Use --issue only, or clone the repository locally before using diff or working-tree inputs."
     );
   }
 

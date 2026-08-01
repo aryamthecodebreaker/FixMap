@@ -45,7 +45,7 @@ describe("GitHub Action helpers", () => {
 
     expect(result).toBe("updated");
     expect(calls).toContainEqual({
-      url: "https://api.github.com/repos/octo/demo/issues/comments/10",
+      url: "https://api.github.com/repos/octo/demo/issues/comments/11",
       method: "PATCH"
     });
     expect(calls.some((call) => call.method === "POST")).toBe(false);

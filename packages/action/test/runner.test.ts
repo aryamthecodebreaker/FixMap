@@ -5,6 +5,7 @@ import { fitStepSummary, renderActionOutputs, runAction } from "../src/runner.js
 const report: FixMapReport = {
   summary: "Mapped password reset changes.",
   contextFiles: [{
+    rank: 1,
     path: "src/auth.ts",
     score: 1,
     confidence: "high",

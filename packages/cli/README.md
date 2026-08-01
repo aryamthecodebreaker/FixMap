@@ -38,9 +38,9 @@ Machine-readable output:
 npx @aryam/fixmap plan --base main --head HEAD --format json --output fixmap-report.json
 ```
 
-Public GitHub issue and repository URL modes are available in the CLI and MCP server for issue-only analysis. FixMap fetches issue context anonymously, shallow-clones the default branch into an isolated temporary directory, disables credentials and repository execution surfaces, and removes the checkout before returning. Clone locally to use `--diff`, `--base`, or `--head`.
+Public GitHub issue, pull request, and repository URL modes are available in the CLI and MCP server for issue-only analysis. FixMap fetches task context anonymously, shallow-clones the default branch into an isolated temporary directory, disables credentials and repository execution surfaces, and removes the checkout before returning. Clone locally to use `--diff`, `--base`, `--head`, or working-tree inputs.
 
-For long task text, use `--issue-file task.md`, `--issue @task.md`, or pipe text to `--issue -`. If a stale global installation shadows a pinned npx package on Windows, run `npm uninstall -g @aryam/fixmap` or use `npm exec --yes --package=@aryam/fixmap@0.7.4 -- fixmap ...`.
+For long task text, use `--issue-file task.md`, `--issue @task.md`, or pipe text to `--issue -`. If a stale global installation shadows a pinned npx package on Windows, run `fixmap doctor`, remove the stale install with `npm uninstall -g @aryam/fixmap`, or use `npm exec --yes --package=@aryam/fixmap@0.8.1 -- fixmap ...`.
 
 ## MCP server
 

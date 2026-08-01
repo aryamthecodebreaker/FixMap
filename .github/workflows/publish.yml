@@ -242,6 +242,19 @@ jobs:
           verify_npm_version "@aryam/fixmap-core"
           verify_npm_version "@aryam/fixmap"
 
+          for package_name in "@aryam/fixmap-core" "@aryam/fixmap"; do
+            LATEST=$(npm view "${package_name}@latest" version)
+            HOMEPAGE=$(npm view "${package_name}@${VERSION}" homepage)
+            if [[ "$LATEST" != "$VERSION" ]]; then
+              echo "::error::${package_name}@latest resolves to ${LATEST}, expected ${VERSION}."
+              exit 1
+            fi
+            if [[ "$HOMEPAGE" != "https://usefixmap.vercel.app" ]]; then
+              echo "::error::${package_name}@${VERSION} homepage is ${HOMEPAGE}, expected the canonical site."
+              exit 1
+            fi
+          done
+
           PUBLISHED_CORE_DEPENDENCY=$(npm view \
             "@aryam/fixmap@${VERSION}" \
             dependencies.@aryam/fixmap-core)
@@ -249,6 +262,21 @@ jobs:
             echo "::error::Published CLI depends on core ${PUBLISHED_CORE_DEPENDENCY}, expected ${VERSION}."
             exit 1
           fi
+
+      - name: Verify a clean global installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          INSTALL_ROOT="${RUNNER_TEMP}/fixmap-install-${VERSION}"
+          npm install --global --prefix "$INSTALL_ROOT" "@aryam/fixmap@${VERSION}"
+          INSTALLED_VERSION=$("$INSTALL_ROOT/bin/fixmap" --version)
+          if [[ "$INSTALLED_VERSION" != "$VERSION" ]]; then
+            echo "::error::Fresh global install ran ${INSTALLED_VERSION}, expected ${VERSION}."
+            exit 1
+          fi
+          "$INSTALL_ROOT/bin/fixmap" --help >/dev/null
+          "$INSTALL_ROOT/bin/fixmap" plan --issue "password reset fails" --repo examples/tiny-auth-app --format json >/dev/null
+          echo "Verified clean install of @aryam/fixmap@${VERSION}."
 
       - name: Install mcp-publisher
         run: |

@@ -61,6 +61,13 @@ describe("buildPathExcluder", () => {
   it("names the pattern that matched, so an omission is inspectable", () => {
     expect(buildPathExcluder(["docs/**", "apps/web"]).reasonFor("apps/web/app/reset-copy.ts")).toBe("apps/web");
   });
+
+  it("deduplicates patterns and honors ordered negation", () => {
+    const excluder = buildPathExcluder(["docs/**", "docs/**", "!docs/public/**"]);
+    expect(excluder.patterns).toEqual(["docs/**", "!docs/public/**"]);
+    expect(excluder.excludes("docs/private/a.md")).toBe(true);
+    expect(excluder.excludes("docs/public/a.md")).toBe(false);
+  });
 });
 
 describe("exclusions in ranking", () => {
@@ -120,6 +127,13 @@ describe(".fixmapignore", () => {
 
     const report = await buildFixMapReport({ repoRoot: root, issueText: "sendResetEmail fails" });
 
+    expect(report.diagnostics.some((entry) => entry.code === "paths-excluded")).toBe(false);
+  });
+
+  it("stays silent when patterns match no scanned path", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-nomatch-ignore-"));
+    await writeFile(join(root, "reset.ts"), "export function sendResetEmail() { return 1; }\n");
+    const report = await buildFixMapReport({ repoRoot: root, issueText: "sendResetEmail fails", exclude: ["missing/**"] });
     expect(report.diagnostics.some((entry) => entry.code === "paths-excluded")).toBe(false);
   });
 });

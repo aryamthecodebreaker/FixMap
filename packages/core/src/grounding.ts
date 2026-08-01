@@ -49,7 +49,13 @@ export function analyzeTaskGrounding(
     hasMatchedFileMention ||
     resolvedIdentifierCount > 0 ||
     partiallyResolvedIdentifiers.length > 0;
-  const vague = !hasDirectAnchor && isVagueTask(issueText);
+  const issueTokens = tokenizeText(issueText);
+  const singleTokenHasRepoMatch = issueTokens.size === 1 && repo.files.some((file) => {
+    const token = [...issueTokens][0]!;
+    return tokenizeText(file.path).has(token) || tokenizeText(file.textSample).has(token);
+  });
+  const singleUnmatchedToken = issueTokens.size === 1 && !singleTokenHasRepoMatch;
+  const vague = !hasDirectAnchor && (isVagueTask(issueText) || singleUnmatchedToken);
 
   return {
     specificity: hasDirectAnchor ? "anchored" : vague ? "vague" : "descriptive",
@@ -111,7 +117,8 @@ export function buildRankingShape(contextFiles: RankedFile[]): RankingShape {
 export function buildNextAction(
   grounding: TaskGrounding,
   ranking: RankingShape,
-  contextFiles: RankedFile[]
+  contextFiles: RankedFile[],
+  hasRoutedTests = true
 ): string {
   if (grounding.unresolvedIdentifiers.length > 0) {
     return "Verify or correct the unresolved identifiers before editing ranked files.";
@@ -132,7 +139,9 @@ export function buildNextAction(
     return "Treat the leading files as a subsystem neighborhood and verify the exact edit point before changing code.";
   }
   if (contextFiles[0]) {
-    return `Inspect ${contextFiles[0].path} and its routed tests before editing.`;
+    return hasRoutedTests
+      ? `Inspect ${contextFiles[0].path} and its routed tests before editing.`
+      : `Inspect ${contextFiles[0].path} before editing; no related test file was routed.`;
   }
   return "Add a concrete repository anchor and rerun FixMap.";
 }

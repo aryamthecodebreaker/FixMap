@@ -7,7 +7,7 @@ import type { FixMapReport } from "@aryam/fixmap-core";
 
 const report: FixMapReport = {
   summary: "Found one context file.",
-  contextFiles: [{ path: "src/index.ts", score: 10, confidence: "medium", reasons: ["path matches task terms"] }],
+  contextFiles: [{ rank: 1, path: "src/index.ts", score: 10, confidence: "medium", reasons: ["path matches task terms"] }],
   testRoutes: [],
   risks: [],
   changedFiles: [],
@@ -31,8 +31,7 @@ describe("CLI argument handling", () => {
   it.each([
     ["--version"],
     ["-v"],
-    ["version"],
-    ["plan", "--version"]
+    ["version"]
   ])("prints the version for %j", async (...args) => {
     const io = capture();
     const exitCode = await runCli(args, {
@@ -43,6 +42,13 @@ describe("CLI argument handling", () => {
     expect(exitCode).toBe(0);
     expect(io.stdout.join("")).toBe("9.9.9\n");
     expect(io.stderr).toEqual([]);
+  });
+
+  it("does not let a nested version flag short-circuit the requested command", async () => {
+    const io = capture();
+    const exitCode = await runCli(["plan", "--version"], io.dependencies);
+    expect(exitCode).toBe(1);
+    expect(io.stderr.join("")).toContain("Unknown option(s): --version");
   });
 
   it("separates invalid values from unknown options and consumes the invalid value", async () => {
@@ -241,8 +247,8 @@ describe("CLI argument handling", () => {
     await writeFile(previousPath, JSON.stringify({
       ...report,
       contextFiles: [
-        { path: "src/other.ts", score: 12, confidence: "medium", reasons: [] },
-        { path: "src/index.ts", score: 10, confidence: "low", reasons: [] }
+        { rank: 1, path: "src/other.ts", score: 12, confidence: "medium", reasons: [] },
+        { rank: 2, path: "src/index.ts", score: 10, confidence: "low", reasons: [] }
       ]
     }), "utf8");
 

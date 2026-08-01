@@ -5,7 +5,8 @@ import type { FixMapReport, RankedFile } from "../src/types.js";
 function reportOf(files: Array<Partial<RankedFile> & { path: string }>): FixMapReport {
   return {
     summary: "",
-    contextFiles: files.map((file) => ({
+    contextFiles: files.map((file, index) => ({
+      rank: index + 1,
       path: file.path,
       score: file.score ?? 10,
       confidence: file.confidence ?? "medium",
@@ -59,6 +60,16 @@ describe("compareReports", () => {
 
     expect(comparison.summary).toContain("changed nothing");
     expect(comparison.moved).toEqual([]);
+  });
+
+  it("separates confidence-only changes from movement", () => {
+    const comparison = compareReports(
+      reportOf([{ path: "a.ts", score: 10, confidence: "medium" }]),
+      reportOf([{ path: "a.ts", score: 10, confidence: "high" }])
+    );
+    expect(comparison.moved).toEqual([]);
+    expect(comparison.confidenceChanged[0]?.status).toBe("confidence-changed");
+    expect(renderComparisonMarkdown(comparison)).toContain("Confidence changed");
   });
 
   it("notes a grounding change, which is usually why the ranking moved", () => {

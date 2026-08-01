@@ -32,22 +32,22 @@
   "calibration": [
     {
       "confidence": "high",
-      "cases": 7,
-      "top1Correct": 4,
-      "top1Accuracy": 0.571,
+      "cases": 6,
+      "top1Correct": 3,
+      "top1Accuracy": 0.5,
       "interval95": [
-        0.25,
-        0.842
+        0.188,
+        0.812
       ]
     },
     {
       "confidence": "medium",
-      "cases": 6,
-      "top1Correct": 5,
-      "top1Accuracy": 0.833,
+      "cases": 7,
+      "top1Correct": 6,
+      "top1Accuracy": 0.857,
       "interval95": [
-        0.436,
-        0.97
+        0.487,
+        0.974
       ]
     },
     {
@@ -113,8 +113,8 @@
         "src/node.js",
         "src/browser.js",
         "src/common.js",
-        "README.md",
-        "test.js"
+        "test.js",
+        "karma.conf.js"
       ],
       "topConfidence": "medium",
       "top1": true,
@@ -130,11 +130,11 @@
       "top5": [
         "source/core/Ky.ts",
         "source/errors/HTTPError.ts",
-        "readme.md",
         "source/types/hooks.ts",
-        "source/types/options.ts"
+        "source/types/options.ts",
+        "source/errors/SchemaValidationError.ts"
       ],
-      "topConfidence": "high",
+      "topConfidence": "medium",
       "top1": true,
       "top3": true,
       "top5Hit": true
@@ -185,9 +185,9 @@
       "top5": [
         "lib/request.js",
         "lib/server.js",
-        "docs/Reference/Routes.md",
         "fastify.js",
-        "docs/Reference/Errors.md"
+        "integration/server.js",
+        "types/request.d.ts"
       ],
       "topConfidence": "high",
       "top1": true,
@@ -221,9 +221,9 @@
       "top5": [
         "packages/vitest/src/integrations/env/jsdom-keys.ts",
         "packages/browser/src/client/tester/dialog.ts",
-        "docs/guide/browser/index.md",
         "packages/vitest/src/node/printError.ts",
-        "packages/vitest/src/runtime/runner/suite.ts"
+        "packages/vitest/src/runtime/runner/suite.ts",
+        "packages/pretty-format/src/index.ts"
       ],
       "topConfidence": "low",
       "top1": false,
@@ -241,7 +241,7 @@
         "package.json",
         "lib/config-api.js",
         "lib/types/index.d.ts",
-        "docs/src/use/configure/migration-guide.md"
+        "lib/config/config.js"
       ],
       "topConfidence": "medium",
       "top1": true,
@@ -295,7 +295,7 @@
         "packages/toolkit/src/query/core/buildThunks.ts",
         "packages/toolkit/src/query/react/buildHooks.ts",
         "packages/toolkit/src/listenerMiddleware/index.ts",
-        "packages/toolkit/etc/rtk-query-react.api.md"
+        "examples/query/react/authentication-with-extrareducers/public/mockServiceWorker.js"
       ],
       "topConfidence": "medium",
       "top1": false,

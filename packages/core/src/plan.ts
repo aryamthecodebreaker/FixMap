@@ -22,12 +22,15 @@ export async function buildFixMapReport(
   });
 
   if (exclude.patterns.length > 0) {
+    const excludedPaths = repo.files.filter((file) => exclude.excludes(file.path)).map((file) => file.path);
+    if (excludedPaths.length === 0) return report;
+    const rankablePaths = repo.files.filter((file) => file.isSource && !file.isTest);
     report.diagnostics.push({
       code: "paths-excluded",
-      severity: "info",
+      severity: rankablePaths.length > 0 && rankablePaths.every((file) => exclude.excludes(file.path)) ? "warning" : "info",
       message:
         `${exclude.patterns.length} exclusion ${exclude.patterns.length === 1 ? "pattern" : "patterns"} ` +
-        `removed paths from ranking: ${exclude.patterns.join(", ")}. ` +
+        `removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${exclude.patterns.join(", ")}. ` +
         "Run --explain on a file you expected to see if this is why it is absent."
     });
   }

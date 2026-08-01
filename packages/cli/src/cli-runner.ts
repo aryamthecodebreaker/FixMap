@@ -59,12 +59,17 @@ export const USAGE = `FixMap maps an issue, prompt, or diff to context files, te
 Usage:
   fixmap plan --issue "Users cannot reset passwords"
   fixmap plan --issue https://github.com/owner/repository/issues/123
+  fixmap plan --issue https://github.com/owner/repository/pull/123
   fixmap plan --issue-file task.md
   fixmap plan --issue -
   fixmap plan --issue "Fix login" --repo https://github.com/owner/repository
   fixmap plan --diff main...HEAD
+  fixmap plan --working-tree --include-untracked --limit 12 --exclude "docs/**"
+  fixmap plan --issue "Fix login" --format json --output current.json --compare previous.json
   fixmap plan --base main --head HEAD --format json
   fixmap verify --report fixmap-report.json --diff main...HEAD
+  fixmap verify --report fixmap-report.json --working-tree
+  fixmap doctor --format json
   fixmap mcp
 
 Commands:
@@ -74,9 +79,9 @@ Commands:
   mcp                 Run FixMap as an MCP server over stdio for AI coding agents
 
 Options:
-  --issue <text|url>  Issue text, task description, or public GitHub issue URL
+  --issue <text|url>  Task text, or a public GitHub issue or pull request URL
   --issue-file <file> Read task text from a UTF-8 file (use - for stdin)
-  --diff <spec>       Git diff spec, such as main...HEAD
+  --diff <spec>       Git diff spec, such as main...HEAD (the repository scan can still rank untracked candidates)
   --base <ref>        Base ref for diffing when --diff is not given
   --head <ref>        Head ref for diffing (defaults to HEAD)
   --working-tree      Map staged and unstaged changes against HEAD
@@ -92,9 +97,13 @@ Options:
   --help, -h          Show this help
   --version, -v       Show the FixMap version
 
-A repository may also list exclusion patterns in .fixmapignore, one per line.
+A repository may also list exclusion patterns in .fixmapignore, one per line. Supported
+syntax is *, **, ?, root-leading /, directory-trailing /, comments, and ! negation.
 Set FIXMAP_PROGRESS=1 to print scan and clone phases to stderr.
 `;
+
+const DOCTOR_USAGE = `Usage: fixmap doctor [--format markdown|json]\n\nChecks the running FixMap binary, PATH/global shadows, and known install blind spots.\n`;
+const MCP_USAGE = `Usage: fixmap mcp\n\nRuns the FixMap MCP server over stdio. Configure your MCP client to execute \"fixmap mcp\".\n`;
 
 export async function runCli(args: string[], dependencies: CliDependencies = {}): Promise<number> {
   const stdout = dependencies.stdout ?? ((text: string) => process.stdout.write(text));
@@ -104,15 +113,17 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     stdout(USAGE);
     return 1;
   }
-  if (args[0] === "help" || args.includes("--help") || args.includes("-h")) {
+  if (args[0] === "help" || args[0] === "--help" || args[0] === "-h") {
     stdout(USAGE);
     return 0;
   }
-  if (args[0] === "version" || args.includes("--version") || args.includes("-v")) {
+  if (args[0] === "version" || args[0] === "--version" || args[0] === "-v") {
     stdout(`${(dependencies.readVersion ?? readVersion)()}\n`);
     return 0;
   }
   if (args[0] === "mcp") {
+    if (args[1] === "--help" || args[1] === "-h") { stdout(MCP_USAGE); return 0; }
+    if (args.length > 1) { stderr(`mcp takes no options.\n\n${MCP_USAGE}`); return 1; }
     const runMcpServer = dependencies.runMcpServer ?? (async () => {
       const module = await import("./mcp.js");
       await module.runMcpServer();
@@ -122,14 +133,28 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   }
 
   if (args[0] === "doctor") {
+    if (args[1] === "--help" || args[1] === "-h") { stdout(DOCTOR_USAGE); return 0; }
+    const doctorArgs = args.slice(1);
+    let doctorFormat: "markdown" | "json" = "markdown";
+    if (doctorArgs.length > 0) {
+      const match = doctorArgs.length === 2 && doctorArgs[0] === "--format" ? doctorArgs[1] :
+        doctorArgs.length === 1 ? doctorArgs[0]?.match(/^--format=(.+)$/)?.[1] : undefined;
+      const normalized = match?.toLowerCase();
+      if (normalized === "markdown" || normalized === "json") doctorFormat = normalized;
+      else { stderr(`Unknown doctor option(s): ${doctorArgs.join(", ")}\n\n${DOCTOR_USAGE}`); return 1; }
+    }
     const report = await (dependencies.runDoctor ?? runDoctorChecks)();
-    stdout(renderDoctorReport(report));
+    stdout(doctorFormat === "json" ? `${JSON.stringify(report, null, 2)}\n` : renderDoctorReport(report));
     // Non-zero on a detected shadow: a script that runs doctor in CI should fail there,
     // not read the text and carry on.
     return report.healthy ? 0 : 1;
   }
 
   const options = parseArgs(args);
+  if (options.command.startsWith("-")) {
+    stderr(`FixMap needs a subcommand. Try: fixmap plan ${args.join(" ")}\n\n${USAGE}`);
+    return 1;
+  }
   if (options.command !== "plan" && options.command !== "verify") {
     stderr(`Unknown command: ${options.command || "(none)"}\n\n${USAGE}`);
     return 1;
@@ -147,6 +172,8 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 1;
   }
   if (options.command === "verify") {
+    const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain"].filter(Boolean);
+    if (planOnly.length > 0) { stderr(`verify does not accept plan-only option(s): ${planOnly.join(", ")}.\n`); return 1; }
     return runVerify(options, {
       stdout,
       stderr,
@@ -174,6 +201,24 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     stderr("Use either --working-tree or --diff/--base, not both: they name different sets of changes.\n");
     return 1;
   }
+  if (options.diffSpec && (options.baseRef || options.headRef)) {
+    stderr("Use either --diff or --base/--head, not both.\n");
+    return 1;
+  }
+  if (options.headRef && !options.baseRef) {
+    stderr("--head requires --base; use --diff when you already have a complete range.\n");
+    return 1;
+  }
+  if (options.explainPath && options.comparePath) {
+    stderr("Use either --explain or --compare, not both.\n");
+    return 1;
+  }
+  if (/^https?:\/\//i.test(options.repo ?? "") && (options.workingTree || options.includeUntracked)) {
+    stderr("--working-tree and --include-untracked need a local checkout; remote URL checkouts are always clean.\n");
+    return 1;
+  }
+  const unsupportedTaskUrl = describeUnsupportedTaskUrl(options.issueText);
+  if (unsupportedTaskUrl) { stderr(`${unsupportedTaskUrl}\n`); return 1; }
 
   if (options.explainPath) {
     // Explaining a ranking needs the scanned repository, not just the finished report,
@@ -185,7 +230,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     }
     try {
       const repoRoot = options.repo ?? process.cwd();
-      const repo = await scanRepo({ repoRoot });
+      const repo = await scanRepo({ repoRoot, diffSpec: options.diffSpec, baseRef: options.baseRef, headRef: options.headRef, workingTree: options.workingTree, includeUntracked: options.includeUntracked });
       const explanation = explainFile(
         repo,
         {
@@ -193,7 +238,8 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
           // Without this, a file left out by .fixmapignore would be reported as having
           // scored below the cutoff — a false answer to the exact question --explain exists
           // to answer.
-          exclude: await resolveExclusions(repoRoot, options.exclude)
+          exclude: await resolveExclusions(repoRoot, options.exclude),
+          limit: options.limit
         },
         options.explainPath
       );
@@ -238,8 +284,9 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     }
     if (report.changedFiles.length === 0) {
       stderr(
-        "The requested diff resolved to zero changed files and no --issue text was provided. " +
-        "Choose a non-empty diff or add --issue.\n"
+        (options.workingTree
+          ? "The working tree has zero selected changes and no --issue text was provided. Make a tracked change, add --include-untracked, or add --issue.\n"
+          : "The requested diff resolved to zero changed files and no --issue text was provided. Choose a non-empty diff or add --issue.\n")
       );
       return 1;
     }
@@ -250,26 +297,44 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   // report is what the reader already has from the previous run.
   if (options.comparePath) {
     let previous: FixMapReport;
+    let previousText: string;
     try {
-      previous = JSON.parse(readFileSync(options.comparePath, "utf8")) as FixMapReport;
+      previousText = readFileSync(options.comparePath, "utf8");
     } catch (error) {
       stderr(
-        `Could not read "${options.comparePath}": ${error instanceof Error ? error.message : String(error)}\n` +
+        `Could not read comparison file "${options.comparePath}": ${error instanceof Error ? error.message : String(error)}\n` +
         "Save one first with: fixmap plan --issue \"...\" --format json --output previous.json\n"
       );
       return 1;
     }
+    if (!previousText.trim()) {
+      stderr(`Comparison file "${options.comparePath}" is empty. Save a JSON plan with --format json first.\n`);
+      return 1;
+    }
+    if (/^\s*#\s*FixMap/i.test(previousText)) {
+      stderr(`"${options.comparePath}" is a Markdown report. --compare requires the JSON plan saved with --format json.\n`);
+      return 1;
+    }
+    try {
+      previous = JSON.parse(previousText) as FixMapReport;
+    } catch (error) {
+      stderr(`"${options.comparePath}" is not valid JSON: ${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
     if (!Array.isArray(previous.contextFiles)) {
-      stderr(`"${options.comparePath}" is not a FixMap JSON report: no contextFiles array.\n`);
+      stderr(`"${options.comparePath}" is valid JSON but not a FixMap report: no contextFiles array.\n`);
       return 1;
     }
 
     const comparison = compareReports(previous, report);
-    stdout(
-      options.format === "json"
+    const renderedComparison = options.format === "json"
         ? `${JSON.stringify(comparison, null, 2)}\n`
-        : renderComparisonMarkdown(comparison)
-    );
+        : renderComparisonMarkdown(comparison);
+    if (options.output) {
+      try { await (dependencies.writeReport ?? ((path, contents) => writeFile(path, contents, "utf8")))(options.output, renderedComparison); }
+      catch (error) { stderr(formatOutputError(options.output, error, "comparison")); return 1; }
+    } else stdout(renderedComparison);
+    stderr("\nComparison complete. Refine the task or inspect the files that entered, moved, or changed confidence, then rerun the plan.\n");
     return 0;
   }
 
@@ -281,7 +346,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
         rendered
       );
     } catch (error) {
-      stderr(`Could not write report to "${options.output}": ${error instanceof Error ? error.message : String(error)}\n`);
+      stderr(formatOutputError(options.output, error, "report"));
       return 1;
     }
   } else {
@@ -397,6 +462,7 @@ export function parseArgs(args: string[]): CliOptions {
       inlineValue === undefined &&
       followingValue !== undefined &&
       (!followingValue.startsWith("-") ||
+        (arg === "--limit" && /^-\d/.test(followingValue)) ||
         ((arg === "--issue" || arg === "--issue-file") && followingValue === "-"));
     const value = inlineValue ?? (canConsumeFollowing ? followingValue : undefined);
     const consumeValue = () => {
@@ -445,8 +511,9 @@ export function parseArgs(args: string[]): CliOptions {
       else invalidValues.push("--repo requires a local path or public GitHub repository URL");
     } else if (arg === "--format") {
       consumeValue();
-      if (value === "markdown" || value === "json") {
-        format = value;
+      const normalized = value?.toLowerCase();
+      if (normalized === "markdown" || normalized === "json") {
+        format = normalized;
       } else {
         invalidValues.push(`--format received ${JSON.stringify(value ?? "(missing)")}; expected "markdown" or "json"`);
       }
@@ -477,8 +544,12 @@ export function parseArgs(args: string[]): CliOptions {
         );
       }
     } else if (arg === "--working-tree") {
+      if (flagCounts.has(arg)) invalidValues.push(`pass ${arg} only once`);
+      flagCounts.set(arg, 1);
       workingTree = true;
     } else if (arg === "--include-untracked") {
+      if (flagCounts.has(arg)) invalidValues.push(`pass ${arg} only once`);
+      flagCounts.set(arg, 1);
       includeUntracked = true;
     } else if (arg === "--output") {
       consumeValue();
@@ -566,12 +637,28 @@ async function runVerify(
     writeReport: (path: string, contents: string) => Promise<void>;
   }
 ): Promise<number> {
+  if (options.includeUntracked && !options.workingTree) {
+    io.stderr("--include-untracked only applies with --working-tree.\n");
+    return 1;
+  }
+  if (options.workingTree && (options.diffSpec || options.baseRef || options.headRef)) {
+    io.stderr("Use either --working-tree or --diff/--base, not both.\n");
+    return 1;
+  }
+  if (options.diffSpec && (options.baseRef || options.headRef)) {
+    io.stderr("Use either --diff or --base/--head, not both.\n");
+    return 1;
+  }
+  if (options.headRef && !options.baseRef) {
+    io.stderr("--head requires --base; use --diff when you already have a complete range.\n");
+    return 1;
+  }
   if (!options.reportPath) {
     io.stderr("Provide --report with the JSON report this change was planned from.\n");
     return 1;
   }
-  if (!options.diffSpec && !options.baseRef) {
-    io.stderr("Provide --diff or --base/--head so FixMap can see what changed.\n");
+  if (!options.diffSpec && !options.baseRef && !options.workingTree) {
+    io.stderr("Provide --diff, --base/--head, or --working-tree so FixMap can see what changed.\n");
     return 1;
   }
   if (/^https?:\/\//i.test(options.repo ?? "")) {
@@ -599,7 +686,9 @@ async function runVerify(
       repoRoot: options.repo ?? process.cwd(),
       diffSpec: options.diffSpec,
       baseRef: options.baseRef,
-      headRef: options.headRef
+      headRef: options.headRef,
+      workingTree: options.workingTree,
+      includeUntracked: options.includeUntracked
     });
     const unresolvedDiff = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
     if (unresolvedDiff) {
@@ -616,8 +705,7 @@ async function runVerify(
         await io.writeReport(options.output, rendered);
       } catch (error) {
         io.stderr(
-          `Could not write verification to "${options.output}": ` +
-          `${error instanceof Error ? error.message : String(error)}\n`
+          formatOutputError(options.output, error, "verification")
         );
         return 1;
       }
@@ -633,3 +721,18 @@ async function runVerify(
   }
 }
 
+function describeUnsupportedTaskUrl(issueText: string): string | undefined {
+  const value = issueText.trim();
+  if (!/^https?:\/\/\S+$/i.test(value) || parseGitHubIssueSource(value)) return undefined;
+  return "Unsupported task URL. Use a canonical public GitHub issue or pull request URL such as https://github.com/owner/repository/issues/123 or /pull/123, or pass descriptive task text.";
+}
+
+function formatOutputError(path: string, error: unknown, kind: string): string {
+  const candidate = error as { code?: string; message?: string };
+  const guidance = candidate?.code === "EISDIR"
+    ? " The output path must name a file, not a directory."
+    : candidate?.code === "ENOENT"
+      ? " Create the parent directory first, then retry."
+      : "";
+  return `Could not write ${kind} to "${path}": ${candidate?.message ?? String(error)}.${guidance}\n`;
+}

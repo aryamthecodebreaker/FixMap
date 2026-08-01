@@ -62,7 +62,10 @@ describe("extractTaskSignals", () => {
     ["cached", "cache"],
     ["stopped", "stop"],
     ["created", "create"],
-    ["invoices", "invoice"]
+    ["contributing", "contribute"],
+    ["contributor", "contribute"],
+    ["invoices", "invoice"],
+    ["resolved", "resolve"]
   ])("normalizes %s to the same token as %s", (inflected, base) => {
     const inflectedSignals = extractTaskSignals({ issueText: inflected });
     const baseSignals = extractTaskSignals({ issueText: base });

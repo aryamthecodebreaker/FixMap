@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { buildReportFromRepo, explainFile, verifyPlan } from "@aryam/fixmap-core/browser";
+import { buildPathExcluder, buildReportFromRepo, compareReports, explainFile, verifyPlan } from "@aryam/fixmap-core/browser";
 import { sampleRepo, sampleRepoWithChanges, samplePaths } from "./sample-repo";
 
-type Stage = "plan" | "explain" | "verify";
+type Stage = "plan" | "explain" | "compare" | "verify";
 
 const presets = [
   {
@@ -46,11 +46,18 @@ export function Demo() {
   const [stage, setStage] = useState<Stage>("plan");
   const [explainTarget, setExplainTarget] = useState("dist/auth/reset-password.js");
   const [scenario, setScenario] = useState(0);
+  const [limit, setLimit] = useState(8);
+  const [excludeBuild, setExcludeBuild] = useState(false);
+  const [workingTree, setWorkingTree] = useState(false);
 
-  const report = useMemo(() => buildReportFromRepo(sampleRepo, { issueText: task }), [task]);
+  const exclude = useMemo(() => buildPathExcluder(excludeBuild ? ["dist/**"] : []), [excludeBuild]);
+  const activeRepo = useMemo(() => workingTree ? sampleRepoWithChanges(scenarios[scenario]!.changed) : sampleRepo, [workingTree, scenario]);
+  const report = useMemo(() => buildReportFromRepo(activeRepo, { issueText: task, limit, exclude }), [activeRepo, task, limit, exclude]);
+  const baseline = useMemo(() => buildReportFromRepo(sampleRepo, { issueText: presets[0]!.label, limit, exclude }), [limit, exclude]);
+  const comparison = useMemo(() => compareReports(baseline, report), [baseline, report]);
   const explanation = useMemo(
-    () => explainFile(sampleRepo, { issueText: task }, explainTarget),
-    [task, explainTarget]
+    () => explainFile(sampleRepo, { issueText: task, limit, exclude }, explainTarget),
+    [task, limit, exclude, explainTarget]
   );
   const verification = useMemo(
     () => verifyPlan(report, sampleRepoWithChanges(scenarios[scenario]!.changed)),
@@ -59,8 +66,9 @@ export function Demo() {
 
   const activePreset = presets.find((preset) => preset.label === task);
   const command = {
-    plan: `fixmap plan --issue "${truncate(task)}"`,
+    plan: `fixmap plan --issue "${truncate(task)}"${workingTree ? " --working-tree" : ""}`,
     explain: `fixmap plan --issue "${truncate(task)}" --explain ${explainTarget}`,
+    compare: `fixmap plan --issue "${truncate(task)}" --compare before.json`,
     verify: `fixmap verify --report plan.json --diff main...HEAD`
   }[stage];
 
@@ -71,7 +79,8 @@ export function Demo() {
           [
             ["plan", "1 · Plan", "Where do I start?"],
             ["explain", "2 · Ask why", "Why not this file?"],
-            ["verify", "3 · Verify", "Did the change match?"]
+            ["compare", "3 · Compare", "Did better context move?"],
+            ["verify", "4 · Verify", "Did the change match?"]
           ] as const
         ).map(([value, label, hint]) => (
           <button
@@ -106,6 +115,11 @@ export function Demo() {
           </div>
           {activePreset ? <p className="preset-note">{activePreset.note}</p> : null}
 
+          <label className="picker-label" htmlFor="context-limit">Context limit: {limit}</label>
+          <input id="context-limit" type="range" min="1" max="8" value={limit} onChange={(event) => setLimit(Number(event.target.value))} />
+          <label className="picker-label"><input type="checkbox" checked={excludeBuild} onChange={(event) => setExcludeBuild(event.target.checked)} /> Exclude generated <code>dist/**</code></label>
+          <label className="picker-label"><input type="checkbox" checked={workingTree} onChange={(event) => setWorkingTree(event.target.checked)} /> Include the selected scenario as a working-tree change set</label>
+
           <p className="demo-command">
             <span>Same result from the CLI</span>
             <code>{command}</code>
@@ -137,6 +151,7 @@ export function Demo() {
               onScenarioChange={setScenario}
             />
           ) : null}
+          {stage === "compare" ? <ComparePanel comparison={comparison} /> : null}
         </div>
       </div>
     </div>
@@ -261,6 +276,23 @@ function ExplainPanel({
         you thought, it scored below the cutoff, it was excluded on purpose, or the scan never
         saw it.
       </p>
+    </>
+  );
+}
+
+function ComparePanel({ comparison }: { comparison: ReturnType<typeof compareReports> }) {
+  const changes = [...comparison.entered, ...comparison.moved, ...comparison.confidenceChanged];
+  return (
+    <>
+      <div className="results-head"><span>Earlier plan vs. current task</span><small>{changes.length} changed</small></div>
+      <p className="explain-summary">{comparison.summary}</p>
+      {changes.map((delta) => (
+        <article className="finding" key={`${delta.status}-${delta.path}`}>
+          <span className="severity info">{delta.status}</span>
+          <div><code>{delta.path}</code><p>rank {delta.previousRank ?? "—"} → {delta.currentRank ?? "—"}; score {delta.previousScore ?? "—"} → {delta.currentScore ?? "—"}</p></div>
+        </article>
+      ))}
+      <p className="panel-footnote">Compare makes task refinement measurable: save a JSON plan, add the missing symbol or path, and confirm the real fix site rises.</p>
     </>
   );
 }

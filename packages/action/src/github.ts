@@ -81,6 +81,7 @@ async function findExistingComment(
   headers: Record<string, string>,
   commentAuthor: string | undefined
 ): Promise<GitHubComment | undefined> {
+  let newest: GitHubComment | undefined;
   for (let page = 1; ; page += 1) {
     const comments = await requestJson<GitHubComment[]>(
       fetchImpl,
@@ -88,17 +89,15 @@ async function findExistingComment(
       { headers },
       "list pull request comments"
     );
-    const existing = comments.find(
+    const matches = comments.filter(
       (comment) =>
         comment.body?.includes(FIXMAP_REPORT_MARKER) &&
         (!commentAuthor || comment.user?.login === commentAuthor)
     );
-    if (existing) {
-      return existing;
-    }
+    for (const existing of matches) if (!newest || existing.id > newest.id) newest = existing;
 
     if (comments.length < 100) {
-      return undefined;
+      return newest;
     }
   }
 }

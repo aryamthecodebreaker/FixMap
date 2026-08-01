@@ -9,7 +9,7 @@ describe("report rendering", () => {
       changedFiles: ["src/auth/reset-password.ts"],
       diagnostics: [],
       contextFiles: [
-        { path: "src/auth/reset-password.ts", score: 13, confidence: "high", reasons: ["changed file"] }
+        { rank: 1, path: "src/auth/reset-password.ts", score: 13, confidence: "high", reasons: ["changed file"] }
       ],
       testRoutes: [
         { command: "npm test", reason: "package script named test", relatedFiles: ["test/auth/reset-password.test.ts"] }

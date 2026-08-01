@@ -2,6 +2,30 @@
 
 All notable changes to FixMap are documented here.
 
+## 0.8.1 - 2026-08-01
+
+### Fixed
+
+- Closed the v0.8.0 dogfood backlog across CLI validation, working-tree verification, explain path normalization, comparison output, exclusions, ranking confidence, risk evidence, JSON rank fields, test routing, and Action comment selection.
+- Added case-insensitive formats, command-specific help, actionable output-path errors, canonical GitHub URL validation, and clean remote/working-tree conflict errors.
+- Added browser-safe compare/exclusion exports and a live Compare/limit/exclude demo surface.
+
+### Added
+
+- MCP parity tools `fixmap_compare` and `fixmap_doctor`, plus working-tree and limit controls.
+- GitHub Action inputs for `limit`, `exclude`, `working-tree`, and `include-untracked`; JSON comments now preserve JSON.
+- Release gates that verify npm `latest`, canonical homepage metadata, exact internal versions, and a fresh global installation before publishing the GitHub release.
+
+### Installation
+
+```bash
+npm install --global @aryam/fixmap@0.8.1
+fixmap doctor
+fixmap --version
+```
+
+The package, MCP Registry entry, GitHub tag/release, Action tag, and production site must all resolve to 0.8.1 before the release is considered complete.
+
 ## 0.8.0 - 2026-08-01
 
 Closes all 22 open reports from a dogfooding sweep of v0.7.4.

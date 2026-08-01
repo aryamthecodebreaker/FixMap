@@ -21,7 +21,7 @@ const docLinks = [
   { href: "#plan", icon: FileMagnifyingGlass, title: "Plan", body: "Map a task, issue, or diff." },
   { href: "#explain", icon: BracketsCurly, title: "Explain", body: "Ask why a path is missing." },
   { href: "#verify", icon: CheckSquare, title: "Verify", body: "Compare a plan with a diff." },
-  { href: "#mcp", icon: Robot, title: "MCP", body: "Expose all three to agents." }
+  { href: "#mcp", icon: Robot, title: "MCP", body: "Expose the full loop to agents." }
 ];
 
 export default function DocsPage() {
@@ -54,7 +54,7 @@ export default function DocsPage() {
 
           <section id="output" className="doc-section"><p className="eyebrow">Output</p><h2>Readable by people and tools.</h2><p>Markdown is the default handoff. Add <code>--format json</code> for structured output and <code>--output &lt;path&gt;</code> to save it.</p><div className="definition-list"><div><strong>Context files</strong><p>Ranked paths, scores, confidence labels, and evidence.</p></div><div><strong>Test routes</strong><p>Workspace-aware commands and reachable related tests.</p></div><div><strong>Risks</strong><p>Sensitive areas inferred from paths, symbols, and changes.</p></div><div><strong>Diagnostics</strong><p>Vague tasks, unresolved identifiers, scan limits, and other uncertainty.</p></div></div></section>
 
-          <section id="mcp" className="doc-section"><p className="eyebrow">MCP</p><h2>Three tools for the agent workflow.</h2><p><code>fixmap_plan</code> creates the starting map and accepts a <code>limit</code> when context budget matters. <code>fixmap_explain</code> answers why a file is missing, for agents with no shell to run <code>--explain</code> in. <code>fixmap_verify</code> compares the report with the later diff, and takes it either inline or as a file path so a large plan need not be re-embedded in the call. All three run locally over stdio.</p><CopyCommand command={commands.mcp} /><Link className="text-link" href="/get-started#mcp">MCP setup examples <ArrowRight size={17} weight="bold" aria-hidden /></Link></section>
+          <section id="mcp" className="doc-section"><p className="eyebrow">MCP</p><h2>Five tools for the agent workflow.</h2><p><code>fixmap_plan</code> maps tasks and working trees. <code>fixmap_explain</code> answers why a file is missing. <code>fixmap_compare</code> measures task refinement. <code>fixmap_verify</code> checks the later diff, and <code>fixmap_doctor</code> diagnoses install shadows. All five run locally over stdio.</p><CopyCommand command={commands.mcp} /><Link className="text-link" href="/get-started#mcp">MCP setup examples <ArrowRight size={17} weight="bold" aria-hidden /></Link></section>
 
           <section id="doctor" className="doc-section"><p className="eyebrow">Doctor</p><h2>Check you are running what you asked for.</h2><p>An older global install can shadow the version npm was asked for, so a feature that shipped appears not to exist. <code>doctor</code> reports the running version, the resolved path, any conflicting global, and the Node version.</p><CopyCommand command="npx -y @aryam/fixmap@latest doctor" /><p>It exits non-zero when it finds a shadow, so a CI step fails rather than reading on.</p></section>
 

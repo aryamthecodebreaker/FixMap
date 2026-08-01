@@ -51,7 +51,7 @@ npx -y @aryam/fixmap@latest doctor
 Remove the stale copy with `npm uninstall -g @aryam/fixmap`, or use the unambiguous form:
 
 ```bash
-npm exec --yes --package=@aryam/fixmap@0.8.0 -- fixmap --version
+npm exec --yes --package=@aryam/fixmap@0.8.1 -- fixmap --version
 ```
 
 | Command | Answers |
@@ -118,6 +118,8 @@ npx -y @aryam/fixmap@latest plan \
 
 Remote repository mode is issue-only. Clone the repository locally when you need `--diff`, `--base`, or `--head`.
 
+Set `FIXMAP_PROGRESS=1` when you want clone/scan progress. Progress is intentionally written to stderr so JSON/stdout remains pipe-safe; in PowerShell, merge it for display with `2>&1` or suppress it with `2>$null` if your host records native stderr as an error stream.
+
 For long or private task text, avoid shell command-length limits by reading UTF-8 text from a file or stdin:
 
 ```bash
@@ -135,6 +137,8 @@ Every report explains the files it chose. `--explain` answers the harder questio
 npx -y @aryam/fixmap@latest plan --issue "password reset emails fail" \
   --explain src/billing/invoice.ts
 ```
+
+Explain accepts repository-relative paths, normalized `.`/`..` segments, or an absolute path inside the selected repository. It resolves the scanned casing on case-insensitive Windows checkouts and clearly rejects paths outside the repository. Git-tracked symlink paths are followed when the operating system permits them; a disabled or dangling Windows symlink is reported as not scanned.
 
 ```text
 # Why src/billing/invoice.ts
@@ -179,7 +183,7 @@ npx -y @aryam/fixmap@latest plan --issue "password reset emails fail" \
   --exclude apps/web --exclude 'docs/**' --limit 3
 ```
 
-Patterns can also live in a `.fixmapignore` file at the repository root, one per line, gitignore-flavored. The two combine — a flag refines the file rather than replacing it. `--explain` reports an excluded file as excluded, naming the pattern, rather than claiming it scored too low.
+Patterns can also live in a `.fixmapignore` file at the repository root, one per line. FixMap supports the documented subset `*`, `**`, `?`, root-leading `/`, directory-trailing `/`, `#` comments, and ordered `!` negation; bracket characters are literals, not character classes, and FixMap does not claim every gitignore extension. File and CLI patterns combine and are deduplicated. Omitting MCP `exclude` means “use `.fixmapignore` only”; sending patterns adds to that file. `--explain` reports an excluded file as excluded, naming the effective pattern, rather than claiming it scored too low.
 
 `--limit` caps how many context files come back. The useful signal is usually the top one to three; the rest burns agent context and invites drive-by edits.
 
@@ -232,8 +236,8 @@ npx -y @aryam/fixmap@latest doctor
 ```text
 # FixMap Doctor
 
-- ok  Running version: 0.8.0
-- PROBLEM  Global install: 0.3.1 (this process is 0.8.0)
+- ok  Running version: 0.8.1
+- PROBLEM  Global install: 0.3.1 (this process is 0.8.1)
     A globally installed fixmap shadows the version npx was asked for. Run
     `npm uninstall -g @aryam/fixmap`, or invoke the exact version with
     `npm exec --package=@aryam/fixmap@<version> -- fixmap <command>`.
@@ -242,9 +246,11 @@ npx -y @aryam/fixmap@latest doctor
 
 It exits non-zero when it finds a shadow, so a CI step fails rather than reading on.
 
+Doctor can compare the running package, the first `fixmap` shim on `PATH`, and npm's global package. It cannot infer a version you intended in some other shell command or inspect every historical npm-exec cache entry; when reproducibility matters, use `npm exec --yes --package=@aryam/fixmap@0.8.1 -- fixmap --version` and confirm the printed version before continuing.
+
 ### MCP server
 
-FixMap exposes three stdio tools: `fixmap_plan` builds the starting map, `fixmap_verify` compares that JSON report with the diff produced after editing, and `fixmap_explain` answers why one file ranked where it did — or why it is missing — for agents that have no shell to run `--explain` in.
+FixMap exposes five stdio tools: `fixmap_plan` builds the starting map, `fixmap_explain` answers why a file is missing, `fixmap_compare` measures whether better task context improved the plan, `fixmap_verify` compares that plan with the later diff, and `fixmap_doctor` diagnoses install shadows.
 
 `fixmap_plan` takes `limit` to cap how many context files come back, which matters when the useful signal is the top one to three and the rest is context budget. `fixmap_verify` accepts its report either inline or as a path to a saved JSON file, so a large plan need not be re-embedded in the tool call.
 
@@ -267,7 +273,7 @@ Cursor, Windsurf, or another MCP client:
 }
 ```
 
-The official MCP Registry identifier is `io.github.aryamthecodebreaker/fixmap`. Analysis runs locally over stdio; FixMap does not send repository source to a hosted model or service.
+The official MCP Registry identifier is `io.github.aryamthecodebreaker/fixmap`. MCP exposes `fixmap_plan`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor`, including working-tree and limit controls. Analysis runs locally over stdio; FixMap does not send repository source to a hosted model or service.
 
 #### Tell the agent how much to trust it
 
@@ -314,18 +320,18 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.8.0
+        uses: aryamthecodebreaker/FixMap@v0.8.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The Action upserts one marked pull-request comment, writes the complete report to the step summary, and exposes `report`, `context-count`, and `test-route-count` outputs. Pin a [release tag](https://github.com/aryamthecodebreaker/FixMap/releases); a floating `v1` tag will follow wider acceptance testing.
+The Action upserts the newest matching marked pull-request comment, writes the complete report to the step summary, and exposes `report`, `context-count`, and `test-route-count` outputs. Plan and verify accept `working-tree`/`include-untracked`; plan also accepts `limit` and comma- or newline-separated `exclude`. Explain and compare remain CLI/MCP-only because Action comments operate on complete reports. Pin a [release tag](https://github.com/aryamthecodebreaker/FixMap/releases); a floating `v1` tag will follow wider acceptance testing.
 
 To close the plan→edit→verify loop without leaving GitHub, save the plan as an artifact and check later pushes against it with `mode: verify`:
 
 ```yaml
       - id: plan
-        uses: aryamthecodebreaker/FixMap@v0.8.0
+        uses: aryamthecodebreaker/FixMap@v0.8.1
         with:
           format: json
       - run: echo '${{ steps.plan.outputs.report }}' > fixmap-plan.json
@@ -335,7 +341,7 @@ To close the plan→edit→verify loop without leaving GitHub, save the plan as 
           path: fixmap-plan.json
 
       # In a later run, after the fix is pushed:
-      - uses: aryamthecodebreaker/FixMap@v0.8.0
+      - uses: aryamthecodebreaker/FixMap@v0.8.1
         with:
           mode: verify
           report-path: fixmap-plan.json
@@ -353,7 +359,7 @@ FixMap is deliberately inspectable:
 - **Explainable:** every ranked file includes reasons such as path matches, content matches, exact definitions, changed-file evidence, or import proximity.
 - **Local-first:** local repositories stay local; public URLs use an anonymous temporary checkout.
 - **Non-executing:** FixMap never installs dependencies or runs repository build, test, hook, or package scripts.
-- **Git-aware:** scans respect `.gitignore`, include untracked files in working-tree diffs, and surface unresolved refs as errors.
+- **Git-aware:** scans respect `.gitignore`; working-tree mode includes staged and unstaged tracked files, with untracked files only when `--include-untracked` is explicit; unresolved refs surface as errors.
 - **Monorepo-aware:** test routing understands npm, pnpm, Yarn, Bun, and workspace package boundaries.
 - **Bounded:** file counts, text samples, issue bodies, network responses, and remote-fetch time are capped with explicit diagnostics.
 

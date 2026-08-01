@@ -8,7 +8,7 @@
 // say which. The output says what differs and leaves that judgement alone.
 
 import { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
-import { buildRiskNotes } from "./report.js";
+import { buildRiskNotes, pathsForRiskArea } from "./report.js";
 import type { FixMapReport, RepoMap, VerifyFinding, VerifyResult } from "./types.js";
 
 export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
@@ -110,7 +110,9 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
       message:
         suggested.length > 0
           ? `Code changed but no test did. The plan routed ${suggested.length === 1 ? "this test" : "these tests"} as most related.`
-          : "Code changed but no test did, and the plan found no related test to point at."
+          : report.testRoutes.length > 0
+            ? `Code changed but no test did. Run the routed ${report.testRoutes.length === 1 ? "command" : "commands"}: ${report.testRoutes.map((route) => route.command).join(", ")}.`
+            : "Code changed but no test did, and the plan found no related test to point at."
     });
   }
 
@@ -120,8 +122,8 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
   for (const risk of newRisks) {
     findings.push({
       code: "new-risk-area",
-      severity: risk.severity === "high" ? "warning" : "info",
-      paths: changed.filter((path) => path.toLowerCase().includes(risk.area.split("-")[0] ?? risk.area)),
+      severity: risk.severity === "low" ? "info" : "warning",
+      paths: pathsForRiskArea(risk.area, changed),
       message: `The change touches ${risk.area}, which the original plan did not flag: ${risk.reason}.`
     });
   }

@@ -5,7 +5,9 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
+  compareReports,
   explainFile,
+  renderComparisonMarkdown,
   renderExplanationMarkdown,
   renderJsonReport,
   renderMarkdownReport,
@@ -15,8 +17,10 @@ import {
   verifyPlan,
   type FixMapReport
 } from "@aryam/fixmap-core";
+import { renderDoctorReport, runDoctorChecks } from "./doctor.js";
 import {
   buildReportForRepository,
+  parseGitHubIssueSource,
   type RepositorySourceDependencies
 } from "./repository-source.js";
 
@@ -31,6 +35,8 @@ type PlanArguments = {
   format?: "markdown" | "json";
   limit?: number;
   exclude?: string[];
+  workingTree?: boolean;
+  includeUntracked?: boolean;
 };
 
 type ExplainArguments = {
@@ -39,6 +45,7 @@ type ExplainArguments = {
   diff?: string;
   repo?: string;
   exclude?: string[];
+  limit?: number;
   format?: "markdown" | "json";
 };
 
@@ -53,6 +60,8 @@ type VerifyArguments = {
   head?: string;
   repo?: string;
   format?: "markdown" | "json";
+  workingTree?: boolean;
+  includeUntracked?: boolean;
 };
 
 const PLAN_TOOL = {
@@ -91,7 +100,7 @@ const PLAN_TOOL = {
       },
       format: {
         type: "string",
-        enum: ["markdown", "json"],
+        enum: ["markdown", "json", "MARKDOWN", "JSON"],
         description: "Report format, markdown by default"
       },
       limit: {
@@ -106,7 +115,9 @@ const PLAN_TOOL = {
         description:
           "Path patterns to leave out of ranking, gitignore-flavored, such as \"apps/web\" or \"docs/**\". " +
           "A .fixmapignore file in the repository is applied as well."
-      }
+      },
+      workingTree: { type: "boolean", description: "Map staged and unstaged tracked changes against HEAD" },
+      includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" }
     },
     additionalProperties: false
   }
@@ -142,7 +153,8 @@ const EXPLAIN_TOOL = {
         items: { type: "string" },
         description: "The same exclusion patterns used for the plan"
       },
-      format: { type: "string", enum: ["markdown", "json"], description: "Output format, markdown by default" }
+      limit: { type: "number", description: `Maximum reported context files, 1 to ${MAX_MCP_LIMIT}` },
+      format: { type: "string", enum: ["markdown", "json", "MARKDOWN", "JSON"], description: "Output format, markdown by default" }
     },
     required: ["path"],
     additionalProperties: false
@@ -170,11 +182,36 @@ const VERIFY_TOOL = {
       base: { type: "string", description: "Base git ref when diff is omitted" },
       head: { type: "string", description: "Head git ref, defaults to HEAD" },
       repo: { type: "string", description: "Local repository path, defaults to the server working directory" },
-      format: { type: "string", enum: ["markdown", "json"], description: "Output format, markdown by default" }
+      workingTree: { type: "boolean", description: "Verify staged and unstaged tracked changes against HEAD" },
+      includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" },
+      format: { type: "string", enum: ["markdown", "json", "MARKDOWN", "JSON"], description: "Output format, markdown by default" }
     },
     required: ["report"],
     additionalProperties: false
   }
+};
+
+const COMPARE_TOOL = {
+  name: "fixmap_compare",
+  title: "FixMap compare",
+  description: "Compare an earlier FixMap JSON report with a current report without rescanning.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      previous: { type: "object", description: "Earlier FixMap JSON report" },
+      current: { type: "object", description: "Current FixMap JSON report" },
+      format: { type: "string", enum: ["markdown", "json", "MARKDOWN", "JSON"] }
+    },
+    required: ["previous", "current"],
+    additionalProperties: false
+  }
+};
+
+const DOCTOR_TOOL = {
+  name: "fixmap_doctor",
+  title: "FixMap doctor",
+  description: "Check the running FixMap installation for stale or shadowed binaries.",
+  inputSchema: { type: "object" as const, properties: { format: { type: "string", enum: ["markdown", "json", "MARKDOWN", "JSON"] } }, additionalProperties: false }
 };
 
 export function createFixMapMcpServer(
@@ -183,10 +220,27 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, VERIFY_TOOL, EXPLAIN_TOOL]
+    tools: [PLAN_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (request.params.name === COMPARE_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const previous = record?.previous as FixMapReport | undefined;
+      const current = record?.current as FixMapReport | undefined;
+      if (!Array.isArray(previous?.contextFiles) || !Array.isArray(current?.contextFiles)) return { isError: true, content: [{ type: "text", text: "Invalid arguments: previous and current must be FixMap JSON reports." }] };
+      const comparison = compareReports(previous, current);
+      const format = normalizeFormat(record?.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(comparison, null, 2)}\n` : renderComparisonMarkdown(comparison) }] };
+    }
+    if (request.params.name === DOCTOR_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const format = normalizeFormat(record?.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      const report = await runDoctorChecks();
+      return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(report, null, 2)}\n` : renderDoctorReport(report) }] };
+    }
     if (request.params.name === VERIFY_TOOL.name) {
       const parsed = parseVerifyArguments(request.params.arguments ?? {});
       if (!parsed.success) {
@@ -201,7 +255,9 @@ export function createFixMapMcpServer(
           repoRoot: args.repo ?? process.cwd(),
           diffSpec: args.diff,
           baseRef: args.base,
-          headRef: args.head
+          headRef: args.head,
+          workingTree: args.workingTree,
+          includeUntracked: args.includeUntracked
         });
         const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
         if (diffFailure) {
@@ -245,7 +301,8 @@ export function createFixMapMcpServer(
           {
             issueText: args.issue,
             diffText: repo.diffText,
-            exclude: await resolveExclusions(repoRoot, args.exclude ?? [])
+            exclude: await resolveExclusions(repoRoot, args.exclude ?? []),
+            limit: args.limit
           },
           args.path
         );
@@ -276,7 +333,7 @@ export function createFixMapMcpServer(
       };
     }
     const args = parsed.value;
-    if (!args.issue && !args.diff && !args.base) {
+    if (!args.issue && !args.diff && !args.base && !args.workingTree) {
       return {
         isError: true,
         content: [{ type: "text", text: "Provide issue, diff, or base/head so FixMap has a task signal." }]
@@ -291,6 +348,8 @@ export function createFixMapMcpServer(
         diffSpec: args.diff,
         baseRef: args.base,
         headRef: args.head,
+        workingTree: args.workingTree,
+        includeUntracked: args.includeUntracked,
         limit: args.limit,
         exclude: args.exclude
       }, repositorySourceDependencies);
@@ -330,7 +389,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "format", "limit", "exclude"]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "format", "limit", "exclude", "workingTree", "includeUntracked"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return {
@@ -345,10 +404,13 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
       return { success: false, message: `"${name}" must be a string.` };
     }
   }
-  const format = record.format;
-  if (format !== undefined && format !== "markdown" && format !== "json") {
-    return { success: false, message: '"format" must be either "markdown" or "json".' };
-  }
+  if (record.issue !== undefined && typeof record.issue === "string" && !record.issue.trim()) return { success: false, message: '"issue" must not be blank.' };
+  for (const name of ["workingTree", "includeUntracked"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
+  if (record.includeUntracked === true && record.workingTree !== true) return { success: false, message: '"includeUntracked" requires "workingTree".' };
+  if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
+  if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
+  if (record.head && !record.base) return { success: false, message: '"head" requires "base".' };
+  const format = normalizeFormat(record.format); if (!format.success) return format;
   const limit = validateLimit(record.limit);
   if (!limit.success) {
     return limit;
@@ -365,15 +427,16 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
       value[name] = candidate.trim();
     }
   }
-  if (format === "markdown" || format === "json") {
-    value.format = format;
-  }
+  if (format.value) value.format = format.value;
   if (limit.value !== undefined) {
     value.limit = limit.value;
   }
   if (exclude.value.length > 0) {
     value.exclude = exclude.value;
   }
+  if (record.workingTree === true) value.workingTree = true;
+  if (record.includeUntracked === true) value.includeUntracked = true;
+  if (value.issue && /^https?:\/\/\S+$/i.test(value.issue) && !parseGitHubIssueSource(value.issue)) return { success: false, message: '"issue" URL must be a canonical public GitHub issue or pull request URL.' };
   return { success: true, value };
 }
 
@@ -413,7 +476,7 @@ export function parseExplainArguments(
     return { success: false, message: "tool arguments must be an object." };
   }
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["path", "issue", "diff", "repo", "exclude", "format"]);
+  const allowed = new Set(["path", "issue", "diff", "repo", "exclude", "format", "limit"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
@@ -428,10 +491,8 @@ export function parseExplainArguments(
   if (!path) {
     return { success: false, message: '"path" is required and must be a repository-relative file path.' };
   }
-  const format = record.format;
-  if (format !== undefined && format !== "markdown" && format !== "json") {
-    return { success: false, message: '"format" must be either "markdown" or "json".' };
-  }
+  const format = normalizeFormat(record.format); if (!format.success) return format;
+  const limit = validateLimit(record.limit); if (!limit.success) return limit;
   const exclude = validateExclude(record.exclude);
   if (!exclude.success) {
     return exclude;
@@ -445,7 +506,8 @@ export function parseExplainArguments(
       ...(typeof record.diff === "string" && record.diff.trim() ? { diff: record.diff.trim() } : {}),
       ...(typeof record.repo === "string" && record.repo.trim() ? { repo: record.repo.trim() } : {}),
       ...(exclude.value.length > 0 ? { exclude: exclude.value } : {}),
-      ...(format === "markdown" || format === "json" ? { format } : {})
+      ...(limit.value !== undefined ? { limit: limit.value } : {}),
+      ...(format.value ? { format: format.value } : {})
     }
   };
 }
@@ -459,7 +521,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
     return { success: false, message: "tool arguments must be an object." };
   }
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["report", "diff", "base", "head", "repo", "format"]);
+  const allowed = new Set(["report", "diff", "base", "head", "repo", "format", "workingTree", "includeUntracked"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
@@ -475,13 +537,15 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
       return { success: false, message: `"${name}" must be a non-empty string.` };
     }
   }
-  if (!record.diff && !record.base) {
-    return { success: false, message: 'provide "diff" or "base"/"head" so FixMap can see what changed.' };
+  if (!record.diff && !record.base && record.workingTree !== true) {
+    return { success: false, message: 'provide "diff", "base"/"head", or "workingTree" so FixMap can see what changed.' };
   }
-  const format = record.format;
-  if (format !== undefined && format !== "markdown" && format !== "json") {
-    return { success: false, message: '"format" must be either "markdown" or "json".' };
-  }
+  for (const name of ["workingTree", "includeUntracked"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
+  if (record.includeUntracked === true && record.workingTree !== true) return { success: false, message: '"includeUntracked" requires "workingTree".' };
+  if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
+  if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
+  if (record.head && !record.base) return { success: false, message: '"head" requires "base".' };
+  const format = normalizeFormat(record.format); if (!format.success) return format;
   return {
     success: true,
     value: {
@@ -490,9 +554,18 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
       ...(typeof record.base === "string" ? { base: record.base.trim() } : {}),
       ...(typeof record.head === "string" ? { head: record.head.trim() } : {}),
       ...(typeof record.repo === "string" ? { repo: record.repo.trim() } : {}),
-      ...(format === "markdown" || format === "json" ? { format } : {})
+      ...(record.workingTree === true ? { workingTree: true } : {}),
+      ...(record.includeUntracked === true ? { includeUntracked: true } : {}),
+      ...(format.value ? { format: format.value } : {})
     }
   };
+}
+
+function normalizeFormat(candidate: unknown): { success: true; value: "markdown" | "json" | undefined } | { success: false; message: string } {
+  if (candidate === undefined) return { success: true, value: undefined };
+  if (typeof candidate !== "string") return { success: false, message: '"format" must be either "markdown" or "json".' };
+  const value = candidate.toLowerCase();
+  return value === "markdown" || value === "json" ? { success: true, value } : { success: false, message: '"format" must be either "markdown" or "json".' };
 }
 
 type LoadedReport =

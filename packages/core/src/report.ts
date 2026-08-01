@@ -64,7 +64,7 @@ export function buildReportFromRepo(
     analysis: {
       grounding,
       ranking,
-      nextAction: buildNextAction(grounding, ranking, contextFiles)
+      nextAction: buildNextAction(grounding, ranking, contextFiles, testRoutes.some((route) => route.relatedFiles.length > 0))
     }
   };
 }
@@ -351,6 +351,17 @@ export function buildRiskNotes(contextPaths: string[], changedFiles: string[] = 
   return risks;
 }
 
+/** Returns the exact paths that triggered a named risk rule. Shared with verify so the
+ * finding never claims a risk while attaching an empty or unrelated path list. */
+export function pathsForRiskArea(area: string, paths: string[]): string[] {
+  const rule = RISK_RULES.find((candidate) => candidate.area === area);
+  if (!rule) return [];
+  return paths.filter((path) => {
+    const tokens = tokenizePath(path);
+    return rule.tokens.some((token) => tokens.has(token));
+  });
+}
+
 function packageProximity(packageDir: string, contextPaths: string[]): number {
   if (!packageDir) return 1;
   const matches = contextPaths.filter((path) => path === packageDir || path.startsWith(`${packageDir}/`));
@@ -404,7 +415,7 @@ export function renderMarkdownReport(report: FixMapReport): string {
     "",
     ...listOrEmpty(report.contextFiles.map((file) => `- \`${file.path}\` (${file.confidence} confidence, score ${file.score}): ${file.reasons.join("; ")}`)),
     "",
-    "## Test Route",
+    "## Test Routes",
     "",
     ...listOrEmpty(report.testRoutes.map((route) => {
       const related = route.relatedFiles.length > 0 ? ` Related: ${route.relatedFiles.map((path) => `\`${path}\``).join(", ")}.` : "";

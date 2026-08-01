@@ -16,7 +16,7 @@ export { buildImportGraph, findImportProximity } from "./import-graph.js";
 export { detectPrimaryLanguage } from "./languages.js";
 export type { LanguageDetection, PrimaryLanguage } from "./languages.js";
 export { rankContextFiles } from "./rank.js";
-export { buildRiskNotes, buildSummary, buildTestRoutes, renderJsonReport, renderMarkdownReport } from "./report.js";
+export { buildRiskNotes, buildSummary, buildTestRoutes, pathsForRiskArea, renderJsonReport, renderMarkdownReport } from "./report.js";
 export { scanRepo } from "./repo-scan.js";
 export { findGatedTestDiagnostics } from "./test-gates.js";
 export type {

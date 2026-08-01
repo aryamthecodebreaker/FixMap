@@ -49,16 +49,23 @@ export async function runAction(
   const event = readEvent(env.GITHUB_EVENT_PATH, readFile);
   const rawIssue = readInput("issue", env) || buildPullRequestIssueText(event);
   const diffSpec = readInput("diff", env);
-  const baseRef = readInput("base", env) || (env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : undefined);
-  const headRef = readInput("head", env) || (env.GITHUB_HEAD_REF ? "HEAD" : undefined);
+  const workingTree = parseBooleanInput("working-tree", readInput("working-tree", env));
+  const includeUntracked = parseBooleanInput("include-untracked", readInput("include-untracked", env));
+  const baseRef = readInput("base", env) || (!workingTree && env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : undefined);
+  const headRef = readInput("head", env) || (!workingTree && env.GITHUB_HEAD_REF ? "HEAD" : undefined);
   const format = parseFormat(readInput("format", env));
   const mode = parseMode(readInput("mode", env));
+  const exclude = (readInput("exclude", env) ?? "").split(/[\r\n,]+/).map((value) => value.trim()).filter(Boolean);
+  const limit = parseLimit(readInput("limit", env));
+  if (includeUntracked && !workingTree) throw new Error("include-untracked requires working-tree.");
+  if (workingTree && (diffSpec || baseRef || headRef)) throw new Error("Use either working-tree or diff/base/head, not both.");
+  if (diffSpec && (baseRef || headRef)) throw new Error("Use either diff or base/head, not both.");
 
   // Verify closes the plan-edit-verify loop for workflows that never touch the CLI or MCP:
   // a first job saves the plan as an artifact, a later run on `synchronize` checks the
   // pushed commits against it.
   if (mode === "verify") {
-    return runVerifyMode({ env, dependencies, readFile, appendFile, stdout, format, diffSpec, baseRef, headRef });
+    return runVerifyMode({ env, dependencies, readFile, appendFile, stdout, format, diffSpec, baseRef, headRef, workingTree, includeUntracked });
   }
 
   const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : undefined;
@@ -76,7 +83,7 @@ export async function runAction(
     ? [fetchedIssue.title, fetchedIssue.body].filter(Boolean).join("\n\n")
     : rawIssue;
 
-  if (!issue && !diffSpec && !baseRef) {
+  if (!issue && !diffSpec && !baseRef && !workingTree) {
     throw new Error("FixMap needs a pull_request event, an issue input, or a diff/base input to build a useful report.");
   }
 
@@ -85,7 +92,11 @@ export async function runAction(
     issueText: issue,
     diffSpec,
     baseRef,
-    headRef
+    headRef,
+    workingTree,
+    includeUntracked,
+    limit,
+    exclude
   });
   if (issueSource) {
     report.diagnostics.unshift({
@@ -111,7 +122,8 @@ export async function runAction(
   const commentAuthor = readInput("comment-author", env);
   if (token) {
     try {
-      await upsertPullRequestComment(token, event, markdown, commentAuthor, env, dependencies.createClient);
+      const comment = format === "json" ? `\`\`\`json\n${output.trimEnd()}\n\`\`\`\n` : markdown;
+      await upsertPullRequestComment(token, event, comment, commentAuthor, env, dependencies.createClient);
     } catch (error) {
       if (!isPermissionDeniedError(error)) {
         throw error;
@@ -145,6 +157,8 @@ type VerifyModeContext = {
   diffSpec: string | undefined;
   baseRef: string | undefined;
   headRef: string | undefined;
+  workingTree: boolean;
+  includeUntracked: boolean;
 };
 
 async function runVerifyMode(context: VerifyModeContext): Promise<void> {
@@ -154,6 +168,9 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
       "FixMap verify mode needs report-path pointing at the JSON plan this change was made from. " +
       "Save one with a prior plan step using format: json, then download it as an artifact."
     );
+  }
+  if (!context.diffSpec && !context.baseRef && !context.workingTree) {
+    throw new Error("FixMap verify mode needs diff, base/head, or working-tree so it can see what changed.");
   }
 
   let report: FixMapReport;
@@ -172,7 +189,9 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
     repoRoot: (context.dependencies.cwd ?? process.cwd)(),
     diffSpec: context.diffSpec,
     baseRef: context.baseRef,
-    headRef: context.headRef
+    headRef: context.headRef,
+    workingTree: context.workingTree,
+    includeUntracked: context.includeUntracked
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
   if (diffFailure) {
@@ -229,6 +248,20 @@ function parseFormat(value: string | undefined): "markdown" | "json" {
     return normalized;
   }
   throw new Error(`Invalid format input ${JSON.stringify(value)}; expected markdown or json.`);
+}
+
+function parseLimit(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 20) throw new Error("limit must be a whole number from 1 to 20.");
+  return parsed;
+}
+
+function parseBooleanInput(name: string, value: string | undefined): boolean {
+  if (!value) return false;
+  if (/^(?:true|1|yes)$/i.test(value)) return true;
+  if (/^(?:false|0|no)$/i.test(value)) return false;
+  throw new Error(`${name} must be true or false.`);
 }
 
 export function renderActionOutputs(
