@@ -516,7 +516,15 @@ npm run ci
 
 ## Current scope
 
-FixMap is focused on JavaScript and TypeScript repositories. It does not claim that a ranked file is correct, execute suggested commands, or hide failed diff resolution.
+FixMap ranks files with these extensions, and only these:
+
+`.cjs` `.cs` `.css` `.cts` `.go` `.java` `.js` `.json` `.jsx` `.md` `.mjs` `.mts` `.php` `.py` `.rb` `.rs` `.svelte` `.ts` `.tsx` `.vue` `.yaml` `.yml`
+
+Anything else is reported by `--explain` as outside the supported set rather than scored. `.vue` and `.svelte` files are sampled from their `<script>` block, so template and style text does not outvote the logic.
+
+Depth varies by ecosystem and the difference is deliberate. JavaScript and TypeScript get the most: package-script test routing, workspace awareness, and import-graph proximity. Go and Rust are routed from their manifests. Python is detected and named but not routed, because pytest, tox, unittest, and nox are all plausible for the same repository and a guessed command that fails is worse than an honest suggestion. Java, PHP, Ruby, and C# rank on path and content only — no test routing.
+
+FixMap does not claim that a ranked file is correct, execute suggested commands, or hide failed diff resolution.
 
 Next priorities include:
 

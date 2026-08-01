@@ -92,4 +92,33 @@ describe("findImportProximity", () => {
     expect(findImportProximity(graph, ["src/z-high.ts", "src/a-low.ts"]).get("src/shared.ts"))
       .toEqual({ distance: 2, seed: "src/z-high.ts", direction: "imported-by" });
   });
+
+  // `direction` describes the NEIGHBOR's relationship to the seed, which is deliberately the
+  // inverse of the map the edge came from: neighbors drawn from `graph.imports` are files the
+  // seed imports, so each of them is "imported-by" the seed. Reading the label against the map
+  // name makes it look swapped (#409) and it is not — rank.ts renders it as a sentence about
+  // the neighbor. Inverting these would reverse every proximity reason in the report.
+  it("labels a neighbor by its relationship to the seed, not by the map it came from", () => {
+    const graph = buildImportGraph([
+      codeFile("src/a.ts", "import { b } from './b.js';"),
+      codeFile("src/b.ts", "export const b = 1;"),
+      codeFile("src/c.ts", "import { a } from './a.js';")
+    ]);
+
+    const proximity = findImportProximity(graph, ["src/a.ts"]);
+
+    // a imports b, so b is imported by a.
+    expect(proximity.get("src/b.ts")).toEqual({ distance: 1, seed: "src/a.ts", direction: "imported-by" });
+    // c imports a, so c imports the seed.
+    expect(proximity.get("src/c.ts")).toEqual({ distance: 1, seed: "src/a.ts", direction: "imports" });
+  });
+
+  it("includes single-file-component and NodeNext extensions in the graph", () => {
+    const graph = buildImportGraph([
+      codeFile("src/App.vue", "<script setup lang='ts'>import { reset } from './reset.mjs';</script>"),
+      codeFile("src/reset.mts", "export const reset = 1;")
+    ]);
+
+    expect([...(graph.imports.get("src/App.vue") ?? [])]).toEqual(["src/reset.mts"]);
+  });
 });

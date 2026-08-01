@@ -1,7 +1,10 @@
 import type { RepoFile } from "./types.js";
 
-const JS_EXTENSIONS = new Set([".cjs", ".cts", ".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"]);
-const RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+// Single-file components import and are imported like any other module, and their script
+// block is what gets sampled — so leaving them out meant proximity never helped a Vue or
+// Svelte app even once those extensions could rank at all.
+const JS_EXTENSIONS = new Set([".cjs", ".cts", ".js", ".jsx", ".mjs", ".mts", ".svelte", ".ts", ".tsx", ".vue"]);
+const RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"];
 const COMPILED_TO_SOURCE: Record<string, string[]> = {
   ".js": [".ts", ".tsx"],
   ".mjs": [".mts"],

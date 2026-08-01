@@ -171,4 +171,49 @@ describe("test routing beyond package scripts", () => {
     expect(diagnostic?.message ?? "").not.toContain("Python");
     expect(diagnostic?.message ?? "").not.toContain("pyproject.toml");
   });
+
+  // A monorepo can declare a toolchain in a subtree without declaring it at the top, and
+  // root-only detection saw nothing there at all.
+  it("names a nested manifest when the root declares nothing", () => {
+    const repo = repoOf([
+      file("services/api/go.mod"),
+      file("services/api/reset.go"),
+      file("services/api/server.go")
+    ]);
+
+    expect(detectPrimaryLanguage(repo).evidence).toBe("services/api/go.mod and 100% of source files");
+  });
+
+  // The reason asserted "go.mod at the repository root" even when no root go.mod existed,
+  // naming evidence that was not there.
+  it("ties the Go route reason to the manifest it actually found", () => {
+    const nested = buildTestRoutes(
+      repoOf([file("services/api/go.mod"), file("services/api/reset.go")]),
+      ["services/api/reset.go"]
+    );
+    expect(nested[0]?.reason).toContain("services/api/go.mod");
+    expect(nested[0]?.reason).not.toContain("repository root");
+
+    const rooted = buildTestRoutes(repoOf([file("go.mod"), file("reset.go")]), ["reset.go"]);
+    expect(rooted[0]?.reason).toBe("go.mod at the repository root");
+  });
+
+  it("recognizes a requirements-only project as declaring Python", () => {
+    const repo = repoOf([file("requirements.txt"), file("app.py")]);
+
+    expect(detectPrimaryLanguage(repo)).toEqual({ language: "python", evidence: "requirements.txt" });
+  });
+
+  // A nested pyproject.toml configures pytest exactly as much as a root one does.
+  it("suggests pytest for a nested-only Python manifest", () => {
+    const repo = repoOf([
+      file("svc/pyproject.toml"),
+      file("svc/app.py", { textSample: "def password_reset(user):\n    return user\n" })
+    ]);
+    const report = buildReportFromRepo(repo, { issueText: "password_reset fails" });
+    const diagnostic = report.diagnostics.find((entry) => entry.code === "no-test-route");
+
+    expect(diagnostic?.message).toContain("`pytest`");
+    expect(diagnostic?.message).not.toContain("pytest or unittest");
+  });
 });
