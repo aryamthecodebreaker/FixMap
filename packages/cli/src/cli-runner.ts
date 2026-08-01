@@ -19,6 +19,8 @@ import { runDoctorChecks, renderDoctorReport, type DoctorReport } from "./doctor
 import {
   buildReportForRepository,
   parseGitHubIssueSource,
+  progressRequested,
+  tryParseGitHubIssueSource,
   type RepositoryPlanInput
 } from "./repository-source.js";
 
@@ -161,11 +163,11 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
 
   const options = parseArgs(args);
   if (options.command.startsWith("-")) {
-    stderr(`FixMap needs a subcommand. Try: fixmap plan ${args.join(" ")}\n\n${USAGE}`);
+    stderr(withUsageHint(`FixMap needs a subcommand. Try: fixmap plan ${args.join(" ")}`));
     return 1;
   }
   if (options.command !== "plan" && options.command !== "verify") {
-    stderr(`Unknown command: ${options.command || "(none)"}\n\n${USAGE}`);
+    stderr(withUsageHint(`Unknown command: ${options.command || "(none)"}`));
     return 1;
   }
   if (options.invalidValues.length > 0 || options.unknownArgs.length > 0) {
@@ -175,9 +177,10 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
         : "",
       options.unknownArgs.length > 0
         ? `Unknown option(s): ${options.unknownArgs.join(", ")}`
-        : ""
+        : "",
+      describeMisplacedGlobalFlags(options.unknownArgs)
     ].filter(Boolean);
-    stderr(`${sections.join("\n")}\n\n${USAGE}`);
+    stderr(withUsageHint(sections.join("\n")));
     return 1;
   }
   if (options.command === "verify") {
@@ -197,7 +200,11 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 1;
   }
 
-  if (!options.issueText && !options.diffSpec && !options.baseRef && !options.workingTree) {
+  // --explain answers two different kinds of question. "Why did this rank where it did?"
+  // needs a task to rank against; "was this file even scanned, or is it excluded?" is a
+  // property of the repository alone. Requiring a task signal for both made the second
+  // unaskable, which is the one you reach for when a file is missing from a report.
+  if (!options.issueText && !options.diffSpec && !options.baseRef && !options.workingTree && !options.explainPath) {
     stderr("Provide --issue, --diff, --base/--head, or --working-tree so FixMap has a task signal.\n");
     return 1;
   }
@@ -282,8 +289,26 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 1;
   }
 
+  // An explicitly requested diff that could not be resolved is a failed request, whether or
+  // not task text happened to be available to rank from. Exiting 0 with a warning buried in
+  // the diagnostics told every script and agent checking `$?` that the named diff had been
+  // applied, and the report says `changedFiles: []` with no way to tell the two apart.
+  const diffFailure = report.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
+  const changeRequested = Boolean(options.diffSpec || options.baseRef || options.headRef || options.workingTree);
+  // The report is still written and still useful, so it is not suppressed — but the exit
+  // code has to say the request failed. Reporting success told every script checking `$?`
+  // that the named diff had been applied, and `changedFiles: []` reads identically whether
+  // the diff was empty or never resolved.
+  const unresolvedChangeRequest = Boolean(diffFailure) && changeRequested;
+  if (unresolvedChangeRequest && options.issueText) {
+    stderr(
+      `${diffFailure!.message}\n` +
+      "This plan ranks from the task text alone and is not diff-aware. " +
+      "Fix the ref, or drop the change option to ask for a task-text plan deliberately.\n"
+    );
+  }
+
   if (!options.issueText) {
-    const diffFailure = report.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
     if (diffFailure) {
       stderr(
         `${diffFailure.message}\n` +
@@ -367,7 +392,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     stderr(hint);
   }
 
-  return 0;
+  return unresolvedChangeRequest ? 1 : 0;
 }
 
 /**
@@ -426,20 +451,38 @@ function nextCommandHint(options: CliOptions, report: FixMapReport): string | un
  * GitHub issue/PR URL and GitHub's familiar owner/repository#number shorthand both mean
  * `plan --issue`; every existing explicit command remains valid.
  */
+/**
+ * Reprinting the whole USAGE block put the one line that mattered thirty lines above the
+ * cursor, and PowerShell's NativeCommandError wrapping buried it further. The cause comes
+ * first and the full block stays one flag away; FIXMAP_VERBOSE_USAGE=1 restores it inline
+ * for anyone who was relying on it.
+ */
+function withUsageHint(message: string): string {
+  return progressRequested(process.env.FIXMAP_VERBOSE_USAGE)
+    ? `${message}\n\n${USAGE}`
+    : `${message}\n\nRun "fixmap --help" for the full usage, or set FIXMAP_VERBOSE_USAGE=1 to print it with every error.\n`;
+}
+
+/**
+ * `--version` and `--help` are real flags that simply do not belong after a subcommand.
+ * "Unknown option" is true of the position and false of the flag, which reads as though
+ * FixMap has no such option at all.
+ */
+function describeMisplacedGlobalFlags(unknownArgs: string[]): string {
+  const misplaced = unknownArgs.filter((arg) => ["--version", "-v", "--help", "-h"].includes(arg));
+  if (misplaced.length === 0) return "";
+  const canonical = misplaced[0] === "--help" || misplaced[0] === "-h" ? "--help" : "--version";
+  return `${misplaced.join(", ")} ${misplaced.length === 1 ? "is a global flag" : "are global flags"}, not a plan option. Run "fixmap ${canonical}" instead.`;
+}
+
 export function expandIssueShorthand(args: string[]): string[] {
   const first = args[0]?.trim();
   if (!first) return args;
 
-  if (/^https?:\/\/github\.com\//i.test(first)) {
-    try {
-      if (parseGitHubIssueSource(first)) {
-        return ["plan", "--issue", first, ...args.slice(1)];
-      }
-    } catch {
-      // Route malformed GitHub task URLs through the normal plan validation so the user
-      // receives its specific canonical-URL guidance rather than "unknown command".
-      return ["plan", "--issue", first, ...args.slice(1)];
-    }
+  // Any GitHub host we might normalize routes through plan, whether or not it parses:
+  // a malformed one should receive plan's specific URL guidance, not "unknown command".
+  if (/^https?:\/\/(?:www\.|api\.)?github\.com\//i.test(first)) {
+    return ["plan", "--issue", first, ...args.slice(1)];
   }
 
   const shorthand = first.match(/^([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9._-]+)#([1-9]\d*)$/);
@@ -799,8 +842,12 @@ function isReportComparison(candidate: unknown): boolean {
 
 function describeUnsupportedTaskUrl(issueText: string): string | undefined {
   const value = issueText.trim();
-  if (!/^https?:\/\/\S+$/i.test(value) || parseGitHubIssueSource(value)) return undefined;
-  return "Unsupported task URL. Use a canonical public GitHub issue or pull request URL such as https://github.com/owner/repository/issues/123 or /pull/123, or pass descriptive task text.";
+  // `tryParse`, not `parse` — this is a boolean probe, and the throwing variant printed a
+  // Node stack here for URLs it could not classify instead of this one-line message.
+  if (!/^https?:\/\/\S+$/i.test(value) || tryParseGitHubIssueSource(value)) return undefined;
+  return "Unsupported task URL. Use a public GitHub issue or pull request URL such as " +
+    "https://github.com/owner/repository/issues/123 or /pull/123, or pass descriptive task text. " +
+    "A ?query, #fragment, and a www. or api. host are accepted and normalized; other hosts, credentials and ports are not.";
 }
 
 function formatOutputError(path: string, error: unknown, kind: string): string {

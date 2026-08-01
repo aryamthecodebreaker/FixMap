@@ -138,7 +138,15 @@ npx -y @aryam/fixmap@latest plan \
 
 Remote repository mode is issue-only. Clone the repository locally when you need `--diff`, `--base`, or `--head`.
 
-Set `FIXMAP_PROGRESS=1` when you want clone/scan progress. Progress is intentionally written to stderr so JSON/stdout remains pipe-safe; in PowerShell, merge it for display with `2>&1` or suppress it with `2>$null` if your host records native stderr as an error stream.
+Set `FIXMAP_PROGRESS=1` when you want clone/scan progress; `true`, `yes`, and `on` work too, and `0`/`false`/`no`/`off` silence it even in a terminal, where it is otherwise on by default. Progress is intentionally written to stderr so JSON/stdout remains pipe-safe; in PowerShell, merge it for display with `2>&1` or suppress it with `2>$null` if your host records native stderr as an error stream. The same applies to the next-step hints printed after a successful plan — they are stderr, not failure. `FIXMAP_VERBOSE_USAGE=1` restores the full usage block after every argument error.
+
+### Which URLs and paths are accepted
+
+`--issue` takes a public GitHub issue or pull request URL. A `?query`, a `#fragment`, and a `www.` or `api.` host are normalized away, so a URL copied from a browser or an API client works as-is. Other hosts, embedded credentials, and explicit ports are rejected, as are compare, tree, discussion, and file URLs — they carry no task text to rank.
+
+`--repo` takes a local path, a `file://` URL, `https://github.com/owner/repository`, or a `git@github.com:owner/repository.git` SSH form, which is rewritten to the public HTTPS URL. FixMap only reads public repositories over HTTPS; the SSH form is accepted because it identifies the same repository, not because credentials are used.
+
+Every relative path — `--repo`, `--issue-file`, `--issue @file`, `--output` — resolves against the **current working directory**, never against each other. `--issue-file ../task.md --repo ./checkout` reads the task from the parent of your shell's directory and scans `checkout` inside it.
 
 For long or private task text, avoid shell command-length limits by reading UTF-8 text from a file or stdin:
 
