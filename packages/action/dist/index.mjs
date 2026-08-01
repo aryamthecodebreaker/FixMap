@@ -1863,7 +1863,7 @@ function reportAbsentTrackedPaths(diagnostics, absent) {
   diagnostics.push({
     code: "tracked-paths-absent",
     severity: "warning",
-    message: `${absent.length.toLocaleString()} tracked path${absent.length === 1 ? " is" : "s are"} not present on disk and went unranked, mostly under ${summarizeSkippedScope(absent)}. That usually means a sparse or partial checkout, and otherwise an uncommitted deletion.`
+    message: `${absent.length.toLocaleString()} tracked path${absent.length === 1 ? " is" : "s are"} not present on disk and went unranked, mostly under ${summarizeSkippedScope(absent)}. That means a sparse or partial checkout, an uncommitted deletion, or a path this filesystem could not create.`
   });
 }
 function reportLinkedDuplicates(diagnostics, linked) {

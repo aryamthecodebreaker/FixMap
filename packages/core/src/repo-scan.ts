@@ -180,9 +180,12 @@ async function buildFilesFromPaths(
 
 /**
  * A tracked path with nothing on disk was dropped silently, so the plan read as a complete
- * scan when part of the repository had never been looked at. Usually that means a sparse or
- * partial checkout, but an uncommitted deletion looks identical from here — so the
- * diagnostic states what was observed and offers the cause rather than asserting it.
+ * scan when part of the repository had never been looked at. Several unrelated causes look
+ * identical from here — a sparse checkout, an uncommitted deletion, or a checkout that could
+ * not create the file at all, which is routine on Windows for paths past the length limit or
+ * with names NTFS rejects. Measuring the adversarial suite turned up webpack's long test
+ * fixture paths and a `日.js` doing exactly that. So the diagnostic reports what was observed
+ * and lists the causes rather than asserting one.
  */
 function reportAbsentTrackedPaths(diagnostics: RepoMap["diagnostics"], absent: string[]): void {
   if (absent.length === 0) return;
@@ -193,7 +196,8 @@ function reportAbsentTrackedPaths(diagnostics: RepoMap["diagnostics"], absent: s
     message:
       `${absent.length.toLocaleString()} tracked path${absent.length === 1 ? " is" : "s are"} not present on disk ` +
       `and went unranked, mostly under ${summarizeSkippedScope(absent)}. ` +
-      "That usually means a sparse or partial checkout, and otherwise an uncommitted deletion."
+      "That means a sparse or partial checkout, an uncommitted deletion, or a path this " +
+      "filesystem could not create."
   });
 }
 

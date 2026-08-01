@@ -30,6 +30,14 @@ const dataset = JSON.parse(await readFile(join(suiteDir, "dataset.json"), "utf8"
 
 const CONFIDENCE_RANK = { low: 0, medium: 1, high: 2 };
 
+// These describe the checkout on disk, not the analysis, and the same pinned SHA produces
+// them differently on different machines: Windows git cannot create webpack's long test
+// fixture paths or its non-ASCII filenames, so `tracked-paths-absent` fires there and not on
+// Linux CI. Recording them would make `--check-recorded` fail on whichever platform the
+// results were not recorded on, turning a regression gate into a platform check. They stay
+// on the report, where they are useful; they just are not benchmark evidence.
+const CHECKOUT_ENVIRONMENT_CODES = new Set(["tracked-paths-absent", "duplicate-real-path"]);
+
 const results = [];
 for (const testCase of dataset.cases) {
   const dir = await materializePinnedRepository(testCase);
@@ -37,7 +45,9 @@ for (const testCase of dataset.cases) {
 
   const topConfidence = report.contextFiles[0]?.confidence ?? null;
   const grounding = report.analysis?.grounding?.specificity ?? null;
-  const diagnosticCodes = report.diagnostics.map((diagnostic) => diagnostic.code);
+  const diagnosticCodes = report.diagnostics
+    .map((diagnostic) => diagnostic.code)
+    .filter((code) => !CHECKOUT_ENVIRONMENT_CODES.has(code));
 
   // An empty report cannot overclaim, so a missing top result passes.
   const overconfident =
