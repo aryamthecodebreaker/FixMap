@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractTaskSignals } from "../src/signals.js";
+import { extractTaskSignals, tokenizeText } from "../src/signals.js";
 
 describe("extractTaskSignals", () => {
   it("tokenizes only added and removed diff lines, not diff metadata", () => {
@@ -197,5 +197,25 @@ describe("extractTaskSignals", () => {
 
     expect(signals.tokens).toContain("reset");
     expect([...signals.tokens].every((token) => token.length <= 64)).toBe(true);
+  });
+});
+
+describe("plural and verb stems that are part of the word", () => {
+  // `pass` -> `pas` matched nothing and, in a short task, removed the only useful term.
+  it.each(["pass", "class", "process", "status", "analysis", "basis", "bus"])(
+    "keeps %j intact rather than stripping a trailing s that belongs to the word",
+    (word) => {
+      const tokens = [...tokenizeText(word)];
+      expect(tokens.length === 0 || tokens.includes(word)).toBe(true);
+    }
+  );
+
+  // English doubles a single final consonant to inflect, so a base already ending in `ss`
+  // never arrived that way — deduplicating it produced `pas` and `proces`.
+  it.each([
+    ["pass", "passed"], ["process", "processed"], ["miss", "missed"],
+    ["stop", "stopped"], ["ship", "shipped"], ["drop", "dropped"], ["plan", "planned"]
+  ])("converges %j and %j on one stem", (base, inflected) => {
+    expect([...tokenizeText(inflected)]).toEqual([...tokenizeText(base)]);
   });
 });

@@ -309,7 +309,11 @@ export function extractFileMentions(text: string): Set<string> {
   // stripping URLs generally. This avoids turning badges, issue links and external docs
   // into ranking terms while restoring links such as .../blob/<sha>/src/core/index.ts#L4.
   for (const match of text.matchAll(
-    /https?:\/\/github\.com\/[^/\s]+\/[^/\s]+\/blob\/[0-9a-f]{7,64}\/([^\s#?]+)/gi
+    // blob, tree and blame all address a path in the repository; only the view differs, and
+    // a tree or blame link is the same deliberate "the code is here" gesture as a blob one.
+    // The ref is any branch, tag or sha — restricting to a hex sha kept only permalinks and
+    // dropped the branch links people paste far more often.
+    /https?:\/\/github\.com\/[^/\s]+\/[^/\s]+\/(?:blob|tree|blame)\/[^/\s]+\/([^\s#?]+)/gi
   )) {
     const encodedPath = match[1];
     if (!encodedPath) continue;
@@ -388,12 +392,22 @@ function normalizeToken(token: string): string {
   if (token.length > 5 && token.endsWith("ing")) return normalizeVerbStem(token.slice(0, -3));
   if (token.length > 4 && token.endsWith("ed")) return normalizeVerbStem(token.slice(0, -2));
   if (token.length > 4 && /(?:sses|shes|ches|xes|zes)$/.test(token)) return token.slice(0, -2);
-  if (token.length > 3 && token.endsWith("s")) return token.slice(0, -1);
+  // A trailing `s` is a plural only when it is not part of the word itself. `pass`, `class`
+  // and `process` end in `ss`; `status` and `bus` in `us`; `analysis` and `basis` in `is`.
+  // Stripping it produced `pas`, `clas`, `proces`, `statu` — stems that match nothing, and
+  // for a short task like "pass reset emails" it removed the most specific term there was.
+  if (token.length > 3 && token.endsWith("s") && !/(?:ss|us|is)$/.test(token)) {
+    return token.slice(0, -1);
+  }
   return token;
 }
 
 function normalizeVerbStem(stem: string): string {
-  const deduplicated = /([a-z])\1$/.test(stem) ? stem.slice(0, -1) : stem;
+  // Undoing a doubled consonant turns `stopped` into `stop`, which is the point. English
+  // doubles a *single* final consonant to inflect, so a base already ending in `ss` never
+  // got there that way: `passed` and `processed` strip to `pass` and `process`, and
+  // deduplicating those produced `pas` and `proces` — stems that match nothing at all.
+  const deduplicated = /([a-z])\1$/.test(stem) && !stem.endsWith("ss") ? stem.slice(0, -1) : stem;
   return TRAILING_E_VERB_STEMS.has(deduplicated) ? `${deduplicated}e` : deduplicated;
 }
 

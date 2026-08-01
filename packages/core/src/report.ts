@@ -395,6 +395,17 @@ const RISK_RULES: { area: string; severity: RiskNote["severity"]; tokens: string
 // file is different: a diff is fact, so it still counts wherever it lives.
 const AUXILIARY_RISK_DIRS = new Set(["demo", "demos", "example", "examples", "sample", "samples", "fixture", "fixtures"]);
 
+// The token lists above are deliberately broad, and `auth` alone will fire on essentially
+// any auth-named module whatever the task (#358). That is intentional and stays: a risk note
+// answers "what sensitive area does this touch", not "how confident am I in this plan". A
+// false positive costs a reader one glance; a missed authentication risk on a plan someone
+// hands to an agent costs considerably more, and the note already carries its own reason so
+// the evidence can be dismissed on sight.
+//
+// Narrowing it to require a diff or several signals would make the note strongest exactly
+// when it is least needed — after the change exists — and there is no suite that scores risk
+// precision, so any tightening would be an unmeasured guess. Revisit with evidence.
+
 function carriesRiskEvidence(path: string): boolean {
   return !path.split("/").slice(0, -1).some((segment) => AUXILIARY_RISK_DIRS.has(segment.toLowerCase()));
 }

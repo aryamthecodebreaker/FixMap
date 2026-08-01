@@ -11,6 +11,7 @@
       "topConfidence": "low",
       "grounding": "descriptive",
       "diagnostics": [
+        "content-unread",
         "identifier-unverified",
         "flat-ranking"
       ],
@@ -28,6 +29,7 @@
       "topConfidence": "low",
       "grounding": "descriptive",
       "diagnostics": [
+        "content-unread",
         "identifier-unverified"
       ],
       "contextFileCount": 8,
@@ -44,6 +46,7 @@
       "topConfidence": "low",
       "grounding": "descriptive",
       "diagnostics": [
+        "content-unread",
         "identifier-unverified"
       ],
       "contextFileCount": 5,
@@ -60,6 +63,7 @@
       "topConfidence": null,
       "grounding": "vague",
       "diagnostics": [
+        "content-unread",
         "vague-task"
       ],
       "contextFileCount": 0,
@@ -120,6 +124,7 @@
       "topConfidence": "medium",
       "grounding": "descriptive",
       "diagnostics": [
+        "content-unread",
         "flat-ranking"
       ],
       "contextFileCount": 8,

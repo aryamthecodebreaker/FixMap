@@ -52,6 +52,8 @@ export type ScanDiagnostic = {
     | "flat-ranking"
     | "no-test-route"
     | "no-related-tests"
+    | "content-unread"
+    | "generated-paths-dominant"
     | "paths-excluded"
     | "working-tree-diff";
   message: string;
