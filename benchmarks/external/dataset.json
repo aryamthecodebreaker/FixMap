@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-26",
+  "generatedAt": "2026-08-01",
   "taskTextRule": "Issue title plus the first 600 characters of the issue body. The fixed character cap can end mid-token and does not guarantee that late file-path hints are retained.",
   "selectionRule": "Per repository: the most recent merged pull request (of the 50 most recent) that closes an issue whose body is at least 80 characters, is not a docs-titled change, and modifies 1-3 source files after excluding tests, docs, examples, configuration, and lockfiles. Expected files are exactly the fixing PR's source files and were verified to exist at the pinned base SHA. Cases were frozen before measuring FixMap's rankings and must not be edited to match ranking output.",
   "cases": [
@@ -182,6 +182,18 @@
       "task": "Types: LambdaEvent type is missing authorizer context for lambda auth\n\n### What version of Hono are you using?\n\n4.5.3\n\n### What runtime/platform is your app running on?\n\naws lambda\n\n### What steps can reproduce the bug?\n\nCreate a HTTP Api proxy v2 endpoint in aws-lambda and use a lambda authorizer in front of it, but practically since this is a typings issue you can set up your bindings like:\n\n```typescript\ntype Bindings = {\n  Bindings: { event: LambdaEvent, lambdaContext:LambdaContext };\n  Variables: { userId: string };\n};\n\nconst app = new Hono<Bindings>();\n```\n\nThen try and set a value from the lambda authorizer context\n\n```typescript",
       "expected": [
         "src/adapter/aws-lambda/types.ts"
+      ]
+    },
+    {
+      "slug": "sindresorhus/got",
+      "repo": "https://github.com/sindresorhus/got.git",
+      "license": "MIT",
+      "sha": "28c0ca3c65716cc62c0d609a7c7043df9cf01b39",
+      "issue": 2459,
+      "pullRequest": 2460,
+      "task": "307 & 308 redirect should preserve body per RFC\n\n`got` starting from version 15 started dropping request body when followRedirect: true\n\nThe comment is wrong in the source code\nhttps://github.com/sindresorhus/got/blob/e5e645a7d6deeec02933bf474727a541775772c7/source/core/index.ts#L1088-L1089\nand the shouldDropBody flag \nhttps://github.com/sindresorhus/got/blob/e5e645a7d6deeec02933bf474727a541775772c7/source/core/index.ts#L1093\nshould be false when http status code is 307 or 308 \n\nhttps://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/307\nhttps://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/308\n\nall other major http c",
+      "expected": [
+        "source/core/index.ts"
       ]
     }
   ]

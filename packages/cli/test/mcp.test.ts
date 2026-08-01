@@ -173,6 +173,31 @@ describe("fixmap mcp server", () => {
     expect(comparison.confidenceChanged).toHaveLength(1);
   });
 
+  it("compares report file paths through MCP like the CLI", async () => {
+    const client = await connectClient();
+    const directory = await mkdtemp(join(tmpdir(), "fixmap-mcp-compare-"));
+    const base = { summary: "", testRoutes: [], risks: [], changedFiles: [], diagnostics: [] };
+    const previousPath = join(directory, "previous.json");
+    const currentPath = join(directory, "current.json");
+    await writeFile(previousPath, JSON.stringify({
+      ...base,
+      contextFiles: [{ rank: 1, path: "a.ts", score: 10, confidence: "medium", reasons: [] }]
+    }));
+    await writeFile(currentPath, JSON.stringify({
+      ...base,
+      contextFiles: [{ rank: 1, path: "a.ts", score: 10, confidence: "high", reasons: [] }]
+    }));
+
+    const result = await client.callTool({
+      name: "fixmap_compare",
+      arguments: { previous: previousPath, current: currentPath, format: "json" }
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect((JSON.parse((result.content as Array<{ text: string }>)[0]!.text) as { confidenceChanged: unknown[] }).confidenceChanged)
+      .toHaveLength(1);
+  });
+
   it("verifies a plan against a local diff through MCP", async () => {
     const root = await createAuthFixture();
     await exec("git", ["init"], { cwd: root });

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
   <title id="title">FixMap benchmark</title>
-  <desc id="description">FixMap ranked the fixing file in the top three for 9 of 12 held-out repositories it was never tuned against, and 15 of 15 in the regression suite, with a 1.75s median scan and rank.</desc>
+  <desc id="description">FixMap ranked the fixing file in the top three for 8 of 12 held-out repositories it was never tuned against, and 16 of 16 in the regression suite, with a 1.75s median scan and rank.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#07120f"/>
@@ -18,7 +18,7 @@
 
   <rect x="82" y="194" width="316" height="176" rx="22" fill="#132a23" stroke="#72f0b8" stroke-width="2"/>
   <text x="108" y="232" fill="#72f0b8" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">HELD-OUT ACCURACY</text>
-  <text x="108" y="287" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="48" font-weight="750">9/12</text>
+  <text x="108" y="287" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="48" font-weight="750">8/12</text>
   <text x="108" y="319" fill="#b8cdc5" font-family="Segoe UI, Arial, sans-serif" font-size="17">top-3 on repos never tuned against</text>
   <text x="108" y="349" fill="#72f0b8" font-family="Segoe UI, Arial, sans-serif" font-size="15">Top-1 7/12 · Top-5 9/12</text>
 
@@ -30,9 +30,9 @@
 
   <rect x="762" y="194" width="316" height="176" rx="22" fill="#132a23" stroke="#2d574a"/>
   <text x="788" y="232" fill="#9db9af" font-family="Segoe UI, Arial, sans-serif" font-size="16">REGRESSION SUITE</text>
-  <text x="788" y="287" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="48" font-weight="750">15/15</text>
+  <text x="788" y="287" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="48" font-weight="750">16/16</text>
   <text x="788" y="319" fill="#b8cdc5" font-family="Segoe UI, Arial, sans-serif" font-size="17">top-3 on cases that guided development</text>
-  <text x="788" y="349" fill="#9db9af" font-family="Segoe UI, Arial, sans-serif" font-size="15">Top-1 10/15 · not a generalization estimate</text>
+  <text x="788" y="349" fill="#9db9af" font-family="Segoe UI, Arial, sans-serif" font-size="15">Top-1 11/16 · not a generalization estimate</text>
 
   <rect x="82" y="394" width="996" height="104" rx="20" fill="#0b1915" stroke="#29483e"/>
   <text x="108" y="429" fill="#9db9af" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">WHAT THIS DOES NOT CLAIM</text>

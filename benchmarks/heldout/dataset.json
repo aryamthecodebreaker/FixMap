@@ -61,15 +61,15 @@
       ]
     },
     {
-      "slug": "sindresorhus/got",
-      "repo": "https://github.com/sindresorhus/got.git",
+      "slug": "react-hook-form/react-hook-form",
+      "repo": "https://github.com/react-hook-form/react-hook-form.git",
       "license": "MIT",
-      "sha": "28c0ca3c65716cc62c0d609a7c7043df9cf01b39",
-      "issue": 2459,
-      "pullRequest": 2460,
-      "task": "307 & 308 redirect should preserve body per RFC\n\n`got` starting from version 15 started dropping request body when followRedirect: true\n\nThe comment is wrong in the source code\nhttps://github.com/sindresorhus/got/blob/e5e645a7d6deeec02933bf474727a541775772c7/source/core/index.ts#L1088-L1089\nand the shouldDropBody flag \nhttps://github.com/sindresorhus/got/blob/e5e645a7d6deeec02933bf474727a541775772c7/source/core/index.ts#L1093\nshould be false when http status code is 307 or 308 \n\nhttps://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/307\nhttps://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/308\n\nall other major http c",
+      "sha": "ee7593ec554c7f2cb74a8ace5984bcb8cb136633",
+      "issue": 13608,
+      "pullRequest": 13612,
+      "task": "[7.76.0 regression] setValue rebuilds the entire dirtyFields object every call, breaking referential stability (incl. proposed fix)\n\n### Version Number\n\n7.76.0 – 7.81.0 (regression introduced in 7.76.0; still present on `main`)\n\n### Codesandbox/Expo snack\n\nRunnable with no UI — the regression is in `createFormControl`'s dirty-tracking. Node snippet below (also reproducible in any sandbox).\n\nChange the version between 7.81.0 and 7.75.0 to see the differences:\nhttps://codesandbox.io/p/devbox/suspicious-joliot-flkj2p \n\n### Steps to reproduce\n\n`setValue(field, value, { shouldDirty: true })` on an already-dirty field, repeatedly, and observe the **object identity** of `formState.dirtyFields`:\n\n```js\nconst { createFormControl } =",
       "expected": [
-        "source/core/index.ts"
+        "src/logic/createFormControl.ts"
       ]
     },
     {

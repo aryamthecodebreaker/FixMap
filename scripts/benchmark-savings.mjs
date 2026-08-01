@@ -42,8 +42,8 @@ if (!Number.isInteger(runs) || runs < 1 || runs > 9) {
 if (!Number.isFinite(assumedManualMinutes) || assumedManualMinutes <= 0) {
   throw new Error("--assumed-manual-minutes must be a positive number.");
 }
-if (dataset.cases.length !== 15) {
-  throw new Error(`Expected the frozen 15-case dataset, found ${dataset.cases.length}.`);
+if (dataset.cases.length !== 16) {
+  throw new Error(`Expected the frozen 16-case regression dataset, found ${dataset.cases.length}.`);
 }
 
 const results = [];

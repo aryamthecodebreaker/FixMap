@@ -198,8 +198,14 @@ const COMPARE_TOOL = {
   inputSchema: {
     type: "object" as const,
     properties: {
-      previous: { type: "object", description: "Earlier FixMap JSON report" },
-      current: { type: "object", description: "Current FixMap JSON report" },
+      previous: {
+        description: "Earlier FixMap JSON report object or path to a local JSON report file",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
+      current: {
+        description: "Current FixMap JSON report object or path to a local JSON report file",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
       format: { type: "string", enum: ["markdown", "json", "MARKDOWN", "JSON"] }
     },
     required: ["previous", "current"],
@@ -226,10 +232,11 @@ export function createFixMapMcpServer(
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name === COMPARE_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;
-      const previous = record?.previous as FixMapReport | undefined;
-      const current = record?.current as FixMapReport | undefined;
-      if (!Array.isArray(previous?.contextFiles) || !Array.isArray(current?.contextFiles)) return { isError: true, content: [{ type: "text", text: "Invalid arguments: previous and current must be FixMap JSON reports." }] };
-      const comparison = compareReports(previous, current);
+      const previous = loadReportInput(record?.previous, '"previous"');
+      if (!previous.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${previous.message}` }] };
+      const current = loadReportInput(record?.current, '"current"');
+      if (!current.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${current.message}` }] };
+      const comparison = compareReports(previous.report, current.report);
       const format = normalizeFormat(record?.format);
       if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
       return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(comparison, null, 2)}\n` : renderComparisonMarkdown(comparison) }] };
@@ -526,7 +533,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
   }
-  const loaded = loadVerifyReport(record.report);
+  const loaded = loadReportInput(record.report, '"report"');
   if (!loaded.success) {
     return { success: false, message: loaded.message };
   }
@@ -578,11 +585,11 @@ type LoadedReport =
  * object-only rule both rejected them without naming the working shape and forced the
  * model to re-embed an entire plan in the tool call — token-heavy and easy to truncate.
  */
-function loadVerifyReport(input: unknown): LoadedReport {
+function loadReportInput(input: unknown, label: string): LoadedReport {
   if (typeof input === "string") {
     const path = input.trim();
     if (!path) {
-      return { success: false, message: '"report" must be a FixMap report object or a path to a FixMap JSON report.' };
+      return { success: false, message: `${label} must be a FixMap report object or a path to a FixMap JSON report.` };
     }
     let contents: string;
     try {
@@ -590,7 +597,7 @@ function loadVerifyReport(input: unknown): LoadedReport {
     } catch (error) {
       return {
         success: false,
-        message: `"report" looked like a file path but could not be read: ${error instanceof Error ? error.message : String(error)}.`
+        message: `${label} looked like a file path but could not be read: ${error instanceof Error ? error.message : String(error)}.`
       };
     }
     let parsed: unknown;
@@ -599,12 +606,12 @@ function loadVerifyReport(input: unknown): LoadedReport {
     } catch (error) {
       return {
         success: false,
-        message: `"report" pointed at ${path}, which is not valid JSON: ${error instanceof Error ? error.message : String(error)}.`
+        message: `${label} pointed at ${path}, which is not valid JSON: ${error instanceof Error ? error.message : String(error)}.`
       };
     }
     return asFixMapReport(parsed, `the JSON in ${path}`);
   }
-  return asFixMapReport(input, '"report"');
+  return asFixMapReport(input, label);
 }
 
 function asFixMapReport(candidate: unknown, label: string): LoadedReport {

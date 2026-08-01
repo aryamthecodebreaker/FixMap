@@ -2,9 +2,9 @@
 
 This suite exists because [`benchmarks/external/`](../external) can no longer answer the question people actually care about.
 
-Those 15 cases guided ranking work: when a case missed, the ranker changed. Every heuristic in v0.7.1 was written by someone who had already seen which of those repositories FixMap got wrong. That makes the suite good regression evidence and useless as a generalization estimate — a 100% top-3 measured on cases that shaped the code is a statement about fitting, not about the next repository you point FixMap at.
+The regression cases guided ranking work: when a case missed, the ranker changed. Every heuristic in v0.7.1 was written by someone who had already seen which of those repositories FixMap got wrong, and later cases move there whenever they inform another change. That makes the suite good regression evidence and useless as a generalization estimate — a 100% top-3 measured on cases that shaped the code is a statement about fitting, not about the next repository you point FixMap at.
 
-These 12 repositories were selected **after** the v0.7.1 ranker was finished, by the same frozen rule, and nothing has been tuned against them.
+These 12 repositories were selected by the same frozen rule. When a case informs ranking work, it moves to regression and a fresh mechanically selected replacement takes its place; nothing in the current set has been tuned against.
 
 ## Dataset
 
@@ -17,7 +17,7 @@ These 12 repositories were selected **after** the v0.7.1 ranker was finished, by
 | jestjs/jest | [#16174](https://github.com/jestjs/jest/issues/16174) | `packages/jest-mock/src/index.ts` |
 | knex/knex | [#5053](https://github.com/knex/knex/issues/5053) | `lib/dialects/postgres/query/pg-querycompiler.js` |
 | mochajs/mocha | [#4526](https://github.com/mochajs/mocha/issues/4526) | `lib/reporters/xunit.js` |
-| sindresorhus/got | [#2459](https://github.com/sindresorhus/got/issues/2459) | `source/core/index.ts` |
+| react-hook-form/react-hook-form | [#13608](https://github.com/react-hook-form/react-hook-form/issues/13608) | `src/logic/createFormControl.ts` |
 | socketio/socket.io | [#5462](https://github.com/socketio/socket.io/issues/5462) | `packages/engine.io-client/lib/socket.ts` |
 | sveltejs/svelte | [#18555](https://github.com/sveltejs/svelte/issues/18555) | `packages/svelte/src/internal/client/dom/blocks/boundary.js` |
 | vitejs/vite | [#10136](https://github.com/vitejs/vite/issues/10136) | `packages/vite/src/node/server/bundledDev.ts` |
@@ -31,30 +31,30 @@ These 12 repositories were selected **after** the v0.7.1 ranker was finished, by
 
 ## Results
 
-Measured 2026-07-31 (Node v24, `rankContextFiles` with a top-5 window):
+Measured 2026-08-01 (Node v24, `rankContextFiles` with a top-5 window):
 
-| Metric | Held-out (12 cases) | Regression suite (15 cases) |
+| Metric | Held-out (12 cases) | Regression suite (16 cases) |
 | --- | ---: | ---: |
-| top-1 | **7/12 (58.3%)** | 10/15 (66.7%) |
-| top-3 | **9/12 (75.0%)** | 15/15 (100.0%) |
-| top-5 | **9/12 (75.0%)** | 15/15 (100.0%) |
+| top-1 | **7/12 (58.3%)** | 11/16 (68.8%) |
+| top-3 | **8/12 (66.7%)** | 16/16 (100.0%) |
+| top-5 | **9/12 (75.0%)** | 16/16 (100.0%) |
 
 Read those two columns together, because the gap is the point.
 
 Top-1 is lower on the untouched held-out repositories than on the development suite. The difference is small enough that the confidence intervals overlap substantially, but it is still the honest result to publish rather than a number to explain away.
 
-Top-3 and top-5 drop from 100% to 75%. That difference is what tuning bought on the regression suite and nothing more. **75% is the honest number to plan around**, and 100% should not be quoted as an accuracy claim.
+Top-3 drops to 67% and Top-5 to 75%. That difference is what tuning bought on the regression suite and nothing more. **The held-out column is the honest evidence to plan around**, and 100% should not be quoted as an accuracy claim.
 
-The three misses — `socketio/socket.io`, `vitejs/vite`, and `vuejs/core` — are recorded in [`results.json`](results.json) with their actual top-five rankings. They are not removed, reweighted, or explained away.
+The three Top-5 misses — `socketio/socket.io`, `vitejs/vite`, and `vuejs/core` — are recorded in [`results.json`](results.json) with their actual rankings. The Jest answer is fourth, so it also misses Top-3. These results are not removed, reweighted, or explained away.
 
 ## Confidence calibration
 
-Both suites record the confidence label on the top-ranked file, so the label can be checked against outcomes rather than trusted. Across all 27 cases:
+Both suites record the confidence label on the top-ranked file, so the label can be checked against outcomes rather than trusted. Across all 28 cases:
 
 | Top result labeled | Correct | Accuracy |
 | --- | ---: | ---: |
-| high | 9 / 15 | 60% |
-| medium | 6 / 8 | 75% |
+| high | 7 / 13 | 54% |
+| medium | 9 / 11 | 82% |
 | low | 2 / 4 | 50% |
 
 The ordering is not monotonic in this small sample, so the labels must not be read as calibrated probabilities. Counts are published so readers can weigh that limitation themselves. Per-suite figures are in each `results.json` under `calibration`.

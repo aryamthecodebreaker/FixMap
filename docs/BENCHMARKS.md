@@ -2,17 +2,17 @@
 
 ## Cross-repository ranking and efficiency
 
-![FixMap benchmark: the fixing file ranked in the top three for 9 of 12 held-out repositories never tuned against and 15 of 15 in the regression suite, with a 1.75-second median scan and rank.](assets/fixmap-benchmark.svg)
+![FixMap benchmark: the fixing file ranked in the top three for 8 of 12 held-out repositories never tuned against and 16 of 16 in the regression suite, with a 1.75-second median scan and rank.](assets/fixmap-benchmark.svg)
 
-Two suites answer two different questions. The [regression suite](../benchmarks/external/README.md) uses 15 repositories whose cases guided v0.7.1 ranking work, so it measures fit rather than generalization. The [held-out suite](../benchmarks/heldout/README.md) uses 12 further repositories selected by the identical frozen rule *after* the ranker was finished, and is never tuned against. Each case in both pins the repository state before the fix and freezes the fixing source paths before FixMap ranks anything.
+Two suites answer two different questions. The [regression suite](../benchmarks/external/README.md) uses 16 repositories whose cases have guided ranking work, so it measures fit rather than generalization. The [held-out suite](../benchmarks/heldout/README.md) uses 12 further repositories selected by the identical frozen rule and rotates any case that informs a ranking change, so it remains unseen evidence. Each case in both pins the repository state before the fix and freezes the fixing source paths before FixMap ranks anything.
 
 Ranking outputs refreshed 2026-07-31 on Node v24.13.0, Windows 11 (10.0.26200), Intel Core i5-8350U; the scan-time measurement remains from 2026-07-26:
 
-| Quantity | Held-out (12) | Regression (15) | Evidence type |
+| Quantity | Held-out (12) | Regression (16) | Evidence type |
 | --- | ---: | ---: | --- |
-| Expected fixing file in Top-1 | 7/12 (58%) | 10/15 (67%) | Measured |
-| Expected fixing file in Top-3 | 9/12 (75%) | 15/15 (100%) | Measured |
-| Expected fixing file in Top-5 | 9/12 (75%) | 15/15 (100%) | Measured |
+| Expected fixing file in Top-1 | 7/12 (58%) | 11/16 (69%) | Measured |
+| Expected fixing file in Top-3 | 8/12 (67%) | 16/16 (100%) | Measured |
+| Expected fixing file in Top-5 | 9/12 (75%) | 16/16 (100%) | Measured |
 | Median scan + rank time | — | 1,747.7 ms | Measured, three warm runs per pinned repository |
 | Context proxy reduction | — | 98.56% | Estimated proxy, **not** a savings measurement |
 

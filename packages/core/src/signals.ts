@@ -304,6 +304,20 @@ function isEscaped(text: string, index: number): boolean {
 
 export function extractFileMentions(text: string): Set<string> {
   const mentions = new Set<string>();
+  // A blob permalink with an immutable commit is stronger than a prose path mention: it
+  // is a deliberate pointer to code. Preserve only its repository-relative path before
+  // stripping URLs generally. This avoids turning badges, issue links and external docs
+  // into ranking terms while restoring links such as .../blob/<sha>/src/core/index.ts#L4.
+  for (const match of text.matchAll(
+    /https?:\/\/github\.com\/[^/\s]+\/[^/\s]+\/blob\/[0-9a-f]{7,64}\/([^\s#?]+)/gi
+  )) {
+    const encodedPath = match[1];
+    if (!encodedPath) continue;
+    let path = encodedPath;
+    try { path = decodeURIComponent(encodedPath); } catch { /* Leave malformed escapes unchanged. */ }
+    const file = path.match(FILE_MENTION_PATTERN)?.[0];
+    if (file && file.length >= 4) mentions.add(file.replace(/\\/g, "/"));
+  }
   // Avoid a full second pass for the overwhelmingly common case. Long issue bodies are
   // already scanned several times for signals, so paying for URL stripping when there is
   // no URL made the linear-time safety check needlessly sensitive on slower CI runners.

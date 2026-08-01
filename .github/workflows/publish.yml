@@ -174,6 +174,8 @@ jobs:
       - run: npm run ci
       - name: Gate release on the cross-repository evaluation
         run: node scripts/evaluate-external.mjs --gate --check-recorded
+      - name: Gate release on the held-out evaluation
+        run: node scripts/evaluate-external.mjs --suite heldout --gate --check-recorded
 
       - name: Publish @aryam/fixmap-core
         shell: bash
