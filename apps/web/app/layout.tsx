@@ -1,21 +1,18 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
+import { SiteFooter } from "./_components/site-footer";
+import { SiteHeader } from "./_components/site-header";
 
-const display = Fraunces({
-  subsets: ["latin"],
-  style: ["normal", "italic"],
-  axes: ["opsz", "SOFT"],
-  variable: "--font-display"
-});
-const body = Inter({ subsets: ["latin"], variable: "--font-body" });
-const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
+const body = Geist({ subsets: ["latin"], variable: "--font-body" });
+const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://usefixmap.vercel.app"),
-  title: "FixMap — Repo maps for coding agents",
-  description: "Paste a public GitHub issue URL and get ranked files, test routes, risk notes, and explainable diagnostics. Local-first and open source.",
+  title: { default: "FixMap — Know where to start", template: "%s | FixMap" },
+  description:
+    "Give FixMap a software problem. It finds the files most likely to matter, the checks to run, and the risks to review before anything changes.",
   keywords: [
     "AI coding agents",
     "developer tools",
@@ -27,25 +24,33 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   robots: { index: true, follow: true },
   openGraph: {
-    title: "FixMap — Give coding agents a map before they edit",
-    description: "Paste a GitHub issue URL and get local-first repository context, test routes, and explainable diagnostics.",
+    title: "FixMap — Know where to start",
+    description: "A practical map for coding agents and the people who review their work.",
     siteName: "FixMap",
     url: "/",
     type: "website"
   },
   twitter: {
     card: "summary_large_image",
-    title: "FixMap — Give coding agents a map before they edit",
-    description: "Paste a GitHub issue URL and get local-first repository context, test routes, and explainable diagnostics."
-  }
+    title: "FixMap — Know where to start",
+    description: "A practical map for coding agents and the people who review their work."
+  },
+  icons: { icon: "/fixmap-mark.png", apple: "/fixmap-mark.png" }
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#f7f4ec"
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+    <html lang="en" className={`${body.variable} ${mono.variable}`}>
       <body>
-        <div className="atmosphere" aria-hidden />
+        <SiteHeader />
         {children}
+        <SiteFooter />
       </body>
     </html>
   );

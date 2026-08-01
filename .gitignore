@@ -13,3 +13,9 @@ fixmap-report.json
 fixmap-report.md
 
 .vercel
+
+# Ephemeral Claude Code session state, not project configuration.
+.claude/scheduled_tasks.lock
+
+# Local design-QA scratch: references machine-specific temp paths.
+design-qa.md
