@@ -9,8 +9,8 @@ FixMap found 1 context file and generated 3 test routes.
 ## Test Routes
 
 - `pnpm --dir packages/utils run test`: nearest package (packages/utils) script named test. Related: `packages/utils/test/currency.test.ts`.
-- `pnpm --dir packages/utils run typecheck`: nearest package (packages/utils) script named typecheck. Related: `packages/utils/src/currency.ts`.
 - `pnpm run test`: repository root script named test. Related: `packages/utils/test/currency.test.ts`.
+- `pnpm --dir packages/utils run typecheck`: nearest package (packages/utils) script named typecheck. Related: `packages/utils/src/currency.ts`.
 
 ## Risk Map
 

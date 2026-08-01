@@ -10,7 +10,7 @@ import { DEFAULT_CONTEXT_FILE_LIMIT, rankContextFiles } from "./rank.js";
 import { extractTaskSignals, tokenizePath } from "./signals.js";
 import { findGatedTestDiagnostics } from "./test-gates.js";
 import { DIAGNOSTIC_TERM_LIMIT, truncateForDiagnostic } from "./text.js";
-import type { FixMapReport, RankedFile, RepoMap, RiskNote, ScanDiagnostic, TestRoute } from "./types.js";
+import type { FixMapReport, PackageScript, RankedFile, RepoFile, RepoMap, RiskNote, ScanDiagnostic, TestRoute } from "./types.js";
 
 const MAX_REPORTED_TERMS = 8;
 
@@ -64,7 +64,15 @@ export function buildReportFromRepo(
     analysis: {
       grounding,
       ranking,
-      nextAction: buildNextAction(grounding, ranking, contextFiles, testRoutes.some((route) => route.relatedFiles.length > 0))
+      // Only a test route's related paths are tests. A lint, typecheck or Go route fills the
+      // same field with implementation paths, and counting those made nextAction promise
+      // "and its routed tests" when nothing of the sort had been routed.
+      nextAction: buildNextAction(
+        grounding,
+        ranking,
+        contextFiles,
+        testRoutes.some((route) => route.kind === "test" && route.relatedFiles.length > 0)
+      )
     }
   };
 }
@@ -74,9 +82,27 @@ function findMissingTestRouteDiagnostics(
   contextFiles: RankedFile[],
   testRoutes: TestRoute[]
 ): ScanDiagnostic[] {
-  if (testRoutes.length > 0 || !contextFiles.some((entry) =>
+  if (!contextFiles.some((entry) =>
     repo.files.find((file) => file.path === entry.path)?.kind === "code"
   )) {
+    return [];
+  }
+
+  if (testRoutes.length > 0) {
+    // A routed test command with no related test files is a different situation from having
+    // no route at all, and `relatedFiles: []` was the only signal — easy to read as "tests
+    // exist and were omitted" rather than "the command runs, but nothing here covers this
+    // code". Saying so lets an agent decide whether to write a test before editing.
+    const routedTests = testRoutes.filter((route) => route.kind === "test");
+    if (routedTests.length > 0 && routedTests.every((route) => route.relatedFiles.length === 0)) {
+      return [{
+        code: "no-related-tests",
+        severity: "info",
+        message:
+          `A test command was routed (\`${routedTests[0]!.command}\`) but no existing test file covers the ranked ` +
+          "context, so the command will not exercise this change until one is written."
+      }];
+    }
     return [];
   }
 
@@ -85,7 +111,10 @@ function findMissingTestRouteDiagnostics(
   // read pyproject.toml. The root manifest is the deliberate declaration; a stray file
   // extension is incidental.
   const { language, evidence } = detectPrimaryLanguage(repo);
-  const runner = suggestedRunner(language, repo.files);
+  // A repository carrying vitest.config.ts and test-shaped files is not a repository with no
+  // test tooling, and saying nothing left the two indistinguishable. The config file names
+  // the runner as squarely as pyproject.toml names pytest.
+  const runner = suggestedRunner(language, repo.files) ?? configuredJsRunner(repo.files);
 
   return [{
     code: "no-test-route",
@@ -214,6 +243,41 @@ function scopeToPackage(paths: string[], packageDir: string): string[] {
   return paths.filter((path) => path.startsWith(prefix));
 }
 
+/** Config filenames that name their own runner, in the order a repository usually means. */
+const JS_RUNNER_CONFIGS: ReadonlyArray<[RegExp, string]> = [
+  [/^vitest\.config\.[cm]?[jt]s$/, "npx vitest run"],
+  [/^jest\.config\.([cm]?[jt]s|json)$/, "npx jest"],
+  [/^playwright\.config\.[cm]?[jt]s$/, "npx playwright test"],
+  [/^karma\.conf\.[cm]?[jt]s$/, "npx karma start"]
+];
+
+function configuredJsRunner(files: RepoFile[]): string | undefined {
+  const names = new Set(files.map((file) => file.path.split("/").pop()?.toLowerCase() ?? ""));
+  for (const [pattern, runner] of JS_RUNNER_CONFIGS) {
+    if ([...names].some((name) => pattern.test(name))) return runner;
+  }
+  return undefined;
+}
+
+type ScriptKind = { category: "test" | "validation"; exact: boolean };
+
+const SCRIPT_PRIORITY: Record<ScriptKind["category"], number> = { test: 0, validation: 10 };
+const VALIDATION_SCRIPTS = new Set(["typecheck", "check", "lint"]);
+
+/**
+ * `test:unit` and `test:ci` are test scripts by every convention that matters, and matching
+ * only the exact name `test` gave a package that had renamed its script a `no-test-route`
+ * diagnostic beside a list of the very test files it would have run. The bare name still
+ * wins when both exist, which is what the `exact` flag buys.
+ */
+function classifyScript(name: string): ScriptKind | undefined {
+  const lower = name.toLowerCase();
+  if (lower === "test" || lower === "tests") return { category: "test", exact: true };
+  if (/^tests?:[a-z0-9:_-]+$/.test(lower)) return { category: "test", exact: false };
+  if (VALIDATION_SCRIPTS.has(lower)) return { category: "validation", exact: true };
+  return undefined;
+}
+
 export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRoute[] {
   const codeContextPaths = contextPaths.filter((path) => repo.files.find((file) => file.path === path)?.kind === "code");
   if (codeContextPaths.length === 0) {
@@ -221,30 +285,42 @@ export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRout
   }
 
   const relatedTests = findRelatedTests(repo, contextPaths);
-  const scriptPriority = new Map([["test", 0], ["typecheck", 1], ["check", 2], ["lint", 3]]);
   const candidates = repo.packageScripts
-    .filter((script) => scriptPriority.has(script.name))
-    .map((script) => ({
+    .map((script) => ({ script, kind: classifyScript(script.name) }))
+    .filter((candidate): candidate is { script: PackageScript; kind: ScriptKind } => candidate.kind !== undefined)
+    .map(({ script, kind }) => ({
       script,
+      kind,
       proximity: packageProximity(script.packageDir, codeContextPaths),
-      priority: scriptPriority.get(script.name) ?? 99
+      priority: SCRIPT_PRIORITY[kind.category] + (kind.exact ? 0 : 1)
     }))
     .filter((candidate) => candidate.proximity >= 0)
     .sort((a, b) => b.proximity - a.proximity || a.priority - b.priority || a.script.packageDir.localeCompare(b.script.packageDir));
 
+  // A `lint` command under a heading that says "Test Routes" invites an agent to run it as
+  // the validation step for a logic bug. With a cap of three, a monorepo could also fill the
+  // list with checks and leave no room for the command that actually runs the tests. Tests
+  // are therefore taken first, and validation only fills what is left over.
+  const ordered = [
+    ...candidates.filter((candidate) => candidate.kind.category === "test"),
+    ...candidates.filter((candidate) => candidate.kind.category !== "test")
+  ];
+
   const commands = new Set<string>();
   const routes: TestRoute[] = [];
-  for (const { script } of candidates) {
-    const command = formatScriptCommand(repo.packageManager, script.packageDir, script.name);
+  for (const { script, kind } of ordered) {
+    const command = formatScriptCommand(repo.packageManager, script.packageDir, script.name, script.packageName);
     if (commands.has(command)) continue;
     commands.add(command);
+    const isTest = kind.category === "test";
     routes.push({
       command,
+      kind: isTest ? "test" : "validation",
       reason: `${script.packageDir ? `nearest package (${script.packageDir})` : "repository root"} script named ${script.name}`,
-      relatedFiles: scopeToPackage(
-        script.name === "test" ? relatedTests : codeContextPaths,
-        script.packageDir
-      )
+      // A lint route's related paths are the implementation it would check, never tests, so
+      // labeling them the same way let `no-test-changed` cite an implementation file as the
+      // test the plan had routed.
+      relatedFiles: scopeToPackage(isTest ? relatedTests : codeContextPaths, script.packageDir)
     });
     if (routes.length === 3) break;
   }
@@ -277,8 +353,11 @@ function buildManifestTestRoute(
 
   return {
     command: route.command,
+    kind: "test",
     reason: route.reason,
-    relatedFiles: scopeToPackage(relatedTests.length > 0 ? relatedTests : codeContextPaths, crateDir)
+    // Only real test files count as related here. Falling back to the implementation made
+    // nextAction claim routed tests for a Go module that had none.
+    relatedFiles: scopeToPackage(relatedTests, crateDir)
   };
 }
 
@@ -368,11 +447,22 @@ function packageProximity(packageDir: string, contextPaths: string[]): number {
   return matches.length > 0 ? 10 + packageDir.split("/").length : -1;
 }
 
-function formatScriptCommand(manager: RepoMap["packageManager"], packageDir: string, script: string): string {
+function formatScriptCommand(
+  manager: RepoMap["packageManager"],
+  packageDir: string,
+  script: string,
+  packageName?: string
+): string {
   if (!packageDir) return `${manager} run ${script}`;
   if (manager === "npm") return `npm --prefix ${packageDir} run ${script}`;
   if (manager === "pnpm") return `pnpm --dir ${packageDir} run ${script}`;
-  if (manager === "yarn") return `yarn --cwd ${packageDir} ${script}`;
+  // `yarn --cwd` is Yarn 1 syntax that Berry removed, so the printed command failed outright
+  // on any modern Yarn repository. `yarn workspace <name> run <script>` is understood by
+  // both, and needs the declared workspace name rather than its directory. Without a name to
+  // address, the old form is still the better guess than nothing.
+  if (manager === "yarn") {
+    return packageName ? `yarn workspace ${packageName} run ${script}` : `yarn --cwd ${packageDir} ${script}`;
+  }
   return `bun --cwd ${packageDir} run ${script}`;
 }
 

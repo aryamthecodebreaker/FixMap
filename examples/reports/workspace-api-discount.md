@@ -11,7 +11,7 @@ FixMap found 2 context files and generated 3 test routes.
 
 - `pnpm --dir apps/api run test`: nearest package (apps/api) script named test. Related: `apps/api/test/orders.test.ts`.
 - `pnpm --dir packages/utils run test`: nearest package (packages/utils) script named test. Related: `packages/utils/test/currency.test.ts`.
-- `pnpm --dir apps/api run typecheck`: nearest package (apps/api) script named typecheck. Related: `apps/api/src/orders.ts`.
+- `pnpm run test`: repository root script named test. Related: `apps/api/test/orders.test.ts`, `packages/utils/test/currency.test.ts`.
 
 ## Risk Map
 

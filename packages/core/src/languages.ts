@@ -175,9 +175,12 @@ export function manifestTestCommand(
       return { command: "go test ./...", reason: "Go source files; no go.mod was found" };
     }
     if (manifest.packageDir) {
+      // `go test ./...` at the repository root fails outright when the module lives in a
+      // subdirectory — a copy-paste command that cannot run is worse than none. `-C` makes
+      // it runnable as printed, exactly as Cargo's `--manifest-path` already does.
       return {
-        command: `go test ./...`,
-        reason: `nearest module (${manifest.packageDir}) declared by ${manifest.path}; run it from that directory`
+        command: `go test -C ${manifest.packageDir} ./...`,
+        reason: `nearest module (${manifest.packageDir}) declared by ${manifest.path}`
       };
     }
     return { command: "go test ./...", reason: "go.mod at the repository root" };

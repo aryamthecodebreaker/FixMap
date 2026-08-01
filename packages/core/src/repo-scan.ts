@@ -407,12 +407,16 @@ async function readPackageScripts(root: string, files: RepoFile[], diagnostics: 
 
     const decoded = decodeManifest(bytes);
     try {
-      const parsed = JSON.parse(decoded.text) as { scripts?: Record<string, string> };
+      const parsed = JSON.parse(decoded.text) as { name?: unknown; scripts?: Record<string, string> };
       const packageDir = normalizePath(dirname(manifest.path));
+      // The declared workspace name, so a yarn route can address the package the way both
+      // Yarn 1 and Berry understand rather than with Yarn 1's removed `--cwd`.
+      const packageName = typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : undefined;
       scripts.push(...Object.entries(parsed.scripts ?? {}).map(([name, command]) => ({
         name,
         command,
-        packageDir: packageDir === "." ? "" : packageDir
+        packageDir: packageDir === "." ? "" : packageDir,
+        ...(packageName ? { packageName } : {})
       })));
     } catch {
       diagnostics.push({

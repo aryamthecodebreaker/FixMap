@@ -26,6 +26,8 @@ export type PackageScript = {
   name: string;
   command: string;
   packageDir: string;
+  /** The manifest's declared `name`, used to address a yarn workspace. */
+  packageName?: string;
 };
 
 export type ScanDiagnostic = {
@@ -49,6 +51,7 @@ export type ScanDiagnostic = {
     | "vague-task"
     | "flat-ranking"
     | "no-test-route"
+    | "no-related-tests"
     | "paths-excluded"
     | "working-tree-diff";
   message: string;
@@ -84,6 +87,13 @@ export type RankedFile = {
 
 export type TestRoute = {
   command: string;
+  /**
+   * `test` runs tests; `validation` is lint, typecheck or check. They were listed together
+   * under one "Test Routes" heading, which invited running lint as the validation step for a
+   * logic bug. It also decides how `relatedFiles` reads: tests for the first, the
+   * implementation those commands would check for the second.
+   */
+  kind: "test" | "validation";
   reason: string;
   relatedFiles: string[];
 };
