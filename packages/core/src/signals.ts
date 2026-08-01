@@ -163,8 +163,8 @@ const IDENTIFIER_PATTERN = /[A-Za-z_$][A-Za-z0-9_$]{4,}/g;
 const MAX_EXACT_FRAGMENTS = 8;
 const MAX_IDENTIFIERS = 24;
 const TRAILING_E_VERB_STEMS = new Set([
-  "bas", "cach", "chang", "cod", "creat", "dat", "fil", "improv", "invoic",
-  "mak", "pars", "remov", "rout", "siz", "tim", "updat"
+  "bas", "cach", "chang", "cod", "contribut", "creat", "dat", "fil", "improv", "invoic",
+  "mak", "pars", "remov", "resolv", "rout", "siz", "tim", "updat"
 ]);
 
 export type TaskSignals = {
@@ -304,8 +304,12 @@ function isEscaped(text: string, index: number): boolean {
 
 export function extractFileMentions(text: string): Set<string> {
   const mentions = new Set<string>();
+  // Avoid a full second pass for the overwhelmingly common case. Long issue bodies are
+  // already scanned several times for signals, so paying for URL stripping when there is
+  // no URL made the linear-time safety check needlessly sensitive on slower CI runners.
+  const withoutUrls = text.includes("://") ? text.replace(/https?:\/\/\S+/gi, " ") : text;
 
-  for (const match of text.matchAll(FILE_MENTION_PATTERN)) {
+  for (const match of withoutUrls.matchAll(FILE_MENTION_PATTERN)) {
     const cleaned = match[0].replace(/\\/g, "/").replace(/^\.\.?\//, "");
     if (cleaned.length >= 4) {
       mentions.add(cleaned);
@@ -365,6 +369,7 @@ function isSearchableToken(token: string): boolean {
 }
 
 function normalizeToken(token: string): string {
+  if (token === "contributor" || token === "contributors") return "contribute";
   if (token.length > 5 && token.endsWith("ies")) return `${token.slice(0, -3)}y`;
   if (token.length > 5 && token.endsWith("ing")) return normalizeVerbStem(token.slice(0, -3));
   if (token.length > 4 && token.endsWith("ed")) return normalizeVerbStem(token.slice(0, -2));

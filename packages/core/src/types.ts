@@ -72,6 +72,8 @@ export type RepoMap = {
 };
 
 export type RankedFile = {
+  /** Stable, one-based position so JSON consumers do not have to infer array order. */
+  rank: number;
   path: string;
   score: number;
   confidence: "high" | "medium" | "low";

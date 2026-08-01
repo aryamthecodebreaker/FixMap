@@ -59,7 +59,12 @@ function directorySegments(path: string): string[] {
 
 /** True when the path sits inside a directory that normally holds generated or vendored output. */
 export function isGeneratedPath(path: string): boolean {
-  return directorySegments(path).some((segment) => GENERATED_DIRS.has(segment.toLowerCase()));
+  return directorySegments(path).some((segment) => GENERATED_DIRS.has(segment.toLowerCase())) ||
+    isRecordedEvaluationOutput(path);
+}
+
+export function isRecordedEvaluationOutput(path: string): boolean {
+  return /^benchmarks\/[^/]+\/(?:results|savings-results)\.json$/i.test(path);
 }
 
 // Conventional source roots. Stripping these alongside the generated roots lets a build

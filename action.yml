@@ -5,6 +5,7 @@ inputs:
     description: >-
       plan (default) maps the change to context files, test routes, and review risks.
       verify compares a saved plan against the diff that followed it and needs report-path.
+      Explain and compare are intentionally CLI/MCP-only because Action comments operate on complete reports.
     required: false
     default: plan
   report-path:
@@ -26,8 +27,22 @@ inputs:
   head:
     description: Head ref for diffing when diff is not provided.
     required: false
+  limit:
+    description: Maximum context files in plan mode, from 1 to 20.
+    required: false
+  exclude:
+    description: Comma- or newline-separated path patterns to exclude in plan mode.
+    required: false
+  working-tree:
+    description: Map or verify staged and unstaged tracked changes against HEAD.
+    required: false
+    default: "false"
+  include-untracked:
+    description: With working-tree, include untracked files.
+    required: false
+    default: "false"
   format:
-    description: Output format.
+    description: Output format. JSON output is posted in a fenced JSON pull-request comment; step summaries remain markdown.
     required: false
     default: markdown
   github-token:

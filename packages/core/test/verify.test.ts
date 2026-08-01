@@ -37,7 +37,7 @@ function repoWith(changedFiles: string[]): RepoMap {
 function planFor(topPath: string): FixMapReport {
   return {
     summary: "",
-    contextFiles: [{ path: topPath, score: 20, confidence: "high", reasons: ["path matches task terms: reset"] }],
+    contextFiles: [{ rank: 1, path: topPath, score: 20, confidence: "high", reasons: ["path matches task terms: reset"] }],
     testRoutes: [{ command: "npm run test", reason: "root script", relatedFiles: ["test/reset-password.test.ts"] }],
     risks: [],
     changedFiles: [],
@@ -126,6 +126,8 @@ describe("verifyPlan", () => {
     const finding = result.findings.find((entry) => entry.code === "new-risk-area");
 
     expect(finding?.message).toContain("authentication");
+    expect(finding?.paths).toEqual(["src/auth/reset-password.ts", "test/reset-password.test.ts"]);
+    expect(finding?.severity).toBe("warning");
   });
 
   it("stays quiet about risk the plan already flagged", () => {

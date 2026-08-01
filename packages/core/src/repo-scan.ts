@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { dirname, extname, join, relative, sep } from "node:path";
+import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS } from "./paths.js";
 import { DIAGNOSTIC_SPEC_LIMIT, truncateForDiagnostic } from "./text.js";
@@ -37,7 +37,8 @@ export async function scanRepo(
     "repoRoot" | "baseRef" | "headRef" | "diffSpec" | "workingTree" | "includeUntracked"
   >
 ): Promise<RepoMap> {
-  if (!(await isDirectory(input.repoRoot))) {
+  const repoRoot = resolve(input.repoRoot);
+  if (!(await isDirectory(repoRoot))) {
     return {
       root: input.repoRoot,
       files: [],
@@ -54,16 +55,16 @@ export async function scanRepo(
   }
 
   const diagnostics: RepoMap["diagnostics"] = [];
-  const files = await listFiles(input.repoRoot, diagnostics);
-  const trackedFiles = await listTrackedPaths(input.repoRoot);
-  const packageScripts = await readPackageScripts(input.repoRoot, files, diagnostics);
+  const files = await listFiles(repoRoot, diagnostics);
+  const trackedFiles = await listTrackedPaths(repoRoot);
+  const packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
   const diffSpec = resolveDiffSpec(input);
   const diff = input.workingTree
-    ? await readWorkingTree(input.repoRoot, input.includeUntracked === true, diagnostics)
-    : await readDiff(input.repoRoot, diffSpec, diagnostics);
+    ? await readWorkingTree(repoRoot, input.includeUntracked === true, diagnostics)
+    : await readDiff(repoRoot, diffSpec, diagnostics);
 
   return {
-    root: input.repoRoot,
+    root: repoRoot,
     files,
     trackedFiles,
     packageScripts,
@@ -369,8 +370,8 @@ async function readWorkingTree(
 
 function detectPackageManager(files: RepoFile[]): RepoMap["packageManager"] {
   const paths = new Set(files.map((file) => file.path));
-  if (paths.has("pnpm-lock.yaml")) return "pnpm";
-  if (paths.has("yarn.lock")) return "yarn";
+  if (paths.has("pnpm-lock.yaml") || paths.has("pnpm-workspace.yaml")) return "pnpm";
+  if (paths.has("yarn.lock") || paths.has(".yarnrc.yml")) return "yarn";
   if (paths.has("bun.lock") || paths.has("bun.lockb")) return "bun";
   return "npm";
 }

@@ -253,7 +253,7 @@ describe("rankContextFiles", () => {
     expect(paths).toContain("tests/orchestrator.test.ts");
     const authTest = ranked.find((file) => file.path === "tests/auth.test.ts");
     expect(authTest?.reasons).toContain("explicitly named in the task");
-    expect(authTest?.confidence).toBe("high");
+    expect(authTest?.confidence).toBe("medium");
   });
 
   it("matches an explicit basename mention against its repository path", () => {

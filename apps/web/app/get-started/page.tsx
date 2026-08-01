@@ -46,7 +46,7 @@ export default function GetStartedPage() {
       <section className="setup-section page-shell" id="mcp">
         <div className="setup-heading"><span>02</span><Robot size={34} aria-hidden /><div><p className="eyebrow">MCP</p><h2>Let the agent ask.</h2></div></div>
         <div className="setup-content">
-          <p className="setup-lede">FixMap exposes three local stdio tools: <code>fixmap_plan</code> before editing, <code>fixmap_explain</code> when a file you expected is missing from the map, and <code>fixmap_verify</code> after the diff exists.</p>
+          <p className="setup-lede">FixMap exposes five local stdio tools: <code>fixmap_plan</code> before editing, <code>fixmap_explain</code> when a file is missing, <code>fixmap_compare</code> to measure a refined plan, <code>fixmap_verify</code> after the diff exists, and <code>fixmap_doctor</code> to diagnose install shadows.</p>
           <h3>Claude Code</h3>
           <CopyCommand command="claude mcp add fixmap -- npx -y @aryam/fixmap@latest mcp" />
           <h3>Cursor, Windsurf, and other MCP clients</h3>

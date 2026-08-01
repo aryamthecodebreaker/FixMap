@@ -35,22 +35,29 @@ export const NO_EXCLUSIONS: PathExcluder = {
  * what someone typing `--exclude apps/web` means.
  */
 export function buildPathExcluder(patterns: string[]): PathExcluder {
-  const cleaned = patterns
+  const cleaned = [...new Set(patterns
     .map((pattern) => pattern.trim())
-    .filter((pattern) => pattern.length > 0 && !COMMENT.test(pattern));
+    .filter((pattern) => pattern.length > 0 && !COMMENT.test(pattern)))];
 
   if (cleaned.length === 0) {
     return NO_EXCLUSIONS;
   }
 
-  const matchers = cleaned.map((pattern) => ({ pattern, test: compile(pattern) }));
+  const matchers = cleaned.map((pattern) => {
+    const negated = pattern.startsWith("!");
+    const body = negated ? pattern.slice(1) : pattern;
+    return { pattern, negated, test: compile(body) };
+  });
   const cache = new Map<string, string | undefined>();
 
   const reasonFor = (path: string): string | undefined => {
     if (cache.has(path)) {
       return cache.get(path);
     }
-    const hit = matchers.find((matcher) => matcher.test(path))?.pattern;
+    let hit: string | undefined;
+    for (const matcher of matchers) {
+      if (matcher.test(path)) hit = matcher.negated ? undefined : matcher.pattern;
+    }
     cache.set(path, hit);
     return hit;
   };

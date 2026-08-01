@@ -7,7 +7,7 @@ import {
   buildGroundedTaskTokens
 } from "./grounding.js";
 import type { TaskGrounding } from "./grounding.js";
-import { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
+import { isBackupPath, isGeneratedPath, isRecordedEvaluationOutput, moduleStem } from "./paths.js";
 import { extractTaskSignals, tokenizePath, tokenizeText } from "./signals.js";
 import type { RankedFile, RepoMap } from "./types.js";
 
@@ -111,10 +111,12 @@ export function rankContextFiles(
       .map((file) => moduleStem(file.path))
   );
   const candidates = scannable.filter((file) =>
-    mentionedPaths.has(file.path) ||
-    signals.changedFiles.has(file.path) ||
-    !isGeneratedPath(file.path) ||
-    !maintainedStems.has(moduleStem(file.path))
+    !isRecordedEvaluationOutput(file.path) && (
+      mentionedPaths.has(file.path) ||
+      signals.changedFiles.has(file.path) ||
+      !isGeneratedPath(file.path) ||
+      !maintainedStems.has(moduleStem(file.path))
+    )
   );
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeFileContent(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
@@ -191,7 +193,7 @@ export function rankContextFiles(
         reasons.push(`contains exact task literal: ${previewFragment(exactLiteral)}`);
       }
 
-      const definedIdentifiers = findDefinedIdentifiers(file.textSample, definitionSignals)
+      const definedIdentifiers = (file.kind === "documentation" ? [] : findDefinedIdentifiers(file.textSample, definitionSignals))
         .slice(0, MAX_DEFINITION_IDENTIFIERS);
       if (definedIdentifiers.length > 0) {
         score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
@@ -201,7 +203,7 @@ export function rankContextFiles(
       const taskMatchedDefinitions = signals.exactFragments.length === 0 &&
         !taskTargetsDocumentation &&
         !taskTargetsPresentation
-        ? findTaskMatchedDefinitions(file.textSample, taskTokens)
+        ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file.textSample, taskTokens))
           .filter((identifier) => !definedIdentifiers.includes(identifier))
           .slice(0, MAX_DEFINITION_IDENTIFIERS)
         : [];
@@ -210,7 +212,7 @@ export function rankContextFiles(
         reasons.push(`defines symbols matching task terms: ${taskMatchedDefinitions.join(", ")}`);
       }
 
-      const definitionFragment = signals.exactFragments.find((fragment) =>
+      const definitionFragment = file.kind === "documentation" ? undefined : signals.exactFragments.find((fragment) =>
         hasExactFragmentAtDefinition(file.textSample, fragment, definedIdentifiers)
       );
       if (definitionFragment) {
@@ -229,7 +231,8 @@ export function rankContextFiles(
         score += 8;
         reasons.push("documentation-focused task");
       } else if (file.kind === "documentation" && !taskTargetsDocumentation && !isChanged) {
-        score -= 6;
+        score -= 14;
+        reasons.push("documentation deprioritized for an implementation task");
       } else if (file.kind === "config" && (taskTargetsConfiguration || taskTargetsDeployment)) {
         score += 2;
         reasons.push(taskTargetsConfiguration ? "configuration-focused task" : "deployment-focused task");
@@ -316,6 +319,7 @@ export function rankContextFiles(
 
   return ranked
     .map((entry, position) => ({
+      rank: position + 1,
       path: entry.path,
       score: entry.score,
       confidence: confidenceForEntry(entry, grounding, clustered, {
@@ -396,7 +400,10 @@ function confidenceForEntry(
   clustered: boolean,
   shape: { position: number; topScore: number; leadIsContested: boolean }
 ): RankedFile["confidence"] {
-  if (entry.isChanged || entry.reasons.includes("explicitly named in the task")) {
+  if (entry.isChanged) {
+    return "high";
+  }
+  if (entry.reasons.includes("explicitly named in the task") && shape.position === 0 && !shape.leadIsContested) {
     return "high";
   }
 

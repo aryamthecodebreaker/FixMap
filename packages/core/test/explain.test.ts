@@ -65,7 +65,8 @@ describe("explainFile", () => {
 
   it("names lockfiles and unsupported file types as deliberate exclusions", () => {
     expect(explainFile(authRepo(), task, "package-lock.json").summary).toContain("lockfiles");
-    expect(explainFile(authRepo(), task, "logo.png").summary).toContain("outside the scanned source extensions");
+    expect(explainFile(authRepo(), task, "logo.png").summary).toContain("outside the supported source extensions");
+    expect(explainFile(authRepo(), task, "logo.png").status).toBe("not-scanned");
   });
 
   it("distinguishes a path the scan never saw", () => {
@@ -100,6 +101,14 @@ describe("explainFile", () => {
 
     expect(explanation.status).toBe("ranked");
     expect(explanation.path).toBe("src/auth/reset-password.ts");
+  });
+
+  it("normalizes case, dot segments, and an absolute path inside the repository", () => {
+    const repo = authRepo();
+    repo.root = "C:/work/repo";
+    expect(explainFile(repo, task, "SRC/./AUTH/../auth/RESET-password.ts").path).toBe("src/auth/reset-password.ts");
+    expect(explainFile(repo, task, "C:\\work\\repo\\src\\auth\\reset-password.ts").status).toBe("ranked");
+    expect(explainFile(repo, task, "C:\\outside\\secret.ts").summary).toContain("outside this repository");
   });
 
   it("describes a top-N tie without claiming an equal score is lower", () => {

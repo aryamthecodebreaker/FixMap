@@ -1,13 +1,12 @@
 # FixMap Report
 
-FixMap found 2 context files and generated 3 test routes.
+FixMap found 1 context file and generated 3 test routes.
 
 ## Context Files
 
 - `packages/utils/src/currency.ts` (high confidence, score 33): path matches task terms: currency; content matches task terms: round, cent; defines task identifiers: roundToCents
-- `README.md` (low confidence, score 6): content matches task terms: round, cent, keep, fraction, format, currency
 
-## Test Route
+## Test Routes
 
 - `pnpm --dir packages/utils run test`: nearest package (packages/utils) script named test. Related: `packages/utils/test/currency.test.ts`.
 - `pnpm --dir packages/utils run typecheck`: nearest package (packages/utils) script named typecheck. Related: `packages/utils/src/currency.ts`.

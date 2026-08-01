@@ -16,17 +16,25 @@ var NO_EXCLUSIONS = {
   patterns: []
 };
 function buildPathExcluder(patterns) {
-  const cleaned = patterns.map((pattern) => pattern.trim()).filter((pattern) => pattern.length > 0 && !COMMENT.test(pattern));
+  const cleaned = [...new Set(patterns.map((pattern) => pattern.trim()).filter((pattern) => pattern.length > 0 && !COMMENT.test(pattern)))];
   if (cleaned.length === 0) {
     return NO_EXCLUSIONS;
   }
-  const matchers = cleaned.map((pattern) => ({ pattern, test: compile(pattern) }));
+  const matchers = cleaned.map((pattern) => {
+    const negated = pattern.startsWith("!");
+    const body = negated ? pattern.slice(1) : pattern;
+    return { pattern, negated, test: compile(body) };
+  });
   const cache = /* @__PURE__ */ new Map();
   const reasonFor = (path) => {
     if (cache.has(path)) {
       return cache.get(path);
     }
-    const hit = matchers.find((matcher) => matcher.test(path))?.pattern;
+    let hit;
+    for (const matcher of matchers) {
+      if (matcher.test(path))
+        hit = matcher.negated ? void 0 : matcher.pattern;
+    }
     cache.set(path, hit);
     return hit;
   };
@@ -255,6 +263,7 @@ var TRAILING_E_VERB_STEMS = /* @__PURE__ */ new Set([
   "cach",
   "chang",
   "cod",
+  "contribut",
   "creat",
   "dat",
   "fil",
@@ -263,6 +272,7 @@ var TRAILING_E_VERB_STEMS = /* @__PURE__ */ new Set([
   "mak",
   "pars",
   "remov",
+  "resolv",
   "rout",
   "siz",
   "tim",
@@ -370,7 +380,8 @@ function isEscaped(text, index) {
 }
 function extractFileMentions(text) {
   const mentions = /* @__PURE__ */ new Set();
-  for (const match of text.matchAll(FILE_MENTION_PATTERN)) {
+  const withoutUrls = text.includes("://") ? text.replace(/https?:\/\/\S+/gi, " ") : text;
+  for (const match of withoutUrls.matchAll(FILE_MENTION_PATTERN)) {
     const cleaned = match[0].replace(/\\/g, "/").replace(/^\.\.?\//, "");
     if (cleaned.length >= 4) {
       mentions.add(cleaned);
@@ -398,6 +409,8 @@ function isSearchableToken(token) {
   return token.length >= 3 || /^[a-z]\d$/i.test(token);
 }
 function normalizeToken(token) {
+  if (token === "contributor" || token === "contributors")
+    return "contribute";
   if (token.length > 5 && token.endsWith("ies"))
     return `${token.slice(0, -3)}y`;
   if (token.length > 5 && token.endsWith("ing"))
@@ -437,7 +450,13 @@ function analyzeTaskGrounding(repo, input) {
   const resolvedIdentifierCount = identifiers.filter((entry) => entry.status === "exact-definition" || entry.status === "exact-text").length;
   const hasMatchedFileMention = [...signals.fileMentions].some((mention) => repo.files.some((file) => pathMatchesMention(file.path, mention)));
   const hasDirectAnchor = repo.changedFiles.length > 0 || hasMatchedFileMention || resolvedIdentifierCount > 0 || partiallyResolvedIdentifiers.length > 0;
-  const vague = !hasDirectAnchor && isVagueTask(issueText);
+  const issueTokens = tokenizeText(issueText);
+  const singleTokenHasRepoMatch = issueTokens.size === 1 && repo.files.some((file) => {
+    const token = [...issueTokens][0];
+    return tokenizeText(file.path).has(token) || tokenizeText(file.textSample).has(token);
+  });
+  const singleUnmatchedToken = issueTokens.size === 1 && !singleTokenHasRepoMatch;
+  const vague = !hasDirectAnchor && (isVagueTask(issueText) || singleUnmatchedToken);
   return {
     specificity: hasDirectAnchor ? "anchored" : vague ? "vague" : "descriptive",
     identifiers,
@@ -468,7 +487,7 @@ function buildRankingShape(contextFiles) {
   const clustered = topScore !== null && thirdScore !== void 0 && topScore - thirdScore <= 2;
   return { topScore, runnerUpScore, topGap, clustered };
 }
-function buildNextAction(grounding, ranking, contextFiles) {
+function buildNextAction(grounding, ranking, contextFiles, hasRoutedTests = true) {
   if (grounding.unresolvedIdentifiers.length > 0) {
     return "Verify or correct the unresolved identifiers before editing ranked files.";
   }
@@ -488,7 +507,7 @@ function buildNextAction(grounding, ranking, contextFiles) {
     return "Treat the leading files as a subsystem neighborhood and verify the exact edit point before changing code.";
   }
   if (contextFiles[0]) {
-    return `Inspect ${contextFiles[0].path} and its routed tests before editing.`;
+    return hasRoutedTests ? `Inspect ${contextFiles[0].path} and its routed tests before editing.` : `Inspect ${contextFiles[0].path} before editing; no related test file was routed.`;
   }
   return "Add a concrete repository anchor and rerun FixMap.";
 }
@@ -845,7 +864,10 @@ function directorySegments(path) {
   return path.split("/").slice(0, -1);
 }
 function isGeneratedPath(path) {
-  return directorySegments(path).some((segment) => GENERATED_DIRS.has(segment.toLowerCase()));
+  return directorySegments(path).some((segment) => GENERATED_DIRS.has(segment.toLowerCase())) || isRecordedEvaluationOutput(path);
+}
+function isRecordedEvaluationOutput(path) {
+  return /^benchmarks\/[^/]+\/(?:results|savings-results)\.json$/i.test(path);
 }
 var SOURCE_ROOT_DIRS = /* @__PURE__ */ new Set(["lib", "source", "src"]);
 function moduleStem(path) {
@@ -924,7 +946,7 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
   const taskTargetsEvaluation = hasAny(taskTokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
   const scannable = repo.files.filter((file) => !exclude.excludes(file.path) && (mentionedPaths.has(file.path) || file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation)));
   const maintainedStems = new Set(scannable.filter((file) => !isGeneratedPath(file.path) && !isBackupPath(file.path)).map((file) => moduleStem(file.path)));
-  const candidates = scannable.filter((file) => mentionedPaths.has(file.path) || signals.changedFiles.has(file.path) || !isGeneratedPath(file.path) || !maintainedStems.has(moduleStem(file.path)));
+  const candidates = scannable.filter((file) => !isRecordedEvaluationOutput(file.path) && (mentionedPaths.has(file.path) || signals.changedFiles.has(file.path) || !isGeneratedPath(file.path) || !maintainedStems.has(moduleStem(file.path))));
   const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeFileContent(file.textSample)]));
   const commonTokens = findCommonTokens(contentTokensByPath);
   const allTaskTermsAreWidespread = taskTokens.size > 0 && [...taskTokens].every((token) => commonTokens.has(token));
@@ -989,17 +1011,17 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
       score += EXACT_LITERAL_BOOST * Math.min(3, countOccurrences(taskText, exactLiteral));
       reasons.push(`contains exact task literal: ${previewFragment(exactLiteral)}`);
     }
-    const definedIdentifiers = findDefinedIdentifiers(file.textSample, definitionSignals).slice(0, MAX_DEFINITION_IDENTIFIERS);
+    const definedIdentifiers = (file.kind === "documentation" ? [] : findDefinedIdentifiers(file.textSample, definitionSignals)).slice(0, MAX_DEFINITION_IDENTIFIERS);
     if (definedIdentifiers.length > 0) {
       score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
       reasons.push(`defines task identifiers: ${definedIdentifiers.join(", ")}`);
     }
-    const taskMatchedDefinitions = signals.exactFragments.length === 0 && !taskTargetsDocumentation && !taskTargetsPresentation ? findTaskMatchedDefinitions(file.textSample, taskTokens).filter((identifier) => !definedIdentifiers.includes(identifier)).slice(0, MAX_DEFINITION_IDENTIFIERS) : [];
+    const taskMatchedDefinitions = signals.exactFragments.length === 0 && !taskTargetsDocumentation && !taskTargetsPresentation ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file.textSample, taskTokens)).filter((identifier) => !definedIdentifiers.includes(identifier)).slice(0, MAX_DEFINITION_IDENTIFIERS) : [];
     if (taskMatchedDefinitions.length > 0) {
       score += taskMatchedDefinitions.length * TASK_MATCHED_DEFINITION_BOOST;
       reasons.push(`defines symbols matching task terms: ${taskMatchedDefinitions.join(", ")}`);
     }
-    const definitionFragment = signals.exactFragments.find((fragment) => hasExactFragmentAtDefinition(file.textSample, fragment, definedIdentifiers));
+    const definitionFragment = file.kind === "documentation" ? void 0 : signals.exactFragments.find((fragment) => hasExactFragmentAtDefinition(file.textSample, fragment, definedIdentifiers));
     if (definitionFragment) {
       score += DEFINITION_LITERAL_BOOST;
       reasons.push(`exact task literal at definition: ${previewFragment(definitionFragment)}`);
@@ -1014,7 +1036,8 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
       score += 8;
       reasons.push("documentation-focused task");
     } else if (file.kind === "documentation" && !taskTargetsDocumentation && !isChanged) {
-      score -= 6;
+      score -= 14;
+      reasons.push("documentation deprioritized for an implementation task");
     } else if (file.kind === "config" && (taskTargetsConfiguration || taskTargetsDeployment)) {
       score += 2;
       reasons.push(taskTargetsConfiguration ? "configuration-focused task" : "deployment-focused task");
@@ -1062,6 +1085,7 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
   const clustered = isClusteredRanking(ranked);
   const leadIsContested = hasContestedLead(ranked);
   return ranked.map((entry, position) => ({
+    rank: position + 1,
     path: entry.path,
     score: entry.score,
     confidence: confidenceForEntry(entry, grounding, clustered, {
@@ -1111,7 +1135,10 @@ function proximityReason(hit) {
   return hit.direction === "imported-by" ? `imported by ranked file ${hit.seed}` : `imports ranked file ${hit.seed}`;
 }
 function confidenceForEntry(entry, grounding, clustered, shape) {
-  if (entry.isChanged || entry.reasons.includes("explicitly named in the task")) {
+  if (entry.isChanged) {
+    return "high";
+  }
+  if (entry.reasons.includes("explicitly named in the task") && shape.position === 0 && !shape.leadIsContested) {
     return "high";
   }
   let confidence = entry.score >= 14 ? "high" : entry.score >= 8 ? "medium" : "low";
@@ -1406,7 +1433,7 @@ function buildReportFromRepo(repo, input) {
     analysis: {
       grounding,
       ranking,
-      nextAction: buildNextAction(grounding, ranking, contextFiles)
+      nextAction: buildNextAction(grounding, ranking, contextFiles, testRoutes.some((route) => route.relatedFiles.length > 0))
     }
   };
 }
@@ -1580,6 +1607,15 @@ function buildRiskNotes(contextPaths, changedFiles = []) {
   }
   return risks;
 }
+function pathsForRiskArea(area, paths) {
+  const rule = RISK_RULES.find((candidate) => candidate.area === area);
+  if (!rule)
+    return [];
+  return paths.filter((path) => {
+    const tokens = tokenizePath(path);
+    return rule.tokens.some((token) => tokens.has(token));
+  });
+}
 function packageProximity(packageDir, contextPaths) {
   if (!packageDir)
     return 1;
@@ -1624,7 +1660,7 @@ function renderMarkdownReport(report) {
     "",
     ...listOrEmpty(report.contextFiles.map((file) => `- \`${file.path}\` (${file.confidence} confidence, score ${file.score}): ${file.reasons.join("; ")}`)),
     "",
-    "## Test Route",
+    "## Test Routes",
     "",
     ...listOrEmpty(report.testRoutes.map((route) => {
       const related = route.relatedFiles.length > 0 ? ` Related: ${route.relatedFiles.map((path) => `\`${path}\``).join(", ")}.` : "";
@@ -1666,7 +1702,7 @@ function listOrEmpty(lines) {
 // packages/core/dist/repo-scan.js
 import { execFile } from "node:child_process";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { dirname, extname, join, relative, sep } from "node:path";
+import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 var WALK_IGNORED_DIRS = /* @__PURE__ */ new Set([...ALWAYS_IGNORED_DIRS, ...GENERATED_DIRS]);
 var SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
@@ -1692,7 +1728,8 @@ var MAX_SCANNED_FILES = 25e3;
 var GIT_MAX_BUFFER = 10 * 1024 * 1024;
 var exec = promisify(execFile);
 async function scanRepo(input) {
-  if (!await isDirectory(input.repoRoot)) {
+  const repoRoot = resolve(input.repoRoot);
+  if (!await isDirectory(repoRoot)) {
     return {
       root: input.repoRoot,
       files: [],
@@ -1708,13 +1745,13 @@ async function scanRepo(input) {
     };
   }
   const diagnostics = [];
-  const files = await listFiles(input.repoRoot, diagnostics);
-  const trackedFiles = await listTrackedPaths(input.repoRoot);
-  const packageScripts = await readPackageScripts(input.repoRoot, files, diagnostics);
+  const files = await listFiles(repoRoot, diagnostics);
+  const trackedFiles = await listTrackedPaths(repoRoot);
+  const packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
   const diffSpec = resolveDiffSpec(input);
-  const diff = input.workingTree ? await readWorkingTree(input.repoRoot, input.includeUntracked === true, diagnostics) : await readDiff(input.repoRoot, diffSpec, diagnostics);
+  const diff = input.workingTree ? await readWorkingTree(repoRoot, input.includeUntracked === true, diagnostics) : await readDiff(repoRoot, diffSpec, diagnostics);
   return {
-    root: input.repoRoot,
+    root: repoRoot,
     files,
     trackedFiles,
     packageScripts,
@@ -1926,9 +1963,9 @@ async function readWorkingTree(repoRoot, includeUntracked, diagnostics) {
 }
 function detectPackageManager(files) {
   const paths = new Set(files.map((file) => file.path));
-  if (paths.has("pnpm-lock.yaml"))
+  if (paths.has("pnpm-lock.yaml") || paths.has("pnpm-workspace.yaml"))
     return "pnpm";
-  if (paths.has("yarn.lock"))
+  if (paths.has("yarn.lock") || paths.has(".yarnrc.yml"))
     return "yarn";
   if (paths.has("bun.lock") || paths.has("bun.lockb"))
     return "bun";
@@ -1983,10 +2020,14 @@ async function buildFixMapReport(input) {
     exclude
   });
   if (exclude.patterns.length > 0) {
+    const excludedPaths = repo.files.filter((file) => exclude.excludes(file.path)).map((file) => file.path);
+    if (excludedPaths.length === 0)
+      return report;
+    const rankablePaths = repo.files.filter((file) => file.isSource && !file.isTest);
     report.diagnostics.push({
       code: "paths-excluded",
-      severity: "info",
-      message: `${exclude.patterns.length} exclusion ${exclude.patterns.length === 1 ? "pattern" : "patterns"} removed paths from ranking: ${exclude.patterns.join(", ")}. Run --explain on a file you expected to see if this is why it is absent.`
+      severity: rankablePaths.length > 0 && rankablePaths.every((file) => exclude.excludes(file.path)) ? "warning" : "info",
+      message: `${exclude.patterns.length} exclusion ${exclude.patterns.length === 1 ? "pattern" : "patterns"} removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${exclude.patterns.join(", ")}. Run --explain on a file you expected to see if this is why it is absent.`
     });
   }
   return report;
@@ -2064,7 +2105,7 @@ function verifyPlan(report, repo) {
       code: "no-test-changed",
       severity: "warning",
       paths: suggested,
-      message: suggested.length > 0 ? `Code changed but no test did. The plan routed ${suggested.length === 1 ? "this test" : "these tests"} as most related.` : "Code changed but no test did, and the plan found no related test to point at."
+      message: suggested.length > 0 ? `Code changed but no test did. The plan routed ${suggested.length === 1 ? "this test" : "these tests"} as most related.` : report.testRoutes.length > 0 ? `Code changed but no test did. Run the routed ${report.testRoutes.length === 1 ? "command" : "commands"}: ${report.testRoutes.map((route) => route.command).join(", ")}.` : "Code changed but no test did, and the plan found no related test to point at."
     });
   }
   const plannedAreas = new Set(report.risks.map((risk) => risk.area));
@@ -2072,8 +2113,8 @@ function verifyPlan(report, repo) {
   for (const risk of newRisks) {
     findings.push({
       code: "new-risk-area",
-      severity: risk.severity === "high" ? "warning" : "info",
-      paths: changed.filter((path) => path.toLowerCase().includes(risk.area.split("-")[0] ?? risk.area)),
+      severity: risk.severity === "low" ? "info" : "warning",
+      paths: pathsForRiskArea(risk.area, changed),
       message: `The change touches ${risk.area}, which the original plan did not flag: ${risk.reason}.`
     });
   }
@@ -2171,6 +2212,7 @@ ${input.markdown}`;
   };
 }
 async function findExistingComment(fetchImpl, commentsUrl, headers, commentAuthor) {
+  let newest;
   for (let page = 1; ; page += 1) {
     const comments = await requestJson(
       fetchImpl,
@@ -2178,14 +2220,12 @@ async function findExistingComment(fetchImpl, commentsUrl, headers, commentAutho
       { headers },
       "list pull request comments"
     );
-    const existing = comments.find(
+    const matches = comments.filter(
       (comment) => comment.body?.includes(FIXMAP_REPORT_MARKER) && (!commentAuthor || comment.user?.login === commentAuthor)
     );
-    if (existing) {
-      return existing;
-    }
+    for (const existing of matches) if (!newest || existing.id > newest.id) newest = existing;
     if (comments.length < 100) {
-      return void 0;
+      return newest;
     }
   }
 }
@@ -2272,12 +2312,19 @@ async function runAction(env = process.env, dependencies = {}) {
   const event = readEvent(env.GITHUB_EVENT_PATH, readFile3);
   const rawIssue = readInput("issue", env) || buildPullRequestIssueText(event);
   const diffSpec = readInput("diff", env);
-  const baseRef = readInput("base", env) || (env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : void 0);
-  const headRef = readInput("head", env) || (env.GITHUB_HEAD_REF ? "HEAD" : void 0);
+  const workingTree = parseBooleanInput("working-tree", readInput("working-tree", env));
+  const includeUntracked = parseBooleanInput("include-untracked", readInput("include-untracked", env));
+  const baseRef = readInput("base", env) || (!workingTree && env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : void 0);
+  const headRef = readInput("head", env) || (!workingTree && env.GITHUB_HEAD_REF ? "HEAD" : void 0);
   const format = parseFormat(readInput("format", env));
   const mode = parseMode(readInput("mode", env));
+  const exclude = (readInput("exclude", env) ?? "").split(/[\r\n,]+/).map((value) => value.trim()).filter(Boolean);
+  const limit = parseLimit(readInput("limit", env));
+  if (includeUntracked && !workingTree) throw new Error("include-untracked requires working-tree.");
+  if (workingTree && (diffSpec || baseRef || headRef)) throw new Error("Use either working-tree or diff/base/head, not both.");
+  if (diffSpec && (baseRef || headRef)) throw new Error("Use either diff or base/head, not both.");
   if (mode === "verify") {
-    return runVerifyMode({ env, dependencies, readFile: readFile3, appendFile, stdout, format, diffSpec, baseRef, headRef });
+    return runVerifyMode({ env, dependencies, readFile: readFile3, appendFile, stdout, format, diffSpec, baseRef, headRef, workingTree, includeUntracked });
   }
   const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : void 0;
   if (issueSource && env.GITHUB_REPOSITORY && env.GITHUB_REPOSITORY.toLowerCase() !== `${issueSource.owner}/${issueSource.repository}`.toLowerCase()) {
@@ -2287,7 +2334,7 @@ async function runAction(env = process.env, dependencies = {}) {
   }
   const fetchedIssue = issueSource ? await (dependencies.fetchIssue ?? fetchActionIssue)(issueSource) : void 0;
   const issue = fetchedIssue ? [fetchedIssue.title, fetchedIssue.body].filter(Boolean).join("\n\n") : rawIssue;
-  if (!issue && !diffSpec && !baseRef) {
+  if (!issue && !diffSpec && !baseRef && !workingTree) {
     throw new Error("FixMap needs a pull_request event, an issue input, or a diff/base input to build a useful report.");
   }
   const report = await (dependencies.buildReport ?? buildFixMapReport)({
@@ -2295,7 +2342,11 @@ async function runAction(env = process.env, dependencies = {}) {
     issueText: issue,
     diffSpec,
     baseRef,
-    headRef
+    headRef,
+    workingTree,
+    includeUntracked,
+    limit,
+    exclude
   });
   if (issueSource) {
     report.diagnostics.unshift({
@@ -2317,7 +2368,11 @@ async function runAction(env = process.env, dependencies = {}) {
   const commentAuthor = readInput("comment-author", env);
   if (token) {
     try {
-      await upsertPullRequestComment(token, event, markdown, commentAuthor, env, dependencies.createClient);
+      const comment = format === "json" ? `\`\`\`json
+${output.trimEnd()}
+\`\`\`
+` : markdown;
+      await upsertPullRequestComment(token, event, comment, commentAuthor, env, dependencies.createClient);
     } catch (error) {
       if (!isPermissionDeniedError(error)) {
         throw error;
@@ -2347,6 +2402,9 @@ async function runVerifyMode(context) {
       "FixMap verify mode needs report-path pointing at the JSON plan this change was made from. Save one with a prior plan step using format: json, then download it as an artifact."
     );
   }
+  if (!context.diffSpec && !context.baseRef && !context.workingTree) {
+    throw new Error("FixMap verify mode needs diff, base/head, or working-tree so it can see what changed.");
+  }
   let report;
   try {
     report = JSON.parse(context.readFile(reportPath));
@@ -2362,7 +2420,9 @@ async function runVerifyMode(context) {
     repoRoot: (context.dependencies.cwd ?? process.cwd)(),
     diffSpec: context.diffSpec,
     baseRef: context.baseRef,
-    headRef: context.headRef
+    headRef: context.headRef,
+    workingTree: context.workingTree,
+    includeUntracked: context.includeUntracked
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
   if (diffFailure) {
@@ -2413,6 +2473,18 @@ function parseFormat(value) {
     return normalized;
   }
   throw new Error(`Invalid format input ${JSON.stringify(value)}; expected markdown or json.`);
+}
+function parseLimit(value) {
+  if (!value) return void 0;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 20) throw new Error("limit must be a whole number from 1 to 20.");
+  return parsed;
+}
+function parseBooleanInput(name, value) {
+  if (!value) return false;
+  if (/^(?:true|1|yes)$/i.test(value)) return true;
+  if (/^(?:false|0|no)$/i.test(value)) return false;
+  throw new Error(`${name} must be true or false.`);
 }
 function renderActionOutputs(reportText, report, uuid = randomUUID) {
   const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;

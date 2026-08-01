@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { scanRepo, summarizeSkippedScope } from "../src/repo-scan.js";
@@ -40,6 +40,12 @@ describe("summarizeSkippedScope", () => {
 });
 
 describe("scanRepo", () => {
+  it("records an absolute repository root so absolute explain paths can be contained safely", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-root-"));
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.root).toBe(resolve(root));
+  });
   it("discovers source files, test files, and package scripts", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-scan-"));
     await mkdir(join(root, "src"), { recursive: true });
@@ -80,6 +86,14 @@ describe("scanRepo", () => {
 
     expect(repo.packageManager).toBe("pnpm");
     expect(repo.packageScripts).toContainEqual({ name: "typecheck", command: "tsc --noEmit", packageDir: "apps/api" });
+  });
+
+  it("detects a pnpm workspace before a lockfile exists", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-pnpm-workspace-"));
+    await writeFile(join(root, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
+    await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+    const repo = await scanRepo({ repoRoot: root });
+    expect(repo.packageManager).toBe("pnpm");
   });
 
   it("reports a missing repository root as an error instead of an empty success", async () => {

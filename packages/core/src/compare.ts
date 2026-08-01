@@ -10,7 +10,7 @@ import type { FixMapReport, RankedFile } from "./types.js";
 
 export type RankDelta = {
   path: string;
-  status: "entered" | "left" | "moved" | "unchanged";
+  status: "entered" | "left" | "moved" | "confidence-changed" | "unchanged";
   /** 1-based, absent on the side where the file was not listed. */
   previousRank?: number;
   currentRank?: number;
@@ -25,6 +25,7 @@ export type ReportComparison = {
   entered: RankDelta[];
   left: RankDelta[];
   moved: RankDelta[];
+  confidenceChanged: RankDelta[];
   unchanged: RankDelta[];
   groundingChanged: boolean;
   previousGrounding?: string;
@@ -38,6 +39,7 @@ export function compareReports(previous: FixMapReport, current: FixMapReport): R
   const entered: RankDelta[] = [];
   const left: RankDelta[] = [];
   const moved: RankDelta[] = [];
+  const confidenceChanged: RankDelta[] = [];
   const unchanged: RankDelta[] = [];
 
   for (const [path, currentEntry] of currentByPath) {
@@ -53,13 +55,11 @@ export function compareReports(previous: FixMapReport, current: FixMapReport): R
       continue;
     }
 
+    const rankOrScoreChanged = previousEntry.rank !== currentEntry.rank || previousEntry.file.score !== currentEntry.file.score;
+    const confidenceChangedOnly = !rankOrScoreChanged && previousEntry.file.confidence !== currentEntry.file.confidence;
     const delta: RankDelta = {
       path,
-      status: previousEntry.rank === currentEntry.rank &&
-        previousEntry.file.score === currentEntry.file.score &&
-        previousEntry.file.confidence === currentEntry.file.confidence
-        ? "unchanged"
-        : "moved",
+      status: rankOrScoreChanged ? "moved" : confidenceChangedOnly ? "confidence-changed" : "unchanged",
       previousRank: previousEntry.rank,
       currentRank: currentEntry.rank,
       previousScore: previousEntry.file.score,
@@ -67,7 +67,7 @@ export function compareReports(previous: FixMapReport, current: FixMapReport): R
       previousConfidence: previousEntry.file.confidence,
       currentConfidence: currentEntry.file.confidence
     };
-    (delta.status === "moved" ? moved : unchanged).push(delta);
+    (delta.status === "moved" ? moved : delta.status === "confidence-changed" ? confidenceChanged : unchanged).push(delta);
   }
 
   for (const [path, previousEntry] of previousByPath) {
@@ -86,16 +86,18 @@ export function compareReports(previous: FixMapReport, current: FixMapReport): R
   entered.sort((a, b) => (a.currentRank ?? 0) - (b.currentRank ?? 0));
   left.sort((a, b) => (a.previousRank ?? 0) - (b.previousRank ?? 0));
   moved.sort((a, b) => (a.currentRank ?? 0) - (b.currentRank ?? 0));
+  confidenceChanged.sort((a, b) => (a.currentRank ?? 0) - (b.currentRank ?? 0));
   unchanged.sort((a, b) => (a.currentRank ?? 0) - (b.currentRank ?? 0));
 
   const previousGrounding = previous.analysis?.grounding.specificity;
   const currentGrounding = current.analysis?.grounding.specificity;
 
   return {
-    summary: buildSummary(entered, left, moved, previous.contextFiles[0], current.contextFiles[0]),
+    summary: buildSummary(entered, left, [...moved, ...confidenceChanged], previous.contextFiles[0], current.contextFiles[0]),
     entered,
     left,
     moved,
+    confidenceChanged,
     unchanged,
     groundingChanged: previousGrounding !== currentGrounding,
     ...(previousGrounding ? { previousGrounding } : {}),
@@ -149,6 +151,8 @@ export function renderComparisonMarkdown(comparison: ReportComparison): string {
     `\`${delta.path}\` was rank ${delta.previousRank} (${delta.previousConfidence}, score ${delta.previousScore})`);
   appendSection(lines, "Moved", comparison.moved, (delta) =>
     `\`${delta.path}\` ${describeMove(delta)}`);
+  appendSection(lines, "Confidence changed", comparison.confidenceChanged, (delta) =>
+    `\`${delta.path}\` stayed at rank ${delta.currentRank} and score ${delta.currentScore}; confidence changed from ${delta.previousConfidence} to ${delta.currentConfidence}`);
 
   if (comparison.unchanged.length > 0) {
     lines.push(`## Unchanged`, "", `${comparison.unchanged.length} file(s) held their rank, score, and confidence.`, "");

@@ -38,7 +38,7 @@ const answers = [
 
 const paths = [
   { name: "CLI", detail: "Describe a task or point at a diff.", href: "/get-started#cli" },
-  { name: "MCP", detail: "Give coding agents Plan, Explain, and Verify.", href: "/get-started#mcp" },
+  { name: "MCP", detail: "Give coding agents Plan, Explain, Compare, Verify, and Doctor.", href: "/get-started#mcp" },
   { name: "GitHub Action", detail: "Map every pull request automatically.", href: "/get-started#action" }
 ];
 
@@ -55,6 +55,7 @@ export default function HomePage() {
               FixMap turns a software problem into a focused map of files, checks, and risks—so
               you can investigate with confidence before you change anything.
             </p>
+            <p className="preset-note"><strong>v0.8.1 workflow:</strong> Compare plans · focus with exclude/limit · map a working tree · verify the change · diagnose installs.</p>
             <div className="button-row premium-hero-actions">
               <Link className="button primary" href="/demo">Try FixMap <ArrowRight size={18} weight="bold" aria-hidden /></Link>
               <Link className="button secondary" href="/product">See how it works <ArrowRight size={18} weight="bold" aria-hidden /></Link>
