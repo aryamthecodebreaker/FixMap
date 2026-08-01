@@ -310,7 +310,9 @@ describe("scanRepo", () => {
 
     const repo = await scanRepo({ repoRoot: root });
 
-    expect(repo.packageScripts).toContainEqual({ name: "test", command: "vitest run", packageDir: "" });
+    expect(repo.packageScripts).toContainEqual(
+      expect.objectContaining({ name: "test", command: "vitest run", packageDir: "" })
+    );
     expect(repo.diagnostics.map((entry) => entry.code)).not.toContain("package-json-invalid");
   });
 

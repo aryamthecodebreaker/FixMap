@@ -699,8 +699,8 @@ function manifestTestCommand(language, packageDir, files = []) {
     }
     if (manifest.packageDir) {
       return {
-        command: `go test ./...`,
-        reason: `nearest module (${manifest.packageDir}) declared by ${manifest.path}; run it from that directory`
+        command: `go test -C ${manifest.packageDir} ./...`,
+        reason: `nearest module (${manifest.packageDir}) declared by ${manifest.path}`
       };
     }
     return { command: "go test ./...", reason: "go.mod at the repository root" };
@@ -1491,16 +1491,30 @@ function buildReportFromRepo(repo, input) {
     analysis: {
       grounding,
       ranking,
-      nextAction: buildNextAction(grounding, ranking, contextFiles, testRoutes.some((route) => route.relatedFiles.length > 0))
+      // Only a test route's related paths are tests. A lint, typecheck or Go route fills the
+      // same field with implementation paths, and counting those made nextAction promise
+      // "and its routed tests" when nothing of the sort had been routed.
+      nextAction: buildNextAction(grounding, ranking, contextFiles, testRoutes.some((route) => route.kind === "test" && route.relatedFiles.length > 0))
     }
   };
 }
 function findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes) {
-  if (testRoutes.length > 0 || !contextFiles.some((entry) => repo.files.find((file) => file.path === entry.path)?.kind === "code")) {
+  if (!contextFiles.some((entry) => repo.files.find((file) => file.path === entry.path)?.kind === "code")) {
+    return [];
+  }
+  if (testRoutes.length > 0) {
+    const routedTests = testRoutes.filter((route) => route.kind === "test");
+    if (routedTests.length > 0 && routedTests.every((route) => route.relatedFiles.length === 0)) {
+      return [{
+        code: "no-related-tests",
+        severity: "info",
+        message: `A test command was routed (\`${routedTests[0].command}\`) but no existing test file covers the ranked context, so the command will not exercise this change until one is written.`
+      }];
+    }
     return [];
   }
   const { language, evidence } = detectPrimaryLanguage(repo);
-  const runner = suggestedRunner(language, repo.files);
+  const runner = suggestedRunner(language, repo.files) ?? configuredJsRunner(repo.files);
   return [{
     code: "no-test-route",
     severity: "warning",
@@ -1578,29 +1592,64 @@ function scopeToPackage(paths, packageDir) {
   const prefix = `${packageDir}/`;
   return paths.filter((path) => path.startsWith(prefix));
 }
+var JS_RUNNER_CONFIGS = [
+  [/^vitest\.config\.[cm]?[jt]s$/, "npx vitest run"],
+  [/^jest\.config\.([cm]?[jt]s|json)$/, "npx jest"],
+  [/^playwright\.config\.[cm]?[jt]s$/, "npx playwright test"],
+  [/^karma\.conf\.[cm]?[jt]s$/, "npx karma start"]
+];
+function configuredJsRunner(files) {
+  const names = new Set(files.map((file) => file.path.split("/").pop()?.toLowerCase() ?? ""));
+  for (const [pattern, runner] of JS_RUNNER_CONFIGS) {
+    if ([...names].some((name) => pattern.test(name)))
+      return runner;
+  }
+  return void 0;
+}
+var SCRIPT_PRIORITY = { test: 0, validation: 10 };
+var VALIDATION_SCRIPTS = /* @__PURE__ */ new Set(["typecheck", "check", "lint"]);
+function classifyScript(name) {
+  const lower = name.toLowerCase();
+  if (lower === "test" || lower === "tests")
+    return { category: "test", exact: true };
+  if (/^tests?:[a-z0-9:_-]+$/.test(lower))
+    return { category: "test", exact: false };
+  if (VALIDATION_SCRIPTS.has(lower))
+    return { category: "validation", exact: true };
+  return void 0;
+}
 function buildTestRoutes(repo, contextPaths) {
   const codeContextPaths = contextPaths.filter((path) => repo.files.find((file) => file.path === path)?.kind === "code");
   if (codeContextPaths.length === 0) {
     return [];
   }
   const relatedTests = findRelatedTests(repo, contextPaths);
-  const scriptPriority = /* @__PURE__ */ new Map([["test", 0], ["typecheck", 1], ["check", 2], ["lint", 3]]);
-  const candidates = repo.packageScripts.filter((script) => scriptPriority.has(script.name)).map((script) => ({
+  const candidates = repo.packageScripts.map((script) => ({ script, kind: classifyScript(script.name) })).filter((candidate) => candidate.kind !== void 0).map(({ script, kind }) => ({
     script,
+    kind,
     proximity: packageProximity(script.packageDir, codeContextPaths),
-    priority: scriptPriority.get(script.name) ?? 99
+    priority: SCRIPT_PRIORITY[kind.category] + (kind.exact ? 0 : 1)
   })).filter((candidate) => candidate.proximity >= 0).sort((a, b) => b.proximity - a.proximity || a.priority - b.priority || a.script.packageDir.localeCompare(b.script.packageDir));
+  const ordered = [
+    ...candidates.filter((candidate) => candidate.kind.category === "test"),
+    ...candidates.filter((candidate) => candidate.kind.category !== "test")
+  ];
   const commands = /* @__PURE__ */ new Set();
   const routes = [];
-  for (const { script } of candidates) {
-    const command = formatScriptCommand(repo.packageManager, script.packageDir, script.name);
+  for (const { script, kind } of ordered) {
+    const command = formatScriptCommand(repo.packageManager, script.packageDir, script.name, script.packageName);
     if (commands.has(command))
       continue;
     commands.add(command);
+    const isTest = kind.category === "test";
     routes.push({
       command,
+      kind: isTest ? "test" : "validation",
       reason: `${script.packageDir ? `nearest package (${script.packageDir})` : "repository root"} script named ${script.name}`,
-      relatedFiles: scopeToPackage(script.name === "test" ? relatedTests : codeContextPaths, script.packageDir)
+      // A lint route's related paths are the implementation it would check, never tests, so
+      // labeling them the same way let `no-test-changed` cite an implementation file as the
+      // test the plan had routed.
+      relatedFiles: scopeToPackage(isTest ? relatedTests : codeContextPaths, script.packageDir)
     });
     if (routes.length === 3)
       break;
@@ -1622,8 +1671,11 @@ function buildManifestTestRoute(repo, codeContextPaths, relatedTests) {
   }
   return {
     command: route.command,
+    kind: "test",
     reason: route.reason,
-    relatedFiles: scopeToPackage(relatedTests.length > 0 ? relatedTests : codeContextPaths, crateDir)
+    // Only real test files count as related here. Falling back to the implementation made
+    // nextAction claim routed tests for a Go module that had none.
+    relatedFiles: scopeToPackage(relatedTests, crateDir)
   };
 }
 function nearestManifestDir(repo, contextPaths, manifest) {
@@ -1680,15 +1732,16 @@ function packageProximity(packageDir, contextPaths) {
   const matches = contextPaths.filter((path) => path === packageDir || path.startsWith(`${packageDir}/`));
   return matches.length > 0 ? 10 + packageDir.split("/").length : -1;
 }
-function formatScriptCommand(manager, packageDir, script) {
+function formatScriptCommand(manager, packageDir, script, packageName) {
   if (!packageDir)
     return `${manager} run ${script}`;
   if (manager === "npm")
     return `npm --prefix ${packageDir} run ${script}`;
   if (manager === "pnpm")
     return `pnpm --dir ${packageDir} run ${script}`;
-  if (manager === "yarn")
-    return `yarn --cwd ${packageDir} ${script}`;
+  if (manager === "yarn") {
+    return packageName ? `yarn workspace ${packageName} run ${script}` : `yarn --cwd ${packageDir} ${script}`;
+  }
   return `bun --cwd ${packageDir} run ${script}`;
 }
 function findRelatedTests(repo, contextPaths) {
@@ -2041,10 +2094,12 @@ async function readPackageScripts(root, files, diagnostics) {
     try {
       const parsed = JSON.parse(decoded.text);
       const packageDir = normalizePath(dirname(manifest.path));
+      const packageName = typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : void 0;
       scripts.push(...Object.entries(parsed.scripts ?? {}).map(([name, command]) => ({
         name,
         command,
-        packageDir: packageDir === "." ? "" : packageDir
+        packageDir: packageDir === "." ? "" : packageDir,
+        ...packageName ? { packageName } : {}
       })));
     } catch {
       diagnostics.push({
