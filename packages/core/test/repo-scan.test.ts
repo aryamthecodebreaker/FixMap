@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -296,5 +296,53 @@ describe("scanRepo", () => {
 
     expect(paths).toContain("src/index.ts");
     expect(paths).not.toContain("node_modules/left-pad/index.js");
+  });
+
+  // A sparse checkout lists paths in the index that are not on disk. Dropping them silently
+  // let a partial scan read as a complete one, and --explain blamed .gitignore for a path
+  // git tracks.
+  it("diagnoses tracked paths that are not present on disk", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-sparse-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src", "present.ts"), "export const present = 1;\n");
+    await writeFile(join(root, "src", "absent.ts"), "export const absent = 2;\n");
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-m", "initial"], { cwd: root });
+    await rm(join(root, "src", "absent.ts"));
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.map((file) => file.path)).toEqual(["src/present.ts"]);
+    expect(repo.trackedFiles).toContain("src/absent.ts");
+    const diagnostic = repo.diagnostics.find((entry) => entry.code === "tracked-paths-absent");
+    expect(diagnostic?.message).toContain("1 tracked path is not present on disk");
+  });
+
+  // A symlink beside its target is two tracked paths and one file. `stat` follows the link,
+  // so both used to rank at an identical score and one module filled two rows.
+  it("ranks a symlinked file once and names the path it collapsed", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-symlink-"));
+    await mkdir(join(root, "real-src"), { recursive: true });
+    await writeFile(join(root, "real-src", "reset.ts"), "export const alphaValue = 1;\n");
+    try {
+      await symlink(join(root, "real-src", "reset.ts"), join(root, "link.ts"), "file");
+    } catch {
+      // An unprivileged Windows session cannot create symlinks. The Linux CI run covers it.
+      return;
+    }
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+    await exec("git", ["add", "-A"], { cwd: root });
+    await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.map((file) => file.path)).toEqual(["real-src/reset.ts"]);
+    const diagnostic = repo.diagnostics.find((entry) => entry.code === "duplicate-real-path");
+    expect(diagnostic?.message).toContain("link.ts -> real-src/reset.ts");
   });
 });

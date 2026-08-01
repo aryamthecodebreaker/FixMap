@@ -33,6 +33,8 @@ export type ScanDiagnostic = {
     | "diff-unavailable"
     | "package-json-invalid"
     | "scan-limit-reached"
+    | "tracked-paths-absent"
+    | "duplicate-real-path"
     | "repo-root-missing"
     | "gated-test-skipped"
     | "remote-issue-fetched"

@@ -68,6 +68,26 @@ describe("buildPathExcluder", () => {
     expect(excluder.excludes("docs/private/a.md")).toBe(true);
     expect(excluder.excludes("docs/public/a.md")).toBe(false);
   });
+
+  // Repository paths are always `/`-separated, so a pattern pasted from Explorer or
+  // PowerShell used to compile to a literal backslash and match nothing at all. CI runs on
+  // Linux, so these assert on the pattern string directly rather than on a real path.
+  it.each([
+    ["src\\a.ts", "src/a.ts", true],
+    ["apps\\web", "apps/web/app/reset-copy.ts", true],
+    ["docs\\**", "docs/guide.ts", true],
+    ["/docs\\public", "docs/public/a.md", true],
+    ["!docs\\public\\**", "docs/public/a.md", false]
+  ])("normalizes the Windows separator in %j against %j", (pattern, path, expected) => {
+    expect(buildPathExcluder([pattern]).excludes(path)).toBe(expected);
+  });
+
+  it("collapses a backslash pattern onto its forward-slash twin", () => {
+    const excluder = buildPathExcluder(["apps\\web", "apps/web"]);
+
+    expect(excluder.patterns).toEqual(["apps/web"]);
+    expect(excluder.reasonFor("apps/web/app/reset-copy.ts")).toBe("apps/web");
+  });
 });
 
 describe("exclusions in ranking", () => {

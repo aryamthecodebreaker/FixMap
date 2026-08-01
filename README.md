@@ -203,7 +203,7 @@ npx -y @aryam/fixmap@latest plan --issue "password reset emails fail" \
   --exclude apps/web --exclude 'docs/**' --limit 3
 ```
 
-Patterns can also live in a `.fixmapignore` file at the repository root, one per line. FixMap supports the documented subset `*`, `**`, `?`, root-leading `/`, directory-trailing `/`, `#` comments, and ordered `!` negation; bracket characters are literals, not character classes, and FixMap does not claim every gitignore extension. File and CLI patterns combine and are deduplicated. Omitting MCP `exclude` means “use `.fixmapignore` only”; sending patterns adds to that file. `--explain` reports an excluded file as excluded, naming the effective pattern, rather than claiming it scored too low.
+Patterns can also live in a `.fixmapignore` file at the repository root, one per line. FixMap supports the documented subset `*`, `**`, `?`, root-leading `/`, directory-trailing `/`, `#` comments, and ordered `!` negation; bracket characters are literals, not character classes, and FixMap does not claim every gitignore extension. Patterns use `/` as the separator on every platform, and a Windows-style `src\app` is normalized to `src/app` so a path pasted from Explorer or PowerShell still matches — which also means `\` does not escape anything. File and CLI patterns combine and are deduplicated. Omitting MCP `exclude` means “use `.fixmapignore` only”; sending patterns adds to that file. `--explain` reports an excluded file as excluded, naming the effective pattern, rather than claiming it scored too low.
 
 `--limit` caps how many context files come back. The useful signal is usually the top one to three; the rest burns agent context and invites drive-by edits.
 
