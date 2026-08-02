@@ -491,9 +491,14 @@ export async function buildReportForRepository(
     source.kind === "github" &&
     (input.diffSpec !== undefined || input.baseRef !== undefined || input.headRef !== undefined || input.workingTree || input.includeUntracked)
   ) {
+    // The clone is `--depth 1`, so there is no history for a range to resolve against. This
+    // fails early and says why, rather than cloning for a minute and then reporting
+    // `diff-unavailable` on refs that plainly exist upstream.
     throw new RepositorySourceError(
-      "Git diff options are not supported with a temporary GitHub URL checkout. Working-tree options are also local-only. " +
-      "Use --issue only, or clone the repository locally before using diff or working-tree inputs."
+      "Git diff and working-tree options need a local checkout. A GitHub URL is fetched as a " +
+      "single-commit shallow clone of the default branch, so it has no history for a diff range " +
+      "to resolve against and no working tree to compare. Clone the repository and pass --repo " +
+      "with a local path, or use --issue alone to rank against the default branch tip."
     );
   }
 

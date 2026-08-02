@@ -2206,7 +2206,7 @@ async function readWorkingTree(repoRoot, includeUntracked, diagnostics) {
     diagnostics.push({
       code: "working-tree-diff",
       severity: "info",
-      message: changedFiles.length === 0 ? "Working-tree mode found no changes against HEAD; results use the task text only." : `Working-tree mode used ${changedFiles.length} changed ${changedFiles.length === 1 ? "path" : "paths"} against HEAD${includeUntracked ? ", including untracked files" : " (untracked files excluded; pass --include-untracked to add them)"}.`,
+      message: changedFiles.length === 0 ? "Working-tree mode found no changes against HEAD; results use the task text only." : `Working-tree mode used ${changedFiles.length} changed ${changedFiles.length === 1 ? "path" : "paths"} against HEAD${includeUntracked ? ", including untracked files" : " (untracked files are not counted as changed, though they still rank; pass --include-untracked to count them)"}.`,
       paths: changedFiles.slice(0, 8)
     });
     return { changedFiles, diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS) };

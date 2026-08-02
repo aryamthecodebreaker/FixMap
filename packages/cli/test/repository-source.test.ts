@@ -454,7 +454,7 @@ describe("repository acquisition", () => {
       repo: "https://github.com/owner/repository",
       issueText: "password reset emails fail",
       diffSpec: "main...HEAD"
-    }, { clonePublicRepository })).rejects.toThrow("Git diff options are not supported");
+    }, { clonePublicRepository })).rejects.toThrow("need a local checkout");
 
     expect(clonePublicRepository).not.toHaveBeenCalled();
   });
