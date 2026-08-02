@@ -173,6 +173,52 @@ describe("fixmap mcp server", () => {
     expect(comparison.confidenceChanged).toHaveLength(1);
   });
 
+  it("rejects a contextFiles-only empty object instead of treating it as a report", async () => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_compare",
+      arguments: {
+        previous: { contextFiles: [] },
+        current: { contextFiles: [] },
+        format: "json"
+      }
+    });
+
+    expect(result.isError).toBe(true);
+    expect((result.content as Array<{ text: string }>)[0]?.text).toContain("complete FixMap report envelope");
+  });
+
+  it("still accepts complete reports that legitimately have no context files", async () => {
+    const client = await connectClient();
+    const empty = { summary: "No matches", contextFiles: [], testRoutes: [], risks: [], changedFiles: [], diagnostics: [] };
+    const result = await client.callTool({
+      name: "fixmap_compare",
+      arguments: { previous: empty, current: empty, format: "json" }
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(JSON.parse((result.content as Array<{ text: string }>)[0]!.text).unchanged).toEqual([]);
+  });
+
+  it.each([
+    [{ path: "" }, "path"],
+    [{ path: "a.ts", rank: 0 }, "rank"],
+    [{ path: "a.ts", score: "ten" }, "score"],
+    [{ path: "a.ts", confidence: "certain" }, "confidence"]
+  ])("rejects malformed optional comparison fields in %j", async (entry, expectedField) => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_compare",
+      arguments: {
+        previous: { contextFiles: [entry] },
+        current: { contextFiles: [{ path: "a.ts" }] }
+      }
+    });
+
+    expect(result.isError).toBe(true);
+    expect((result.content as Array<{ text: string }>)[0]?.text).toContain(expectedField);
+  });
+
   it("compares report file paths through MCP like the CLI", async () => {
     const client = await connectClient();
     const directory = await mkdtemp(join(tmpdir(), "fixmap-mcp-compare-"));
