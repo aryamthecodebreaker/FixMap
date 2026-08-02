@@ -6,6 +6,32 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://usefixmap.vercel.app/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.8.7 - 2026-08-02
+
+### Fixed
+
+- A pretty-printed vendored dependency bundle could rank first at high confidence. It escaped content-based bundle detection — 96 characters per line against a 400-character threshold, and one bundler marker against a threshold of two — and it escaped generated-duplicate filtering, which by design only drops a generated path that has a maintained source twin. A vendored dependency has none, so it fell through both. Detection now accepts a single marker when the path is itself conventional generated output, such as a `compiled/` segment (#446).
+
+### Evidence
+
+- Added a pretty-printed vendored-bundle case to the adversarial suite, which was previously all minified fixtures. The suite is 9/9 with a false-confidence rate of 0.0.
+- Chalk's `source/vendor/supports-color/index.js` still ranks first for a colour-detection task. It is a vendored path whose content genuinely is the only implementation of the behavior, and it is the counterexample any path-based rule has to keep passing.
+- Held-out remains 7/12 Top-1, 8/12 Top-3, 9/12 Top-5; external remains 11/16, 16/16, 16/16.
+
+### Note on the gap after 0.8.6
+
+The fix above was merged to `main` before this release, and for a short window the published changelog described it as shipped while npm still served 0.8.6 without it. That is the #274 defect with its polarity reversed: the site advertising a fix the released artifact lacks, rather than an accuracy figure it no longer achieves. The website changelog no longer has an unreleased state — every entry on it is a version you can install.
+
+### Installation
+
+```bash
+npm install --global @aryam/fixmap@0.8.7
+fixmap doctor
+fixmap chalk/chalk#624
+```
+
+The npm packages, MCP Registry entry, GitHub tag/release, Action tag, and production site must all resolve to 0.8.7 before the release is considered complete.
+
 ## 0.8.6 - 2026-08-02
 
 ### Fixed

@@ -21,7 +21,15 @@ type ChangeGroup = {
   items: string[];
 };
 
+/**
+ * Every entry here is a version that is published and installable. There is deliberately no
+ * "unreleased" or "coming next" state: an entry describing work that has only landed on main
+ * tells a reader a fix is available when `npm install` will not give it to them. That is the
+ * defect behind #274 pointed the other way — and it happened here once already, with the
+ * vendored-bundle fix listed as shipped while npm still served the version without it.
+ */
 type Release = {
+  /** A published semver version. Never "Unreleased". */
   version: string;
   date: string;
   label?: string;
@@ -31,10 +39,10 @@ type Release = {
 
 const releases: Release[] = [
   {
-    version: "Unreleased",
-    date: "Pending release",
-    label: "In progress",
-    summary: "Improvements that are tested and ready for the next package release.",
+    version: "0.8.7",
+    date: "August 2, 2026",
+    label: "Latest release",
+    summary: "Readable vendored dependency bundles stop posing as edit targets.",
     groups: [
       {
         label: "Fixed",
@@ -54,7 +62,6 @@ const releases: Release[] = [
   {
     version: "0.8.6",
     date: "August 2, 2026",
-    label: "Latest release",
     summary: "Cleaner implementation rankings without hiding legitimate UI or generated-artifact work.",
     groups: [
       {
@@ -214,7 +221,7 @@ export default function ChangelogPage() {
           <nav>
             {releases.map((release) => (
               <a key={release.version} href={`#${releaseId(release.version)}`}>
-                <span>{release.version === "Unreleased" ? "Next" : `v${release.version}`}</span>
+                <span>v{release.version}</span>
                 <small>{release.date}</small>
               </a>
             ))}
@@ -227,7 +234,7 @@ export default function ChangelogPage() {
               <header className="release-heading">
                 <div>
                   <p>{release.date}</p>
-                  <h2>{release.version === "Unreleased" ? "Coming next" : `FixMap v${release.version}`}</h2>
+                  <h2>FixMap v{release.version}</h2>
                 </div>
                 {release.label ? <span>{release.label}</span> : null}
               </header>
