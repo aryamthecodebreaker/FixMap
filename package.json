@@ -1,6 +1,6 @@
 {
   "name": "fixmap-workspace",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "private": true,
   "description": "Local-first repo context for coding agents: paste a GitHub issue URL to get ranked files, test routes, and risks.",
   "license": "MIT",

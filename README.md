@@ -73,8 +73,8 @@ npx -y @aryam/fixmap@latest doctor
 Remove the stale copy with `npm uninstall -g @aryam/fixmap`, or test an exact version in an isolated prefix and invoke that prefix's shim directly. This PowerShell sequence cannot be redirected to an older package in the current directory or one of its parents:
 
 ```powershell
-$fixmapPrefix = Join-Path $env:TEMP "fixmap-cli-0.8.3"
-npm install --global --prefix $fixmapPrefix @aryam/fixmap@0.8.3
+$fixmapPrefix = Join-Path $env:TEMP "fixmap-cli-0.8.4"
+npm install --global --prefix $fixmapPrefix @aryam/fixmap@0.8.4
 & "$fixmapPrefix\fixmap.cmd" --version
 ```
 
@@ -278,8 +278,8 @@ npx -y @aryam/fixmap@latest doctor
 ```text
 # FixMap Doctor
 
-- ok  Running version: 0.8.3
-- PROBLEM  Global install: 0.3.1 (this process is 0.8.3)
+- ok  Running version: 0.8.4
+- PROBLEM  Global install: 0.3.1 (this process is 0.8.4)
     A globally installed fixmap shadows the version npx was asked for. Run
     `npm uninstall -g @aryam/fixmap` or update the global installation. For a
     clean pinned run, use the isolated-prefix command above.
@@ -362,7 +362,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.8.3
+        uses: aryamthecodebreaker/FixMap@v0.8.4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -373,7 +373,7 @@ To close the plan→edit→verify loop without leaving GitHub, save the plan as 
 
 ```yaml
       - id: plan
-        uses: aryamthecodebreaker/FixMap@v0.8.3
+        uses: aryamthecodebreaker/FixMap@v0.8.4
         with:
           format: json
       - run: echo '${{ steps.plan.outputs.report }}' > fixmap-plan.json
@@ -383,7 +383,7 @@ To close the plan→edit→verify loop without leaving GitHub, save the plan as 
           path: fixmap-plan.json
 
       # In a later run, after the fix is pushed:
-      - uses: aryamthecodebreaker/FixMap@v0.8.3
+      - uses: aryamthecodebreaker/FixMap@v0.8.4
         with:
           mode: verify
           report-path: fixmap-plan.json
@@ -465,6 +465,10 @@ Read the full [benchmark methodology and scanner measurements](docs/BENCHMARKS.m
 ```bash
 npm run evaluate:heldout
 ```
+
+## What changed in v0.8.4
+
+v0.8.4 closes the last installation defect found by the independent post-release audit. Doctor now exits non-zero when npm records an exact requested FixMap version but a local or ancestor `node_modules` installation runs a different version. The installation guide no longer calls npm exec unambiguous in that state; its reproducible path uses an isolated prefix and invokes that prefix's shim directly (#437).
 
 ## What changed in v0.8.3
 

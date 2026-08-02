@@ -6,6 +6,28 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://usefixmap.vercel.app/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.8.4 - 2026-08-02
+
+### Fixed
+
+- `fixmap doctor` now detects when npm requested an exact FixMap version but executed a different local or ancestor installation. It reports both versions and exits non-zero instead of calling the shadowed process healthy (#437).
+- The reproducible installation path now uses an isolated npm prefix and invokes that prefix's shim directly. The previous npm exec recommendation could itself be redirected to an older ancestor installation on Windows.
+
+### Evidence
+
+- Reproduced the failure against the published v0.8.3 package with a real 0.8.1 ancestor install before changing source.
+- Added regression coverage for mismatched, matching, and non-exact npm package requests. All 417 workspace tests, typechecking, lint, production builds, the production security audit, Action bundle parity, smoke tests, held-out/external/adversarial gates, and the scanner benchmark pass.
+
+### Installation
+
+```bash
+npm install --global @aryam/fixmap@0.8.4
+fixmap doctor
+fixmap --version
+```
+
+The npm packages, MCP Registry entry, GitHub tag/release, Action tag, and production site must all resolve to 0.8.4 before the release is considered complete.
+
 ## 0.8.3 - 2026-08-02
 
 ### Fixed
