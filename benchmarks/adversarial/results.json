@@ -1,6 +1,6 @@
 {
-  "cases": 8,
-  "passed": 8,
+  "cases": 9,
+  "passed": 9,
   "falseConfidenceRate": 0,
   "results": [
     {
@@ -128,6 +128,21 @@
         "flat-ranking"
       ],
       "contextFileCount": 8,
+      "overconfident": false,
+      "groundingOk": true,
+      "diagnosticOk": true,
+      "passed": true
+    },
+    {
+      "id": "pretty-printed-vendored-bundle",
+      "kind": "generated-output",
+      "maxConfidence": "low",
+      "topConfidence": null,
+      "grounding": "descriptive",
+      "diagnostics": [
+        "no-context-match"
+      ],
+      "contextFileCount": 0,
       "overconfident": false,
       "groundingOk": true,
       "diagnosticOk": true,

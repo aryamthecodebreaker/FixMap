@@ -16,9 +16,10 @@
 // fixtures contain the fabricated identifiers, so running these against this
 // repository would resolve them and silently pass.
 
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { materializePinnedRepository } from "./lib/external-cache.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -40,8 +41,16 @@ const CHECKOUT_ENVIRONMENT_CODES = new Set(["tracked-paths-absent", "duplicate-r
 
 const results = [];
 for (const testCase of dataset.cases) {
-  const dir = await materializePinnedRepository(testCase);
-  const report = await buildFixMapReport({ repoRoot: dir, issueText: testCase.task });
+  const fixtureDir = testCase.fixture ? await materializeFixture(testCase.fixture) : null;
+  const dir = fixtureDir ?? await materializePinnedRepository(testCase);
+  let report;
+  try {
+    report = await buildFixMapReport({ repoRoot: dir, issueText: testCase.task });
+  } finally {
+    if (fixtureDir) {
+      await rm(fixtureDir, { recursive: true, force: true });
+    }
+  }
 
   const topConfidence = report.contextFiles[0]?.confidence ?? null;
   const grounding = report.analysis?.grounding?.specificity ?? null;
@@ -129,4 +138,36 @@ if (process.argv.includes("--gate") && failures.length > 0) {
 
 if (failed) {
   process.exit(1);
+}
+
+async function materializeFixture(name) {
+  if (name !== "pretty-printed-vendored-bundle") {
+    throw new Error(`Unknown adversarial fixture: ${name}`);
+  }
+
+  const root = await mkdtemp(join(tmpdir(), "fixmap-adversarial-bundle-"));
+  try {
+    const compiledDir = join(root, "compiled", "react-dom", "cjs");
+    const sourceDir = join(root, "src", "router");
+    await mkdir(compiledDir, { recursive: true });
+    await mkdir(sourceDir, { recursive: true });
+
+    const bundle = [
+      ...Array.from(
+        { length: 150 },
+        (_, index) => `function transitionState${index}() { return "experimental transition state"; }`
+      ),
+      "//# sourceMappingURL=react-dom.development.js.map"
+    ].join("\n");
+    await writeFile(join(compiledDir, "react-dom.development.js"), bundle, "utf8");
+    await writeFile(
+      join(sourceDir, "render.ts"),
+      "export function renderRoute() { return renderPage(); }\n",
+      "utf8"
+    );
+    return root;
+  } catch (error) {
+    await rm(root, { recursive: true, force: true });
+    throw error;
+  }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankContextFiles } from "../src/rank.js";
+import { rankContextFiles, REPORT_SCORE_CUTOFF } from "../src/rank.js";
 import type { RepoMap } from "../src/types.js";
 
 describe("rankContextFiles", () => {
@@ -1208,6 +1208,61 @@ describe("rankContextFiles", () => {
     expect(ranked[0]?.path).toBe("src/auth/reset-password.ts");
     expect(ranked.find((file) => file.path === "public/assets/app.js")?.reasons)
       .toContain("machine-generated bundle deprioritized");
+  });
+
+  it("deprioritizes a pretty-printed vendored bundle with one marker and no source twin", () => {
+    const bundle = [
+      ...Array.from(
+        { length: 150 },
+        (_, index) =>
+          `function transitionState${index}() { return "experimental transition state"; }`
+      ),
+      "//# sourceMappingURL=react-dom.development.js.map"
+    ].join("\n");
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "src/router/render.ts",
+          extension: ".ts",
+          sizeBytes: 120,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function renderRoute() { return renderPage(); }"
+        },
+        {
+          path: "compiled/react-dom/cjs/react-dom.development.js",
+          extension: ".js",
+          sizeBytes: bundle.length,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: bundle
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(
+      repo,
+      { issueText: "experimental transition state" },
+      8,
+      Number.NEGATIVE_INFINITY
+    );
+    const vendoredBundle = ranked.find(
+      (file) => file.path === "compiled/react-dom/cjs/react-dom.development.js"
+    );
+
+    expect(bundle.length).toBeGreaterThan(2_000);
+    expect(bundle.length / bundle.split("\n").length).toBeLessThan(100);
+    expect(vendoredBundle?.score).toBeLessThan(REPORT_SCORE_CUTOFF);
+    expect(vendoredBundle?.confidence).toBe("low");
+    expect(vendoredBundle?.reasons).toContain("machine-generated bundle deprioritized");
   });
 
   it("leaves readable vendored source alone, however long the file", () => {

@@ -10,11 +10,11 @@ A wrong answer costs an agent one wasted file read. A wrong answer delivered wit
 
 | Result | Value |
 | --- | ---: |
-| Cases | 8 |
-| Passed | 8 |
+| Cases | 9 |
+| Passed | 9 |
 | **False-confidence rate** | **0.0** |
 
-Measured 2026-07-26. Per-case output is checked in at [`results.json`](results.json).
+Measured 2026-08-02. Per-case output is checked in at [`results.json`](results.json).
 
 ## The cases
 
@@ -28,8 +28,9 @@ Measured 2026-07-26. Per-case output is checked in at [`results.json`](results.j
 | `absent-feature-surface` | chalk | A CLI flag for a package that exposes no CLI |
 | `runtime-only-symptom` | pino | A timing-dependent concurrency symptom with no static trace |
 | `documentation-term-flood` | webpack | Only broad development vocabulary that instruction and documentation files carry in volume |
+| `pretty-printed-vendored-bundle` | Synthetic compiled dependency | A readable development bundle with one source-map marker and no maintained source twin |
 
-Cases reuse the checkouts already pinned by the accuracy suites, so this suite clones nothing new.
+External cases reuse the checkouts already pinned by the accuracy suites, so this suite clones nothing new. The generated-output case uses a deterministic temporary fixture and removes it after every run.
 
 ## Why this is not only unit tests
 
