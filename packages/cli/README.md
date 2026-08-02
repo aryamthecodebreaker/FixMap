@@ -6,16 +6,17 @@ FixMap turns an issue, prompt, or git diff into ranked context files, test route
 
 ## Quick start
 
-Paste a public GitHub issue URL; FixMap fetches its task context and infers the repository:
+Install FixMap once, then paste a public GitHub issue URL. FixMap fetches its task context and infers the repository:
 
 ```bash
-npx -y @aryam/fixmap@latest plan --issue https://github.com/chalk/chalk/issues/624
+npm install --global @aryam/fixmap@latest
+fixmap plan --issue https://github.com/chalk/chalk/issues/624
 ```
 
 Or supply your own task and public repository:
 
 ```bash
-npx -y @aryam/fixmap plan \
+fixmap plan \
   --issue "support public GitHub issue URLs" \
   --repo https://github.com/aryamthecodebreaker/FixMap
 ```
@@ -23,24 +24,24 @@ npx -y @aryam/fixmap plan \
 For private source or working-tree changes, run from a local JavaScript or TypeScript repository:
 
 ```bash
-npx @aryam/fixmap plan --issue "password reset emails fail"
+fixmap plan --issue "password reset emails fail"
 ```
 
 Use a real branch diff:
 
 ```bash
-npx @aryam/fixmap plan --diff main...HEAD
+fixmap plan --diff main...HEAD
 ```
 
 Machine-readable output:
 
 ```bash
-npx @aryam/fixmap plan --base main --head HEAD --format json --output fixmap-report.json
+fixmap plan --base main --head HEAD --format json --output fixmap-report.json
 ```
 
 Public GitHub issue, pull request, and repository URL modes are available in the CLI and MCP server for issue-only analysis. FixMap fetches task context anonymously, shallow-clones the default branch into an isolated temporary directory, disables credentials and repository execution surfaces, and removes the checkout before returning. Clone locally to use `--diff`, `--base`, `--head`, or working-tree inputs.
 
-For long task text, use `--issue-file task.md`, `--issue @task.md`, or pipe text to `--issue -`. If a stale global, local, or ancestor installation shadows a pinned package on Windows, run `fixmap doctor` and update or remove the stale install. For a reproducible clean test, install the exact version into an isolated npm prefix and invoke that prefix's `fixmap` shim directly; the repository README includes complete PowerShell and POSIX commands.
+For long task text, use `--issue-file task.md`, `--issue @task.md`, or pipe text to `--issue -`. A one-off `npx -y @aryam/fixmap@latest ...` run is also available, but npm may choose an existing project-local FixMap first. Run `fixmap doctor`, treat its printed running version as authoritative, and update or remove a stale install. For a reproducible clean test, install the exact version into an isolated npm prefix and invoke that prefix's `fixmap` shim directly; the repository README includes complete PowerShell and POSIX commands.
 
 ## MCP server
 
@@ -49,7 +50,7 @@ FixMap ships as a Model Context Protocol server with `fixmap_plan` and `fixmap_v
 Claude Code:
 
 ```bash
-claude mcp add fixmap -- npx -y @aryam/fixmap mcp
+claude mcp add fixmap -- fixmap mcp
 ```
 
 Cursor, Windsurf, or any MCP client:
@@ -58,8 +59,8 @@ Cursor, Windsurf, or any MCP client:
 {
   "mcpServers": {
     "fixmap": {
-      "command": "npx",
-      "args": ["-y", "@aryam/fixmap", "mcp"]
+      "command": "fixmap",
+      "args": ["mcp"]
     }
   }
 }
