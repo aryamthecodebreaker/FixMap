@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { buildPathExcluder, buildReportFromRepo, compareReports, explainFile, verifyPlan } from "@aryam/fixmap-core/browser";
 import { sampleRepo, sampleRepoWithChanges, samplePaths } from "./sample-repo";
 
@@ -50,26 +50,60 @@ export function Demo() {
   const [excludeBuild, setExcludeBuild] = useState(false);
   const [workingTree, setWorkingTree] = useState(false);
 
+  // The wording the previous plan ran with, so Compare answers the question its stage asks —
+  // "did refining the task move the real file?" — rather than always diffing against the
+  // first preset. `settled` tracks the last wording that stopped changing, and only a genuine
+  // edit promotes it to the baseline, so the delta survives instead of collapsing to empty as
+  // soon as typing stops. The ref is read inside the effect, never during render.
+  const [baselineTask, setBaselineTask] = useState(presets[0]!.label);
+  const settled = useRef(presets[0]!.label);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (task !== settled.current) {
+        setBaselineTask(settled.current);
+        settled.current = task;
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [task]);
+
   const exclude = useMemo(() => buildPathExcluder(excludeBuild ? ["dist/**"] : []), [excludeBuild]);
   const activeRepo = useMemo(() => workingTree ? sampleRepoWithChanges(scenarios[scenario]!.changed) : sampleRepo, [workingTree, scenario]);
   const report = useMemo(() => buildReportFromRepo(activeRepo, { issueText: task, limit, exclude }), [activeRepo, task, limit, exclude]);
-  const baseline = useMemo(() => buildReportFromRepo(sampleRepo, { issueText: presets[0]!.label, limit, exclude }), [limit, exclude]);
+  // Built on the same repository as the current plan. Diffing a clean-tree baseline against a
+  // working-tree plan moved two variables at once and labeled the result a task refinement.
+  const baseline = useMemo(
+    () => buildReportFromRepo(activeRepo, { issueText: baselineTask, limit, exclude }),
+    [activeRepo, baselineTask, limit, exclude]
+  );
   const comparison = useMemo(() => compareReports(baseline, report), [baseline, report]);
+  // Explain re-ranks, so it has to see the tree the plan saw or it explains a ranking that
+  // was never on screen.
   const explanation = useMemo(
-    () => explainFile(sampleRepo, { issueText: task, limit, exclude }, explainTarget),
-    [task, limit, exclude, explainTarget]
+    () => explainFile(activeRepo, { issueText: task, limit, exclude }, explainTarget),
+    [activeRepo, task, limit, exclude, explainTarget]
   );
-  const verification = useMemo(
-    () => verifyPlan(report, sampleRepoWithChanges(scenarios[scenario]!.changed)),
-    [report, scenario]
+  // Verify compares a plan against what changed after it. Injecting scenario changes while
+  // the plan was built on a clean tree let verify contradict the plan beside it.
+  const verifyRepo = useMemo(
+    () => workingTree ? activeRepo : sampleRepoWithChanges(scenarios[scenario]!.changed),
+    [workingTree, activeRepo, scenario]
   );
+  const verification = useMemo(() => verifyPlan(report, verifyRepo), [report, verifyRepo]);
 
   const activePreset = presets.find((preset) => preset.label === task);
+  // Every control on screen has to appear here, or the command someone copies produces a
+  // different ranking from the one they are looking at — which is the one thing a live demo
+  // must not do.
+  const scanFlags =
+    `${limit === 8 ? "" : ` --limit ${limit}`}` +
+    `${excludeBuild ? ' --exclude "dist/**"' : ""}` +
+    `${workingTree ? " --working-tree" : ""}`;
   const command = {
-    plan: `fixmap plan --issue "${truncate(task)}"${workingTree ? " --working-tree" : ""}`,
-    explain: `fixmap plan --issue "${truncate(task)}" --explain ${explainTarget}`,
-    compare: `fixmap plan --issue "${truncate(task)}" --compare before.json`,
-    verify: `fixmap verify --report plan.json --diff main...HEAD`
+    plan: `fixmap plan --issue "${truncate(task)}"${scanFlags}`,
+    explain: `fixmap plan --issue "${truncate(task)}" --explain ${explainTarget}${scanFlags}`,
+    compare: `fixmap plan --issue "${truncate(task)}" --compare before.json${scanFlags}`,
+    verify: `fixmap verify --report plan.json ${workingTree ? "--working-tree" : "--diff main...HEAD"}`
   }[stage];
 
   return (
