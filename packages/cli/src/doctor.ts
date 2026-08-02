@@ -33,6 +33,7 @@ export type DoctorDependencies = {
   globalVersion?: () => Promise<string | undefined>;
   nodeVersion?: () => string;
   modulePath?: () => string;
+  requestedPackage?: () => string | undefined;
 };
 
 export async function runDoctorChecks(dependencies: DoctorDependencies = {}): Promise<DoctorReport> {
@@ -45,6 +46,22 @@ export async function runDoctorChecks(dependencies: DoctorDependencies = {}): Pr
 
   findings.push({ label: "Running version", value: runningVersion, ok: true });
   findings.push({ label: "Resolved from", value: modulePath(), ok: true });
+
+  const requestedPackage = (dependencies.requestedPackage ?? (() => process.env.npm_config_package))();
+  const requestedVersion = exactRequestedVersion(requestedPackage);
+  if (requestedVersion && requestedVersion !== runningVersion) {
+    findings.push({
+      label: "Requested package",
+      value: `${requestedVersion} (this process is ${runningVersion})`,
+      ok: false,
+      advice:
+        `npm requested @aryam/fixmap@${requestedVersion} but ran ${runningVersion}, usually because a local ` +
+        "or ancestor node_modules install shadowed it. Update or remove that install, or use the " +
+        "isolated-prefix command in the README."
+    });
+  } else if (requestedVersion) {
+    findings.push({ label: "Requested package", value: `${requestedVersion} (matches)`, ok: true });
+  }
 
   const binary = await (dependencies.resolveBinary ?? resolveBinary)("fixmap");
   const globalVersion = await (dependencies.globalVersion ?? readGlobalVersion)();
@@ -63,8 +80,8 @@ export async function runDoctorChecks(dependencies: DoctorDependencies = {}): Pr
       ok: false,
       advice:
         "A globally installed fixmap shadows the version npx was asked for. " +
-        "Run `npm uninstall -g @aryam/fixmap`, or invoke the exact version with " +
-        "`npm exec --package=@aryam/fixmap@<version> -- fixmap <command>`."
+        "Run `npm uninstall -g @aryam/fixmap` or update the global installation. " +
+        "For a clean pinned run, use the isolated-prefix command in the README."
     });
   } else if (globalVersion) {
     findings.push({ label: "Global install", value: `${globalVersion} (matches)`, ok: true });
@@ -82,6 +99,13 @@ export async function runDoctorChecks(dependencies: DoctorDependencies = {}): Pr
   });
 
   return { findings, healthy: findings.every((finding) => finding.ok) };
+}
+
+function exactRequestedVersion(packageSpec: string | undefined): string | undefined {
+  const match = packageSpec?.match(
+    /^@aryam\/fixmap@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/
+  );
+  return match?.[1];
 }
 
 export function renderDoctorReport(report: DoctorReport): string {
