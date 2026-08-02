@@ -307,7 +307,7 @@ export function rankContextFiles(
         reasons.push("backup or archived copy deprioritized");
       }
 
-      if (isBundledOutput(file.textSample) && !isChanged && !mentionedPaths.has(file.path)) {
+      if (isBundledOutput(file.textSample, file.path) && !isChanged && !mentionedPaths.has(file.path)) {
         score -= BUNDLED_OUTPUT_PENALTY;
         reasons.push("machine-generated bundle deprioritized");
       }
@@ -599,7 +599,7 @@ function findRegexTokenOverlap(text: string, taskTokens: Set<string>): string[] 
   return [...overlap].slice(0, 2);
 }
 
-function isBundledOutput(textSample: string): boolean {
+function isBundledOutput(textSample: string, path: string): boolean {
   if (textSample.length < MIN_BUNDLE_SAMPLE_BYTES) {
     return false;
   }
@@ -609,10 +609,17 @@ function isBundledOutput(textSample: string): boolean {
   }
 
   // Modern development bundles are often pretty-printed to a few dozen characters per
-  // line, so line length alone misses them. Two independent bundler fingerprints keep
-  // this conservative: readable vendored source with one helper-like identifier is not
-  // penalized, while webpack/esbuild runtime output is.
-  return BUNDLE_MARKERS.filter((marker) => marker.test(textSample)).length >= 2;
+  // line, so line length alone misses them. Two independent fingerprints identify one
+  // anywhere. A single fingerprint is enough only when the path supplies independent
+  // generated-output evidence. That catches Next.js-style `dist/compiled/` bundles while
+  // leaving ordinary readable vendored source, such as chalk's `source/vendor/`, alone.
+  const markerCount = BUNDLE_MARKERS.filter((marker) => marker.test(textSample)).length;
+  return markerCount >= 2 || (markerCount >= 1 && isConventionalBundlePath(path));
+}
+
+function isConventionalBundlePath(path: string): boolean {
+  return isGeneratedPath(path) || path.split("/").slice(0, -1)
+    .some((segment) => segment.toLowerCase() === "compiled");
 }
 
 function isTypeDeclarationPath(path: string): boolean {

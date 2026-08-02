@@ -1142,7 +1142,7 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
       score -= BACKUP_COPY_PENALTY;
       reasons.push("backup or archived copy deprioritized");
     }
-    if (isBundledOutput(file.textSample) && !isChanged && !mentionedPaths.has(file.path)) {
+    if (isBundledOutput(file.textSample, file.path) && !isChanged && !mentionedPaths.has(file.path)) {
       score -= BUNDLED_OUTPUT_PENALTY;
       reasons.push("machine-generated bundle deprioritized");
     }
@@ -1347,7 +1347,7 @@ function findRegexTokenOverlap(text, taskTokens) {
   }
   return [...overlap].slice(0, 2);
 }
-function isBundledOutput(textSample) {
+function isBundledOutput(textSample, path) {
   if (textSample.length < MIN_BUNDLE_SAMPLE_BYTES) {
     return false;
   }
@@ -1355,7 +1355,11 @@ function isBundledOutput(textSample) {
   if (textSample.length / lineCount >= BUNDLED_LINE_LENGTH) {
     return true;
   }
-  return BUNDLE_MARKERS.filter((marker) => marker.test(textSample)).length >= 2;
+  const markerCount = BUNDLE_MARKERS.filter((marker) => marker.test(textSample)).length;
+  return markerCount >= 2 || markerCount >= 1 && isConventionalBundlePath(path);
+}
+function isConventionalBundlePath(path) {
+  return isGeneratedPath(path) || path.split("/").slice(0, -1).some((segment) => segment.toLowerCase() === "compiled");
 }
 function isTypeDeclarationPath(path) {
   return /\.d\.(?:ts|mts|cts)$/i.test(path);

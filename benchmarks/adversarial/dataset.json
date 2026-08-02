@@ -129,6 +129,14 @@
         "descriptive",
         "vague"
       ]
+    },
+    {
+      "id": "pretty-printed-vendored-bundle",
+      "kind": "generated-output",
+      "fixture": "pretty-printed-vendored-bundle",
+      "task": "experimental transition state",
+      "why": "A readable development bundle under compiled/ contains the task vocabulary and one source-map marker but has no maintained source twin. It must not lead at high confidence.",
+      "maxConfidence": "low"
     }
   ]
 }
