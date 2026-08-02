@@ -976,6 +976,7 @@ var PRESENTATION_CODE_PENALTY = 8;
 var TYPE_DECLARATION_PENALTY = 4;
 var BACKUP_COPY_PENALTY = 10;
 var BUNDLED_OUTPUT_PENALTY = 12;
+var GENERATED_TWIN_REASON = "generated build artifact; maintained source counterpart exists";
 var BUNDLED_LINE_LENGTH = 400;
 var MIN_BUNDLE_SAMPLE_BYTES = 2e3;
 var BUNDLE_MARKERS = [
@@ -1054,6 +1055,9 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
       score += EXPLICIT_PATH_BOOST;
       reasons.push("explicitly named in the task");
     }
+    if (isGeneratedPath(file.path) && maintainedStems.has(moduleStem(file.path))) {
+      reasons.push(GENERATED_TWIN_REASON);
+    }
     const pathTokens = tokenizePath(file.path);
     const pathOverlap = [...pathTokens].filter((token) => taskTokens.has(token));
     if (pathOverlap.length > 0) {
@@ -1123,7 +1127,7 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
       score -= EXAMPLE_CODE_PENALTY;
       reasons.push("example or demo code deprioritized for an implementation task");
     }
-    if (file.kind === "code" && isPresentationCodePath(file.path) && !taskTargetsPresentation && !taskTargetsExamples && !isChanged && !mentionedPaths.has(file.path)) {
+    if (isPresentationSurfacePath(file.path) && !taskTargetsPresentation && !taskTargetsExamples && !isChanged && !mentionedPaths.has(file.path)) {
       score -= PRESENTATION_CODE_PENALTY;
       reasons.push("presentation or demo surface deprioritized for a non-UI implementation task");
     }
@@ -1208,7 +1212,8 @@ function confidenceForEntry(entry, grounding, clustered, shape) {
   if (entry.isChanged) {
     return "high";
   }
-  if (entry.reasons.includes("explicitly named in the task") && shape.position === 0 && !shape.leadIsContested) {
+  const hasMaintainedSourceTwin = entry.reasons.includes(GENERATED_TWIN_REASON);
+  if (entry.reasons.includes("explicitly named in the task") && shape.position === 0 && !shape.leadIsContested && !hasMaintainedSourceTwin) {
     return "high";
   }
   let confidence = entry.score >= 14 ? "high" : entry.score >= 8 ? "medium" : "low";
@@ -1217,6 +1222,9 @@ function confidenceForEntry(entry, grounding, clustered, shape) {
     confidence = capConfidence(confidence, "medium");
   }
   if (shape.position === 0 && shape.leadIsContested) {
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (hasMaintainedSourceTwin) {
     confidence = capConfidence(confidence, "medium");
   }
   const supportedIdentifierCount = grounding.identifiers.filter((identifier) => identifier.status === "exact-definition" || identifier.status === "exact-text" || identifier.status === "partial-definition").length;
@@ -1302,9 +1310,9 @@ function isAuxiliaryCodePath(path) {
   const stem = (parts.at(-1) ?? "").replace(/\.[^.]+$/, "").toLowerCase();
   return parts.slice(0, -1).some((segment) => AUXILIARY_CODE_DIRS.has(segment.toLowerCase())) || /^(?:demo|example|sample)(?:[-_.]|$)/.test(stem);
 }
-function isPresentationCodePath(path) {
+function isPresentationSurfacePath(path) {
   const name = path.split("/").at(-1)?.toLowerCase() ?? "";
-  return /^(?:page|layout|demo|sample-repo)\.[cm]?[jt]sx?$/.test(name);
+  return /^(?:page|layout|demo|sample-repo)\.[cm]?[jt]sx?$/.test(name) || /\.(?:css|less|sass|scss)$/.test(name);
 }
 function tokenizeFileContent(text) {
   const tokens = tokenizeText(text);
