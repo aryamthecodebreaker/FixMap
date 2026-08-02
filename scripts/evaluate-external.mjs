@@ -29,6 +29,10 @@ if (!["external", "heldout"].includes(suite)) {
   process.stderr.write(`Unknown suite "${suite}"; expected "external" or "heldout".\n`);
   process.exit(1);
 }
+// The gate that protects the held-out suite named the wrong suite in every failure it
+// reported, which is a poor property for the check standing between a regression and a
+// release.
+const suiteLabel = suite === "heldout" ? "Held-out evaluation" : "External evaluation";
 const suiteDir = join(repoRoot, "benchmarks", suite);
 const dataset = JSON.parse(await readFile(join(suiteDir, "dataset.json"), "utf8"));
 
@@ -41,7 +45,7 @@ for (const benchmark of dataset.cases) {
   const dir = await materializePinnedRepository(benchmark);
   const repo = await scanRepo({ repoRoot: dir });
   if (repo.files.length === 0) {
-    throw new Error(`External evaluation could not scan any files for ${benchmark.slug} at ${benchmark.sha}.`);
+    throw new Error(`${suiteLabel} could not scan any files for ${benchmark.slug} at ${benchmark.sha}.`);
   }
   const ranked = rankContextFiles(repo, { issueText: benchmark.task }, 5);
   const paths = ranked.map((file) => file.path);
@@ -145,7 +149,7 @@ if (process.argv.includes("--check-recorded")) {
   }
   if (recordedResults !== renderedSummary) {
     process.stderr.write(
-      `External evaluation differs from benchmarks/${suite}/results.json; rerun with --record and review the change.\n`
+      `${suiteLabel} differs from benchmarks/${suite}/results.json; rerun with --record and review the change.\n`
     );
     failed = true;
   }
@@ -158,7 +162,7 @@ if (
     summary.top5HitRate < FLOORS.top5)
 ) {
   process.stderr.write(
-    `External evaluation fell below regression floors: measured top-1=${summary.top1HitRate}, top-3=${summary.top3HitRate}, top-5=${summary.top5HitRate}; required top-1>=${FLOORS.top1}, top-3>=${FLOORS.top3}, top-5>=${FLOORS.top5}.\n`
+    `${suiteLabel} fell below regression floors: measured top-1=${summary.top1HitRate}, top-3=${summary.top3HitRate}, top-5=${summary.top5HitRate}; required top-1>=${FLOORS.top1}, top-3>=${FLOORS.top3}, top-5>=${FLOORS.top5}.\n`
   );
   failed = true;
 }

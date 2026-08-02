@@ -1,6 +1,8 @@
 # FixMap growth log
 
 This log records dated baselines and distribution experiments for the 5,000-star goal. GitHub traffic is a rolling 14-day window, so snapshots are preserved here instead of reconstructed later.
+> **Dated document.** Entries are point-in-time snapshots. Accuracy figures below were correct when written and are **not** kept current — the live numbers are on <https://usefixmap.vercel.app/evidence>, generated from the recorded suites. Check any figure there before quoting it.
+
 
 ## Baseline — 2026-07-22 10:50 UTC
 
