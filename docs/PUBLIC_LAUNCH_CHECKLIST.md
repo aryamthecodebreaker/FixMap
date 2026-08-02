@@ -1,6 +1,8 @@
 # Public Launch Checklist
 
 Use this before announcing FixMap anywhere beyond a quiet soft launch.
+> **Dated document.** This checklist records the state of a past launch review. Accuracy figures below were correct when written and are **not** kept current — the live numbers are on <https://usefixmap.vercel.app/evidence>, generated from the recorded suites. Check any figure there before quoting it.
+
 
 ## Repository
 

@@ -83,16 +83,20 @@ on:
 
 permissions:
   contents: read
+  issues: write
   pull-requests: write
 
 jobs:
   fixmap:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: aryamthecodebreaker/FixMap@v${siteStats.version}`}</code></pre>
+      - id: fixmap
+        uses: aryamthecodebreaker/FixMap@v${siteStats.version}
+        with:
+          github-token: ${"$"}{{ secrets.GITHUB_TOKEN }}`}</code></pre>
           <div className="button-row"><a className="button primary" href={marketplaceUrl}>Install from Marketplace <ArrowRight size={18} weight="bold" aria-hidden /></a><a className="text-link" href={`${repoUrl}/blob/main/action.yml`}>View action source</a></div>
         </div>
       </section>

@@ -2,16 +2,58 @@
 
 All notable changes to FixMap are documented here.
 
+Accuracy figures inside a released entry are the numbers measured **at that release** and are
+left as written. The current numbers live on the [evidence page](https://usefixmap.vercel.app/evidence),
+which is generated from the recorded results rather than transcribed by hand.
+
+## 0.8.2 - 2026-08-02
+
+Closes the audit sweep filed against v0.8.1.
+
+### Fixed
+
+- Windows paths work throughout. `--exclude`, `.fixmapignore` and the Action input normalize `\` to `/`, so a pattern pasted out of Explorer matches instead of silently matching nothing. A symlink or junction beside its target ranks once, as the real file, rather than filling two identically scored rows.
+- Manifests saved with a byte order mark or as UTF-16 parse. `Set-Content -Encoding utf8` writes a BOM and `JSON.parse` rejects one, so every script in the file was skipped — surfacing downstream as `no-test-route` rather than as an encoding problem.
+- The URLs people actually paste are accepted: a `?query`, a `#fragment`, a `www.` or `api.` host, the `git@github.com:` SSH form, and `file://`. Nothing that changes which resource is fetched moved — other hosts, credentials and ports are still refused.
+- An unresolvable `--diff` exits non-zero even when issue text is available. Exiting 0 told every script checking `$?` that the named diff had been applied, and `changedFiles: []` reads the same whether a diff was empty or never resolved.
+- `.vue`, `.svelte`, `.java`, `.php`, `.rb`, `.cs`, `.mts` and `.cts` rank. They were scanned but never marked as source, so a Vue app or a Maven tree returned zero context files.
+- Test routing finds `test:unit` and `test:ci`, routes a nested Go module with `-C` so the printed command runs, addresses a yarn workspace by name rather than with Yarn 1's removed `--cwd`, and separates test commands from lint and typecheck so validation cannot crowd out the command that runs the tests.
+- The Action stops splitting `exclude` inside brace groups, refuses a credentialed issue URL instead of ranking the token as prose, size-guards the pull request comment before GitHub rejects it, and matches comment authors case-insensitively.
+- Stemming keeps the letters that make a word: `pass`, `class`, `process`, `status` and `analysis` stay intact, and `passed`/`pass` converge on one stem.
+
+### Added
+
+- `content-unread`, `tracked-paths-absent`, `duplicate-real-path`, `generated-paths-dominant` and `no-related-tests` diagnostics. Each names a situation the report previously left silent — most importantly a source file whose contents were never read but which still ranked on its path, the shape of the miss behind #274.
+- `fixmap_explain` accepts `base`, `head`, `workingTree` and `includeUntracked`, so an agent can explain a ranking from the working-tree plan it just ran. `fixmap_doctor` sets `isError` when the install is unhealthy.
+- `/robots.txt` on the site, and a Compare stage on the product page.
+
+### Evidence
+
+- **Hit rates are unchanged.** Held-out 7/12 Top-1, 8/12 Top-3, 9/12 Top-5; development regression 11/16, 16/16, 16/16; adversarial 8/8 with a false-confidence rate of 0.0. Every ranking-affecting change was measured against the held-out suite before and after, one at a time rather than as a batch.
+- **Confidence became more conservative and better calibrated.** On held-out, the `high` band went from 6 cases to 3, and from 3/6 correct to 2/3. That follows from `scanComplete` now meaning "every candidate was actually read" rather than "the file limit was not reached": a repository with files past the sample ceiling no longer earns a high label it cannot support. `high` is now more accurate than `medium` on held-out, which is the ordering the label is supposed to have.
+- **The held-out composition changed in the v0.8.1 follow-up, not here.** `sindresorhus/got` was rotated into the regression suite once its blob permalink had informed a ranking fix, and a replacement was drawn by the documented rule. So 8/12 Top-3 is not comparable with the 9/12 published before v0.8.1 — different repositories, not a regression.
+- **Two proposed ranking fixes were measured and rejected.** A tie-break on definition evidence (#282) dropped held-out Top-1 from 7/12 to 6/12 and did not fix the case it was filed about; reverted, and the issue closed with the numbers. Removing `.css`/`.json` from the source set (#347) measured as an exact no-op on both suites, so nothing shipped and the issue stays open pending a benchmark case that can score it.
+
+### Installation
+
+```bash
+npm install --global @aryam/fixmap@0.8.2
+fixmap doctor
+fixmap --version
+```
+
+The package, MCP Registry entry, GitHub tag/release, Action tag, and production site must all resolve to 0.8.2 before the release is considered complete.
+
 ## 0.8.1 - 2026-08-01
 
 ### Fixed
 
 - Closed the v0.8.0 dogfood backlog across CLI validation, working-tree verification, explain path normalization, comparison output, exclusions, ranking confidence, risk evidence, JSON rank fields, test routing, and Action comment selection.
-- Added case-insensitive formats, command-specific help, actionable output-path errors, canonical GitHub URL validation, and clean remote/working-tree conflict errors.
-- Added browser-safe compare/exclusion exports and a live Compare/limit/exclude demo surface.
 
 ### Added
 
+- Case-insensitive formats, command-specific help, actionable output-path errors, canonical GitHub URL validation, and clean remote/working-tree conflict errors.
+- Browser-safe compare/exclusion exports and a live Compare/limit/exclude demo surface.
 - MCP parity tools `fixmap_compare` and `fixmap_doctor`, plus working-tree and limit controls.
 - GitHub Action inputs for `limit`, `exclude`, `working-tree`, and `include-untracked`; JSON comments now preserve JSON.
 - Release gates that verify npm `latest`, canonical homepage metadata, exact internal versions, and a fresh global installation before publishing the GitHub release.

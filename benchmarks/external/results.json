@@ -32,22 +32,22 @@
   "calibration": [
     {
       "confidence": "high",
-      "cases": 7,
-      "top1Correct": 4,
-      "top1Accuracy": 0.571,
+      "cases": 3,
+      "top1Correct": 2,
+      "top1Accuracy": 0.667,
       "interval95": [
-        0.25,
-        0.842
+        0.208,
+        0.939
       ]
     },
     {
       "confidence": "medium",
-      "cases": 7,
-      "top1Correct": 6,
-      "top1Accuracy": 0.857,
+      "cases": 11,
+      "top1Correct": 8,
+      "top1Accuracy": 0.727,
       "interval95": [
-        0.487,
-        0.974
+        0.434,
+        0.903
       ]
     },
     {
@@ -95,8 +95,8 @@
         "lib/core/AxiosError.js",
         "lib/adapters/http.js",
         "lib/helpers/HttpStatusCode.js",
-        "index.d.ts",
-        "lib/adapters/xhr.js"
+        "index.d.cts",
+        "index.d.ts"
       ],
       "topConfidence": "medium",
       "top1": true,
@@ -152,7 +152,7 @@
         "packages/zod/src/v4/mini/schemas.ts",
         "packages/zod/src/v4/core/parse.ts"
       ],
-      "topConfidence": "high",
+      "topConfidence": "medium",
       "top1": true,
       "top3": true,
       "top5Hit": true
@@ -189,7 +189,7 @@
         "integration/server.js",
         "types/request.d.ts"
       ],
-      "topConfidence": "high",
+      "topConfidence": "medium",
       "top1": true,
       "top3": true,
       "top5Hit": true
@@ -261,7 +261,7 @@
         "lib/EnvironmentPlugin.js",
         "lib/dependencies/CreateRequireParserPlugin.js"
       ],
-      "topConfidence": "high",
+      "topConfidence": "medium",
       "top1": false,
       "top3": true,
       "top5Hit": true
@@ -333,7 +333,7 @@
         "src/adapter/lambda-edge/handler.ts",
         "src/jsx/context.ts"
       ],
-      "topConfidence": "high",
+      "topConfidence": "medium",
       "top1": false,
       "top3": true,
       "top5Hit": true

@@ -81,6 +81,8 @@ const PLAN_TOOL = {
     // that no longer exists — and a stale calibration number is worse than none, because an
     // agent weights its confidence by it. Point at the published evidence instead, which is
     // regenerated from the recorded results on every release.
+    "analysis.nextAction carries the single most useful next step for this report — the same " +
+    "guidance the CLI prints to stderr, which an MCP client never sees. Read it before acting. " +
     "Treat the result as a starting map, not proof the task is valid: check the analysis " +
     "block before editing, and when it reports unresolved or unverified identifiers, vague " +
     "task grounding, an incomplete scan, or a clustered ranking, widen the search or ask for " +

@@ -1,6 +1,8 @@
 # FixMap 5,000-star growth kit
 
 This is an evidence-based operating kit for earning adoption, not a forecast that any post will produce a fixed number of stars. Recheck every version, command, benchmark result, and platform rule immediately before using it.
+> **Dated document.** This kit is revised between releases, not continuously. Accuracy figures below were correct when written and are **not** kept current — the live numbers are on <https://usefixmap.vercel.app/evidence>, generated from the recorded suites. Check any figure there before quoting it.
+
 
 ## The hook
 

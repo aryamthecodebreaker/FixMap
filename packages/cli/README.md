@@ -40,7 +40,7 @@ npx @aryam/fixmap plan --base main --head HEAD --format json --output fixmap-rep
 
 Public GitHub issue, pull request, and repository URL modes are available in the CLI and MCP server for issue-only analysis. FixMap fetches task context anonymously, shallow-clones the default branch into an isolated temporary directory, disables credentials and repository execution surfaces, and removes the checkout before returning. Clone locally to use `--diff`, `--base`, `--head`, or working-tree inputs.
 
-For long task text, use `--issue-file task.md`, `--issue @task.md`, or pipe text to `--issue -`. If a stale global installation shadows a pinned npx package on Windows, run `fixmap doctor`, remove the stale install with `npm uninstall -g @aryam/fixmap`, or use `npm exec --yes --package=@aryam/fixmap@0.8.1 -- fixmap ...`.
+For long task text, use `--issue-file task.md`, `--issue @task.md`, or pipe text to `--issue -`. If a stale global installation shadows a pinned npx package on Windows, run `fixmap doctor`, remove the stale install with `npm uninstall -g @aryam/fixmap`, or use `npm exec --yes --package=@aryam/fixmap@0.8.2 -- fixmap ...`.
 
 ## MCP server
 
@@ -70,14 +70,21 @@ Cursor, Windsurf, or any MCP client:
 ```text
 fixmap plan            Generate a FixMap report for a task or diff
 fixmap verify          Compare a saved plan with the diff that followed
+fixmap doctor          Report the resolved version and any shadowing install
 fixmap mcp             Run FixMap as an MCP server over stdio
 
---issue <text|url>     Issue text, task description, or public GitHub issue URL
---issue-file <file>    Read task text from a UTF-8 file, or - for stdin
+--issue <text|url>     Issue text, task description, or public GitHub issue or pull request URL
+--issue-file <file>    Read task text from a UTF-8 or UTF-16 file, or - for stdin
 --diff <spec>          Git diff spec, such as main...HEAD
 --base <ref>           Base ref for diffing when --diff is not given
 --head <ref>           Head ref for diffing (defaults to HEAD)
---repo <source>        Local path or public GitHub HTTPS URL
+--working-tree         Map staged and unstaged tracked changes against HEAD
+--include-untracked    With --working-tree, count untracked files as changed
+--explain <path>       Explain why one path ranked where it did, or did not appear
+--compare <file>       Diff this plan against a saved JSON plan
+--limit <n>            Cap reported context files, 1 to 20 (default 8)
+--exclude <pattern>    Leave paths out of ranking; repeatable, gitignore-flavored
+--repo <source>        Local path, file:// URL, or public GitHub HTTPS/SSH URL
 --format <fmt>         Output format: markdown (default) or json
 --output <file>        Write the report to a file instead of stdout
 ```

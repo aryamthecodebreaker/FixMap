@@ -1,5 +1,12 @@
 const TOKEN_SPLIT = /[^a-zA-Z0-9]+/g;
 
+// Path-segment words like src, main, index, package and packages are in here on purpose.
+// They appear in nearly every path, so as task terms they match everything and rank nothing —
+// the boilerplate problem the document-frequency cutoff exists for, but structural rather than
+// statistical. The cost, filed as #386: a free-text task consisting only of those words, such
+// as "index module in src", loses both terms and grounds as vague. That is the correct outcome
+// for a task that names nothing specific, and a file mention like src/index.ts is unaffected
+// because mentions are matched before tokenization.
 const STOP_WORDS = new Set([
   "add",
   "all",

@@ -24,7 +24,7 @@ Give FixMap a public GitHub issue. It fetches the task, infers the repository, s
 npx -y @aryam/fixmap@latest plan --issue https://github.com/chalk/chalk/issues/624
 ```
 
-No clone, signup, configuration, or source upload is required. Requires Node.js 20.11 or newer.
+No clone, signup, configuration, or source upload is required. The CLI requires Node.js 20.11 or newer. The GitHub Action declares `using: node24`, which is the runtime GitHub supplies on its runners and places no requirement on your own Node version.
 
 ### Installing
 
@@ -58,6 +58,8 @@ npx fixmap --version
 npx fixmap plan --issue "password reset emails fail"
 ```
 
+If `npm install` inside a *source checkout* of this repository fails with `ENOTEMPTY` on a phosphor-icons path, a previous install left a partial directory behind: delete `node_modules` and rerun. This affects contributors building from source on Windows, never anyone installing the published package.
+
 If `cd` or `Set-Location` fails, do not run the project-scoped `npm install` yet: PowerShell
 stays in the previous directory, so npm will install there. Run `Get-Location`, create or
 select the intended project directory, and then install.
@@ -71,7 +73,7 @@ npx -y @aryam/fixmap@latest doctor
 Remove the stale copy with `npm uninstall -g @aryam/fixmap`, or use the unambiguous form:
 
 ```bash
-npm exec --yes --package=@aryam/fixmap@0.8.1 -- fixmap --version
+npm exec --yes --package=@aryam/fixmap@0.8.2 -- fixmap --version
 ```
 
 | Command | Answers |
@@ -272,8 +274,8 @@ npx -y @aryam/fixmap@latest doctor
 ```text
 # FixMap Doctor
 
-- ok  Running version: 0.8.1
-- PROBLEM  Global install: 0.3.1 (this process is 0.8.1)
+- ok  Running version: 0.8.2
+- PROBLEM  Global install: 0.3.1 (this process is 0.8.2)
     A globally installed fixmap shadows the version npx was asked for. Run
     `npm uninstall -g @aryam/fixmap`, or invoke the exact version with
     `npm exec --package=@aryam/fixmap@<version> -- fixmap <command>`.
@@ -282,7 +284,7 @@ npx -y @aryam/fixmap@latest doctor
 
 It exits non-zero when it finds a shadow, so a CI step fails rather than reading on.
 
-Doctor can compare the running package, the first `fixmap` shim on `PATH`, and npm's global package. It cannot infer a version you intended in some other shell command or inspect every historical npm-exec cache entry; when reproducibility matters, use `npm exec --yes --package=@aryam/fixmap@0.8.1 -- fixmap --version` and confirm the printed version before continuing.
+Doctor can compare the running package, the first `fixmap` shim on `PATH`, and npm's global package. It cannot infer a version you intended in some other shell command or inspect every historical npm-exec cache entry; when reproducibility matters, use `npm exec --yes --package=@aryam/fixmap@0.8.2 -- fixmap --version` and confirm the printed version before continuing.
 
 ### MCP server
 
@@ -356,7 +358,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.8.1
+        uses: aryamthecodebreaker/FixMap@v0.8.2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -367,7 +369,7 @@ To close the plan→edit→verify loop without leaving GitHub, save the plan as 
 
 ```yaml
       - id: plan
-        uses: aryamthecodebreaker/FixMap@v0.8.1
+        uses: aryamthecodebreaker/FixMap@v0.8.2
         with:
           format: json
       - run: echo '${{ steps.plan.outputs.report }}' > fixmap-plan.json
@@ -377,7 +379,7 @@ To close the plan→edit→verify loop without leaving GitHub, save the plan as 
           path: fixmap-plan.json
 
       # In a later run, after the fix is pushed:
-      - uses: aryamthecodebreaker/FixMap@v0.8.1
+      - uses: aryamthecodebreaker/FixMap@v0.8.2
         with:
           mode: verify
           report-path: fixmap-plan.json
@@ -460,9 +462,9 @@ Read the full [benchmark methodology and scanner measurements](docs/BENCHMARKS.m
 npm run evaluate:heldout
 ```
 
-## What changed in v0.8.1
+## What changed in v0.8.2
 
-v0.8.1 resolves the complete 107-issue v0.8.0 dogfood backlog. CLI, MCP, and Action now share working-tree, limit, exclusion, format, and validation behavior where their interfaces support it; MCP adds compare and doctor; JSON ranks are explicit; explain resolves normalized absolute Windows paths; verify findings carry consistent risk paths and severity; and generated evaluation results and presentation docs no longer outrank maintained implementation.
+v0.8.2 closes an audit sweep filed against v0.8.1. Windows path handling works throughout — exclusions, symlinks, and manifests saved with a byte order mark. `.vue`, `.svelte`, `.java`, `.php`, `.rb`, `.cs`, `.mts` and `.cts` rank, having previously been scanned but never treated as source. The URLs people actually paste are accepted, and an unresolvable `--diff` now exits non-zero instead of reporting success on a plan that was never diff-aware. New diagnostics name what the report used to leave silent, most importantly a file whose contents were never read but which still ranked on its path. Hit rates are unchanged; confidence is more conservative and better calibrated. Two proposed ranking changes were measured, found not to help, and rejected — the numbers are in the CHANGELOG.
 
 Installation is now a release gate rather than a documentation promise. The publish workflow verifies npm `latest`, canonical package homepages, the CLI's exact core dependency, a clean global install with a real plan, the MCP Registry version, and the source commit before it creates the GitHub release. The website includes the complete install paths, all five MCP tools, and a realistic Plan → edit carefully → Verify agent conversation.
 
