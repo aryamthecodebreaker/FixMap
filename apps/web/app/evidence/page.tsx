@@ -10,6 +10,18 @@ export const metadata: Metadata = {
 
 const percent = (value: number, total: number) => `${Math.round((value / total) * 100)}%`;
 
+// A plain-English reading of the measured rate, so the callout cannot claim "three quarters"
+// after a re-record moves the number to two thirds. Bands, not a fabricated precision.
+function describeRate(value: number, total: number): string {
+  const share = value / total;
+  if (share >= 0.9) return "almost all";
+  if (share >= 0.7) return "about three quarters";
+  if (share >= 0.58) return "about two thirds";
+  if (share >= 0.42) return "about half";
+  if (share >= 0.28) return "about a third";
+  return "a minority";
+}
+
 export default function EvidencePage() {
   return (
     <main>
@@ -40,7 +52,7 @@ export default function EvidencePage() {
             <dl><div><dt>Top 1</dt><dd>{siteStats.regression.top1}/{siteStats.regression.cases} · {percent(siteStats.regression.top1, siteStats.regression.cases)}</dd></div><div><dt>Top 5</dt><dd>{siteStats.regression.top5}/{siteStats.regression.cases} · {percent(siteStats.regression.top5, siteStats.regression.cases)}</dd></div></dl>
           </article>
         </div>
-        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>Read this as “about three quarters,” not as two significant figures.</strong> With twelve held-out cases, one result changing moves Top-3 by roughly eight points. The 95% interval is {Math.round((siteStats.heldout.intervals95.top3[0] ?? 0) * 100)}–{Math.round((siteStats.heldout.intervals95.top3[1] ?? 0) * 100)}%.</p></div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>Read this as “{describeRate(siteStats.heldout.top3, siteStats.heldout.cases)},” not as two significant figures.</strong> With {siteStats.heldout.cases} held-out cases, one result changing moves Top-3 by roughly {Math.round(100 / siteStats.heldout.cases)} points. The 95% interval is {Math.round((siteStats.heldout.intervals95.top3[0] ?? 0) * 100)}–{Math.round((siteStats.heldout.intervals95.top3[1] ?? 0) * 100)}%.</p></div>
       </section>
 
       <section className="section table-section">

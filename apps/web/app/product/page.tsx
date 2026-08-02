@@ -38,8 +38,17 @@ const stages = [
     details: ["Inspect one path directly", "Distinguish ranking from exclusion", "Surface scan-limit uncertainty"]
   },
   {
-    id: "verify",
+    id: "compare",
     number: "03",
+    icon: Gauge,
+    eyebrow: "When you refine the task",
+    title: "Compare: check whether a better task moved the answer.",
+    body: "Naming a symbol, an error string, or a path usually changes the ranking. Compare puts two plans side by side and reports what entered, left, moved, or changed confidence — so refining the task is measurable rather than a matter of impression.",
+    details: ["Two plans, one delta", "Entered, left, moved, changed confidence", "Same report from CLI and MCP"]
+  },
+  {
+    id: "verify",
+    number: "04",
     icon: GitDiff,
     eyebrow: "After the edit",
     title: "Verify: compare the plan with the real change.",
