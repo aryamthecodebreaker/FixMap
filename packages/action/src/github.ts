@@ -1,5 +1,32 @@
 export const FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
 
+/**
+ * GitHub rejects an issue comment over 65,536 characters with a 422, and the marker was
+ * concatenated onto the report and posted without any check — so on a large monorepo the run
+ * completed, ranked everything, and then failed at the final API call, losing the report.
+ * Truncating keeps the comment; the complete report is still on the `report` output and in
+ * the step summary, which the footer says.
+ */
+export const MAX_COMMENT_BODY_CHARS = 65_536;
+
+const COMMENT_TRUNCATION_FOOTER =
+  "\n\n> Report truncated to fit GitHub's comment size limit. " +
+  "The complete report is in the step summary and the `report` output.\n";
+
+export function fitCommentBody(body: string, limit = MAX_COMMENT_BODY_CHARS): string {
+  if (body.length <= limit) return body;
+
+  const keep = Math.max(0, limit - COMMENT_TRUNCATION_FOOTER.length);
+  const cut = body.slice(0, keep);
+  // Cutting mid-fence leaves an unterminated block that swallows the footer explaining the
+  // truncation, so fall back to the last paragraph break and close any fence left open.
+  const lastBreak = cut.lastIndexOf("\n\n");
+  const trimmed = lastBreak > keep / 2 ? cut.slice(0, lastBreak) : cut;
+  const fenceCount = (trimmed.match(/^```/gm) ?? []).length;
+  const closed = fenceCount % 2 === 0 ? trimmed : `${trimmed}\n\`\`\``;
+  return `${closed}${COMMENT_TRUNCATION_FOOTER}`;
+}
+
 export type PullRequestEvent = {
   pull_request?: {
     number?: number;
@@ -54,7 +81,7 @@ export function createGitHubClient(options: GitHubClientOptions = {}) {
         headers,
         input.commentAuthor?.trim()
       );
-      const body = `${FIXMAP_REPORT_MARKER}\n${input.markdown}`;
+      const body = fitCommentBody(`${FIXMAP_REPORT_MARKER}\n${input.markdown}`);
 
       if (existing) {
         await requestJson(fetchImpl, `${apiBaseUrl}/repos/${input.owner}/${input.repo}/issues/comments/${existing.id}`, {
@@ -92,7 +119,10 @@ async function findExistingComment(
     const matches = comments.filter(
       (comment) =>
         comment.body?.includes(FIXMAP_REPORT_MARKER) &&
-        (!commentAuthor || comment.user?.login === commentAuthor)
+        // GitHub logins are case-insensitive, so a config saying "github-actions[bot]" did
+        // not match a comment authored by "GitHub-Actions[bot]" and the Action posted a
+        // second comment beside the one it meant to update.
+        (!commentAuthor || comment.user?.login?.toLowerCase() === commentAuthor.toLowerCase())
     );
     for (const existing of matches) if (!newest || existing.id > newest.id) newest = existing;
 

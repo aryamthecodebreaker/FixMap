@@ -31,7 +31,12 @@ inputs:
     description: Maximum context files in plan mode, from 1 to 20.
     required: false
   exclude:
-    description: Comma- or newline-separated path patterns to exclude in plan mode.
+    description: >-
+      Comma- or newline-separated path patterns to exclude, plan mode only; setting it in
+      verify mode is an error. Patterns use the gitignore subset FixMap documents in its
+      README, where brace groups such as {a,b} are literals rather than alternation. Prefer
+      newline-separated patterns: a brace group containing a comma is kept intact, but
+      newlines make the intent unambiguous.
     required: false
   working-tree:
     description: Map or verify staged and unstaged tracked changes against HEAD.
@@ -42,7 +47,9 @@ inputs:
     required: false
     default: "false"
   format:
-    description: Output format. JSON output is posted in a fenced JSON pull-request comment; step summaries remain markdown.
+    description: >-
+      Output format. JSON is posted as a fenced JSON pull-request comment, and the step
+      summary carries the readable report with the JSON appended in a collapsed block.
     required: false
     default: markdown
   github-token:
