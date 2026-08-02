@@ -6,6 +6,27 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://usefixmap.vercel.app/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.8.3 - 2026-08-02
+
+### Fixed
+
+- `fixmap_compare` over MCP now rejects a truncated `{ "contextFiles": [] }` object instead of returning a successful unchanged comparison. Complete FixMap reports that legitimately contain zero matches remain valid, and optional rank, score, and confidence fields are type-checked when present (#398).
+
+### Evidence
+
+- Reproduced the failure with a real stdio MCP client against the published `@aryam/fixmap@0.8.2` package before changing source.
+- The MCP regression suite, all 414 workspace tests, typechecking, lint, production builds, Action bundle parity, smoke tests, held-out/external/adversarial gates, scanner benchmark, and production audit pass. Ranking inputs and recorded hit rates are unchanged.
+
+### Installation
+
+```bash
+npm install --global @aryam/fixmap@0.8.3
+fixmap doctor
+fixmap --version
+```
+
+The package, MCP Registry entry, GitHub tag/release, Action tag, and production site must all resolve to 0.8.3 before the release is considered complete.
+
 ## 0.8.2 - 2026-08-02
 
 Closes the audit sweep filed against v0.8.1.
