@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@aryam/fixmap-core": "0.8.5",
+    "@aryam/fixmap-core": "0.8.6",
     "@phosphor-icons/react": "^2.1.10",
     "next": "16.2.11",
     "react": "19.2.7",

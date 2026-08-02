@@ -6,6 +6,29 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://usefixmap.vercel.app/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.8.6 - 2026-08-02
+
+### Fixed
+
+- Stylesheets that repeat product symptom words are deprioritized for non-UI implementation tasks, so presentation copy does not outrank the code that owns the behavior. CSS/layout tasks remain unpenalized, and JSON continues through the existing configuration classification (#347).
+- An explicitly named generated artifact remains visible when a task is genuinely about that artifact, but a maintained-source twin caps its confidence at medium and adds a reason naming the generated/source relationship. The mention boost no longer turns build output into an unexplained high-confidence edit target (#362, #371).
+
+### Evidence
+
+- Added regression fixtures for both failure modes and their valid counterexamples: a genuine CSS task still ranks its stylesheet, and a task about a stale generated artifact still sees that artifact.
+- All 419 workspace tests, typechecking, lint, production builds, production security audit, Action bundle parity, smoke tests, and scanner benchmark pass.
+- Held-out remains 7/12 Top-1, 8/12 Top-3, 9/12 Top-5; external remains 11/16, 16/16, 16/16; adversarial remains 8/8 with a false-confidence rate of 0.
+
+### Installation
+
+```bash
+npm install --global @aryam/fixmap@0.8.6
+fixmap doctor
+fixmap plan --issue https://github.com/chalk/chalk/issues/624
+```
+
+The npm packages, MCP Registry entry, GitHub tag/release, Action tag, and production site must all resolve to 0.8.6 before the release is considered complete.
+
 ## 0.8.5 - 2026-08-02
 
 ### Fixed
