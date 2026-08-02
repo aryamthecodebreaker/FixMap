@@ -55,7 +55,7 @@ export async function runAction(
   const headRef = readInput("head", env) || (!workingTree && env.GITHUB_HEAD_REF ? "HEAD" : undefined);
   const format = parseFormat(readInput("format", env));
   const mode = parseMode(readInput("mode", env));
-  const exclude = (readInput("exclude", env) ?? "").split(/[\r\n,]+/).map((value) => value.trim()).filter(Boolean);
+  const exclude = splitExcludeInput(readInput("exclude", env) ?? "");
   const limit = parseLimit(readInput("limit", env));
   if (includeUntracked && !workingTree) throw new Error("include-untracked requires working-tree.");
   if (workingTree && (diffSpec || baseRef || headRef)) throw new Error("Use either working-tree or diff/base/head, not both.");
@@ -65,6 +65,19 @@ export async function runAction(
   // a first job saves the plan as an artifact, a later run on `synchronize` checks the
   // pushed commits against it.
   if (mode === "verify") {
+    // These were parsed and then silently ignored, so a workflow could set limit or exclude
+    // in verify mode and reasonably believe they applied.
+    const planOnly = [
+      readInput("limit", env) ? "limit" : "",
+      readInput("exclude", env) ? "exclude" : "",
+      rawIssue ? "issue" : ""
+    ].filter(Boolean);
+    if (planOnly.length > 0) {
+      throw new Error(
+        `FixMap verify mode does not use plan-only input${planOnly.length === 1 ? "" : "s"}: ${planOnly.join(", ")}. ` +
+        "Remove them, or set mode: plan."
+      );
+    }
     return runVerifyMode({ env, dependencies, readFile, appendFile, stdout, format, diffSpec, baseRef, headRef, workingTree, includeUntracked });
   }
 
@@ -102,7 +115,9 @@ export async function runAction(
     report.diagnostics.unshift({
       code: issueSource.isPullRequest ? "remote-pull-fetched" : "remote-issue-fetched",
       severity: "info",
-      message: `Fetched ${issueSource.displayUrl} anonymously and used its title${fetchedIssue?.body ? " and body" : ""} as task context.`
+      message:
+        `Fetched ${issueSource.displayUrl} anonymously and used its title${fetchedIssue?.body ? " and body" : ""} as task context` +
+        (fetchedIssue?.truncated ? "; the body was truncated to 20,000 characters, so later text did not inform the ranking." : ".")
     });
   }
   const markdown = renderMarkdownReport(report);
@@ -111,7 +126,10 @@ export async function runAction(
   stdout(output);
 
   if (env.GITHUB_STEP_SUMMARY) {
-    appendFile(env.GITHUB_STEP_SUMMARY, fitStepSummary(markdown));
+    // A json workflow got a markdown-only summary, so the tab an operator actually opens
+    // never showed the shape their pipeline consumes. The readable report still leads; the
+    // JSON follows in a collapsed block so the summary stays scannable.
+    appendFile(env.GITHUB_STEP_SUMMARY, fitStepSummary(format === "json" ? withJsonDetails(markdown, output) : markdown));
   }
 
   if (env.GITHUB_OUTPUT) {
@@ -280,6 +298,50 @@ export function renderActionOutputs(
   ].join("");
 }
 
+/**
+ * Splitting on every comma tore `src/{auth,billing}/**` into `src/{auth` and `billing}/**`,
+ * so a brace pattern was not merely unsupported — it was corrupted into two patterns that
+ * matched the wrong things. Commas inside braces are left alone now, which makes the Action
+ * agree with the CLI: the brace is a literal, so the pattern matches nothing and the files
+ * still rank, rather than silently excluding a directory nobody named.
+ */
+export function withJsonDetails(markdown: string, json: string): string {
+  return `${markdown}\n\n<details>\n<summary>JSON report</summary>\n\n\`\`\`json\n${json.trimEnd()}\n\`\`\`\n\n</details>\n`;
+}
+
+/**
+ * Truncating at a byte offset can land inside a fenced block, leaving an unterminated ``` that
+ * swallows the footer explaining the truncation. Cutting back to the last blank line keeps the
+ * summary parseable, and any fence left open is closed explicitly.
+ */
+export function trimToBoundary(text: string): string {
+  const lastBreak = text.lastIndexOf("\n\n");
+  const trimmed = lastBreak > text.length / 2 ? text.slice(0, lastBreak) : text;
+  const fences = (trimmed.match(/^```/gm) ?? []).length;
+  return fences % 2 === 0 ? trimmed : `${trimmed}\n\`\`\``;
+}
+
+export function splitExcludeInput(raw: string): string[] {
+  const patterns: string[] = [];
+  let current = "";
+  let depth = 0;
+
+  for (const character of raw) {
+    if (character === "{") depth += 1;
+    else if (character === "}") depth = Math.max(0, depth - 1);
+
+    if (character === "\n" || character === "\r" || (character === "," && depth === 0)) {
+      patterns.push(current);
+      current = "";
+      continue;
+    }
+    current += character;
+  }
+  patterns.push(current);
+
+  return patterns.map((pattern) => pattern.trim()).filter(Boolean);
+}
+
 export function fitStepSummary(markdown: string, limitBytes = STEP_SUMMARY_LIMIT_BYTES): string {
   const bytes = Buffer.from(markdown);
   if (bytes.length <= limitBytes) {
@@ -295,7 +357,7 @@ export function fitStepSummary(markdown: string, limitBytes = STEP_SUMMARY_LIMIT
   while (end > 0 && (bytes[end]! & 0xc0) === 0x80) {
     end -= 1;
   }
-  return `${bytes.subarray(0, end).toString("utf8")}${TRUNCATION_FOOTER}`;
+  return `${trimToBoundary(bytes.subarray(0, end).toString("utf8"))}${TRUNCATION_FOOTER}`;
 }
 
 function readInput(name: string, env: NodeJS.ProcessEnv): string | undefined {

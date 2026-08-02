@@ -2442,6 +2442,19 @@ function renderVerifyMarkdown(result) {
 
 // packages/action/src/github.ts
 var FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
+var MAX_COMMENT_BODY_CHARS = 65536;
+var COMMENT_TRUNCATION_FOOTER = "\n\n> Report truncated to fit GitHub's comment size limit. The complete report is in the step summary and the `report` output.\n";
+function fitCommentBody(body, limit = MAX_COMMENT_BODY_CHARS) {
+  if (body.length <= limit) return body;
+  const keep = Math.max(0, limit - COMMENT_TRUNCATION_FOOTER.length);
+  const cut = body.slice(0, keep);
+  const lastBreak = cut.lastIndexOf("\n\n");
+  const trimmed = lastBreak > keep / 2 ? cut.slice(0, lastBreak) : cut;
+  const fenceCount = (trimmed.match(/^```/gm) ?? []).length;
+  const closed = fenceCount % 2 === 0 ? trimmed : `${trimmed}
+\`\`\``;
+  return `${closed}${COMMENT_TRUNCATION_FOOTER}`;
+}
 function buildPullRequestIssueText(event) {
   const pullRequest = event?.pull_request;
   const parts = [pullRequest?.title, pullRequest?.body].filter((part) => Boolean(part?.trim())).map((part) => part.trim());
@@ -2465,8 +2478,8 @@ function createGitHubClient(options = {}) {
         headers,
         input.commentAuthor?.trim()
       );
-      const body = `${FIXMAP_REPORT_MARKER}
-${input.markdown}`;
+      const body = fitCommentBody(`${FIXMAP_REPORT_MARKER}
+${input.markdown}`);
       if (existing) {
         await requestJson(fetchImpl, `${apiBaseUrl}/repos/${input.owner}/${input.repo}/issues/comments/${existing.id}`, {
           method: "PATCH",
@@ -2494,7 +2507,10 @@ async function findExistingComment(fetchImpl, commentsUrl, headers, commentAutho
       "list pull request comments"
     );
     const matches = comments.filter(
-      (comment) => comment.body?.includes(FIXMAP_REPORT_MARKER) && (!commentAuthor || comment.user?.login === commentAuthor)
+      (comment) => comment.body?.includes(FIXMAP_REPORT_MARKER) && // GitHub logins are case-insensitive, so a config saying "github-actions[bot]" did
+      // not match a comment authored by "GitHub-Actions[bot]" and the Action posted a
+      // second comment beside the one it meant to update.
+      (!commentAuthor || comment.user?.login?.toLowerCase() === commentAuthor.toLowerCase())
     );
     for (const existing of matches) if (!newest || existing.id > newest.id) newest = existing;
     if (comments.length < 100) {
@@ -2516,8 +2532,15 @@ async function requestJson(fetchImpl, url, init, action) {
 }
 
 // packages/action/src/issue-source.ts
+var MAX_API_RESPONSE_CHARS = 1e6;
+var MAX_ISSUE_BODY_CHARS = 2e4;
 function parseActionIssueSource(input) {
   const trimmed = input.trim();
+  if (/^https?:\/\/[^/\s]*@github\.com\//i.test(trimmed)) {
+    throw new Error(
+      "The issue URL contains credentials. Remove the user:token@ prefix and pass the public https://github.com/owner/repository/issues/123 URL; the Action reads public issues anonymously."
+    );
+  }
   if (!/^https?:\/\/github\.com\//i.test(trimmed)) {
     return void 0;
   }
@@ -2558,9 +2581,32 @@ async function fetchActionIssue(source) {
     }
   );
   if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(
+        `Could not fetch public GitHub issue ${source.displayUrl}: it was not found or is not publicly accessible.`
+      );
+    }
+    if (response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0") {
+      const resetAt = Number(response.headers.get("x-ratelimit-reset"));
+      const resets = Number.isSafeInteger(resetAt) && resetAt > 0 ? ` The limit resets at ${new Date(resetAt * 1e3).toISOString()}.` : "";
+      throw new Error(
+        `Could not fetch public GitHub issue ${source.displayUrl}: GitHub's anonymous API rate limit is exhausted for this runner.${resets} Pass the issue text directly, or retry later.`
+      );
+    }
     throw new Error(`Could not fetch public GitHub issue ${source.displayUrl}: GitHub returned HTTP ${response.status}.`);
   }
-  const payload = await response.json();
+  const rawPayload = await response.text();
+  if (rawPayload.length > MAX_API_RESPONSE_CHARS) {
+    throw new Error(
+      `Could not fetch public GitHub issue ${source.displayUrl}: the API response exceeded the safe size limit.`
+    );
+  }
+  let payload;
+  try {
+    payload = JSON.parse(rawPayload);
+  } catch {
+    throw new Error(`Could not fetch public GitHub issue ${source.displayUrl}: GitHub returned an invalid response.`);
+  }
   if (payload.pull_request && !source.isPullRequest) {
     throw new Error(
       `${source.displayUrl} resolves to a pull request, not an issue. Use https://github.com/${source.owner}/${source.repository}/pull/${source.number} instead.`
@@ -2569,9 +2615,11 @@ async function fetchActionIssue(source) {
   if (typeof payload.title !== "string" || !payload.title.trim()) {
     throw new Error(`Could not fetch public GitHub issue ${source.displayUrl}: the response was not an issue.`);
   }
+  const body = typeof payload.body === "string" ? payload.body.trim() : "";
   return {
     title: payload.title.trim(),
-    body: typeof payload.body === "string" ? payload.body.trim().slice(0, 2e4) : ""
+    body: body.slice(0, MAX_ISSUE_BODY_CHARS),
+    truncated: body.length > MAX_ISSUE_BODY_CHARS
   };
 }
 
@@ -2591,12 +2639,22 @@ async function runAction(env = process.env, dependencies = {}) {
   const headRef = readInput("head", env) || (!workingTree && env.GITHUB_HEAD_REF ? "HEAD" : void 0);
   const format = parseFormat(readInput("format", env));
   const mode = parseMode(readInput("mode", env));
-  const exclude = (readInput("exclude", env) ?? "").split(/[\r\n,]+/).map((value) => value.trim()).filter(Boolean);
+  const exclude = splitExcludeInput(readInput("exclude", env) ?? "");
   const limit = parseLimit(readInput("limit", env));
   if (includeUntracked && !workingTree) throw new Error("include-untracked requires working-tree.");
   if (workingTree && (diffSpec || baseRef || headRef)) throw new Error("Use either working-tree or diff/base/head, not both.");
   if (diffSpec && (baseRef || headRef)) throw new Error("Use either diff or base/head, not both.");
   if (mode === "verify") {
+    const planOnly = [
+      readInput("limit", env) ? "limit" : "",
+      readInput("exclude", env) ? "exclude" : "",
+      rawIssue ? "issue" : ""
+    ].filter(Boolean);
+    if (planOnly.length > 0) {
+      throw new Error(
+        `FixMap verify mode does not use plan-only input${planOnly.length === 1 ? "" : "s"}: ${planOnly.join(", ")}. Remove them, or set mode: plan.`
+      );
+    }
     return runVerifyMode({ env, dependencies, readFile: readFile3, appendFile, stdout, format, diffSpec, baseRef, headRef, workingTree, includeUntracked });
   }
   const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : void 0;
@@ -2625,14 +2683,14 @@ async function runAction(env = process.env, dependencies = {}) {
     report.diagnostics.unshift({
       code: issueSource.isPullRequest ? "remote-pull-fetched" : "remote-issue-fetched",
       severity: "info",
-      message: `Fetched ${issueSource.displayUrl} anonymously and used its title${fetchedIssue?.body ? " and body" : ""} as task context.`
+      message: `Fetched ${issueSource.displayUrl} anonymously and used its title${fetchedIssue?.body ? " and body" : ""} as task context` + (fetchedIssue?.truncated ? "; the body was truncated to 20,000 characters, so later text did not inform the ranking." : ".")
     });
   }
   const markdown = renderMarkdownReport(report);
   const output = format === "json" ? renderJsonReport(report) : markdown;
   stdout(output);
   if (env.GITHUB_STEP_SUMMARY) {
-    appendFile(env.GITHUB_STEP_SUMMARY, fitStepSummary(markdown));
+    appendFile(env.GITHUB_STEP_SUMMARY, fitStepSummary(format === "json" ? withJsonDetails(markdown, output) : markdown));
   }
   if (env.GITHUB_OUTPUT) {
     appendFile(env.GITHUB_OUTPUT, renderActionOutputs(output, report, dependencies.uuid ?? randomUUID));
@@ -2775,6 +2833,43 @@ function renderActionOutputs(reportText, report, uuid = randomUUID) {
 `
   ].join("");
 }
+function withJsonDetails(markdown, json) {
+  return `${markdown}
+
+<details>
+<summary>JSON report</summary>
+
+\`\`\`json
+${json.trimEnd()}
+\`\`\`
+
+</details>
+`;
+}
+function trimToBoundary(text) {
+  const lastBreak = text.lastIndexOf("\n\n");
+  const trimmed = lastBreak > text.length / 2 ? text.slice(0, lastBreak) : text;
+  const fences = (trimmed.match(/^```/gm) ?? []).length;
+  return fences % 2 === 0 ? trimmed : `${trimmed}
+\`\`\``;
+}
+function splitExcludeInput(raw) {
+  const patterns = [];
+  let current = "";
+  let depth = 0;
+  for (const character of raw) {
+    if (character === "{") depth += 1;
+    else if (character === "}") depth = Math.max(0, depth - 1);
+    if (character === "\n" || character === "\r" || character === "," && depth === 0) {
+      patterns.push(current);
+      current = "";
+      continue;
+    }
+    current += character;
+  }
+  patterns.push(current);
+  return patterns.map((pattern) => pattern.trim()).filter(Boolean);
+}
 function fitStepSummary(markdown, limitBytes = STEP_SUMMARY_LIMIT_BYTES) {
   const bytes = Buffer.from(markdown);
   if (bytes.length <= limitBytes) {
@@ -2788,7 +2883,7 @@ function fitStepSummary(markdown, limitBytes = STEP_SUMMARY_LIMIT_BYTES) {
   while (end > 0 && (bytes[end] & 192) === 128) {
     end -= 1;
   }
-  return `${bytes.subarray(0, end).toString("utf8")}${TRUNCATION_FOOTER}`;
+  return `${trimToBoundary(bytes.subarray(0, end).toString("utf8"))}${TRUNCATION_FOOTER}`;
 }
 function readInput(name, env) {
   const githubName = `INPUT_${name.replace(/ /g, "_").toUpperCase()}`;
