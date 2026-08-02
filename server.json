@@ -6,12 +6,12 @@
     "url": "https://github.com/aryamthecodebreaker/FixMap",
     "source": "github"
   },
-  "version": "0.8.3",
+  "version": "0.8.4",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@aryam/fixmap",
-      "version": "0.8.3",
+      "version": "0.8.4",
       "transport": {
         "type": "stdio"
       },
