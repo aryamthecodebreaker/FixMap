@@ -73,7 +73,7 @@ npx -y @aryam/fixmap@latest doctor
 Remove the stale copy with `npm uninstall -g @aryam/fixmap`, or use the unambiguous form:
 
 ```bash
-npm exec --yes --package=@aryam/fixmap@0.8.2 -- fixmap --version
+npm exec --yes --package=@aryam/fixmap@0.8.3 -- fixmap --version
 ```
 
 | Command | Answers |
@@ -274,8 +274,8 @@ npx -y @aryam/fixmap@latest doctor
 ```text
 # FixMap Doctor
 
-- ok  Running version: 0.8.2
-- PROBLEM  Global install: 0.3.1 (this process is 0.8.2)
+- ok  Running version: 0.8.3
+- PROBLEM  Global install: 0.3.1 (this process is 0.8.3)
     A globally installed fixmap shadows the version npx was asked for. Run
     `npm uninstall -g @aryam/fixmap`, or invoke the exact version with
     `npm exec --package=@aryam/fixmap@<version> -- fixmap <command>`.
@@ -284,7 +284,7 @@ npx -y @aryam/fixmap@latest doctor
 
 It exits non-zero when it finds a shadow, so a CI step fails rather than reading on.
 
-Doctor can compare the running package, the first `fixmap` shim on `PATH`, and npm's global package. It cannot infer a version you intended in some other shell command or inspect every historical npm-exec cache entry; when reproducibility matters, use `npm exec --yes --package=@aryam/fixmap@0.8.2 -- fixmap --version` and confirm the printed version before continuing.
+Doctor can compare the running package, the first `fixmap` shim on `PATH`, and npm's global package. It cannot infer a version you intended in some other shell command or inspect every historical npm-exec cache entry; when reproducibility matters, use `npm exec --yes --package=@aryam/fixmap@0.8.3 -- fixmap --version` and confirm the printed version before continuing.
 
 ### MCP server
 
@@ -358,7 +358,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.8.2
+        uses: aryamthecodebreaker/FixMap@v0.8.3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -369,7 +369,7 @@ To close the plan→edit→verify loop without leaving GitHub, save the plan as 
 
 ```yaml
       - id: plan
-        uses: aryamthecodebreaker/FixMap@v0.8.2
+        uses: aryamthecodebreaker/FixMap@v0.8.3
         with:
           format: json
       - run: echo '${{ steps.plan.outputs.report }}' > fixmap-plan.json
@@ -379,7 +379,7 @@ To close the plan→edit→verify loop without leaving GitHub, save the plan as 
           path: fixmap-plan.json
 
       # In a later run, after the fix is pushed:
-      - uses: aryamthecodebreaker/FixMap@v0.8.2
+      - uses: aryamthecodebreaker/FixMap@v0.8.3
         with:
           mode: verify
           report-path: fixmap-plan.json
@@ -461,6 +461,10 @@ Read the full [benchmark methodology and scanner measurements](docs/BENCHMARKS.m
 ```bash
 npm run evaluate:heldout
 ```
+
+## What changed in v0.8.3
+
+v0.8.3 corrects MCP comparison validation after an independent audit reproduced #398 against the published v0.8.2 package. `fixmap_compare` now rejects a truncated `{ "contextFiles": [] }` object, validates optional rank, score, and confidence fields when present, and still accepts complete reports that legitimately found zero context files. No ranking behavior or evaluation result changed.
 
 ## What changed in v0.8.2
 
