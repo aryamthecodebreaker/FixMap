@@ -79,7 +79,7 @@ Doctor 0.8.4 and newer compares an exact npm-requested version when that newer D
 
 ```powershell
 $fixmapPrefix = Join-Path $env:TEMP "fixmap-cli-0.8.6"
-npm install --global --prefix $fixmapPrefix @aryam/fixmap@0.8.6
+npm install --global --prefix $fixmapPrefix @aryam/fixmap@0.8.7
 & "$fixmapPrefix\fixmap.cmd" --version
 ```
 
@@ -367,7 +367,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.8.6
+        uses: aryamthecodebreaker/FixMap@v0.8.7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -378,7 +378,7 @@ To close the plan→edit→verify loop without leaving GitHub, save the plan as 
 
 ```yaml
       - id: plan
-        uses: aryamthecodebreaker/FixMap@v0.8.6
+        uses: aryamthecodebreaker/FixMap@v0.8.7
         with:
           format: json
       - run: echo '${{ steps.plan.outputs.report }}' > fixmap-plan.json
@@ -388,7 +388,7 @@ To close the plan→edit→verify loop without leaving GitHub, save the plan as 
           path: fixmap-plan.json
 
       # In a later run, after the fix is pushed:
-      - uses: aryamthecodebreaker/FixMap@v0.8.6
+      - uses: aryamthecodebreaker/FixMap@v0.8.7
         with:
           mode: verify
           report-path: fixmap-plan.json
