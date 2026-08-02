@@ -12,29 +12,34 @@ Paste a GitHub issue URL, describe a task, or point at a diff. FixMap returns ra
 [![Marketplace](https://img.shields.io/badge/GitHub_Marketplace-FixMap-2ea44f?logo=github)](https://github.com/marketplace/actions/fixmap)
 [![MIT](https://img.shields.io/badge/license-MIT-74f0ba)](LICENSE)
 
-[Try one command](#one-command-start) · [Watch the 24-second film](https://usefixmap.vercel.app/fixmap-launch.mp4) · [Install the Action](https://github.com/marketplace/actions/fixmap) · [Connect MCP](#mcp-server) · [Contribute](CONTRIBUTING.md)
+[Install and start](#install-and-start) · [Watch the 24-second film](https://usefixmap.vercel.app/fixmap-launch.mp4) · [Install the Action](https://github.com/marketplace/actions/fixmap) · [Connect MCP](#mcp-server) · [Contribute](CONTRIBUTING.md)
 
 </div>
 
-## One-command start
+## Install and start
 
-Give FixMap a public GitHub issue. It fetches the task, infers the repository, scans an isolated temporary checkout, and removes that checkout when the report is complete:
+Install FixMap once so the everyday command stays short and predictable:
+
+```bash
+npm install --global @aryam/fixmap@latest
+fixmap plan --issue https://github.com/chalk/chalk/issues/624
+```
+
+FixMap fetches the public task, infers the repository, scans an isolated temporary checkout, and removes it when the report is complete. No clone, signup, configuration, or source upload is required. The CLI requires Node.js 20.11 or newer. The GitHub Action declares `using: node24`, which is the runtime GitHub supplies on its runners and places no requirement on your own Node version.
+
+### One-off trial
+
+This form fetches FixMap for one run and leaves no global installation:
 
 ```bash
 npx -y @aryam/fixmap@latest plan --issue https://github.com/chalk/chalk/issues/624
 ```
 
-No clone, signup, configuration, or source upload is required. The CLI requires Node.js 20.11 or newer. The GitHub Action declares `using: node24`, which is the runtime GitHub supplies on its runners and places no requirement on your own Node version.
+If the current directory or one of its parents already contains FixMap, npm may deliberately choose that project-local binary. Check `--version`, or use the isolated-prefix procedure below when the exact package version matters.
 
-### Installing
+### Project installation
 
-`npx` fetches FixMap for that run and leaves nothing behind, which is the right default for trying it. Once it is part of your routine, install it and drop the `npx -y` prefix:
-
-```bash
-npm install -g @aryam/fixmap
-```
-
-Or pin it to one project, so everyone working on that repository gets the same version:
+Pin FixMap to one project when everyone working on that repository should get the same version:
 
 ```bash
 npm install --save-dev @aryam/fixmap
@@ -64,13 +69,13 @@ If `cd` or `Set-Location` fails, do not run the project-scoped `npm install` yet
 stays in the previous directory, so npm will install there. Run `Get-Location`, create or
 select the intended project directory, and then install.
 
-If an older FixMap is installed globally, some npm/npx combinations on Windows resolve the old global `fixmap` shim even when a version is pinned — so a feature that shipped looks like it never existed. `fixmap doctor` detects exactly this and exits non-zero:
+Run Doctor after installation to see the version and path that actually started:
 
 ```bash
-npx -y @aryam/fixmap@latest doctor
+fixmap doctor
 ```
 
-Remove the stale copy with `npm uninstall -g @aryam/fixmap`, or test an exact version in an isolated prefix and invoke that prefix's shim directly. This PowerShell sequence cannot be redirected to an older package in the current directory or one of its parents:
+Doctor 0.8.4 and newer compares an exact npm-requested version when that newer Doctor is the process npm starts. An older project-local binary can win before newer Doctor code runs, so no new version can diagnose that decision from inside the old process. Treat the printed running version as authoritative, update or remove the stale installation, or test an exact version in an isolated prefix and invoke that prefix's shim directly. This PowerShell sequence cannot be redirected to an older package in the current directory or one of its parents:
 
 ```powershell
 $fixmapPrefix = Join-Path $env:TEMP "fixmap-cli-0.8.4"
@@ -120,7 +125,7 @@ FixMap adds a deterministic routing step before an agent starts searching. Its o
 Analyze a task against any public GitHub repository:
 
 ```bash
-npx -y @aryam/fixmap@latest plan \
+fixmap plan \
   --issue "support public GitHub issue URLs" \
   --repo https://github.com/aryamthecodebreaker/FixMap
 ```
@@ -128,14 +133,14 @@ npx -y @aryam/fixmap@latest plan \
 Analyze private source or working-tree changes locally:
 
 ```bash
-npx -y @aryam/fixmap@latest plan --issue "password reset emails fail"
-npx -y @aryam/fixmap@latest plan --diff main...HEAD
+fixmap plan --issue "password reset emails fail"
+fixmap plan --diff main...HEAD
 ```
 
 Write machine-readable output:
 
 ```bash
-npx -y @aryam/fixmap@latest plan \
+fixmap plan \
   --base main \
   --head HEAD \
   --format json \
@@ -147,7 +152,7 @@ Remote repository mode is issue-only, and deliberately so: the checkout is a sin
 That clone is also the expensive part of a remote run — minutes on a large monorepo, for a ranking that is lexical. If you already have the repository on disk, pass `--repo .` with the issue URL and FixMap will rank against your checkout instead of fetching its own:
 
 ```bash
-npx -y @aryam/fixmap@latest plan --issue https://github.com/owner/repository/issues/123 --repo .
+fixmap plan --issue https://github.com/owner/repository/issues/123 --repo .
 ```
 
 Set `FIXMAP_PROGRESS=1` when you want clone/scan progress; `true`, `yes`, and `on` work too, and `0`/`false`/`no`/`off` silence it even in a terminal, where it is otherwise on by default. Progress is intentionally written to stderr so JSON/stdout remains pipe-safe; in PowerShell, merge it for display with `2>&1` or suppress it with `2>$null` if your host records native stderr as an error stream. The same applies to the next-step hints printed after a successful plan — they are stderr, not failure. `FIXMAP_VERBOSE_USAGE=1` restores the full usage block after every argument error.
@@ -163,8 +168,8 @@ Every relative path — `--repo`, `--issue-file`, `--issue @file`, `--output` �
 For long or private task text, avoid shell command-length limits by reading UTF-8 text from a file or stdin:
 
 ```bash
-npx -y @aryam/fixmap@latest plan --issue-file task.md
-Get-Content task.md -Raw | npx -y @aryam/fixmap@latest plan --issue -
+fixmap plan --issue-file task.md
+Get-Content task.md -Raw | fixmap plan --issue -
 ```
 
 `--issue @task.md` is also accepted as a file shorthand. Repeated `--issue` flags are rejected instead of silently discarding the earlier task.
@@ -174,7 +179,7 @@ Get-Content task.md -Raw | npx -y @aryam/fixmap@latest plan --issue -
 Every report explains the files it chose. `--explain` answers the harder question — why a file you expected is missing:
 
 ```bash
-npx -y @aryam/fixmap@latest plan --issue "password reset emails fail" \
+fixmap plan --issue "password reset emails fail" \
   --explain src/billing/invoice.ts
 ```
 
@@ -194,10 +199,10 @@ It distinguishes the cases that actually differ: the file was ranked, it scored 
 The habit worth having is: plan, add the identifier the task was missing, re-plan, and check whether the real file rose. `--compare` prints that instead of leaving you to diff two JSON files by eye:
 
 ```bash
-npx -y @aryam/fixmap@latest plan --issue "ranking confidence" \
+fixmap plan --issue "ranking confidence" \
   --format json --output before.json
 
-npx -y @aryam/fixmap@latest plan \
+fixmap plan \
   --issue "confidenceForEntry gives every top-8 file high confidence" \
   --compare before.json
 ```
@@ -219,7 +224,7 @@ That is FixMap's own feedback loop, measured in one command: naming a symbol mov
 Demo pages, marketing copy, and documentation often contain every symptom word a product documents, so they compete with the implementation. FixMap's built-in penalties cover conventions like `examples/`; a repository's own layout it cannot know:
 
 ```bash
-npx -y @aryam/fixmap@latest plan --issue "password reset emails fail" \
+fixmap plan --issue "password reset emails fail" \
   --exclude apps/web --exclude 'docs/**' --limit 3
 ```
 
@@ -230,7 +235,7 @@ Patterns can also live in a `.fixmapignore` file at the repository root, one per
 To map what you are editing right now, without crafting a git spec:
 
 ```bash
-npx -y @aryam/fixmap@latest plan --working-tree --issue "reset flow"
+fixmap plan --working-tree --issue "reset flow"
 ```
 
 That means staged and unstaged tracked changes against `HEAD`. Untracked files stay out of the **change set** unless you add `--include-untracked`, so agent metadata and scratch files are not reported as edits.
@@ -242,12 +247,12 @@ They are still ranking candidates. The repository scan reads `git ls-files --oth
 `plan` answers where to start. `verify` answers whether the change that followed matches the plan — by comparing the saved report against a real git diff:
 
 ```bash
-npx -y @aryam/fixmap@latest plan --issue "password reset emails fail" \
+fixmap plan --issue "password reset emails fail" \
   --format json --output fixmap-report.json
 
 # ...make the change...
 
-npx -y @aryam/fixmap@latest verify --report fixmap-report.json --diff main...HEAD
+fixmap verify --report fixmap-report.json --diff main...HEAD
 ```
 
 ```text
@@ -269,10 +274,10 @@ Only a discarded, untracked generated edit exits non-zero. A committed generated
 
 ### Check the install
 
-An older global install can shadow the version npm was asked for, so a feature that shipped appears not to exist. `doctor` says which version is actually running and why:
+Doctor reports the version and path that actually started, plus conflicts the running process can observe:
 
 ```bash
-npx -y @aryam/fixmap@latest doctor
+fixmap doctor
 ```
 
 ```text
@@ -286,9 +291,9 @@ npx -y @aryam/fixmap@latest doctor
 - ok  Node version: 24.13.0
 ```
 
-It exits non-zero when it finds a shadow, so a CI step fails rather than reading on.
+It exits non-zero when the running Doctor finds a shadow, so a CI step fails rather than reading on.
 
-Doctor compares the running package, the first `fixmap` shim on `PATH`, npm's global package, and an exact version requested through npm exec. It exits non-zero if npm requested one version but an older local or ancestor install ran instead. It cannot infer a version intended in some unrelated shell command or inspect every historical npm-exec cache entry; when reproducibility matters, use the isolated-prefix command above and invoke its shim directly.
+Doctor compares the running package, the first `fixmap` shim on `PATH`, npm's global package, and an exact version requested through npm exec. The exact-request check is available when Doctor 0.8.4 or newer is the process npm starts. If an older project-local binary wins first, that old code cannot contain the newer detector; its printed running version is the evidence. Doctor also cannot infer a version intended in an unrelated shell command or inspect every historical npm-exec cache entry. When reproducibility matters, use the isolated-prefix command above and invoke its shim directly.
 
 ### MCP server
 
@@ -299,7 +304,7 @@ FixMap exposes five stdio tools: `fixmap_plan` builds the starting map, `fixmap_
 Claude Code:
 
 ```bash
-claude mcp add fixmap -- npx -y @aryam/fixmap@latest mcp
+claude mcp add fixmap -- fixmap mcp
 ```
 
 Cursor, Windsurf, or another MCP client:
@@ -308,8 +313,8 @@ Cursor, Windsurf, or another MCP client:
 {
   "mcpServers": {
     "fixmap": {
-      "command": "npx",
-      "args": ["-y", "@aryam/fixmap@latest", "mcp"]
+      "command": "fixmap",
+      "args": ["mcp"]
     }
   }
 }
@@ -468,7 +473,7 @@ npm run evaluate:heldout
 
 ## What changed in v0.8.4
 
-v0.8.4 closes the last installation defect found by the independent post-release audit. Doctor now exits non-zero when npm records an exact requested FixMap version but a local or ancestor `node_modules` installation runs a different version. The installation guide no longer calls npm exec unambiguous in that state; its reproducible path uses an isolated prefix and invokes that prefix's shim directly (#437).
+v0.8.4 added an exact-request mismatch detector to Doctor and replaced the earlier npm exec recommendation with an isolated-prefix/direct-shim procedure. A post-release child-project test then established the detector's unavoidable boundary: it works when Doctor 0.8.4 or newer starts, but an older project-local binary can win before newer code runs. The printed running version remains authoritative (#437).
 
 ## What changed in v0.8.3
 

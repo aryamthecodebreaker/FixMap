@@ -142,7 +142,7 @@ export default function HomePage() {
         <div>
           <p className="eyebrow">Thirty-second start</p>
           <h2>Give the next change<br />a clear place to begin.</h2>
-          <p>One command. No account. No API key.</p>
+          <p>Install once. Then use one short command. No account or API key.</p>
         </div>
         <div className="premium-final-action">
           <CopyCommand command={commands.publicIssue} />
