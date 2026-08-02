@@ -282,7 +282,7 @@ Doctor can compare the running package, the first `fixmap` shim on `PATH`, and n
 
 FixMap exposes five stdio tools: `fixmap_plan` builds the starting map, `fixmap_explain` answers why a file is missing, `fixmap_compare` measures whether better task context improved the plan, `fixmap_verify` compares that plan with the later diff, and `fixmap_doctor` diagnoses install shadows.
 
-`fixmap_plan` takes `limit` to cap how many context files come back, which matters when the useful signal is the top one to three and the rest is context budget. `fixmap_verify` accepts its report either inline or as a path to a saved JSON file, so a large plan need not be re-embedded in the tool call.
+`fixmap_plan` takes `limit` to cap how many context files come back, which matters when the useful signal is the top one to three and the rest is context budget. `fixmap_verify` and `fixmap_compare` both accept a report either inline or as a path to a saved JSON file, so a large plan need not be re-embedded in the tool call. `fixmap_explain` takes the same scan options as `fixmap_plan` — `diff`, `base`/`head`, `workingTree`, `includeUntracked` — so an explanation can be asked against exactly the plan that was just run. `format` is case-insensitive on every tool. `fixmap_doctor` sets `isError` when the install is unhealthy, so a client branching only on that flag still sees a shadowed install.
 
 Claude Code:
 

@@ -20,7 +20,7 @@ import {
 import { renderDoctorReport, runDoctorChecks } from "./doctor.js";
 import {
   buildReportForRepository,
-  parseGitHubIssueSource,
+  tryParseGitHubIssueSource,
   type RepositorySourceDependencies
 } from "./repository-source.js";
 
@@ -43,10 +43,14 @@ type ExplainArguments = {
   path: string;
   issue?: string;
   diff?: string;
+  base?: string;
+  head?: string;
   repo?: string;
   exclude?: string[];
   limit?: number;
   format?: "markdown" | "json";
+  workingTree?: boolean;
+  includeUntracked?: boolean;
 };
 
 type PlanArgumentsValidation =
@@ -71,11 +75,12 @@ const PLAN_TOOL = {
     "Map an issue, prompt, or git diff to the repository files worth reading first, " +
     "the test commands most likely to validate a change, and the areas that deserve review attention. " +
     "Run this before editing code so the change starts from the right context. " +
-    "Provide at least one of issue, diff, or base. " +
-    // Agents otherwise read a ranked list as a settled answer. On the frozen suites a top
-    // result labeled high confidence is the correct fixing file 9 times out of 15, so the
-    // ranking is a lead to verify rather than a conclusion. High is also deliberately
-    // scarce: it marks the file that led, not every file worth reading.
+    "Provide at least one of issue, diff, base/head, or workingTree. " +
+    // Agents otherwise read a ranked list as a settled answer. A figure here goes stale the
+    // moment the suites are re-recorded — it already had, quoting a 9/15 rate from a suite
+    // that no longer exists — and a stale calibration number is worse than none, because an
+    // agent weights its confidence by it. Point at the published evidence instead, which is
+    // regenerated from the recorded results on every release.
     "Treat the result as a starting map, not proof the task is valid: check the analysis " +
     "block before editing, and when it reports unresolved or unverified identifiers, vague " +
     "task grounding, an incomplete scan, or a clustered ranking, widen the search or ask for " +
@@ -100,8 +105,7 @@ const PLAN_TOOL = {
       },
       format: {
         type: "string",
-        enum: ["markdown", "json", "MARKDOWN", "JSON"],
-        description: "Report format, markdown by default"
+        description: "Output format: markdown (default) or json, case-insensitive"
       },
       limit: {
         type: "number",
@@ -144,6 +148,10 @@ const EXPLAIN_TOOL = {
         description: "The same task signal used for the plan, so the explanation matches that ranking"
       },
       diff: { type: "string", description: "Git diff spec, such as main...HEAD" },
+      base: { type: "string", description: "Base git ref to diff against when diff is not given" },
+      head: { type: "string", description: "Head git ref, defaults to HEAD" },
+      workingTree: { type: "boolean", description: "Explain against staged and unstaged tracked changes, matching a working-tree plan" },
+      includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" },
       repo: {
         type: "string",
         description: "Local repository path, defaults to the server working directory. Remote URLs are not supported."
@@ -154,7 +162,7 @@ const EXPLAIN_TOOL = {
         description: "The same exclusion patterns used for the plan"
       },
       limit: { type: "number", description: `Maximum reported context files, 1 to ${MAX_MCP_LIMIT}` },
-      format: { type: "string", enum: ["markdown", "json", "MARKDOWN", "JSON"], description: "Output format, markdown by default" }
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
     },
     required: ["path"],
     additionalProperties: false
@@ -184,7 +192,7 @@ const VERIFY_TOOL = {
       repo: { type: "string", description: "Local repository path, defaults to the server working directory" },
       workingTree: { type: "boolean", description: "Verify staged and unstaged tracked changes against HEAD" },
       includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" },
-      format: { type: "string", enum: ["markdown", "json", "MARKDOWN", "JSON"], description: "Output format, markdown by default" }
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
     },
     required: ["report"],
     additionalProperties: false
@@ -208,7 +216,7 @@ const COMPARE_TOOL = {
         description: "Current FixMap JSON report object or path to a local JSON report file",
         anyOf: [{ type: "object" }, { type: "string" }]
       },
-      format: { type: "string", enum: ["markdown", "json", "MARKDOWN", "JSON"] }
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
     },
     required: ["previous", "current"],
     additionalProperties: false
@@ -219,7 +227,7 @@ const DOCTOR_TOOL = {
   name: "fixmap_doctor",
   title: "FixMap doctor",
   description: "Check the running FixMap installation for stale or shadowed binaries.",
-  inputSchema: { type: "object" as const, properties: { format: { type: "string", enum: ["markdown", "json", "MARKDOWN", "JSON"] } }, additionalProperties: false }
+  inputSchema: { type: "object" as const, properties: { format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" } }, additionalProperties: false }
 };
 
 export function createFixMapMcpServer(
@@ -247,8 +255,23 @@ export function createFixMapMcpServer(
       const record = request.params.arguments as Record<string, unknown> | undefined;
       const format = normalizeFormat(record?.format);
       if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      const unknown = Object.keys(record ?? {}).filter((key) => key !== "format");
+      if (unknown.length > 0) {
+        return {
+          isError: true,
+          content: [{
+            type: "text",
+            text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`
+          }]
+        };
+      }
       const report = await runDoctorChecks();
-      return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(report, null, 2)}\n` : renderDoctorReport(report) }] };
+      // A client that branches only on isError read a shadowed install as a healthy run,
+      // which is the single situation doctor exists to catch.
+      return {
+        ...(report.healthy ? {} : { isError: true }),
+        content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(report, null, 2)}\n` : renderDoctorReport(report) }]
+      };
     }
     if (request.params.name === VERIFY_TOOL.name) {
       const parsed = parseVerifyArguments(request.params.arguments ?? {});
@@ -304,7 +327,14 @@ export function createFixMapMcpServer(
       }
       try {
         const repoRoot = args.repo ?? process.cwd();
-        const repo = await scanRepo({ repoRoot, diffSpec: args.diff });
+        const repo = await scanRepo({
+          repoRoot,
+          diffSpec: args.diff,
+          baseRef: args.base,
+          headRef: args.head,
+          workingTree: args.workingTree,
+          includeUntracked: args.includeUntracked
+        });
         const explanation = explainFile(
           repo,
           {
@@ -345,7 +375,7 @@ export function createFixMapMcpServer(
     if (!args.issue && !args.diff && !args.base && !args.workingTree) {
       return {
         isError: true,
-        content: [{ type: "text", text: "Provide issue, diff, or base/head so FixMap has a task signal." }]
+        content: [{ type: "text", text: "Provide issue, diff, base/head, or workingTree so FixMap has a task signal." }]
       };
     }
 
@@ -445,7 +475,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
   if (record.workingTree === true) value.workingTree = true;
   if (record.includeUntracked === true) value.includeUntracked = true;
-  if (value.issue && /^https?:\/\/\S+$/i.test(value.issue) && !parseGitHubIssueSource(value.issue)) return { success: false, message: '"issue" URL must be a canonical public GitHub issue or pull request URL.' };
+  if (value.issue && /^https?:\/\/\S+$/i.test(value.issue) && !tryParseGitHubIssueSource(value.issue)) return { success: false, message: '"issue" URL must be a canonical public GitHub issue or pull request URL.' };
   return { success: true, value };
 }
 
@@ -485,15 +515,20 @@ export function parseExplainArguments(
     return { success: false, message: "tool arguments must be an object." };
   }
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["path", "issue", "diff", "repo", "exclude", "format", "limit"]);
+  const allowed = new Set(["path", "issue", "diff", "base", "head", "repo", "exclude", "format", "limit", "workingTree", "includeUntracked"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
   }
-  for (const name of ["path", "issue", "diff", "repo"] as const) {
+  for (const name of ["path", "issue", "diff", "base", "head", "repo"] as const) {
     const value = record[name];
     if (value !== undefined && typeof value !== "string") {
       return { success: false, message: `"${name}" must be a string.` };
+    }
+  }
+  for (const name of ["workingTree", "includeUntracked"] as const) {
+    if (record[name] !== undefined && typeof record[name] !== "boolean") {
+      return { success: false, message: `"${name}" must be a boolean.` };
     }
   }
   const path = typeof record.path === "string" ? record.path.trim() : "";
@@ -513,6 +548,10 @@ export function parseExplainArguments(
       path,
       ...(typeof record.issue === "string" && record.issue.trim() ? { issue: record.issue.trim() } : {}),
       ...(typeof record.diff === "string" && record.diff.trim() ? { diff: record.diff.trim() } : {}),
+      ...(typeof record.base === "string" && record.base.trim() ? { base: record.base.trim() } : {}),
+      ...(typeof record.head === "string" && record.head.trim() ? { head: record.head.trim() } : {}),
+      ...(record.workingTree === true ? { workingTree: true } : {}),
+      ...(record.includeUntracked === true ? { includeUntracked: true } : {}),
       ...(typeof record.repo === "string" && record.repo.trim() ? { repo: record.repo.trim() } : {}),
       ...(exclude.value.length > 0 ? { exclude: exclude.value } : {}),
       ...(limit.value !== undefined ? { limit: limit.value } : {}),
@@ -628,6 +667,22 @@ function asFixMapReport(candidate: unknown, label: string): LoadedReport {
       message: `${label} must be a FixMap JSON report with a contextFiles array, or a path to one.`
     };
   }
+
+  // The array check alone accepted `{ contextFiles: [{}] }`, and every downstream comparison
+  // then read `undefined` paths as real ones — an agent hand-building a report, or truncating
+  // one, got a confident diff of nothing. Each entry has to carry the field the comparison is
+  // keyed on. `rank`, `score` and `confidence` stay optional so a trimmed report still works.
+  const contextFiles = (candidate as FixMapReport).contextFiles;
+  const invalid = contextFiles.findIndex(
+    (file) => typeof file !== "object" || file === null || typeof (file as { path?: unknown }).path !== "string"
+  );
+  if (invalid !== -1) {
+    return {
+      success: false,
+      message: `${label} has a contextFiles entry at index ${invalid} without a string "path"; every ranked file needs one.`
+    };
+  }
+
   return { success: true, report: candidate as FixMapReport };
 }
 

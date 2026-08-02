@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
-import { createFixMapMcpServer, parsePlanArguments } from "../src/mcp.js";
+import { createFixMapMcpServer, parseExplainArguments, parsePlanArguments } from "../src/mcp.js";
 import type { RepositorySourceDependencies } from "../src/repository-source.js";
 
 const exec = promisify(execFile);
@@ -483,5 +483,29 @@ describe("fixmap mcp server", () => {
     expect(result.isError).toBe(true);
     const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
     expect(text).toContain("task signal");
+  });
+});
+
+describe("MCP surface parity", () => {
+  // #328: an agent could not explain the ranking of the working-tree plan it had just run.
+  it("accepts the plan scan options on explain", () => {
+    expect(parseExplainArguments({ path: "a.ts", workingTree: true, includeUntracked: true }).success).toBe(true);
+    expect(parseExplainArguments({ path: "a.ts", base: "main", head: "HEAD" }).success).toBe(true);
+
+    const wrong = parseExplainArguments({ path: "a.ts", workingTree: "yes" });
+    expect(wrong.success).toBe(false);
+    expect(wrong.success === false && wrong.message).toContain('"workingTree" must be a boolean');
+  });
+
+  // #278: a four-literal enum rejected `Markdown` in strict clients before normalization ran.
+  it.each(["markdown", "JSON", "Markdown", "JsOn"])("accepts %j as a format", (format) => {
+    expect(parsePlanArguments({ issue: "x", format }).success).toBe(true);
+  });
+
+  // #369: the throwing parser surfaced an uncaught exception instead of Invalid arguments.
+  it("reports a non-canonical issue URL as invalid rather than throwing", () => {
+    expect(() => parsePlanArguments({ issue: "https://github.com/o/r/issues/274?plain=1" })).not.toThrow();
+    expect(parsePlanArguments({ issue: "https://github.com/o/r/issues/274?plain=1" }).success).toBe(true);
+    expect(parsePlanArguments({ issue: "https://github.com/o/r/pull/158.patch" }).success).toBe(false);
   });
 });
