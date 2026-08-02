@@ -424,7 +424,8 @@ describe("fixmap mcp server", () => {
     expect(result.isError).toBe(true);
     expect(cloneCalled).toBe(false);
     const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
-    expect(text).toContain("Git diff options are not supported");
+    expect(text).toContain("need a local checkout");
+    expect(text).toContain("shallow clone");
   });
 
   it("returns a sanitized error when a public repository cannot be fetched", async () => {

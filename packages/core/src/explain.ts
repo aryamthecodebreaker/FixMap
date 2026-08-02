@@ -57,7 +57,10 @@ export function explainFile(
     return {
       path,
       status: "excluded",
-      reasons: [],
+      // The pattern lived only inside the prose summary, so an agent reading `reasons` — the
+      // field that carries the working for every other status — got an empty array and no
+      // way to learn which pattern to change.
+      reasons: [`matched the exclusion pattern: ${excludedBy}`],
       summary:
         `Excluded: matched the exclusion pattern "${excludedBy}". ` +
         "Remove it from .fixmapignore or --exclude to let this file rank."
@@ -81,7 +84,15 @@ export function explainFile(
 
   const exclusion = describeExclusion(repo, input, path);
   if (exclusion) {
-    return { path, status: exclusion.status, reasons: [], summary: exclusion.summary };
+    // Same reasoning as the .fixmapignore branch above: the cause belongs in `reasons`, not
+    // only in prose an agent has to parse. The summary leads with "Excluded: " or
+    // "Not scanned: ", which is the sentence with the cause in it.
+    return {
+      path,
+      status: exclusion.status,
+      reasons: [exclusion.summary.replace(/^(?:Excluded|Not scanned):\s*/, "")],
+      summary: exclusion.summary
+    };
   }
 
   // The file was a candidate and simply did not score highly enough. Report the score it

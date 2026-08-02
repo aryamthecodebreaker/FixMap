@@ -136,7 +136,13 @@ npx -y @aryam/fixmap@latest plan \
   --output fixmap-report.json
 ```
 
-Remote repository mode is issue-only. Clone the repository locally when you need `--diff`, `--base`, or `--head`.
+Remote repository mode is issue-only, and deliberately so: the checkout is a single-commit shallow clone of the default branch, which has no history for a diff range to resolve against and no working tree to compare. Passing `--diff`, `--base`/`--head` or `--working-tree` with a GitHub URL fails immediately and says this, rather than cloning first and then reporting an unresolvable ref.
+
+That clone is also the expensive part of a remote run — minutes on a large monorepo, for a ranking that is lexical. If you already have the repository on disk, pass `--repo .` with the issue URL and FixMap will rank against your checkout instead of fetching its own:
+
+```bash
+npx -y @aryam/fixmap@latest plan --issue https://github.com/owner/repository/issues/123 --repo .
+```
 
 Set `FIXMAP_PROGRESS=1` when you want clone/scan progress; `true`, `yes`, and `on` work too, and `0`/`false`/`no`/`off` silence it even in a terminal, where it is otherwise on by default. Progress is intentionally written to stderr so JSON/stdout remains pipe-safe; in PowerShell, merge it for display with `2>&1` or suppress it with `2>$null` if your host records native stderr as an error stream. The same applies to the next-step hints printed after a successful plan — they are stderr, not failure. `FIXMAP_VERBOSE_USAGE=1` restores the full usage block after every argument error.
 

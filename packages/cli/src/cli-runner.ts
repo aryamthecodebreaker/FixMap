@@ -367,8 +367,22 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     if (options.output) {
       try { await (dependencies.writeReport ?? ((path, contents) => writeFile(path, contents, "utf8")))(options.output, renderedComparison); }
       catch (error) { stderr(formatOutputError(options.output, error, "comparison")); return 1; }
+      // The file holds the comparison, not the plan that produced it — so the obvious next
+      // loop, comparing again against this run, needs a plan that was never saved. Saying so
+      // beats discovering it one run later.
+      stderr(
+        `Wrote the comparison to "${options.output}". The plan itself was not saved; ` +
+        "rerun without --compare and with --output to keep it as the baseline for the next comparison.\n"
+      );
     } else stdout(renderedComparison);
-    stderr("\nComparison complete. Refine the task or inspect the files that entered, moved, or changed confidence, then rerun the plan.\n");
+    // Telling someone to inspect what entered, moved or changed confidence when nothing did
+    // reads as though the output were misread. An unchanged comparison is a real answer: the
+    // task edit made no difference, and the next move is a different edit, not a closer look.
+    const moved = comparison.entered.length + comparison.left.length +
+      comparison.moved.length + comparison.confidenceChanged.length;
+    stderr(moved === 0
+      ? "\nComparison complete. Nothing entered, left, moved, or changed confidence — that task edit did not affect the ranking. Try naming a symbol, error string, or path from the file you expect.\n"
+      : "\nComparison complete. Refine the task or inspect the files that entered, moved, or changed confidence, then rerun the plan.\n");
     return 0;
   }
 
@@ -771,12 +785,33 @@ async function runVerify(
     return 1;
   }
 
-  let report: FixMapReport;
+  let reportText: string;
   try {
-    report = JSON.parse(readFileSync(options.reportPath, "utf8")) as FixMapReport;
+    reportText = readFileSync(options.reportPath, "utf8");
   } catch (error) {
     io.stderr(
       `Could not read "${options.reportPath}": ${error instanceof Error ? error.message : String(error)}\n` +
+      "Generate one with: fixmap plan --issue \"...\" --format json --output fixmap-report.json\n"
+    );
+    return 1;
+  }
+  // --compare already detected this and said so plainly; verify raised a raw
+  // `Unexpected token '#'` from JSON.parse, which describes the parser rather than the
+  // mistake. Passing the markdown report is the obvious thing to try first.
+  if (/^\s*#\s*FixMap/i.test(reportText)) {
+    io.stderr(
+      `"${options.reportPath}" is a Markdown report. verify --report requires the JSON plan saved with --format json.\n` +
+      "Generate one with: fixmap plan --issue \"...\" --format json --output fixmap-report.json\n"
+    );
+    return 1;
+  }
+
+  let report: FixMapReport;
+  try {
+    report = JSON.parse(reportText) as FixMapReport;
+  } catch (error) {
+    io.stderr(
+      `"${options.reportPath}" is not valid JSON: ${error instanceof Error ? error.message : String(error)}\n` +
       "Generate one with: fixmap plan --issue \"...\" --format json --output fixmap-report.json\n"
     );
     return 1;
