@@ -30,6 +30,7 @@ const PRESENTATION_CODE_PENALTY = 8;
 const TYPE_DECLARATION_PENALTY = 4;
 const BACKUP_COPY_PENALTY = 10;
 const BUNDLED_OUTPUT_PENALTY = 12;
+const GENERATED_TWIN_REASON = "generated build artifact; maintained source counterpart exists";
 // Bundlers strip newlines; people do not. A file averaging hundreds of characters per
 // line is machine output, whatever directory it sits in. Repositories commit these —
 // Next.js keeps pre-bundled dependencies under `src/compiled/` — and because they have
@@ -162,6 +163,10 @@ export function rankContextFiles(
         reasons.push("explicitly named in the task");
       }
 
+      if (isGeneratedPath(file.path) && maintainedStems.has(moduleStem(file.path))) {
+        reasons.push(GENERATED_TWIN_REASON);
+      }
+
       const pathTokens = tokenizePath(file.path);
       const pathOverlap = [...pathTokens].filter((token) => taskTokens.has(token));
       if (pathOverlap.length > 0) {
@@ -270,8 +275,7 @@ export function rankContextFiles(
       }
 
       if (
-        file.kind === "code" &&
-        isPresentationCodePath(file.path) &&
+        isPresentationSurfacePath(file.path) &&
         !taskTargetsPresentation &&
         !taskTargetsExamples &&
         !isChanged &&
@@ -413,7 +417,13 @@ function confidenceForEntry(
   if (entry.isChanged) {
     return "high";
   }
-  if (entry.reasons.includes("explicitly named in the task") && shape.position === 0 && !shape.leadIsContested) {
+  const hasMaintainedSourceTwin = entry.reasons.includes(GENERATED_TWIN_REASON);
+  if (
+    entry.reasons.includes("explicitly named in the task") &&
+    shape.position === 0 &&
+    !shape.leadIsContested &&
+    !hasMaintainedSourceTwin
+  ) {
     return "high";
   }
 
@@ -431,6 +441,9 @@ function confidenceForEntry(
     confidence = capConfidence(confidence, "medium");
   }
   if (shape.position === 0 && shape.leadIsContested) {
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (hasMaintainedSourceTwin) {
     confidence = capConfidence(confidence, "medium");
   }
   const supportedIdentifierCount = grounding.identifiers.filter((identifier) =>
@@ -545,9 +558,10 @@ function isAuxiliaryCodePath(path: string): boolean {
     /^(?:demo|example|sample)(?:[-_.]|$)/.test(stem);
 }
 
-function isPresentationCodePath(path: string): boolean {
+function isPresentationSurfacePath(path: string): boolean {
   const name = path.split("/").at(-1)?.toLowerCase() ?? "";
-  return /^(?:page|layout|demo|sample-repo)\.[cm]?[jt]sx?$/.test(name);
+  return /^(?:page|layout|demo|sample-repo)\.[cm]?[jt]sx?$/.test(name) ||
+    /\.(?:css|less|sass|scss)$/.test(name);
 }
 
 function tokenizeFileContent(text: string): Set<string> {

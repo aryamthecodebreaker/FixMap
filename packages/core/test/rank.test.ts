@@ -546,6 +546,60 @@ describe("rankContextFiles", () => {
       .not.toContain("type declaration deprioritized for a runtime task");
   });
 
+  it("keeps stylesheet symptom words below implementation unless the task targets presentation", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "src/checkout.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function applyDiscount(cart: Cart) { return cart.total; }"
+        },
+        {
+          path: "styles/discount.css",
+          extension: ".css",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: ".discount-banner .discount-total .discount-cart .discount { color: red; }"
+        },
+        {
+          path: "src/copy.json",
+          extension: ".json",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "config",
+          textSample: "{ \"discount\": \"Discount total on cart\" }"
+        }
+      ]
+    };
+
+    const implementationTask = rankContextFiles(repo, {
+      issueText: "discount total on cart is wrong"
+    }, 8, 0);
+    expect(implementationTask[0]?.path).toBe("src/checkout.ts");
+    expect(implementationTask.find((file) => file.path === "styles/discount.css")?.reasons)
+      .toContain("presentation or demo surface deprioritized for a non-UI implementation task");
+
+    const presentationTask = rankContextFiles(repo, {
+      issueText: "discount banner CSS layout is wrong on the cart page"
+    });
+    expect(presentationTask[0]?.path).toBe("styles/discount.css");
+    expect(presentationTask[0]?.reasons)
+      .not.toContain("presentation or demo surface deprioritized for a non-UI implementation task");
+  });
+
   it("keeps documentation noise below matching code unless the task targets docs", () => {
     const repo: RepoMap = {
       root: "/repo",
@@ -716,7 +770,49 @@ describe("rankContextFiles", () => {
       issueText: "dist/color-support.js is stale and disagrees with the source"
     });
 
-    expect(ranked.map((file) => file.path)).toContain("dist/color-support.js");
+    const artifact = ranked.find((file) => file.path === "dist/color-support.js");
+    expect(artifact?.reasons).toContain("explicitly named in the task");
+    expect(artifact?.reasons).toContain("generated build artifact; maintained source counterpart exists");
+    expect(artifact?.confidence).toBe("medium");
+  });
+
+  it("caps confidence when an explicitly named generated path has a maintained twin", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        {
+          path: "packages/action/src/index.ts",
+          extension: ".ts",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function postComment(marker: string) { return marker; }"
+        },
+        {
+          path: "packages/action/dist/index.mjs",
+          extension: ".mjs",
+          sizeBytes: 100,
+          isSource: true,
+          isTest: false,
+          kind: "code",
+          textSample: "export function postComment(marker) { return marker; }"
+        }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, {
+      issueText: "the bundle in packages/action/dist/index.mjs mishandles the comment marker"
+    });
+
+    expect(ranked[0]?.path).toBe("packages/action/dist/index.mjs");
+    expect(ranked[0]?.confidence).toBe("medium");
+    expect(ranked[0]?.reasons).toContain("generated build artifact; maintained source counterpart exists");
   });
 
   it("still credits a task term that most of a focused repository mentions", () => {
