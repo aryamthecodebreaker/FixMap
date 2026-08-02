@@ -670,18 +670,47 @@ function asFixMapReport(candidate: unknown, label: string): LoadedReport {
     };
   }
 
-  // The array check alone accepted `{ contextFiles: [{}] }`, and every downstream comparison
-  // then read `undefined` paths as real ones — an agent hand-building a report, or truncating
-  // one, got a confident diff of nothing. Each entry has to carry the field the comparison is
-  // keyed on. `rank`, `score` and `confidence` stay optional so a trimmed report still works.
+  // A contextFiles-only empty object is indistinguishable from a truncated report. A real
+  // empty plan carries the full report envelope; trimmed non-empty reports remain useful as
+  // long as every field the comparison reads has the documented type.
   const contextFiles = (candidate as FixMapReport).contextFiles;
-  const invalid = contextFiles.findIndex(
-    (file) => typeof file !== "object" || file === null || typeof (file as { path?: unknown }).path !== "string"
-  );
+  const record = candidate as Record<string, unknown>;
+  if (
+    contextFiles.length === 0 &&
+    !(
+      typeof record.summary === "string" &&
+      Array.isArray(record.testRoutes) &&
+      Array.isArray(record.risks) &&
+      Array.isArray(record.changedFiles) &&
+      Array.isArray(record.diagnostics)
+    )
+  ) {
+    return {
+      success: false,
+      message:
+        `${label} has no context files and is missing the complete FixMap report envelope ` +
+        '(summary, testRoutes, risks, changedFiles, and diagnostics).'
+    };
+  }
+
+  const invalid = contextFiles.findIndex((file) => {
+    if (typeof file !== "object" || file === null) return true;
+    const ranked = file as Record<string, unknown>;
+    if (typeof ranked.path !== "string" || ranked.path.trim().length === 0) return true;
+    if (ranked.rank !== undefined && (!Number.isSafeInteger(ranked.rank) || (ranked.rank as number) < 1)) return true;
+    if (ranked.score !== undefined && (typeof ranked.score !== "number" || !Number.isFinite(ranked.score))) return true;
+    if (
+      ranked.confidence !== undefined &&
+      ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low"
+    ) return true;
+    return false;
+  });
   if (invalid !== -1) {
     return {
       success: false,
-      message: `${label} has a contextFiles entry at index ${invalid} without a string "path"; every ranked file needs one.`
+      message:
+        `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", ` +
+        'and optional rank, score, and confidence fields must use their documented types.'
     };
   }
 
