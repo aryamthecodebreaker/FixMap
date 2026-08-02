@@ -6,6 +6,28 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://usefixmap.vercel.app/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.8.5 - 2026-08-02
+
+### Fixed
+
+- The README, package guide, and website now lead with a proper global installation followed by the short `fixmap plan ...` command. CLI and MCP examples use the installed binary instead of repeating a long npm invocation.
+- The one-off npx path now states that npm may prefer an existing project-local binary. Doctor's exact-request detector is described accurately: it works when Doctor 0.8.4 or newer starts, while an older binary that wins first cannot contain newer diagnostic code. The printed running version is authoritative (#437).
+
+### Evidence
+
+- Reproduced the remaining boundary from a child project containing FixMap 0.8.3: an exact 0.8.4 npm request started the project-local 0.8.3 binary and that older Doctor reported only what its old code knew.
+- Verified the isolated-prefix/direct-shim procedure independently, and verified the installed-command website with web typechecking, lint, and a production build before release validation.
+
+### Installation
+
+```bash
+npm install --global @aryam/fixmap@0.8.5
+fixmap doctor
+fixmap plan --issue https://github.com/chalk/chalk/issues/624
+```
+
+The npm packages, MCP Registry entry, GitHub tag/release, Action tag, and production site must all resolve to 0.8.5 before the release is considered complete.
+
 ## 0.8.4 - 2026-08-02
 
 ### Fixed

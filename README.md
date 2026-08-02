@@ -78,8 +78,8 @@ fixmap doctor
 Doctor 0.8.4 and newer compares an exact npm-requested version when that newer Doctor is the process npm starts. An older project-local binary can win before newer Doctor code runs, so no new version can diagnose that decision from inside the old process. Treat the printed running version as authoritative, update or remove the stale installation, or test an exact version in an isolated prefix and invoke that prefix's shim directly. This PowerShell sequence cannot be redirected to an older package in the current directory or one of its parents:
 
 ```powershell
-$fixmapPrefix = Join-Path $env:TEMP "fixmap-cli-0.8.4"
-npm install --global --prefix $fixmapPrefix @aryam/fixmap@0.8.4
+$fixmapPrefix = Join-Path $env:TEMP "fixmap-cli-0.8.5"
+npm install --global --prefix $fixmapPrefix @aryam/fixmap@0.8.5
 & "$fixmapPrefix\fixmap.cmd" --version
 ```
 
@@ -283,8 +283,8 @@ fixmap doctor
 ```text
 # FixMap Doctor
 
-- ok  Running version: 0.8.4
-- PROBLEM  Global install: 0.3.1 (this process is 0.8.4)
+- ok  Running version: 0.8.5
+- PROBLEM  Global install: 0.3.1 (this process is 0.8.5)
     A globally installed fixmap shadows the version npx was asked for. Run
     `npm uninstall -g @aryam/fixmap` or update the global installation. For a
     clean pinned run, use the isolated-prefix command above.
@@ -367,7 +367,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: fixmap
-        uses: aryamthecodebreaker/FixMap@v0.8.4
+        uses: aryamthecodebreaker/FixMap@v0.8.5
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -378,7 +378,7 @@ To close the plan→edit→verify loop without leaving GitHub, save the plan as 
 
 ```yaml
       - id: plan
-        uses: aryamthecodebreaker/FixMap@v0.8.4
+        uses: aryamthecodebreaker/FixMap@v0.8.5
         with:
           format: json
       - run: echo '${{ steps.plan.outputs.report }}' > fixmap-plan.json
@@ -388,7 +388,7 @@ To close the plan→edit→verify loop without leaving GitHub, save the plan as 
           path: fixmap-plan.json
 
       # In a later run, after the fix is pushed:
-      - uses: aryamthecodebreaker/FixMap@v0.8.4
+      - uses: aryamthecodebreaker/FixMap@v0.8.5
         with:
           mode: verify
           report-path: fixmap-plan.json
@@ -470,6 +470,10 @@ Read the full [benchmark methodology and scanner measurements](docs/BENCHMARKS.m
 ```bash
 npm run evaluate:heldout
 ```
+
+## What changed in v0.8.5
+
+v0.8.5 makes the supported installation path unmistakable. Install once with `npm install --global @aryam/fixmap@latest`, then use the short `fixmap plan ...` command everywhere, including MCP setup. The one-off npx form remains documented, but now states that npm may prefer an existing project-local binary. Doctor's output and limitations are described precisely: the running version is authoritative, and an older binary that wins before new code starts cannot contain a newer detector (#437).
 
 ## What changed in v0.8.4
 
