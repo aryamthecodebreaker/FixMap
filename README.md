@@ -70,11 +70,15 @@ If an older FixMap is installed globally, some npm/npx combinations on Windows r
 npx -y @aryam/fixmap@latest doctor
 ```
 
-Remove the stale copy with `npm uninstall -g @aryam/fixmap`, or use the unambiguous form:
+Remove the stale copy with `npm uninstall -g @aryam/fixmap`, or test an exact version in an isolated prefix and invoke that prefix's shim directly. This PowerShell sequence cannot be redirected to an older package in the current directory or one of its parents:
 
-```bash
-npm exec --yes --package=@aryam/fixmap@0.8.3 -- fixmap --version
+```powershell
+$fixmapPrefix = Join-Path $env:TEMP "fixmap-cli-0.8.3"
+npm install --global --prefix $fixmapPrefix @aryam/fixmap@0.8.3
+& "$fixmapPrefix\fixmap.cmd" --version
 ```
+
+On macOS or Linux, use `fixmapPrefix="$(mktemp -d)"`, install with the same `--prefix`, and run `"$fixmapPrefix/bin/fixmap" --version`.
 
 | Command | Answers |
 | --- | --- |
@@ -277,14 +281,14 @@ npx -y @aryam/fixmap@latest doctor
 - ok  Running version: 0.8.3
 - PROBLEM  Global install: 0.3.1 (this process is 0.8.3)
     A globally installed fixmap shadows the version npx was asked for. Run
-    `npm uninstall -g @aryam/fixmap`, or invoke the exact version with
-    `npm exec --package=@aryam/fixmap@<version> -- fixmap <command>`.
+    `npm uninstall -g @aryam/fixmap` or update the global installation. For a
+    clean pinned run, use the isolated-prefix command above.
 - ok  Node version: 24.13.0
 ```
 
 It exits non-zero when it finds a shadow, so a CI step fails rather than reading on.
 
-Doctor can compare the running package, the first `fixmap` shim on `PATH`, and npm's global package. It cannot infer a version you intended in some other shell command or inspect every historical npm-exec cache entry; when reproducibility matters, use `npm exec --yes --package=@aryam/fixmap@0.8.3 -- fixmap --version` and confirm the printed version before continuing.
+Doctor compares the running package, the first `fixmap` shim on `PATH`, npm's global package, and an exact version requested through npm exec. It exits non-zero if npm requested one version but an older local or ancestor install ran instead. It cannot infer a version intended in some unrelated shell command or inspect every historical npm-exec cache entry; when reproducibility matters, use the isolated-prefix command above and invoke its shim directly.
 
 ### MCP server
 
