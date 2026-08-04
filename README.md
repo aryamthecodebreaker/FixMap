@@ -422,15 +422,48 @@ FixMap is measured against real issues that were later fixed by a merged pull re
 
 | | Held-out — 12 repos, **never tuned against** | Regression — 16 repos, guided development |
 | --- | ---: | ---: |
-| Fixing file ranked Top-1 | **7 / 12 — 58%** <br><sub>95% CI 32–81%</sub> | 11 / 16 — 69% <br><sub>95% CI 44–86%</sub> |
-| Fixing file ranked Top-3 | **8 / 12 — 67%** <br><sub>95% CI 39–86%</sub> | 16 / 16 — 100% <br><sub>95% CI 81–100%</sub> |
-| Wrong file ranked first while the right one was available | **2 / 12 — 17%** | 5 / 16 — 31% |
+| Fixing file ranked Top-1 | 7 / 12 — 58% <br><sub>95% CI 32–81%</sub> | 11 / 16 — 69% <br><sub>95% CI 44–86%</sub> |
+| Fixing file ranked Top-3 | 8 / 12 — 67% <br><sub>95% CI 39–86%</sub> | 16 / 16 — 100% <br><sub>95% CI 81–100%</sub> |
+| Wrong file ranked first while the right one was available | 2 / 12 — 17% | 5 / 16 — 31% |
 
-**Plan around the held-out column.** The regression suite is where the ranking heuristics were developed — a case missed, the ranker changed — so its 100% describes fit, not accuracy on your repository.
+#### Some of those tasks already contained their answer
 
-**And read the intervals, not the percentages.** At twelve cases one result flipping moves Top-3 by eight points. The honest statement is "roughly two thirds, with a wide interval", not a precise success probability. Anyone quoting these figures to two significant figures, including us, is overstating them.
+Three of the twelve held-out tasks name a fixing file in the task text itself. Mongoose's says `Location: lib/document.js:2339`; svelte's and yargs' link a GitHub permalink straight to the file and line range. A ranker that reads explicit file mentions — which FixMap has — answers those by reading the task, not by searching the repository. Pooling them into one rate lets three cases carry the headline.
 
-Two things the point estimates hide. Held-out Top-1 (58%) remains close to its Top-3 (67%) — **when FixMap finds the file at all, it usually ranks it first**, which is what actually matters to an agent that opens one file. The tuned suite's 100% Top-3 still conceals that in 31% of those cases something wrong ranks above the answer, so an agent following it opens the wrong file first.
+Split by whether the task named the file, the held-out suite reads:
+
+| Held-out cohort | Cases | Top-1 | Top-3 | Top-5 |
+| --- | ---: | ---: | ---: | ---: |
+| Task **did not** name the file — *plan around this one* | 9 | **44%** <br><sub>95% CI 19–73%</sub> | **56%** <br><sub>95% CI 27–81%</sub> | 67% |
+| Task named the file | 3 | 100% | 100% | 100% |
+| Pooled (what we published before) | 12 | 58% | 67% | 75% |
+
+The same split on the regression suite barely moves it (69% → 69% Top-1), and its three named cases are 2 / 3 rather than 3 / 3 — so being named does not guarantee a hit, and with three cases per cohort the *size* of this effect is not established. What is established is structural: a generalization headline should not be computed over tasks that contain their own answer. The cohort is now derived at evaluation time from the same task text the ranker reads, so it cannot drift.
+
+**Plan around the held-out, unmentioned cohort.** The regression suite is where the ranking heuristics were developed — a case missed, the ranker changed — so its 100% describes fit, not accuracy on your repository.
+
+**And read the intervals, not the percentages.** At nine cases one result flipping moves Top-3 by eleven points. The honest statement is "roughly half, with a wide interval", not a precise success probability. Anyone quoting these figures to two significant figures, including us, is overstating them.
+
+#### Is this better than just searching the repository?
+
+The fair question about a ranked file list is whether it beats what an agent already gets for free. So the same suites are scored against naive retrieval on **the same scanned corpus** — one repository scan per case, shared by every arm, so the only difference is ranking. Both keyword arms are case-insensitive and expand camelCase, which favours the baselines on purpose.
+
+Held-out, tasks that did not name the file (9 cases):
+
+| Arm | Top-1 | Top-3 | Top-5 |
+| --- | ---: | ---: | ---: |
+| Path extraction — read paths out of the task | 0% | 0% | 0% |
+| Literal keyword search | 11% | 22% | 33% |
+| BM25 retrieval | 11% | 22% | 33% |
+| **FixMap** | **44%** | **56%** | **67%** |
+
+FixMap wins on the regression suite too (69% vs 15% Top-1 against BM25 on its 13 unmentioned cases), and it never loses a head-to-head case against any baseline on that suite — a paired McNemar exact test puts that at p = 0.004–0.016. On the nine held-out cases the direction is identical and FixMap still never loses a disagreement, but it **cannot** reach significance there: with three disagreeing cases the smallest possible two-sided p-value is 0.25. That is a limit of the sample size, not a negative result, and it is the strongest argument for growing the held-out suite.
+
+Path extraction scoring exactly 0% on this cohort and 67% on the named one is the check that the cohort split is measuring what it claims.
+
+Reproduce it with `node scripts/evaluate-baseline.mjs --suite heldout`; every arm's ranking is recorded in [`benchmarks/heldout/baseline-results.json`](benchmarks/heldout/baseline-results.json).
+
+One thing the point estimates hide: held-out Top-1 stays close to Top-3 in both cohorts — **when FixMap finds the file at all, it usually ranks it first**, which is what matters to an agent that opens one file. The tuned suite's 100% Top-3 still conceals that in 31% of those cases something wrong ranks above the answer, so an agent following it opens the wrong file first.
 
 The three held-out misses are published with their real rankings in [`benchmarks/heldout/`](benchmarks/heldout), not removed or explained away.
 

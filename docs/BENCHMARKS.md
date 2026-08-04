@@ -10,13 +10,107 @@ Ranking outputs refreshed 2026-07-31 on Node v24.13.0, Windows 11 (10.0.26200), 
 
 | Quantity | Held-out (12) | Regression (16) | Evidence type |
 | --- | ---: | ---: | --- |
-| Expected fixing file in Top-1 | 7/12 (58%) | 11/16 (69%) | Measured |
-| Expected fixing file in Top-3 | 8/12 (67%) | 16/16 (100%) | Measured |
-| Expected fixing file in Top-5 | 9/12 (75%) | 16/16 (100%) | Measured |
+| Expected fixing file in Top-1 | 7/12 (58%) | 11/16 (69%) | Measured, **pooled — see cohorts below** |
+| Expected fixing file in Top-3 | 8/12 (67%) | 16/16 (100%) | Measured, **pooled — see cohorts below** |
+| Expected fixing file in Top-5 | 9/12 (75%) | 16/16 (100%) | Measured, **pooled — see cohorts below** |
 | Median scan + rank time | — | 1,747.7 ms | Measured, three warm runs per pinned repository |
 | Context proxy reduction | — | 98.56% | Estimated proxy, **not** a savings measurement |
 
 **The held-out column is the one to plan around.** The regression column describes performance on cases that shaped the ranker and will overstate what happens on a repository FixMap has never seen.
+
+### Cohorts: tasks that already name the fixing file
+
+Some benchmark tasks contain a fixing path in the task text — `Location: lib/document.js:2339` in
+the mongoose case, and GitHub permalinks to the exact file and line range in the svelte and yargs
+cases. A ranker with an explicit-file-mention signal answers those by reading the task rather than
+by searching the repository, so pooling them into a single rate lets a handful of cases carry a
+generalization headline.
+
+Classification is derived at evaluation time by
+[`scripts/lib/expected-path-mention.mjs`](../scripts/lib/expected-path-mention.mjs) from the same
+task text the ranker reads — never stored in `dataset.json`, where it would drift from the case it
+describes. Three tiers are recorded: a repository-root-anchored full path (including inside a
+`github.com/<owner>/<repo>/blob/<ref>/<path>` permalink), a multi-segment path suffix such as a
+`tsc` error naming `src/query/react/buildHooks.ts`, and a bare basename. The first two count as
+named; a bare `index.ts` is ordinary prose in an issue and does not.
+
+| Suite | Cohort | Cases | Top-1 | Top-3 | Top-5 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Held-out | Task did not name the file | 9 | **44.4%** (95% CI 19–73%) | **55.6%** (95% CI 27–81%) | 66.7% |
+| Held-out | Task named the file | 3 | 100% | 100% | 100% |
+| Held-out | Pooled | 12 | 58.3% | 66.7% | 75.0% |
+| Regression | Task did not name the file | 13 | 69.2% | 100% | 100% |
+| Regression | Task named the file | 3 | 66.7% | 100% | 100% |
+| Regression | Pooled | 16 | 68.8% | 100% | 100% |
+
+**Read this as a structural correction, not a measured effect size.** The regression suite barely
+moves under the split, and its named cases are 2/3 rather than 3/3 — so being named does not
+guarantee a hit. With three cases per named cohort, how much a mention is worth is not established.
+What is established is that a generalization headline should not be computed over tasks that
+contain their own answer.
+
+## Baseline-relative ranking
+
+A hit rate published on its own does not answer the question a reader actually has: is this better
+than what an agent already gets by searching the repository itself?
+[`scripts/evaluate-baseline.mjs`](../scripts/evaluate-baseline.mjs) scores three naive arms and
+FixMap on **one `scanRepo()` result per case, shared by every arm** — the same file list, the same
+text samples, the same truncation — so a difference in score is a difference in ranking.
+
+| Arm | What it does |
+| --- | --- |
+| `path-extraction` | Pulls path-shaped tokens out of the task text and keeps those resolving to a real file. Ranks nothing; it prices what the task text was carrying. |
+| `lexical-literal` | Literal keyword search: distinct query terms matched, then raw occurrence count. No corpus statistics. |
+| `bm25` | Standard BM25 (k1 = 1.2, b = 0.75) over the same text. A retrieval baseline, **not** a grep. |
+| `fixmap` | `rankContextFiles` from `@aryam/fixmap-core`. |
+
+Both keyword arms are case-insensitive and expand camelCase, which favours the baselines. That is
+deliberate — a handicapped baseline proves nothing.
+
+Held-out suite, cases whose task did not name the file (9):
+
+| Arm | Top-1 | Top-3 | Top-5 |
+| --- | ---: | ---: | ---: |
+| `path-extraction` | 0.0% | 0.0% | 0.0% |
+| `lexical-literal` | 11.1% | 22.2% | 33.3% |
+| `bm25` | 11.1% | 22.2% | 33.3% |
+| `fixmap` | **44.4%** | **55.6%** | **66.7%** |
+
+Regression suite, same cohort (13):
+
+| Arm | Top-1 | Top-3 | Top-5 |
+| --- | ---: | ---: | ---: |
+| `path-extraction` | 0.0% | 0.0% | 0.0% |
+| `lexical-literal` | 7.7% | 30.8% | 30.8% |
+| `bm25` | 15.4% | 30.8% | 38.5% |
+| `fixmap` | **69.2%** | **100%** | **100%** |
+
+`path-extraction` scoring exactly 0.0% on the unmentioned cohort of both suites, and 66.7% on the
+named cohort, is the independent check that the cohort classifier measures what it claims.
+
+Arms are compared with **McNemar's exact test** rather than by comparing two Wilson intervals: the
+arms ran on the same cases, and that pairing carries information independent intervals discard.
+
+| Suite | Cohort | FixMap vs | Top-1 p | Top-3 p | Top-5 p |
+| --- | --- | --- | ---: | ---: | ---: |
+| Regression | unmentioned (13) | `lexical-literal` | 0.0078 | 0.0039 | 0.0039 |
+| Regression | unmentioned (13) | `bm25` | 0.0156 | 0.0039 | 0.0078 |
+| Held-out | unmentioned (9) | `lexical-literal` | 0.25 | 0.25 | 0.25 |
+| Held-out | unmentioned (9) | `bm25` | 0.25 | 0.25 | 0.375 |
+
+FixMap never loses a disagreeing case to any baseline on the regression suite, and loses exactly one
+across the entire held-out comparison. The held-out p-values are **not** evidence of no effect: with
+three disagreeing cases the smallest attainable two-sided p-value is 0.25, so that cohort is
+arithmetically incapable of reaching 0.05. It is underpowered, which is the strongest available
+argument for growing it.
+
+```bash
+node scripts/evaluate-baseline.mjs --suite heldout
+node scripts/evaluate-baseline.mjs --suite external
+node scripts/evaluate-baseline.mjs --suite heldout --record
+```
+
+Per-arm rankings for every case are recorded in `benchmarks/<suite>/baseline-results.json`.
 
 The context comparison is intentionally a proxy:
 
