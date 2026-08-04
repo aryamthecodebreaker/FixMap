@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
   <title id="title">FixMap benchmark</title>
-  <desc id="description">FixMap ranked the fixing file in the top three for 8 of 12 held-out repositories it was never tuned against, and 16 of 16 in the regression suite, with a 1.75s median scan and rank.</desc>
+  <desc id="description">On 9 held-out tasks that did not name the fixing file, FixMap and BM25 both ranked it in the top three for 5 cases. BM25 ranked it in the top five for 9, compared with 6 for FixMap.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#07120f"/>
@@ -13,30 +13,31 @@
   </defs>
   <rect width="1200" height="630" fill="url(#bg)"/>
   <rect x="44" y="42" width="1112" height="546" rx="30" fill="#0f211b" stroke="#285044"/>
-  <text x="82" y="102" fill="#72f0b8" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="2">FIXMAP · REPRODUCIBLE BENCHMARK</text>
-  <text x="82" y="154" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="38" font-weight="750">Find the right code before the first edit.</text>
+  <text x="82" y="102" fill="#72f0b8" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="2">FIXMAP · EVIDENCE AUDIT</text>
+  <text x="82" y="154" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="38" font-weight="750">The baseline erased the published advantage.</text>
 
   <rect x="82" y="194" width="316" height="176" rx="22" fill="#132a23" stroke="#72f0b8" stroke-width="2"/>
-  <text x="108" y="232" fill="#72f0b8" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">HELD-OUT ACCURACY</text>
-  <text x="108" y="287" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="48" font-weight="750">8/12</text>
-  <text x="108" y="319" fill="#b8cdc5" font-family="Segoe UI, Arial, sans-serif" font-size="17">top-3 on repos never tuned against</text>
-  <text x="108" y="349" fill="#72f0b8" font-family="Segoe UI, Arial, sans-serif" font-size="15">Top-1 7/12 · Top-5 9/12</text>
+  <text x="108" y="232" fill="#72f0b8" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">FIXMAP · UNMENTIONED</text>
+  <text x="108" y="287" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="48" font-weight="750">5/9</text>
+  <text x="108" y="319" fill="#b8cdc5" font-family="Segoe UI, Arial, sans-serif" font-size="17">top-3 on held-out tasks</text>
+  <text x="108" y="349" fill="#72f0b8" font-family="Segoe UI, Arial, sans-serif" font-size="15">Top-1 4/9 · Top-5 6/9</text>
 
   <rect x="422" y="194" width="316" height="176" rx="22" fill="#132a23" stroke="#2d574a"/>
-  <text x="448" y="232" fill="#9db9af" font-family="Segoe UI, Arial, sans-serif" font-size="16">MEASURED RUNTIME</text>
-  <text x="448" y="287" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="48" font-weight="750">1.75s</text>
-  <text x="448" y="319" fill="#b8cdc5" font-family="Segoe UI, Arial, sans-serif" font-size="17">median scan + rank</text>
-  <text x="448" y="349" fill="#75bdf0" font-family="Segoe UI, Arial, sans-serif" font-size="15">3 warm runs per pinned repository</text>
+  <text x="448" y="232" fill="#9db9af" font-family="Segoe UI, Arial, sans-serif" font-size="16">BM25 · SAME CORPUS</text>
+  <text x="448" y="287" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="48" font-weight="750">5/9</text>
+  <text x="448" y="319" fill="#b8cdc5" font-family="Segoe UI, Arial, sans-serif" font-size="17">top-3 on held-out tasks</text>
+  <text x="448" y="349" fill="#75bdf0" font-family="Segoe UI, Arial, sans-serif" font-size="15">Top-1 4/9 · Top-5 9/9</text>
 
   <rect x="762" y="194" width="316" height="176" rx="22" fill="#132a23" stroke="#2d574a"/>
-  <text x="788" y="232" fill="#9db9af" font-family="Segoe UI, Arial, sans-serif" font-size="16">REGRESSION SUITE</text>
-  <text x="788" y="287" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="48" font-weight="750">16/16</text>
-  <text x="788" y="319" fill="#b8cdc5" font-family="Segoe UI, Arial, sans-serif" font-size="17">top-3 on cases that guided development</text>
-  <text x="788" y="349" fill="#9db9af" font-family="Segoe UI, Arial, sans-serif" font-size="15">Top-1 11/16 · not a generalization estimate</text>
+  <text x="788" y="232" fill="#9db9af" font-family="Segoe UI, Arial, sans-serif" font-size="16">MEASURED RUNTIME</text>
+  <text x="788" y="287" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="48" font-weight="750">1.75s</text>
+  <text x="788" y="319" fill="#b8cdc5" font-family="Segoe UI, Arial, sans-serif" font-size="17">median scan + rank</text>
+  <text x="788" y="349" fill="#9db9af" font-family="Segoe UI, Arial, sans-serif" font-size="15">3 warm runs per pinned repository</text>
 
   <rect x="82" y="394" width="996" height="104" rx="20" fill="#0b1915" stroke="#29483e"/>
-  <text x="108" y="429" fill="#9db9af" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">WHAT THIS DOES NOT CLAIM</text>
-  <text x="108" y="466" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="20">No tokens-saved or minutes-saved figure: that needs a controlled with/without-agent run, which has not been done.</text>
+  <text x="108" y="429" fill="#9db9af" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">WHAT THE AUDIT FOUND</text>
+  <text x="108" y="460" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="20">FixMap does not beat BM25 over code files on unseen repositories.</text>
+  <text x="108" y="486" fill="#b8cdc5" font-family="Segoe UI, Arial, sans-serif" font-size="16">3 of 12 tasks named their answer; those cases are now reported separately.</text>
 
   <rect x="82" y="526" width="996" height="2" fill="url(#accent)"/>
   <text x="82" y="557" fill="#8fa89f" font-family="Segoe UI, Arial, sans-serif" font-size="14">Pinned commits · real merged fixes · expected files taken from the fixing PR · every case and ranking checked into the repository</text>

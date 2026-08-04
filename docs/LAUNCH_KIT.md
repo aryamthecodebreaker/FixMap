@@ -21,14 +21,15 @@ The report ranks likely files with reasons, suggests test routes, and names risk
 - CLI, MCP server, and GitHub Action share the same core ranker.
 - Public GitHub issue URLs supply both task context and the repository in one input; source is scanned in an isolated anonymous shallow checkout that is removed after analysis.
 - Two frozen evaluations use real fixed issues at pinned pre-fix commits, selected by a mechanical rule.
-- **Held-out (12 repositories, never tuned against): top-1 `7/12` (58%), top-3 `8/12` (67%), top-5 `9/12` (75%).**
+- **Held-out tasks that did not name the fixing file (9 repositories, never tuned against): top-1 `4/9` (44%), top-3 `5/9` (56%), top-5 `6/9` (67%).** Three further cases named their answer and are reported separately.
+- On that same cohort and scanned corpus, BM25-over-code ties FixMap at Top-1 and Top-3 and leads `9/9` to `6/9` at Top-5. FixMap's advantage over naive retrieval is unproven.
 - Regression (16 repositories, guided development): top-1 `11/16` (69%), top-3 and top-5 `16/16` (100%).
 - Confidence labels are directional heuristics, not calibrated probabilities; all per-band counts remain public.
-- An adversarial suite measures false confidence on fabricated identifiers, vague tasks, and absent features: `0.0` across 8 cases.
+- An adversarial suite measures false confidence on fabricated identifiers, vague tasks, and absent features: `0.0` across 9 cases.
 - Every ranked output and both frozen selection rules are public in [`benchmarks/`](../benchmarks/).
 - A release cannot publish unless the local CI suite and external evaluation gate pass.
 
-**Always quote the held-out figure, or both together — never the regression figure alone.** The regression suite guided ranking work, so its 100% describes fit rather than generalization. Quoting it on its own overstates accuracy and is the fastest way to lose a technical reader who checks.
+**Always quote the unmentioned held-out cohort beside the BM25 baseline. Never use the pooled held-out or regression figure as a generalization claim.** The regression suite guided ranking work, while three held-out tasks already contained their fixing path.
 
 ## Truth guardrails
 
@@ -124,7 +125,7 @@ Points for the maintainer to explain personally:
 2. The one-sentence solution: deterministic repo context—ranked files, test routes, risks, and diagnostics.
 3. The fastest trial: include the one-input public GitHub issue URL command.
 4. The technical mechanism: path/content signals, real git diff signals, bounded static import proximity, file-kind priors, and workspace boundaries.
-5. The honest evidence: 12 held-out repositories never tuned against, `7/12` top-1 and `8/12` top-3, alongside the regression suite it was developed on, with every per-case ranking linked.
+5. The honest evidence: on nine held-out tasks that did not name their fixing file, FixMap scores `4/9` Top-1 and `5/9` Top-3, exactly tied with BM25-over-code; BM25 leads at Top-5. Link every per-case ranking.
 6. The scope: JavaScript/TypeScript today; remote URLs are issue-only; suggested tests are not executed.
 7. What the benchmarks did not catch: both suites passed while FixMap could not find chalk's own color-detection code, because a directory blocklist ran after git had already applied `.gitignore` and a frequency cutoff suppressed the word "color" in a library about color. Pointing it at a repository it had never been run on found that; the benchmark never would have.
 8. Ask for technical criticism of the evaluation and useful next signals.
@@ -145,7 +146,7 @@ These are angles and evidence, not identical copy to syndicate.
 
 - Problem: agents spend context and tokens discovering where to start.
 - Demo: run FixMap first on a public repository, then hand the report to the agent.
-- Evidence: deterministic, zero model calls, inspectable reasons, `8/12` top-3 on repositories it was never tuned against.
+- Evidence: deterministic, zero model calls, and inspectable reasons; on nine held-out tasks that did not name the file, FixMap ties BM25-over-code at Top-1 and Top-3 and trails it at Top-5.
 - Honest caveat: it is a routing aid, not semantic code understanding or a correctness oracle.
 
 ### Claude Code and Cursor communities
@@ -172,7 +173,7 @@ claude mcp add fixmap -- npx -y @aryam/fixmap@latest mcp
 1. One pain sentence.
 2. The public repository command.
 3. A screenshot or short terminal video of the real output.
-4. One evidence sentence: 12 held-out pinned bugs, `7/12` top-1 and `8/12` top-3, with the full result and the misses public.
+4. One evidence sentence: nine held-out pinned bugs whose tasks did not name the file, FixMap tied with BM25-over-code at `4/9` Top-1 and `5/9` Top-3, with every ranking public.
 5. Repository link and a specific feedback question.
 
 Avoid generic feature lists and unsupported superlatives.

@@ -22,3 +22,5 @@ jobs:
       - run: npm run build:core
       - run: node scripts/evaluate-external.mjs --gate --check-recorded
       - run: node scripts/evaluate-external.mjs --suite heldout --gate --check-recorded
+      - run: node scripts/evaluate-baseline.mjs --suite external --check-recorded
+      - run: node scripts/evaluate-baseline.mjs --suite heldout --check-recorded

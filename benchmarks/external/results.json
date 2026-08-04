@@ -61,6 +61,106 @@
       ]
     }
   ],
+  "cohorts": {
+    "all": {
+      "cases": 16,
+      "top1HitRate": 0.688,
+      "top3HitRate": 1,
+      "top5HitRate": 1,
+      "intervals95": {
+        "top1": [
+          0.444,
+          0.858
+        ],
+        "top3": [
+          0.806,
+          1
+        ],
+        "top5": [
+          0.806,
+          1
+        ]
+      },
+      "slugs": [
+        "expressjs/express",
+        "axios/axios",
+        "debug-js/debug",
+        "sindresorhus/ky",
+        "colinhacks/zod",
+        "pinojs/pino",
+        "fastify/fastify",
+        "chalk/chalk",
+        "vitest-dev/vitest",
+        "eslint/eslint",
+        "webpack/webpack",
+        "nodejs/undici",
+        "reduxjs/redux-toolkit",
+        "prettier/prettier",
+        "honojs/hono",
+        "sindresorhus/got"
+      ]
+    },
+    "unmentioned": {
+      "cases": 13,
+      "top1HitRate": 0.692,
+      "top3HitRate": 1,
+      "top5HitRate": 1,
+      "intervals95": {
+        "top1": [
+          0.424,
+          0.873
+        ],
+        "top3": [
+          0.772,
+          1
+        ],
+        "top5": [
+          0.772,
+          1
+        ]
+      },
+      "slugs": [
+        "axios/axios",
+        "debug-js/debug",
+        "sindresorhus/ky",
+        "colinhacks/zod",
+        "pinojs/pino",
+        "fastify/fastify",
+        "chalk/chalk",
+        "vitest-dev/vitest",
+        "eslint/eslint",
+        "webpack/webpack",
+        "nodejs/undici",
+        "prettier/prettier",
+        "honojs/hono"
+      ]
+    },
+    "mentioned": {
+      "cases": 3,
+      "top1HitRate": 0.667,
+      "top3HitRate": 1,
+      "top5HitRate": 1,
+      "intervals95": {
+        "top1": [
+          0.208,
+          0.939
+        ],
+        "top3": [
+          0.438,
+          1
+        ],
+        "top5": [
+          0.438,
+          1
+        ]
+      },
+      "slugs": [
+        "expressjs/express",
+        "reduxjs/redux-toolkit",
+        "sindresorhus/got"
+      ]
+    }
+  },
   "floors": {
     "top1": 0.3,
     "top3": 0.5,
@@ -83,7 +183,17 @@
       "topConfidence": "high",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": true,
+      "mentionTier": "full-path",
+      "mentionEvidence": [
+        {
+          "path": "lib/request.js",
+          "tier": "full-path",
+          "match": "lib/request.js",
+          "context": "…includes `QUERY`) **Any other relevant information**: `req.fresh` (`lib/request.js`) short-circuits to `false` for any method other than `…"
+        }
+      ]
     },
     {
       "slug": "axios/axios",
@@ -101,7 +211,10 @@
       "topConfidence": "medium",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "debug-js/debug",
@@ -119,7 +232,10 @@
       "topConfidence": "medium",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "sindresorhus/ky",
@@ -137,7 +253,10 @@
       "topConfidence": "medium",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "colinhacks/zod",
@@ -155,7 +274,10 @@
       "topConfidence": "medium",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "pinojs/pino",
@@ -174,7 +296,10 @@
       "topConfidence": "high",
       "top1": false,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "fastify/fastify",
@@ -192,7 +317,10 @@
       "topConfidence": "medium",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "chalk/chalk",
@@ -210,7 +338,10 @@
       "topConfidence": "medium",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "vitest-dev/vitest",
@@ -228,7 +359,10 @@
       "topConfidence": "low",
       "top1": false,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "eslint/eslint",
@@ -246,7 +380,10 @@
       "topConfidence": "medium",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "webpack/webpack",
@@ -264,7 +401,10 @@
       "topConfidence": "medium",
       "top1": false,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "nodejs/undici",
@@ -282,7 +422,10 @@
       "topConfidence": "medium",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "reduxjs/redux-toolkit",
@@ -300,7 +443,17 @@
       "topConfidence": "medium",
       "top1": false,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": true,
+      "mentionTier": "path-suffix",
+      "mentionEvidence": [
+        {
+          "path": "packages/toolkit/src/query/react/buildHooks.ts",
+          "tier": "path-suffix",
+          "match": "src/query/react/buildHooks.ts",
+          "context": "…tsgo`, and got these errors: ``` Version 7.0.0-dev.20251207.1 Error: src/query/react/buildHooks.ts(1823,13): error TS2769: No overload matc…"
+        }
+      ]
     },
     {
       "slug": "prettier/prettier",
@@ -318,7 +471,10 @@
       "topConfidence": "low",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "honojs/hono",
@@ -336,7 +492,10 @@
       "topConfidence": "medium",
       "top1": false,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "sindresorhus/got",
@@ -354,7 +513,17 @@
       "topConfidence": "high",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": true,
+      "mentionTier": "full-path",
+      "mentionEvidence": [
+        {
+          "path": "source/core/index.ts",
+          "tier": "full-path",
+          "match": "source/core/index.ts",
+          "context": "…ub.com/sindresorhus/got/blob/e5e645a7d6deeec02933bf474727a541775772c7/source/core/index.ts#L1088-L1089 and the shouldDropBody flag https://…"
+        }
+      ]
     }
   ]
 }

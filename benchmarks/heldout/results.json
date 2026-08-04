@@ -58,6 +58,98 @@
       ]
     }
   ],
+  "cohorts": {
+    "all": {
+      "cases": 12,
+      "top1HitRate": 0.583,
+      "top3HitRate": 0.667,
+      "top5HitRate": 0.75,
+      "intervals95": {
+        "top1": [
+          0.32,
+          0.807
+        ],
+        "top3": [
+          0.391,
+          0.862
+        ],
+        "top5": [
+          0.468,
+          0.911
+        ]
+      },
+      "slugs": [
+        "Automattic/mongoose",
+        "immerjs/immer",
+        "jestjs/jest",
+        "knex/knex",
+        "mochajs/mocha",
+        "react-hook-form/react-hook-form",
+        "socketio/socket.io",
+        "sveltejs/svelte",
+        "vitejs/vite",
+        "vuejs/core",
+        "winstonjs/winston",
+        "yargs/yargs"
+      ]
+    },
+    "unmentioned": {
+      "cases": 9,
+      "top1HitRate": 0.444,
+      "top3HitRate": 0.556,
+      "top5HitRate": 0.667,
+      "intervals95": {
+        "top1": [
+          0.189,
+          0.733
+        ],
+        "top3": [
+          0.267,
+          0.811
+        ],
+        "top5": [
+          0.354,
+          0.879
+        ]
+      },
+      "slugs": [
+        "immerjs/immer",
+        "jestjs/jest",
+        "knex/knex",
+        "mochajs/mocha",
+        "react-hook-form/react-hook-form",
+        "socketio/socket.io",
+        "vitejs/vite",
+        "vuejs/core",
+        "winstonjs/winston"
+      ]
+    },
+    "mentioned": {
+      "cases": 3,
+      "top1HitRate": 1,
+      "top3HitRate": 1,
+      "top5HitRate": 1,
+      "intervals95": {
+        "top1": [
+          0.438,
+          1
+        ],
+        "top3": [
+          0.438,
+          1
+        ],
+        "top5": [
+          0.438,
+          1
+        ]
+      },
+      "slugs": [
+        "Automattic/mongoose",
+        "sveltejs/svelte",
+        "yargs/yargs"
+      ]
+    }
+  },
   "floors": {
     "top1": 0.3,
     "top3": 0.5,
@@ -80,7 +172,17 @@
       "topConfidence": "medium",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": true,
+      "mentionTier": "full-path",
+      "mentionEvidence": [
+        {
+          "path": "lib/document.js",
+          "tier": "full-path",
+          "match": "lib/document.js",
+          "context": "…oose's own validation) **Repo:** `Automattic/mongoose` **Location:** lib/document.js:2339 (isModified -> modifiedPaths rebuild) called per-…"
+        }
+      ]
     },
     {
       "slug": "immerjs/immer",
@@ -98,7 +200,10 @@
       "topConfidence": "medium",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "jestjs/jest",
@@ -116,7 +221,10 @@
       "topConfidence": "medium",
       "top1": false,
       "top3": false,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "knex/knex",
@@ -134,7 +242,10 @@
       "topConfidence": "medium",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "mochajs/mocha",
@@ -152,7 +263,10 @@
       "topConfidence": "medium",
       "top1": false,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "react-hook-form/react-hook-form",
@@ -170,7 +284,10 @@
       "topConfidence": "medium",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "socketio/socket.io",
@@ -188,7 +305,10 @@
       "topConfidence": "medium",
       "top1": false,
       "top3": false,
-      "top5Hit": false
+      "top5Hit": false,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "sveltejs/svelte",
@@ -206,7 +326,17 @@
       "topConfidence": "high",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": true,
+      "mentionTier": "full-path",
+      "mentionEvidence": [
+        {
+          "path": "packages/svelte/src/internal/client/dom/blocks/boundary.js",
+          "tier": "full-path",
+          "match": "packages/svelte/src/internal/client/dom/blocks/boundary.js",
+          "context": "…hub.com/sveltejs/svelte/blob/4a6a85b5f149cc96514ed3bf5e59083b9246d394/packages/svelte/src/internal/client/dom/blocks/boundary.js#L200-L210))…"
+        }
+      ]
     },
     {
       "slug": "vitejs/vite",
@@ -224,7 +354,10 @@
       "topConfidence": "low",
       "top1": false,
       "top3": false,
-      "top5Hit": false
+      "top5Hit": false,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "vuejs/core",
@@ -242,7 +375,10 @@
       "topConfidence": "high",
       "top1": false,
       "top3": false,
-      "top5Hit": false
+      "top5Hit": false,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "winstonjs/winston",
@@ -260,7 +396,10 @@
       "topConfidence": "low",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "mentionEvidence": []
     },
     {
       "slug": "yargs/yargs",
@@ -278,7 +417,17 @@
       "topConfidence": "high",
       "top1": true,
       "top3": true,
-      "top5Hit": true
+      "top5Hit": true,
+      "mentionsExpectedPath": true,
+      "mentionTier": "full-path",
+      "mentionEvidence": [
+        {
+          "path": "lib/utils/apply-extends.ts",
+          "tier": "full-path",
+          "match": "lib/utils/apply-extends.ts",
+          "context": "…ability was identified in the `apply-extends` helper function within `lib/utils/apply-extends.ts`. This function is responsible for merging…"
+        }
+      ]
     }
   ]
 }

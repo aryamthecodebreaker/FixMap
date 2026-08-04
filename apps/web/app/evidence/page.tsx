@@ -9,11 +9,15 @@ export const metadata: Metadata = {
 };
 
 const percent = (value: number, total: number) => `${Math.round((value / total) * 100)}%`;
+const rate = (value: number | null) => (value === null ? "—" : `${Math.round(value * 100)}%`);
+
+const heldoutUnmentioned = siteStats.heldout.cohorts.unmentioned;
+const heldoutMentioned = siteStats.heldout.cohorts.mentioned;
+const heldoutBaselines = siteStats.baselines.heldout;
 
 // A plain-English reading of the measured rate, so the callout cannot claim "three quarters"
 // after a re-record moves the number to two thirds. Bands, not a fabricated precision.
-function describeRate(value: number, total: number): string {
-  const share = value / total;
+function describeRate(share: number): string {
   if (share >= 0.9) return "almost all";
   if (share >= 0.7) return "about three quarters";
   if (share >= 0.58) return "about two thirds";
@@ -38,11 +42,11 @@ export default function EvidencePage() {
       <section className="section page-shell score-section">
         <div className="score-grid">
           <article className="score-card featured">
-            <p className="eyebrow">Held-out · {siteStats.heldout.cases} repositories</p>
-            <strong>{siteStats.heldout.top3}/{siteStats.heldout.cases}</strong>
+            <p className="eyebrow">Held-out · tasks that did not name the file · {heldoutUnmentioned.cases} repositories</p>
+            <strong>{rate(heldoutUnmentioned.top3HitRate)}</strong>
             <h2>fixes surfaced in the top 3</h2>
-            <p>Selected after the ranker was finished. This is the result to plan around.</p>
-            <dl><div><dt>Top 1</dt><dd>{siteStats.heldout.top1}/{siteStats.heldout.cases} · {percent(siteStats.heldout.top1, siteStats.heldout.cases)}</dd></div><div><dt>Top 5</dt><dd>{siteStats.heldout.top5}/{siteStats.heldout.cases} · {percent(siteStats.heldout.top5, siteStats.heldout.cases)}</dd></div></dl>
+            <p>Selected after the ranker was finished, and counting only the cases where FixMap had to locate the file rather than read it out of the task. This is the result to plan around.</p>
+            <dl><div><dt>Top 1</dt><dd>{rate(heldoutUnmentioned.top1HitRate)}</dd></div><div><dt>Top 5</dt><dd>{rate(heldoutUnmentioned.top5HitRate)}</dd></div></dl>
           </article>
           <article className="score-card">
             <p className="eyebrow">Regression · {siteStats.regression.cases} repositories</p>
@@ -52,7 +56,48 @@ export default function EvidencePage() {
             <dl><div><dt>Top 1</dt><dd>{siteStats.regression.top1}/{siteStats.regression.cases} · {percent(siteStats.regression.top1, siteStats.regression.cases)}</dd></div><div><dt>Top 5</dt><dd>{siteStats.regression.top5}/{siteStats.regression.cases} · {percent(siteStats.regression.top5, siteStats.regression.cases)}</dd></div></dl>
           </article>
         </div>
-        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>Read this as “{describeRate(siteStats.heldout.top3, siteStats.heldout.cases)},” not as two significant figures.</strong> With {siteStats.heldout.cases} held-out cases, one result changing moves Top-3 by roughly {Math.round(100 / siteStats.heldout.cases)} points. The 95% interval is {Math.round((siteStats.heldout.intervals95.top3[0] ?? 0) * 100)}–{Math.round((siteStats.heldout.intervals95.top3[1] ?? 0) * 100)}%.</p></div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>Read this as “{describeRate(heldoutUnmentioned.top3HitRate ?? 0)},” not as two significant figures.</strong> With {heldoutUnmentioned.cases} held-out cases in this cohort, one result changing moves Top-3 by roughly {Math.round(100 / heldoutUnmentioned.cases)} points. The 95% interval is {Math.round((heldoutUnmentioned.intervals95.top3?.[0] ?? 0) * 100)}–{Math.round((heldoutUnmentioned.intervals95.top3?.[1] ?? 0) * 100)}%.</p></div>
+      </section>
+
+      <section className="section page-shell">
+        <div className="section-heading split-heading">
+          <div><p className="eyebrow">Cohorts</p><h2>Some tasks already contained their answer.</h2></div>
+          <p>
+            {heldoutMentioned.cases} of the {siteStats.heldout.cases} held-out tasks name a fixing file
+            outright — one as <code>Location: lib/document.js:2339</code>, two as a GitHub permalink to
+            the exact lines. A ranker that reads explicit file mentions answers those by reading the
+            task. Pooling them lets {heldoutMentioned.cases} cases carry the headline, so they are
+            reported separately.
+          </p>
+        </div>
+        <div className="results-table" role="table" aria-label="Held-out results split by whether the task named the fixing file">
+          <div className="results-row results-head" role="row"><span role="columnheader">Cohort</span><span role="columnheader">Cases</span><span role="columnheader">Top 1</span><span role="columnheader">Top 3</span></div>
+          <div className="results-row" role="row"><span role="cell">Task did not name the file</span><span role="cell">{heldoutUnmentioned.cases}</span><span role="cell">{rate(heldoutUnmentioned.top1HitRate)}</span><span role="cell">{rate(heldoutUnmentioned.top3HitRate)}</span></div>
+          <div className="results-row" role="row"><span role="cell">Task named the file</span><span role="cell">{heldoutMentioned.cases}</span><span role="cell">{rate(heldoutMentioned.top1HitRate)}</span><span role="cell">{rate(heldoutMentioned.top3HitRate)}</span></div>
+          <div className="results-row" role="row"><span role="cell">Pooled — what we published before</span><span role="cell">{siteStats.heldout.cases}</span><span role="cell">{percent(siteStats.heldout.top1, siteStats.heldout.cases)}</span><span role="cell">{percent(siteStats.heldout.top3, siteStats.heldout.cases)}</span></div>
+        </div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>This is a structural correction, not a measured effect size.</strong> The regression suite barely moves under the same split, and its named cases are 2 of 3 rather than 3 of 3 — being named does not guarantee a hit. With three cases per named cohort, how much a mention is worth is not established. What is established is that a generalization headline should not be computed over tasks that contain their own answer.</p></div>
+      </section>
+
+      <section className="section page-shell">
+        <div className="section-heading split-heading">
+          <div><p className="eyebrow">Baselines</p><h2>Better than searching the repository?</h2></div>
+          <p>
+            A ranked list only earns its place if it beats what an agent already gets for free. Every
+            arm below scores on <strong>the same repository scan</strong> — same files, same text
+            samples. Each baseline is shown at its <strong>strongest</strong> candidate policy:
+            pointed at every scanned file a keyword search just returns <code>README.md</code>, which
+            would make this a strawman rather than a comparison.
+          </p>
+        </div>
+        <div className="results-table" role="table" aria-label="FixMap against naive retrieval baselines on held-out cases that did not name the file">
+          <div className="results-row results-head" role="row"><span role="columnheader">Arm</span><span role="columnheader">Top 1</span><span role="columnheader">Top 3</span><span role="columnheader">Top 5</span></div>
+          <div className="results-row" role="row"><span role="cell">Path extraction — read paths out of the task</span><span role="cell">{rate(heldoutBaselines.pathExtraction.top1HitRate)}</span><span role="cell">{rate(heldoutBaselines.pathExtraction.top3HitRate)}</span><span role="cell">{rate(heldoutBaselines.pathExtraction.top5HitRate)}</span></div>
+          <div className="results-row" role="row"><span role="cell">Literal keyword search, code files only</span><span role="cell">{rate(heldoutBaselines.lexical.top1HitRate)}</span><span role="cell">{rate(heldoutBaselines.lexical.top3HitRate)}</span><span role="cell">{rate(heldoutBaselines.lexical.top5HitRate)}</span></div>
+          <div className="results-row" role="row"><span role="cell"><strong>BM25 retrieval, code files only</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top1HitRate)}</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top3HitRate)}</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top5HitRate)}</strong></span></div>
+          <div className="results-row" role="row"><span role="cell">FixMap</span><span role="cell">{rate(heldoutBaselines.fixmap.top1HitRate)}</span><span role="cell">{rate(heldoutBaselines.fixmap.top3HitRate)}</span><span role="cell">{rate(heldoutBaselines.fixmap.top5HitRate)}</span></div>
+        </div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap does not beat BM25 over code files on repositories it was never tuned against.</strong> Top 1 and Top 3 are exact ties — a paired McNemar exact test puts both at p = 1.0, with two disagreements each way. At Top 5 the baseline wins three cases FixMap misses and FixMap wins none: BM25 has the fixing file in its top five for 9 of 9 of these cases, FixMap for 6 of 9. FixMap does lead on the regression suite (69% vs 39% Top 1), but that is the suite whose cases shaped the ranker, and even there the lead is not significant against this baseline. We publish this because it is what the measurement says; closing the Top-5 recall gap is the next piece of work.</p></div>
       </section>
 
       <section className="section table-section">

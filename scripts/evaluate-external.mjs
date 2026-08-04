@@ -19,6 +19,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { materializePinnedRepository } from "./lib/external-cache.mjs";
+import { classifyExpectedPathMention, splitCohorts } from "./lib/expected-path-mention.mjs";
+import { wilsonInterval } from "./lib/wilson.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const { scanRepo, rankContextFiles } = await import(pathToFileURL(join(repoRoot, "packages", "core", "dist", "index.js")).href);
@@ -49,6 +51,7 @@ for (const benchmark of dataset.cases) {
   }
   const ranked = rankContextFiles(repo, { issueText: benchmark.task }, 5);
   const paths = ranked.map((file) => file.path);
+  const mention = classifyExpectedPathMention(benchmark);
   results.push({
     slug: benchmark.slug,
     issue: benchmark.issue,
@@ -57,7 +60,12 @@ for (const benchmark of dataset.cases) {
     topConfidence: ranked[0]?.confidence ?? null,
     top1: benchmark.expected.includes(paths[0]),
     top3: benchmark.expected.some((path) => paths.slice(0, 3).includes(path)),
-    top5Hit: benchmark.expected.some((path) => paths.includes(path))
+    top5Hit: benchmark.expected.some((path) => paths.includes(path)),
+    // Derived every run from the same task text the ranker reads, never stored in the
+    // dataset, so the cohort split cannot drift away from the case it describes.
+    mentionsExpectedPath: mention.mentionsExpectedPath,
+    mentionTier: mention.mentionTier,
+    mentionEvidence: mention.evidence
   });
 }
 
@@ -65,22 +73,7 @@ const rate = (key) => results.filter((result) => result[key]).length / results.l
 
 // A hit rate over a dozen cases reads far more precise than it is: one case flipping
 // moves 9/12 by eight points. The Wilson score interval is reported next to every rate
-// so a reader sees the real precision instead of inferring it from the decimals. It is
-// used rather than the normal approximation because that one misbehaves near 0 and 1,
-// which is exactly where a perfect result sits.
-function wilsonInterval(successes, total, z = 1.96) {
-  if (total === 0) {
-    return null;
-  }
-  const proportion = successes / total;
-  const denominator = 1 + (z * z) / total;
-  const centre = proportion + (z * z) / (2 * total);
-  const spread = z * Math.sqrt(proportion * (1 - proportion) / total + (z * z) / (4 * total * total));
-  return [
-    Number(Math.max(0, (centre - spread) / denominator).toFixed(3)),
-    Number(Math.min(1, (centre + spread) / denominator).toFixed(3))
-  ];
-}
+// so a reader sees the real precision instead of inferring it from the decimals.
 
 const band = (key) => {
   const successes = results.filter((result) => result[key]).length;
@@ -111,6 +104,32 @@ const calibration = ["high", "medium", "low"].map((confidence) => {
   };
 });
 
+// Cases whose task text already names the fixing file are answerable by reading the task
+// rather than by ranking the repository, so they measure the explicit-mention signal, not
+// generalization. Scoring them in one pooled number lets a handful of them carry the
+// headline rate. `unmentioned` is the number that estimates behaviour on a task that does
+// not already contain its own answer, and it is the one to plan around.
+function scoreCohort(cohort) {
+  const hitRate = (key) =>
+    cohort.length === 0 ? null : Number((cohort.filter((result) => result[key]).length / cohort.length).toFixed(3));
+  const interval = (key) => wilsonInterval(cohort.filter((result) => result[key]).length, cohort.length);
+  return {
+    cases: cohort.length,
+    top1HitRate: hitRate("top1"),
+    top3HitRate: hitRate("top3"),
+    top5HitRate: hitRate("top5Hit"),
+    intervals95: { top1: interval("top1"), top3: interval("top3"), top5: interval("top5Hit") },
+    slugs: cohort.map((result) => result.slug)
+  };
+}
+
+const cohortGroups = splitCohorts(results);
+const cohorts = {
+  all: scoreCohort(cohortGroups.all),
+  unmentioned: scoreCohort(cohortGroups.unmentioned),
+  mentioned: scoreCohort(cohortGroups.mentioned)
+};
+
 const summary = {
   cases: results.length,
   top1HitRate: Number(rate("top1").toFixed(3)),
@@ -128,6 +147,7 @@ const summary = {
     slugs: misleadingCases.map((result) => result.slug)
   },
   calibration,
+  cohorts,
   floors: FLOORS,
   results
 };
