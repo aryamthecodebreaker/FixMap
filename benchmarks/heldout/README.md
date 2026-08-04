@@ -31,21 +31,29 @@ These 12 repositories were selected by the same frozen rule. When a case informs
 
 ## Results
 
-Measured 2026-08-01 (Node v24, `rankContextFiles` with a top-5 window):
+Measured 2026-08-04 (Node v24, `rankContextFiles` with a top-5 window):
 
-| Metric | Held-out (12 cases) | Regression suite (16 cases) |
-| --- | ---: | ---: |
-| top-1 | **7/12 (58.3%)** | 11/16 (68.8%) |
-| top-3 | **8/12 (66.7%)** | 16/16 (100.0%) |
-| top-5 | **9/12 (75.0%)** | 16/16 (100.0%) |
+Three tasks name their expected fixing file in the issue text. They legitimately test FixMap's explicit-file-mention signal, but they do not test whether it can locate a file the task did not name. The evaluator therefore derives and reports both cohorts every run:
 
-Read those two columns together, because the gap is the point.
+| Cohort | Cases | Top-1 | Top-3 | Top-5 |
+| --- | ---: | ---: | ---: | ---: |
+| Task did not name the file | 9 | **4/9 (44.4%)** | **5/9 (55.6%)** | **6/9 (66.7%)** |
+| Task named the file | 3 | 3/3 (100%) | 3/3 (100%) | 3/3 (100%) |
+| Pooled, previously published | 12 | 7/12 (58.3%) | 8/12 (66.7%) | 9/12 (75.0%) |
 
-Top-1 is lower on the untouched held-out repositories than on the development suite. The difference is small enough that the confidence intervals overlap substantially, but it is still the honest result to publish rather than a number to explain away.
+**Plan around the unmentioned cohort.** At nine cases its Top-3 95% Wilson interval is 27–81%, so the point estimate is exploratory rather than a precise success probability. The three Top-5 misses — `socketio/socket.io`, `vitejs/vite`, and `vuejs/core` — remain recorded in [`results.json`](results.json) with their actual rankings. The Jest answer is fourth, so it also misses Top-3.
 
-Top-3 drops to 67% and Top-5 to 75%. That difference is what tuning bought on the regression suite and nothing more. **The held-out column is the honest evidence to plan around**, and 100% should not be quoted as an accuracy claim.
+## Baseline-relative result
 
-The three Top-5 misses — `socketio/socket.io`, `vitejs/vite`, and `vuejs/core` — are recorded in [`results.json`](results.json) with their actual rankings. The Jest answer is fourth, so it also misses Top-3. These results are not removed, reweighted, or explained away.
+[`baseline-results.json`](baseline-results.json) scores FixMap and naive retrieval against the same scan, text samples, and truncation. On the nine unmentioned cases:
+
+| Arm | Top-1 | Top-3 | Top-5 |
+| --- | ---: | ---: | ---: |
+| Literal keyword retrieval, code files | 2/9 | 4/9 | 6/9 |
+| BM25 retrieval, code files | **4/9** | **5/9** | **9/9** |
+| FixMap | 4/9 | 5/9 | 6/9 |
+
+FixMap does not beat BM25-over-code on this unseen cohort: Top-1 and Top-3 tie, while BM25 leads 9/9 to 6/9 at Top-5. With nine cases this is not a stable effect-size estimate, but the previously published advantage does not survive the baseline comparison.
 
 ## Confidence calibration
 
@@ -65,10 +73,12 @@ The ordering is not monotonic in this small sample, so the labels must not be re
 npm run build:core
 npm run evaluate:heldout           # report only
 npm run evaluate:heldout:record    # deliberately refresh results.json
+node scripts/evaluate-baseline.mjs --suite heldout
+node scripts/evaluate-baseline.mjs --suite heldout --check-recorded
 ```
 
 ## Rules for this suite
 
 1. **Never tune against these cases.** The moment a ranking change is made because one of them missed, this suite becomes a second regression suite and stops measuring generalization. Move the case into `benchmarks/external/` and select a fresh replacement.
 2. **Do not edit a case to match output.** When ranking behavior changes, rerun and update the recorded results.
-3. **Report both columns.** Quoting the regression number alone overstates accuracy; quoting only the held-out number understates regression coverage.
+3. **Report cohorts and the baseline.** Do not present the pooled held-out rate as generalization evidence, or present a FixMap rate without the naive retrieval result beside it.

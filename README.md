@@ -416,7 +416,7 @@ Public repository inputs accept only canonical credential-free `https://github.c
 
 Most tools show you the benchmark they tuned on. Here is both.
 
-![FixMap benchmark: the fixing file ranked in the top three for 8 of 12 held-out repositories never tuned against and 16 of 16 in the regression suite, with a 1.75-second median scan and rank.](docs/assets/fixmap-benchmark.svg)
+![FixMap evidence audit: on nine held-out tasks that did not name the fixing file, FixMap and BM25 both ranked it in the top three for five cases, while BM25 led six to nine at Top-5.](docs/assets/fixmap-benchmark.svg)
 
 FixMap is measured against real issues that were later fixed by a merged pull request. Each case pins the commit *before* the fix, feeds FixMap the issue text a maintainer actually wrote, and checks whether the file that fix changed appears in the ranking. Cases are chosen mechanically, and every input and output is checked in.
 
@@ -464,6 +464,8 @@ Held-out, tasks that did not name the file (9 cases), each baseline at its best 
 On the regression suite FixMap does lead — 69% vs 39% Top-1, 100% vs 62% Top-3 — but that is the suite whose cases shaped the ranker, and even there the lead is not significant against this baseline (p = 0.125 Top-1, p = 0.0625 Top-3).
 
 We are publishing this because it is what the measurement says. The honest reading is that FixMap's current advantage over plain BM25-over-code is **unproven on unseen repositories**, and that its Top-5 recall is behind. Closing that gap is the next piece of work, not a marketing line.
+
+[Read the benchmark self-audit.](docs/releases/2026-08-04-benchmark-self-audit.md)
 
 Path extraction scoring 0% on this cohort and 100% on the named one is the check that the cohort split measures what it claims.
 

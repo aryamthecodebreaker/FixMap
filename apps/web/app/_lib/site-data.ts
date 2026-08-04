@@ -34,12 +34,25 @@ const cohortOf = (suite: typeof heldout) => ({
 // The comparison a ranked list actually has to win: naive retrieval on the same corpus.
 // Each baseline is reported at its STRONGEST candidate policy — pointing a baseline at every
 // scanned file makes it rank READMEs and turns the comparison into a strawman.
-const baselineOf = (suite: typeof heldoutBaseline) => ({
+type BaselineSuite = typeof heldoutBaseline;
+type BaselineFamily = keyof BaselineSuite["configuration"]["bestPolicyPerFamily"];
+type BaselineArm = keyof BaselineSuite["arms"];
+
+const strongestBaseline = (suite: BaselineSuite, family: BaselineFamily) => {
+  const policy = suite.configuration.bestPolicyPerFamily[family];
+  const arm = suite.arms[`${family}:${policy}` as BaselineArm];
+  if (!arm) {
+    throw new Error(`Recorded baseline results do not contain ${family}:${policy}.`);
+  }
+  return arm.unmentioned;
+};
+
+const baselineOf = (suite: BaselineSuite) => ({
   cases: suite.arms.fixmap.unmentioned.cases,
   fixmap: suite.arms.fixmap.unmentioned,
-  bm25: suite.arms["bm25:code"].unmentioned,
-  lexical: suite.arms["lexical-literal:code"].unmentioned,
-  pathExtraction: suite.arms["path-extraction:raw"].unmentioned
+  bm25: strongestBaseline(suite, "bm25"),
+  lexical: strongestBaseline(suite, "lexical-literal"),
+  pathExtraction: strongestBaseline(suite, "path-extraction")
 });
 
 export const siteStats = {

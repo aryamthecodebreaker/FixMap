@@ -117,3 +117,11 @@ Separately, `docs/LAUNCH_KIT.md` held ready-to-paste post copy quoting `4/6` top
 X and LinkedIn posts published around 10:30 UTC on the misleading-rate finding: the regression suite's 100% top-3 was concealing that a wrong file ranked first in 40% of those cases, while the held-out suite does so in 8%. Record impressions, reactions, and profile views separately from repository outcomes at 24 and 72 hours. Stars, unique visitors, and qualified feedback remain the decision metrics.
 
 Add the post URLs to the experiments table once available; the rows are recorded with the timestamps and pending links rather than left out, so the checkpoints stay honest if either post produces nothing.
+
+## Evidence correction — 2026-08-04
+
+An audit found that 3 of the 12 held-out tasks name their expected fixing file in the task text. Those cases remain useful tests of explicit-file-mention handling, but they no longer contribute to the generalization headline. On the nine tasks that did not name the file, FixMap measures 4/9 Top-1, 5/9 Top-3, and 6/9 Top-5; the 95% interval remains wide enough that these are exploratory point estimates.
+
+The same scanned corpora were then ranked with literal keyword retrieval and BM25. On the held-out unmentioned cohort, BM25-over-code ties FixMap at Top-1 and Top-3 and leads 9/9 to 6/9 at Top-5. The paired Top-1 and Top-3 comparisons are exact ties; at this sample size none establishes a stable effect size.
+
+**Decision gate:** FixMap does not currently beat the naive retrieval baseline on unseen repositories. Pause distribution built on a “better than search” claim and do not add workflow surface area on that premise. The next evidence work is to expand the mechanically selected unmentioned cohort and improve recall without tuning against cases that remain held out.

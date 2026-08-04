@@ -2,7 +2,7 @@
 
 A reproducible evaluation of FixMap's context ranking against real, already-fixed issues in permissively licensed JavaScript/TypeScript repositories. It complements the small self-repository gate in [`benchmarks/cases.json`](../cases.json).
 
-> **This suite measures regression, not generalization.** Its cases guided v0.7.1 ranking work — when a case missed, the ranker changed — so its hit rates describe how well FixMap fits code it has already been shaped by. For an estimate of behavior on unseen repositories, use [`benchmarks/heldout/`](../heldout), which was selected by the identical rule after the ranker was finished and is never tuned against. Quote the two together or quote the held-out number; quoting 100% alone overstates accuracy.
+> **This suite measures regression, not generalization.** Its cases guided v0.7.1 ranking work — when a case missed, the ranker changed — so its hit rates describe how well FixMap fits code it has already been shaped by. For unseen evidence, use the unmentioned cohort in [`benchmarks/heldout/`](../heldout) with its BM25 baseline beside it. Quoting this suite's 100% alone overstates accuracy.
 
 ## Dataset
 
@@ -41,19 +41,22 @@ npm run build:core
 node scripts/evaluate-external.mjs          # report only
 node scripts/evaluate-external.mjs --gate   # also fail below regression floors
 npm run evaluate:external:record            # deliberately refresh results.json
+node scripts/evaluate-baseline.mjs --suite external --check-recorded
 ```
 
 The first run shallow-clones each repository at its pinned SHA into the OS temp directory (network required); later runs reuse the clones. Because of the network dependency this is not part of `npm run ci`; the [`external-eval` workflow](../../.github/workflows/external-eval.yml) runs it on a weekly schedule and on manual dispatch. Scheduled and release runs use `--check-recorded`, so a ranking change must deliberately refresh and review [`results.json`](results.json).
 
 ## Results
 
-Measured 2026-08-01 on the dataset above (Node v24, `rankContextFiles` with a top-5 window):
+Measured 2026-08-04 on the dataset above (Node v24, `rankContextFiles` with a top-5 window):
 
 | Metric | Hit rate |
 | --- | --- |
 | top-1 | 11/16 (68.8%) |
 | top-3 | 16/16 (100%) |
 | top-5 | 16/16 (100%) |
+
+Three tasks name an expected fixing path; the derived unmentioned cohort is 9/13 (69.2%) Top-1 and 13/13 Top-3/Top-5. On that cohort BM25-over-code measures 5/13 Top-1 and 8/13 Top-3/Top-5. FixMap leads here, but these cases shaped its ranker, so that difference remains regression evidence rather than a generalization claim. Per-arm rankings are in [`baseline-results.json`](baseline-results.json).
 
 The freshly measured pre-change baseline on the original expanded 15-case dataset was 6/15 (40%) Top-1, 10/15 (67%) Top-3, and 10/15 (67%) Top-5. It was measured against the untouched pre-v0.7.1 ranker; it was not copied from the stale historical `results.json`.
 

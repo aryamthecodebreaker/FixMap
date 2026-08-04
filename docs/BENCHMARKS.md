@@ -2,11 +2,11 @@
 
 ## Cross-repository ranking and efficiency
 
-![FixMap benchmark: the fixing file ranked in the top three for 8 of 12 held-out repositories never tuned against and 16 of 16 in the regression suite, with a 1.75-second median scan and rank.](assets/fixmap-benchmark.svg)
+![FixMap evidence audit: on nine held-out tasks that did not name the fixing file, FixMap and BM25 both ranked it in the top three for five cases, while BM25 led six to nine at Top-5.](assets/fixmap-benchmark.svg)
 
 Two suites answer two different questions. The [regression suite](../benchmarks/external/README.md) uses 16 repositories whose cases have guided ranking work, so it measures fit rather than generalization. The [held-out suite](../benchmarks/heldout/README.md) uses 12 further repositories selected by the identical frozen rule and rotates any case that informs a ranking change, so it remains unseen evidence. Each case in both pins the repository state before the fix and freezes the fixing source paths before FixMap ranks anything.
 
-Ranking outputs refreshed 2026-07-31 on Node v24.13.0, Windows 11 (10.0.26200), Intel Core i5-8350U; the scan-time measurement remains from 2026-07-26:
+Ranking outputs refreshed 2026-08-04 on Node v24.13.0, Windows 11 (10.0.26200), Intel Core i5-8350U; the scan-time measurement remains from 2026-07-26:
 
 | Quantity | Held-out (12) | Regression (16) | Evidence type |
 | --- | ---: | ---: | --- |
@@ -14,9 +14,8 @@ Ranking outputs refreshed 2026-07-31 on Node v24.13.0, Windows 11 (10.0.26200), 
 | Expected fixing file in Top-3 | 8/12 (67%) | 16/16 (100%) | Measured, **pooled — see cohorts below** |
 | Expected fixing file in Top-5 | 9/12 (75%) | 16/16 (100%) | Measured, **pooled — see cohorts below** |
 | Median scan + rank time | — | 1,747.7 ms | Measured, three warm runs per pinned repository |
-| Context proxy reduction | — | 98.56% | Estimated proxy, **not** a savings measurement |
 
-**The held-out column is the one to plan around.** The regression column describes performance on cases that shaped the ranker and will overstate what happens on a repository FixMap has never seen.
+**The held-out, unmentioned cohort below is the one to plan around.** The pooled held-out column includes three tasks that name their fixing file, while the regression column describes performance on cases that shaped the ranker.
 
 ### Cohorts: tasks that already name the fixing file
 
@@ -130,6 +129,8 @@ ran on the same cases, and that pairing carries information independent interval
 Nine and thirteen cases cannot settle this either way; what they do show is that the previously
 published margin does not survive a fair baseline. Growing the held-out suite and closing the Top-5
 recall gap are the work this points at.
+
+The dated narrative is in [the benchmark self-audit](releases/2026-08-04-benchmark-self-audit.md).
 
 `path-extraction` scoring 0.0% on the unmentioned cohort of both suites and 100% on the named
 cohort is the independent check that the cohort classifier measures what it claims.

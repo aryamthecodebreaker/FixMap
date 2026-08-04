@@ -50,6 +50,7 @@ if (!["external", "heldout"].includes(suite)) {
 
 const suiteDir = join(repoRoot, "benchmarks", suite);
 const dataset = JSON.parse(await readFile(join(suiteDir, "dataset.json"), "utf8"));
+const recordedResultsPath = join(suiteDir, "baseline-results.json");
 
 const TOP_N = 5;
 
@@ -347,12 +348,21 @@ for (const arm of ARMS) {
 // weakest. For every baseline family, pick the candidate policy that scored best on the
 // unmentioned cohort and treat that as the arm to beat.
 const bestPolicyPerFamily = {};
+function compareScoreTuples(left, right) {
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return left[index] - right[index];
+    }
+  }
+  return 0;
+}
+
 for (const family of BASELINE_ARMS) {
   let best = null;
   for (const policy of Object.keys(CANDIDATE_POLICIES)) {
     const score = arms[`${family}:${policy}`].unmentioned;
     const key = [score.top1HitRate ?? 0, score.top3HitRate ?? 0, score.top5HitRate ?? 0];
-    if (!best || key > best.key) {
+    if (!best || compareScoreTuples(key, best.key) > 0) {
       best = { policy, key };
     }
   }
@@ -413,5 +423,20 @@ const rendered = `${JSON.stringify(summary, null, 2)}\n`;
 process.stdout.write(rendered);
 
 if (process.argv.includes("--record")) {
-  await writeFile(join(suiteDir, "baseline-results.json"), rendered, "utf8");
+  await writeFile(recordedResultsPath, rendered, "utf8");
+}
+
+if (process.argv.includes("--check-recorded")) {
+  let recorded = "";
+  try {
+    recorded = await readFile(recordedResultsPath, "utf8");
+  } catch {
+    // The mismatch message below also covers a missing or unreadable artifact.
+  }
+  if (recorded !== rendered) {
+    process.stderr.write(
+      `Baseline evaluation differs from benchmarks/${suite}/baseline-results.json; rerun with --record and review the change.\n`
+    );
+    process.exit(1);
+  }
 }
