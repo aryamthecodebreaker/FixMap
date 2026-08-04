@@ -4,6 +4,7 @@
   "configuration": {
     "topN": 5,
     "corpus": "one scanRepo() result per case, shared by every arm",
+    "recordedCorpusFields": "rankings and hit outcomes only; platform-dependent checkout file counts are deliberately omitted",
     "searchField": "file path + scanner text sample (files over the scanner's sample limit are truncated for every arm alike)",
     "tokenizer": "lowercase [A-Za-z0-9_$]+ of length >= 3, plus camelCase and underscore sub-tokens",
     "stopwords": 158,
@@ -783,12 +784,6 @@
       "expected": [
         "lib/request.js"
       ],
-      "scannedFiles": 213,
-      "candidateCounts": {
-        "raw": 213,
-        "source": 65,
-        "code": 54
-      },
       "queryTermCount": 47,
       "mentionsExpectedPath": true,
       "mentionTier": "full-path",
@@ -908,12 +903,6 @@
       "expected": [
         "lib/core/AxiosError.js"
       ],
-      "scannedFiles": 454,
-      "candidateCounts": {
-        "raw": 454,
-        "source": 266,
-        "code": 80
-      },
       "queryTermCount": 36,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1027,12 +1016,6 @@
       "expected": [
         "src/node.js"
       ],
-      "scannedFiles": 14,
-      "candidateCounts": {
-        "raw": 14,
-        "source": 11,
-        "code": 6
-      },
       "queryTermCount": 30,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1146,12 +1129,6 @@
       "expected": [
         "source/core/Ky.ts"
       ],
-      "scannedFiles": 67,
-      "candidateCounts": {
-        "raw": 67,
-        "source": 36,
-        "code": 29
-      },
       "queryTermCount": 42,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1265,12 +1242,6 @@
       "expected": [
         "packages/zod/src/v4/core/regexes.ts"
       ],
-      "scannedFiles": 582,
-      "candidateCounts": {
-        "raw": 582,
-        "source": 302,
-        "code": 228
-      },
       "queryTermCount": 38,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1385,12 +1356,6 @@
         "lib/transport.js",
         "lib/worker.js"
       ],
-      "scannedFiles": 200,
-      "candidateCounts": {
-        "raw": 200,
-        "source": 67,
-        "code": 40
-      },
       "queryTermCount": 28,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1504,12 +1469,6 @@
       "expected": [
         "lib/request.js"
       ],
-      "scannedFiles": 393,
-      "candidateCounts": {
-        "raw": 393,
-        "source": 152,
-        "code": 72
-      },
       "queryTermCount": 20,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1623,12 +1582,6 @@
       "expected": [
         "source/vendor/supports-color/index.js"
       ],
-      "scannedFiles": 33,
-      "candidateCounts": {
-        "raw": 33,
-        "source": 19,
-        "code": 12
-      },
       "queryTermCount": 34,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1742,12 +1695,6 @@
       "expected": [
         "packages/browser/src/client/tester/dialog.ts"
       ],
-      "scannedFiles": 3050,
-      "candidateCounts": {
-        "raw": 3050,
-        "source": 1004,
-        "code": 610
-      },
       "queryTermCount": 46,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1861,12 +1808,6 @@
       "expected": [
         "lib/types/config-api.d.ts"
       ],
-      "scannedFiles": 2297,
-      "candidateCounts": {
-        "raw": 2297,
-        "source": 953,
-        "code": 445
-      },
       "queryTermCount": 34,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1980,12 +1921,6 @@
       "expected": [
         "lib/DefinePlugin.js"
       ],
-      "scannedFiles": 13454,
-      "candidateCounts": {
-        "raw": 13454,
-        "source": 1509,
-        "code": 1158
-      },
       "queryTermCount": 38,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -2099,12 +2034,6 @@
       "expected": [
         "lib/dispatcher/client-h2.js"
       ],
-      "scannedFiles": 786,
-      "candidateCounts": {
-        "raw": 786,
-        "source": 300,
-        "code": 209
-      },
       "queryTermCount": 52,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -2218,12 +2147,6 @@
       "expected": [
         "packages/toolkit/src/query/react/buildHooks.ts"
       ],
-      "scannedFiles": 1152,
-      "candidateCounts": {
-        "raw": 1152,
-        "source": 802,
-        "code": 595
-      },
       "queryTermCount": 47,
       "mentionsExpectedPath": true,
       "mentionTier": "path-suffix",
@@ -2343,12 +2266,6 @@
       "expected": [
         "src/language-css/print/comma-separated-value-group.js"
       ],
-      "scannedFiles": 9319,
-      "candidateCounts": {
-        "raw": 9319,
-        "source": 881,
-        "code": 720
-      },
       "queryTermCount": 61,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -2462,12 +2379,6 @@
       "expected": [
         "src/adapter/aws-lambda/types.ts"
       ],
-      "scannedFiles": 482,
-      "candidateCounts": {
-        "raw": 482,
-        "source": 304,
-        "code": 243
-      },
       "queryTermCount": 35,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -2581,12 +2492,6 @@
       "expected": [
         "source/core/index.ts"
       ],
-      "scannedFiles": 120,
-      "candidateCounts": {
-        "raw": 120,
-        "source": 62,
-        "code": 31
-      },
       "queryTermCount": 42,
       "mentionsExpectedPath": true,
       "mentionTier": "full-path",

@@ -256,10 +256,8 @@ for (const benchmark of dataset.cases) {
   const ranked = {
     fixmap: rankContextFiles(repo, { issueText: benchmark.task }, TOP_N).map((file) => file.path)
   };
-  const policyCounts = {};
   for (const [policy, predicate] of Object.entries(CANDIDATE_POLICIES)) {
     const files = repo.files.filter(predicate);
-    policyCounts[policy] = files.length;
     ranked[`path-extraction:${policy}`] = rankByPathExtraction(files, benchmark.task);
     ranked[`lexical-literal:${policy}`] = rankByLexicalLiteral(files, terms);
     ranked[`bm25:${policy}`] = rankByBm25(files, terms);
@@ -268,8 +266,6 @@ for (const benchmark of dataset.cases) {
   const caseRow = {
     slug: benchmark.slug,
     expected: benchmark.expected,
-    scannedFiles: repo.files.length,
-    candidateCounts: policyCounts,
     queryTermCount: terms.length,
     mentionsExpectedPath: mention.mentionsExpectedPath,
     mentionTier: mention.mentionTier,
@@ -395,6 +391,7 @@ const summary = {
   configuration: {
     topN: TOP_N,
     corpus: "one scanRepo() result per case, shared by every arm",
+    recordedCorpusFields: "rankings and hit outcomes only; platform-dependent checkout file counts are deliberately omitted",
     searchField: "file path + scanner text sample (files over the scanner's sample limit are truncated for every arm alike)",
     tokenizer: "lowercase [A-Za-z0-9_$]+ of length >= 3, plus camelCase and underscore sub-tokens",
     stopwords: STOPWORDS.size,

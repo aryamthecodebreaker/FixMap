@@ -4,6 +4,7 @@
   "configuration": {
     "topN": 5,
     "corpus": "one scanRepo() result per case, shared by every arm",
+    "recordedCorpusFields": "rankings and hit outcomes only; platform-dependent checkout file counts are deliberately omitted",
     "searchField": "file path + scanner text sample (files over the scanner's sample limit are truncated for every arm alike)",
     "tokenizer": "lowercase [A-Za-z0-9_$]+ of length >= 3, plus camelCase and underscore sub-tokens",
     "stopwords": 158,
@@ -783,12 +784,6 @@
       "expected": [
         "lib/document.js"
       ],
-      "scannedFiles": 702,
-      "candidateCounts": {
-        "raw": 702,
-        "source": 443,
-        "code": 317
-      },
       "queryTermCount": 36,
       "mentionsExpectedPath": true,
       "mentionTier": "full-path",
@@ -908,12 +903,6 @@
       "expected": [
         "src/types/types-external.ts"
       ],
-      "scannedFiles": 165,
-      "candidateCounts": {
-        "raw": 165,
-        "source": 83,
-        "code": 28
-      },
       "queryTermCount": 24,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1027,12 +1016,6 @@
       "expected": [
         "packages/jest-mock/src/index.ts"
       ],
-      "scannedFiles": 3249,
-      "candidateCounts": {
-        "raw": 3249,
-        "source": 1622,
-        "code": 826
-      },
       "queryTermCount": 50,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1146,12 +1129,6 @@
       "expected": [
         "lib/dialects/postgres/query/pg-querycompiler.js"
       ],
-      "scannedFiles": 600,
-      "candidateCounts": {
-        "raw": 600,
-        "source": 260,
-        "code": 188
-      },
       "queryTermCount": 31,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1265,12 +1242,6 @@
       "expected": [
         "lib/reporters/xunit.js"
       ],
-      "scannedFiles": 661,
-      "candidateCounts": {
-        "raw": 661,
-        "source": 129,
-        "code": 69
-      },
       "queryTermCount": 46,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1388,12 +1359,6 @@
       "expected": [
         "src/logic/createFormControl.ts"
       ],
-      "scannedFiles": 490,
-      "candidateCounts": {
-        "raw": 490,
-        "source": 320,
-        "code": 257
-      },
       "queryTermCount": 52,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1507,12 +1472,6 @@
       "expected": [
         "packages/engine.io-client/lib/socket.ts"
       ],
-      "scannedFiles": 829,
-      "candidateCounts": {
-        "raw": 829,
-        "source": 520,
-        "code": 260
-      },
       "queryTermCount": 27,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1626,12 +1585,6 @@
       "expected": [
         "packages/svelte/src/internal/client/dom/blocks/boundary.js"
       ],
-      "scannedFiles": 8974,
-      "candidateCounts": {
-        "raw": 8974,
-        "source": 610,
-        "code": 444
-      },
       "queryTermCount": 43,
       "mentionsExpectedPath": true,
       "mentionTier": "full-path",
@@ -1751,12 +1704,6 @@
       "expected": [
         "packages/vite/src/node/server/bundledDev.ts"
       ],
-      "scannedFiles": 2758,
-      "candidateCounts": {
-        "raw": 2758,
-        "source": 1806,
-        "code": 1241
-      },
       "queryTermCount": 48,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1870,12 +1817,6 @@
       "expected": [
         "packages/runtime-dom/src/index.ts"
       ],
-      "scannedFiles": 699,
-      "candidateCounts": {
-        "raw": 699,
-        "source": 408,
-        "code": 324
-      },
       "queryTermCount": 31,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -1989,12 +1930,6 @@
       "expected": [
         "lib/winston/transports/file.js"
       ],
-      "scannedFiles": 115,
-      "candidateCounts": {
-        "raw": 115,
-        "source": 65,
-        "code": 46
-      },
       "queryTermCount": 38,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -2108,12 +2043,6 @@
       "expected": [
         "lib/utils/apply-extends.ts"
       ],
-      "scannedFiles": 170,
-      "candidateCounts": {
-        "raw": 170,
-        "source": 103,
-        "code": 57
-      },
       "queryTermCount": 39,
       "mentionsExpectedPath": true,
       "mentionTier": "full-path",
