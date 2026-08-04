@@ -1,0 +1,1269 @@
+{
+  "suite": "external",
+  "cases": 16,
+  "configuration": {
+    "topN": 5,
+    "corpus": "one scanRepo() result per case, shared by every arm; ranking is the only difference",
+    "searchField": "file path + scanner text sample (files over the scanner's sample limit are truncated for every arm alike)",
+    "tokenizer": "lowercase [A-Za-z0-9_$]+ of length >= 3, plus camelCase and underscore sub-tokens",
+    "stopwords": 158,
+    "caseSensitivity": "case-insensitive for both keyword arms, which favours the baselines",
+    "bm25": {
+      "k1": 1.2,
+      "b": 0.75
+    },
+    "armDescriptions": {
+      "path-extraction": "path-shaped tokens read out of the task text, resolved against the corpus, ranked by order of appearance",
+      "lexical-literal": "literal keyword search ranked by distinct query terms matched, then raw occurrence count",
+      "bm25": "BM25 retrieval over the same text; a retrieval baseline, not a grep",
+      "fixmap": "rankContextFiles from @aryam/fixmap-core"
+    }
+  },
+  "arms": {
+    "path-extraction": {
+      "all": {
+        "cases": 16,
+        "top1HitRate": 0.125,
+        "top3HitRate": 0.125,
+        "top5HitRate": 0.125,
+        "intervals95": {
+          "top1": [
+            0.035,
+            0.36
+          ],
+          "top3": [
+            0.035,
+            0.36
+          ],
+          "top5": [
+            0.035,
+            0.36
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 13,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0,
+        "intervals95": {
+          "top1": [
+            0,
+            0.228
+          ],
+          "top3": [
+            0,
+            0.228
+          ],
+          "top5": [
+            0,
+            0.228
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 3,
+        "top1HitRate": 0.667,
+        "top3HitRate": 0.667,
+        "top5HitRate": 0.667,
+        "intervals95": {
+          "top1": [
+            0.208,
+            0.939
+          ],
+          "top3": [
+            0.208,
+            0.939
+          ],
+          "top5": [
+            0.208,
+            0.939
+          ]
+        }
+      }
+    },
+    "lexical-literal": {
+      "all": {
+        "cases": 16,
+        "top1HitRate": 0.125,
+        "top3HitRate": 0.313,
+        "top5HitRate": 0.313,
+        "intervals95": {
+          "top1": [
+            0.035,
+            0.36
+          ],
+          "top3": [
+            0.142,
+            0.556
+          ],
+          "top5": [
+            0.142,
+            0.556
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 13,
+        "top1HitRate": 0.077,
+        "top3HitRate": 0.308,
+        "top5HitRate": 0.308,
+        "intervals95": {
+          "top1": [
+            0.014,
+            0.333
+          ],
+          "top3": [
+            0.127,
+            0.576
+          ],
+          "top5": [
+            0.127,
+            0.576
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 3,
+        "top1HitRate": 0.333,
+        "top3HitRate": 0.333,
+        "top5HitRate": 0.333,
+        "intervals95": {
+          "top1": [
+            0.061,
+            0.792
+          ],
+          "top3": [
+            0.061,
+            0.792
+          ],
+          "top5": [
+            0.061,
+            0.792
+          ]
+        }
+      }
+    },
+    "bm25": {
+      "all": {
+        "cases": 16,
+        "top1HitRate": 0.188,
+        "top3HitRate": 0.313,
+        "top5HitRate": 0.375,
+        "intervals95": {
+          "top1": [
+            0.066,
+            0.43
+          ],
+          "top3": [
+            0.142,
+            0.556
+          ],
+          "top5": [
+            0.185,
+            0.614
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 13,
+        "top1HitRate": 0.154,
+        "top3HitRate": 0.308,
+        "top5HitRate": 0.385,
+        "intervals95": {
+          "top1": [
+            0.043,
+            0.422
+          ],
+          "top3": [
+            0.127,
+            0.576
+          ],
+          "top5": [
+            0.177,
+            0.645
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 3,
+        "top1HitRate": 0.333,
+        "top3HitRate": 0.333,
+        "top5HitRate": 0.333,
+        "intervals95": {
+          "top1": [
+            0.061,
+            0.792
+          ],
+          "top3": [
+            0.061,
+            0.792
+          ],
+          "top5": [
+            0.061,
+            0.792
+          ]
+        }
+      }
+    },
+    "fixmap": {
+      "all": {
+        "cases": 16,
+        "top1HitRate": 0.688,
+        "top3HitRate": 1,
+        "top5HitRate": 1,
+        "intervals95": {
+          "top1": [
+            0.444,
+            0.858
+          ],
+          "top3": [
+            0.806,
+            1
+          ],
+          "top5": [
+            0.806,
+            1
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 13,
+        "top1HitRate": 0.692,
+        "top3HitRate": 1,
+        "top5HitRate": 1,
+        "intervals95": {
+          "top1": [
+            0.424,
+            0.873
+          ],
+          "top3": [
+            0.772,
+            1
+          ],
+          "top5": [
+            0.772,
+            1
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 3,
+        "top1HitRate": 0.667,
+        "top3HitRate": 1,
+        "top5HitRate": 1,
+        "intervals95": {
+          "top1": [
+            0.208,
+            0.939
+          ],
+          "top3": [
+            0.438,
+            1
+          ],
+          "top5": [
+            0.438,
+            1
+          ]
+        }
+      }
+    }
+  },
+  "pairedVsFixmapMcnemarExact": {
+    "all": {
+      "path-extraction": {
+        "top1": {
+          "aWins": 10,
+          "bWins": 1,
+          "discordant": 11,
+          "pValue": 0.0117
+        },
+        "top3": {
+          "aWins": 14,
+          "bWins": 0,
+          "discordant": 14,
+          "pValue": 0.0001
+        },
+        "top5": {
+          "aWins": 14,
+          "bWins": 0,
+          "discordant": 14,
+          "pValue": 0.0001
+        }
+      },
+      "lexical-literal": {
+        "top1": {
+          "aWins": 9,
+          "bWins": 0,
+          "discordant": 9,
+          "pValue": 0.0039
+        },
+        "top3": {
+          "aWins": 11,
+          "bWins": 0,
+          "discordant": 11,
+          "pValue": 0.001
+        },
+        "top5": {
+          "aWins": 11,
+          "bWins": 0,
+          "discordant": 11,
+          "pValue": 0.001
+        }
+      },
+      "bm25": {
+        "top1": {
+          "aWins": 8,
+          "bWins": 0,
+          "discordant": 8,
+          "pValue": 0.0078
+        },
+        "top3": {
+          "aWins": 11,
+          "bWins": 0,
+          "discordant": 11,
+          "pValue": 0.001
+        },
+        "top5": {
+          "aWins": 10,
+          "bWins": 0,
+          "discordant": 10,
+          "pValue": 0.002
+        }
+      }
+    },
+    "unmentioned": {
+      "path-extraction": {
+        "top1": {
+          "aWins": 9,
+          "bWins": 0,
+          "discordant": 9,
+          "pValue": 0.0039
+        },
+        "top3": {
+          "aWins": 13,
+          "bWins": 0,
+          "discordant": 13,
+          "pValue": 0.0002
+        },
+        "top5": {
+          "aWins": 13,
+          "bWins": 0,
+          "discordant": 13,
+          "pValue": 0.0002
+        }
+      },
+      "lexical-literal": {
+        "top1": {
+          "aWins": 8,
+          "bWins": 0,
+          "discordant": 8,
+          "pValue": 0.0078
+        },
+        "top3": {
+          "aWins": 9,
+          "bWins": 0,
+          "discordant": 9,
+          "pValue": 0.0039
+        },
+        "top5": {
+          "aWins": 9,
+          "bWins": 0,
+          "discordant": 9,
+          "pValue": 0.0039
+        }
+      },
+      "bm25": {
+        "top1": {
+          "aWins": 7,
+          "bWins": 0,
+          "discordant": 7,
+          "pValue": 0.0156
+        },
+        "top3": {
+          "aWins": 9,
+          "bWins": 0,
+          "discordant": 9,
+          "pValue": 0.0039
+        },
+        "top5": {
+          "aWins": 8,
+          "bWins": 0,
+          "discordant": 8,
+          "pValue": 0.0078
+        }
+      }
+    }
+  },
+  "results": [
+    {
+      "slug": "expressjs/express",
+      "expected": [
+        "lib/request.js"
+      ],
+      "scannedFiles": 213,
+      "queryTermCount": 47,
+      "mentionsExpectedPath": true,
+      "mentionTier": "full-path",
+      "arms": {
+        "path-extraction": {
+          "top5": [
+            "lib/request.js"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        },
+        "lexical-literal": {
+          "top5": [
+            "lib/request.js",
+            "lib/response.js",
+            "test/res.send.js",
+            "lib/application.js",
+            "test/app.router.js"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        },
+        "bm25": {
+          "top5": [
+            "lib/request.js",
+            "test/req.fresh.js",
+            "test/res.send.js",
+            "test/req.stale.js",
+            "lib/response.js"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5": [
+            "lib/request.js",
+            "lib/response.js",
+            "package.json",
+            "examples/auth/index.js",
+            "examples/route-middleware/index.js"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "axios/axios",
+      "expected": [
+        "lib/core/AxiosError.js"
+      ],
+      "scannedFiles": 454,
+      "queryTermCount": 36,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "tests/unit/prototypePollution.test.js",
+            "lib/adapters/http.js",
+            "tests/unit/core/AxiosError.test.js",
+            "docs/pages/advanced/request-config.md",
+            "tests/unit/adapters/fetch.test.js"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "bm25": {
+          "top5": [
+            "MIGRATION_GUIDE.md",
+            "docs/pages/getting-started/first-steps.md",
+            "tests/unit/toFormData.test.js",
+            "docs/pages/advanced/create-an-instance.md",
+            "docs/pages/advanced/testing.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5": [
+            "lib/core/AxiosError.js",
+            "lib/adapters/http.js",
+            "lib/helpers/HttpStatusCode.js",
+            "index.d.cts",
+            "index.d.ts"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "debug-js/debug",
+      "expected": [
+        "src/node.js"
+      ],
+      "scannedFiles": 14,
+      "queryTermCount": 30,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "README.md",
+            "src/node.js",
+            "src/common.js",
+            "src/browser.js",
+            ".github/PULL_REQUEST_TEMPLATE.md"
+          ],
+          "top1": false,
+          "top3": true,
+          "top5Hit": true
+        },
+        "bm25": {
+          "top5": [
+            "src/node.js",
+            "README.md",
+            "src/common.js",
+            "src/browser.js",
+            ".github/PULL_REQUEST_TEMPLATE.md"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5": [
+            "src/node.js",
+            "src/browser.js",
+            "src/common.js",
+            "test.js",
+            "karma.conf.js"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "sindresorhus/ky",
+      "expected": [
+        "source/core/Ky.ts"
+      ],
+      "scannedFiles": 67,
+      "queryTermCount": 42,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "readme.md",
+            "source/core/Ky.ts",
+            "source/types/options.ts",
+            "source/types/hooks.ts",
+            "test/main.ts"
+          ],
+          "top1": false,
+          "top3": true,
+          "top5Hit": true
+        },
+        "bm25": {
+          "top5": [
+            "readme.md",
+            "source/core/Ky.ts",
+            "source/core/constants.ts",
+            "source/types/options.ts",
+            "test/http-error.ts"
+          ],
+          "top1": false,
+          "top3": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5": [
+            "source/core/Ky.ts",
+            "source/errors/HTTPError.ts",
+            "source/types/hooks.ts",
+            "source/types/options.ts",
+            "source/errors/SchemaValidationError.ts"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "colinhacks/zod",
+      "expected": [
+        "packages/zod/src/v4/core/regexes.ts"
+      ],
+      "scannedFiles": 582,
+      "queryTermCount": 38,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "packages/docs-v3/README_ZH.md",
+            "packages/zod/src/v4/mini/schemas.ts",
+            "packages/zod/src/v4/mini/tests/index.test.ts",
+            "packages/zod/src/v4/classic/from-json-schema.ts",
+            "packages/docs-v3/ERROR_HANDLING.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "bm25": {
+          "top5": [
+            "packages/zod/src/v4/mini/tests/string.test.ts",
+            "packages/zod/src/v4/classic/tests/detached-methods.test.ts",
+            "packages/zod/src/v4/classic/tests/refine.test.ts",
+            "packages/zod/src/v4/classic/tests/tuple.test.ts",
+            "packages/zod/src/v4/mini/tests/codec.test.ts"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5": [
+            "packages/zod/src/v4/core/regexes.ts",
+            "packages/zod/src/v4/classic/from-json-schema.ts",
+            "packages/zod/src/v4/core/json-schema-processors.ts",
+            "packages/zod/src/v4/mini/schemas.ts",
+            "packages/zod/src/v4/core/parse.ts"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "pinojs/pino",
+      "expected": [
+        "lib/transport.js",
+        "lib/worker.js"
+      ],
+      "scannedFiles": 200,
+      "queryTermCount": 28,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "docs/transports.md",
+            "docs/api.md",
+            "pino.d.ts",
+            "docs/help.md",
+            "test/transport/core.test.js"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "bm25": {
+          "top5": [
+            "docs/api.md",
+            "test/transport/core.test.js",
+            "docs/transports.md",
+            "test/types/pino-transport.tst.ts",
+            "docs/help.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5": [
+            "pino.d.ts",
+            "lib/multistream.js",
+            "lib/transport.js",
+            "pino.js",
+            "lib/levels.js"
+          ],
+          "top1": false,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "fastify/fastify",
+      "expected": [
+        "lib/request.js"
+      ],
+      "scannedFiles": 393,
+      "queryTermCount": 20,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "docs/Reference/Errors.md",
+            "docs/Reference/Routes.md",
+            "SECURITY.md",
+            "docs/Reference/TypeScript.md",
+            "docs/Guides/Migration-Guide-V5.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "bm25": {
+          "top5": [
+            "SECURITY.md",
+            "docs/Reference/Errors.md",
+            ".github/workflows/links-check.yml",
+            "CONTRIBUTING.md",
+            "docs/Guides/Serverless.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5": [
+            "lib/request.js",
+            "lib/server.js",
+            "fastify.js",
+            "integration/server.js",
+            "types/request.d.ts"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "chalk/chalk",
+      "expected": [
+        "source/vendor/supports-color/index.js"
+      ],
+      "scannedFiles": 33,
+      "queryTermCount": 34,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "readme.md",
+            "source/vendor/supports-color/index.js",
+            "source/vendor/supports-color/index.d.ts",
+            "test/chalk.js",
+            "source/index.d.ts"
+          ],
+          "top1": false,
+          "top3": true,
+          "top5Hit": true
+        },
+        "bm25": {
+          "top5": [
+            "source/vendor/supports-color/index.js",
+            "test/no-color-support.js",
+            "source/vendor/supports-color/index.d.ts",
+            "readme.md",
+            "source/vendor/supports-color/browser.js"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5": [
+            "source/vendor/supports-color/index.js",
+            "source/vendor/supports-color/browser.js",
+            "source/vendor/supports-color/index.d.ts",
+            "source/index.d.ts",
+            "source/index.js"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "vitest-dev/vitest",
+      "expected": [
+        "packages/browser/src/client/tester/dialog.ts"
+      ],
+      "scannedFiles": 3050,
+      "queryTermCount": 46,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "docs/guide/browser/visual-regression-testing.md",
+            "docs/api/vi.md",
+            "docs/guide/migration.md",
+            "docs/guide/learn/debugging-tests.md",
+            "docs/blog/vitest-4-1.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "bm25": {
+          "top5": [
+            ".github/ISSUE_TEMPLATE/feature_request.yml",
+            "docs/guide/browser/index.md",
+            "docs/blog/vitest-4-1.md",
+            "docs/guide/learn/debugging-tests.md",
+            "docs/guide/features.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5": [
+            "packages/vitest/src/integrations/env/jsdom-keys.ts",
+            "packages/browser/src/client/tester/dialog.ts",
+            "packages/vitest/src/node/printError.ts",
+            "packages/vitest/src/runtime/runner/suite.ts",
+            "packages/pretty-format/src/index.ts"
+          ],
+          "top1": false,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "eslint/eslint",
+      "expected": [
+        "lib/types/config-api.d.ts"
+      ],
+      "scannedFiles": 2297,
+      "queryTermCount": 34,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "docs/src/extend/custom-rules.md",
+            "lib/linter/linter.js",
+            "docs/src/use/migrate-to-9.0.0.md",
+            "lib/types/index.d.ts",
+            "docs/src/use/configure/migration-guide.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "bm25": {
+          "top5": [
+            "docs/src/use/configure/migration-guide.md",
+            "docs/src/extend/plugin-migration-flat-config.md",
+            "docs/src/use/migrate-to-9.0.0.md",
+            "docs/src/extend/custom-rule-tutorial.md",
+            "docs/src/use/configure/configuration-files.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5": [
+            "lib/types/config-api.d.ts",
+            "package.json",
+            "lib/config-api.js",
+            "lib/types/index.d.ts",
+            "lib/config/config.js"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "webpack/webpack",
+      "expected": [
+        "lib/DefinePlugin.js"
+      ],
+      "scannedFiles": 13454,
+      "queryTermCount": 38,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "AGENTS.md",
+            "lib/Module.js",
+            "CONTRIBUTING.md",
+            "lib/SourceMapDevToolPlugin.js",
+            "examples/css/README.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "bm25": {
+          "top5": [
+            "CONTRIBUTING.md",
+            ".changeset/README.md",
+            "WORKING_GROUP.md",
+            ".github/workflows/release.yml",
+            "AGENTS.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5": [
+            "lib/dependencies/ImportMetaPlugin.js",
+            "lib/WebpackOptionsApply.js",
+            "lib/DefinePlugin.js",
+            "lib/EnvironmentPlugin.js",
+            "lib/dependencies/CreateRequireParserPlugin.js"
+          ],
+          "top1": false,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "nodejs/undici",
+      "expected": [
+        "lib/dispatcher/client-h2.js"
+      ],
+      "scannedFiles": 786,
+      "queryTermCount": 52,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "lib/dispatcher/client-h2.js",
+            "test/http2-dispatcher.js",
+            "docs/docs/index.md",
+            "README.md",
+            "lib/dispatcher/client-h1.js"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        },
+        "bm25": {
+          "top5": [
+            "test/http2-late-data.js",
+            "lib/dispatcher/client-h2.js",
+            "test/http2-dispatcher.js",
+            "lib/api/api-stream.js",
+            "test/fetch/issue-4058.js"
+          ],
+          "top1": false,
+          "top3": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5": [
+            "lib/dispatcher/client-h2.js",
+            "lib/web/fetch/body.js",
+            "lib/web/fetch/request.js",
+            "lib/web/fetch/response.js",
+            "lib/api/api-request.js"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "reduxjs/redux-toolkit",
+      "expected": [
+        "packages/toolkit/src/query/react/buildHooks.ts"
+      ],
+      "scannedFiles": 1152,
+      "queryTermCount": 47,
+      "mentionsExpectedPath": true,
+      "mentionTier": "path-suffix",
+      "arms": {
+        "path-extraction": {
+          "top5": [
+            "packages/toolkit/src/query/react/buildHooks.ts"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        },
+        "lexical-literal": {
+          "top5": [
+            "packages/toolkit/src/query/core/buildThunks.ts",
+            "packages/toolkit/src/query/core/module.ts",
+            "packages/toolkit/src/query/core/apiState.ts",
+            "packages/toolkit/src/query/tests/buildThunks.test.tsx",
+            "_artifacts/domain_map.yaml"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "bm25": {
+          "top5": [
+            "packages/toolkit/src/query/core/apiState.ts",
+            "packages/toolkit/src/query/core/buildSlice.ts",
+            "packages/toolkit/src/query/tests/queryLifecycle.test.tsx",
+            "packages/toolkit/src/query/core/buildThunks.ts",
+            "packages/toolkit/src/query/tests/cacheLifecycle.test.ts"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5": [
+            "packages/toolkit/src/query/core/apiState.ts",
+            "packages/toolkit/src/query/core/buildThunks.ts",
+            "packages/toolkit/src/query/react/buildHooks.ts",
+            "packages/toolkit/src/listenerMiddleware/index.ts",
+            "examples/query/react/authentication-with-extrareducers/public/mockServiceWorker.js"
+          ],
+          "top1": false,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "prettier/prettier",
+      "expected": [
+        "src/language-css/print/comma-separated-value-group.js"
+      ],
+      "scannedFiles": 9319,
+      "queryTermCount": 61,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "website/blog/2021-05-09-2.3.0.md",
+            "tests/format/markdown/markdown/real-world-case.md",
+            "website/blog/2018-04-11-1.12.0.md",
+            "website/blog/2017-11-07-1.8.0.md",
+            "website/blog/2020-03-21-2.0.0.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "bm25": {
+          "top5": [
+            "website/blog/2017-04-20-1.2.0.md",
+            "README.md",
+            "website/blog/2023-11-13-curious-ternaries.md",
+            "website/blog/2018-04-09-plugin-php-0.1.md",
+            ".vscode/settings.example.json"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5": [
+            "src/language-css/print/comma-separated-value-group.js",
+            "src/language-js/print/member-chain.js",
+            "scripts/build/builders/javascript-module.js",
+            "website/playground/Playground.jsx",
+            "src/language-js/print/binaryish.js"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "honojs/hono",
+      "expected": [
+        "src/adapter/aws-lambda/types.ts"
+      ],
+      "scannedFiles": 482,
+      "queryTermCount": 35,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "runtime-tests/lambda/index.test.ts",
+            "src/adapter/aws-lambda/handler.ts",
+            "runtime-tests/lambda/stream.test.ts",
+            "src/adapter/aws-lambda/handler.test.ts",
+            "docs/MIGRATION.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "bm25": {
+          "top5": [
+            "runtime-tests/lambda/stream.test.ts",
+            "runtime-tests/lambda/index.test.ts",
+            "src/adapter/aws-lambda/handler.ts",
+            "src/adapter/aws-lambda/handler.test.ts",
+            "src/adapter/aws-lambda/types.ts"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5": [
+            "src/adapter/aws-lambda/handler.ts",
+            "src/adapter/aws-lambda/types.ts",
+            "src/adapter/aws-lambda/conninfo.ts",
+            "src/adapter/lambda-edge/handler.ts",
+            "src/jsx/context.ts"
+          ],
+          "top1": false,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "sindresorhus/got",
+      "expected": [
+        "source/core/index.ts"
+      ],
+      "scannedFiles": 120,
+      "queryTermCount": 42,
+      "mentionsExpectedPath": true,
+      "mentionTier": "full-path",
+      "arms": {
+        "path-extraction": {
+          "top5": [],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "lexical-literal": {
+          "top5": [
+            "documentation/2-options.md",
+            "documentation/3-streams.md",
+            "documentation/tips.md",
+            "documentation/migration-guides/request.md",
+            "documentation/4-pagination.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "bm25": {
+          "top5": [
+            "documentation/2-options.md",
+            "documentation/4-pagination.md",
+            "source/core/response.ts",
+            "documentation/migration-guides/request.md",
+            "documentation/tips.md"
+          ],
+          "top1": false,
+          "top3": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5": [
+            "source/core/index.ts",
+            "source/core/diagnostics-channel.ts",
+            "source/core/response.ts",
+            "source/as-promise/index.ts",
+            "source/core/errors.ts"
+          ],
+          "top1": true,
+          "top3": true,
+          "top5Hit": true
+        }
+      }
+    }
+  ]
+}
