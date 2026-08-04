@@ -446,22 +446,28 @@ The same split on the regression suite barely moves it (69% → 69% Top-1), and 
 
 #### Is this better than just searching the repository?
 
-The fair question about a ranked file list is whether it beats what an agent already gets for free. So the same suites are scored against naive retrieval on **the same scanned corpus** — one repository scan per case, shared by every arm, so the only difference is ranking. Both keyword arms are case-insensitive and expand camelCase, which favours the baselines on purpose.
+The fair question about a ranked file list is whether it beats what an agent already gets for free. The same suites are scored against naive retrieval on **the same scanned corpus** — one repository scan per case, shared by every arm.
 
-Held-out, tasks that did not name the file (9 cases):
+Candidate policy turned out to matter more than the ranking function. FixMap does not rank the raw scan: it gates on `isSource && !isTest` and then deprioritises documentation for an implementation task. A baseline pointed at every scanned file therefore returns `README.md` and `CONTRIBUTING.md` first and loses to the wrong thing. So each baseline is run under three candidate policies and **compared at its strongest**.
+
+Held-out, tasks that did not name the file (9 cases), each baseline at its best policy:
 
 | Arm | Top-1 | Top-3 | Top-5 |
 | --- | ---: | ---: | ---: |
 | Path extraction — read paths out of the task | 0% | 0% | 0% |
-| Literal keyword search | 11% | 22% | 33% |
-| BM25 retrieval | 11% | 22% | 33% |
-| **FixMap** | **44%** | **56%** | **67%** |
+| Literal keyword search, code files only | 22% | 44% | 67% |
+| **BM25 retrieval, code files only** | **44%** | **56%** | **100%** |
+| FixMap | 44% | 56% | 67% |
 
-FixMap wins on the regression suite too (69% vs 15% Top-1 against BM25 on its 13 unmentioned cases), and it never loses a head-to-head case against any baseline on that suite — a paired McNemar exact test puts that at p = 0.004–0.016. On the nine held-out cases the direction is identical and FixMap still never loses a disagreement, but it **cannot** reach significance there: with three disagreeing cases the smallest possible two-sided p-value is 0.25. That is a limit of the sample size, not a negative result, and it is the strongest argument for growing the held-out suite.
+**On repositories FixMap was never tuned against, BM25 over code files matches it at Top-1 and Top-3 and beats it at Top-5.** Paired McNemar exact tests put Top-1 and Top-3 at p = 1.0 — dead ties, two disagreements each way. At Top-5 the baseline wins 3 cases FixMap misses and FixMap wins none: BM25 has the fixing file in its top five for **9 of 9** cases, FixMap for 6 of 9.
 
-Path extraction scoring exactly 0% on this cohort and 67% on the named one is the check that the cohort split is measuring what it claims.
+On the regression suite FixMap does lead — 69% vs 39% Top-1, 100% vs 62% Top-3 — but that is the suite whose cases shaped the ranker, and even there the lead is not significant against this baseline (p = 0.125 Top-1, p = 0.0625 Top-3).
 
-Reproduce it with `node scripts/evaluate-baseline.mjs --suite heldout`; every arm's ranking is recorded in [`benchmarks/heldout/baseline-results.json`](benchmarks/heldout/baseline-results.json).
+We are publishing this because it is what the measurement says. The honest reading is that FixMap's current advantage over plain BM25-over-code is **unproven on unseen repositories**, and that its Top-5 recall is behind. Closing that gap is the next piece of work, not a marketing line.
+
+Path extraction scoring 0% on this cohort and 100% on the named one is the check that the cohort split measures what it claims.
+
+Reproduce it with `node scripts/evaluate-baseline.mjs --suite heldout`; every arm, policy, and ranking is recorded in [`benchmarks/heldout/baseline-results.json`](benchmarks/heldout/baseline-results.json).
 
 One thing the point estimates hide: held-out Top-1 stays close to Top-3 in both cohorts — **when FixMap finds the file at all, it usually ranks it first**, which is what matters to an agent that opens one file. The tuned suite's 100% Top-3 still conceals that in 31% of those cases something wrong ranks above the answer, so an agent following it opens the wrong file first.
 

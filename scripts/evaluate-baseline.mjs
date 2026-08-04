@@ -94,6 +94,26 @@ function searchableText(file) {
   return `${file.path}\n${file.textSample ?? ""}`;
 }
 
+// Candidate policy is the confound that matters most here, and getting it wrong produces a
+// strawman. FixMap does not rank the raw scan: rankContextFiles gates on
+// `isSource && !isTest` (minus lockfiles, excluded and generated paths) and then penalises
+// documentation for a task that is not about documentation. A baseline pointed at every
+// scanned file is therefore competing on a different, larger, doc-heavy population — and it
+// loses to README.md, not to FixMap.
+//
+// So each keyword arm is scored under three policies, and the arm's headline number is its
+// BEST policy. Comparing FixMap to the strongest baseline available is the only version of
+// this comparison worth publishing.
+const CANDIDATE_POLICIES = {
+  // Every scanned file. Kept for reference: this is the version that ranks READMEs first.
+  raw: () => true,
+  // FixMap's own candidate gate, using only public RepoFile fields.
+  source: (file) => file.isSource && !file.isTest,
+  // Additionally drops documentation, matching FixMap's deprioritisation of it for the
+  // implementation tasks that make up both suites.
+  code: (file) => file.isSource && !file.isTest && file.kind === "code"
+};
+
 // ---------------------------------------------------------------------------- arms
 
 /**
@@ -101,18 +121,27 @@ function searchableText(file) {
  * Ranked by order of appearance. This measures how much of a score the task text is
  * carrying on its own, before any ranking happens.
  */
-function rankByPathExtraction(repo, task) {
+function rankByPathExtraction(files, task) {
   const text = String(task).replace(/\\/g, "/");
   const candidates = text.match(/[A-Za-z0-9_.$-]+(?:\/[A-Za-z0-9_.$-]+)+\.[A-Za-z0-9]+/g) ?? [];
-  const byPath = new Map(repo.files.map((file) => [file.path, file]));
+  const byPath = new Set(files.map((file) => file.path));
   const ranked = [];
   const seen = new Set();
   for (const candidate of candidates) {
-    // Exact repo-relative path first, then a unique suffix match — a stack trace or tsc
-    // error often names a path relative to a package rather than to the repository root.
-    let match = byPath.has(candidate) ? candidate : null;
-    if (!match) {
-      const suffixMatches = repo.files.filter((file) => file.path.endsWith(`/${candidate}`));
+    // A candidate lifted from a GitHub permalink still carries its URL prefix
+    // ("github.com/owner/repo/blob/<sha>/packages/…"), so an exact match on the whole token
+    // never fires. Peel leading segments off and take the longest tail that is a real file.
+    // Without this the arm silently misses every permalink, which understates exactly the
+    // quantity it exists to measure.
+    const segments = candidate.split("/");
+    let match = null;
+    for (let start = 0; start < segments.length && !match; start += 1) {
+      const tail = segments.slice(start).join("/");
+      if (byPath.has(tail)) {
+        match = tail;
+        break;
+      }
+      const suffixMatches = files.filter((file) => file.path.endsWith(`/${tail}`));
       if (suffixMatches.length === 1) {
         match = suffixMatches[0].path;
       }
@@ -130,9 +159,9 @@ function rankByPathExtraction(repo, task) {
  * by total occurrences. This is the "I ran a few greps and looked at what matched most"
  * arm — no idf, no length normalisation, no weighting.
  */
-function rankByLexicalLiteral(repo, terms) {
+function rankByLexicalLiteral(files, terms) {
   const scored = [];
-  for (const file of repo.files) {
+  for (const file of files) {
     const haystack = searchableText(file).toLowerCase();
     let distinct = 0;
     let total = 0;
@@ -157,8 +186,8 @@ function rankByLexicalLiteral(repo, terms) {
 }
 
 /** Standard BM25 over the same corpus. The harder of the two keyword baselines. */
-function rankByBm25(repo, terms, k1 = 1.2, b = 0.75) {
-  const documents = repo.files.map((file) => {
+function rankByBm25(files, terms, k1 = 1.2, b = 0.75) {
+  const documents = files.map((file) => {
     const counts = new Map();
     for (const token of tokenize(searchableText(file))) {
       counts.set(token, (counts.get(token) ?? 0) + 1);
@@ -199,13 +228,23 @@ function rankByBm25(repo, terms, k1 = 1.2, b = 0.75) {
 
 // ---------------------------------------------------------------------------- run
 
-const ARMS = ["path-extraction", "lexical-literal", "bm25", "fixmap"];
+// Each baseline is run under every candidate policy; FixMap applies its own internally.
+const BASELINE_ARMS = ["path-extraction", "lexical-literal", "bm25"];
+const ARMS = [];
+for (const arm of BASELINE_ARMS) {
+  for (const policy of Object.keys(CANDIDATE_POLICIES)) {
+    ARMS.push(`${arm}:${policy}`);
+  }
+}
+ARMS.push("fixmap");
+
 const perArmResults = Object.fromEntries(ARMS.map((arm) => [arm, []]));
 const perCase = [];
 
 for (const benchmark of dataset.cases) {
   const dir = await materializePinnedRepository(benchmark);
-  // One scan, shared by every arm, so the comparison isolates ranking.
+  // One scan, shared by every arm, so the comparison isolates ranking and candidate policy
+  // rather than what was read off disk.
   const repo = await scanRepo({ repoRoot: dir });
   if (repo.files.length === 0) {
     throw new Error(`Baseline evaluation could not scan any files for ${benchmark.slug} at ${benchmark.sha}.`);
@@ -214,16 +253,22 @@ for (const benchmark of dataset.cases) {
   const mention = classifyExpectedPathMention(benchmark);
 
   const ranked = {
-    "path-extraction": rankByPathExtraction(repo, benchmark.task),
-    "lexical-literal": rankByLexicalLiteral(repo, terms),
-    bm25: rankByBm25(repo, terms),
     fixmap: rankContextFiles(repo, { issueText: benchmark.task }, TOP_N).map((file) => file.path)
   };
+  const policyCounts = {};
+  for (const [policy, predicate] of Object.entries(CANDIDATE_POLICIES)) {
+    const files = repo.files.filter(predicate);
+    policyCounts[policy] = files.length;
+    ranked[`path-extraction:${policy}`] = rankByPathExtraction(files, benchmark.task);
+    ranked[`lexical-literal:${policy}`] = rankByLexicalLiteral(files, terms);
+    ranked[`bm25:${policy}`] = rankByBm25(files, terms);
+  }
 
   const caseRow = {
     slug: benchmark.slug,
     expected: benchmark.expected,
     scannedFiles: repo.files.length,
+    candidateCounts: policyCounts,
     queryTermCount: terms.length,
     mentionsExpectedPath: mention.mentionsExpectedPath,
     mentionTier: mention.mentionTier,
@@ -298,20 +343,39 @@ for (const arm of ARMS) {
   };
 }
 
-// FixMap against each baseline, on the cohort the product claim rests on.
+// The comparison worth publishing is against the STRONGEST form of each baseline, not the
+// weakest. For every baseline family, pick the candidate policy that scored best on the
+// unmentioned cohort and treat that as the arm to beat.
+const bestPolicyPerFamily = {};
+for (const family of BASELINE_ARMS) {
+  let best = null;
+  for (const policy of Object.keys(CANDIDATE_POLICIES)) {
+    const score = arms[`${family}:${policy}`].unmentioned;
+    const key = [score.top1HitRate ?? 0, score.top3HitRate ?? 0, score.top5HitRate ?? 0];
+    if (!best || key > best.key) {
+      best = { policy, key };
+    }
+  }
+  bestPolicyPerFamily[family] = best.policy;
+}
+
+// FixMap against each baseline family's best policy, on the cohort the claim rests on.
 const pairedVsFixmap = {};
 for (const cohortName of ["all", "unmentioned"]) {
   const pick = (arm) => splitCohorts(perArmResults[arm])[cohortName];
   const fixmapRows = pick("fixmap");
   pairedVsFixmap[cohortName] = Object.fromEntries(
-    ARMS.filter((arm) => arm !== "fixmap").map((arm) => [
-      arm,
-      {
-        top1: mcnemarExact(fixmapRows, pick(arm), "top1"),
-        top3: mcnemarExact(fixmapRows, pick(arm), "top3"),
-        top5: mcnemarExact(fixmapRows, pick(arm), "top5Hit")
-      }
-    ])
+    BASELINE_ARMS.map((family) => {
+      const arm = `${family}:${bestPolicyPerFamily[family]}`;
+      return [
+        arm,
+        {
+          top1: mcnemarExact(fixmapRows, pick(arm), "top1"),
+          top3: mcnemarExact(fixmapRows, pick(arm), "top3"),
+          top5: mcnemarExact(fixmapRows, pick(arm), "top5Hit")
+        }
+      ];
+    })
   );
 }
 
@@ -320,17 +384,23 @@ const summary = {
   cases: dataset.cases.length,
   configuration: {
     topN: TOP_N,
-    corpus: "one scanRepo() result per case, shared by every arm; ranking is the only difference",
+    corpus: "one scanRepo() result per case, shared by every arm",
     searchField: "file path + scanner text sample (files over the scanner's sample limit are truncated for every arm alike)",
     tokenizer: "lowercase [A-Za-z0-9_$]+ of length >= 3, plus camelCase and underscore sub-tokens",
     stopwords: STOPWORDS.size,
     caseSensitivity: "case-insensitive for both keyword arms, which favours the baselines",
     bm25: { k1: 1.2, b: 0.75 },
+    candidatePolicies: {
+      raw: "every scanned file; ranks READMEs first and is not a fair comparison",
+      source: "isSource && !isTest — FixMap's own candidate gate",
+      code: "isSource && !isTest && kind === 'code' — also drops documentation, as FixMap's scoring effectively does for implementation tasks"
+    },
+    bestPolicyPerFamily,
     armDescriptions: {
       "path-extraction": "path-shaped tokens read out of the task text, resolved against the corpus, ranked by order of appearance",
       "lexical-literal": "literal keyword search ranked by distinct query terms matched, then raw occurrence count",
       bm25: "BM25 retrieval over the same text; a retrieval baseline, not a grep",
-      fixmap: "rankContextFiles from @aryam/fixmap-core"
+      fixmap: "rankContextFiles from @aryam/fixmap-core, which applies its own candidate gate internally"
     }
   },
   arms,

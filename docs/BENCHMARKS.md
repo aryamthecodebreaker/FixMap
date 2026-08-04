@@ -53,56 +53,86 @@ contain their own answer.
 
 A hit rate published on its own does not answer the question a reader actually has: is this better
 than what an agent already gets by searching the repository itself?
-[`scripts/evaluate-baseline.mjs`](../scripts/evaluate-baseline.mjs) scores three naive arms and
-FixMap on **one `scanRepo()` result per case, shared by every arm** — the same file list, the same
-text samples, the same truncation — so a difference in score is a difference in ranking.
+[`scripts/evaluate-baseline.mjs`](../scripts/evaluate-baseline.mjs) scores naive arms and FixMap on
+**one `scanRepo()` result per case, shared by every arm**.
+
+### Candidate policy is the confound, not the ranking function
+
+FixMap does not rank the raw scan. `rankContextFiles` gates on `isSource && !isTest` (minus
+lockfiles, excluded and generated paths) and then deprioritises documentation for a task that is not
+about documentation. A baseline pointed at every scanned file competes on a larger, doc-heavy
+population and returns `README.md`, `CONTRIBUTING.md` and issue templates first — it loses to
+documentation, not to FixMap.
+
+An earlier revision of this page did exactly that and reported FixMap beating BM25 at p = 0.004.
+That number was an artifact of the handicap and has been withdrawn.
+
+Each baseline is now run under three candidate policies and reported **at its strongest**:
+
+| Policy | Candidate set |
+| --- | --- |
+| `raw` | Every scanned file. Kept only for reference; ranks READMEs first. |
+| `source` | `isSource && !isTest` — FixMap's own gate. |
+| `code` | `isSource && !isTest && kind === "code"` — also drops documentation, as FixMap's scoring effectively does for implementation tasks. |
 
 | Arm | What it does |
 | --- | --- |
-| `path-extraction` | Pulls path-shaped tokens out of the task text and keeps those resolving to a real file. Ranks nothing; it prices what the task text was carrying. |
-| `lexical-literal` | Literal keyword search: distinct query terms matched, then raw occurrence count. No corpus statistics. |
-| `bm25` | Standard BM25 (k1 = 1.2, b = 0.75) over the same text. A retrieval baseline, **not** a grep. |
-| `fixmap` | `rankContextFiles` from `@aryam/fixmap-core`. |
+| `path-extraction` | Path-shaped tokens pulled from the task text, resolved against the corpus. Prices what the task was carrying. |
+| `lexical-literal` | Literal keyword search: distinct query terms matched, then raw occurrence count. |
+| `bm25` | Standard BM25 (k1 = 1.2, b = 0.75). A retrieval baseline, **not** a grep. |
+| `fixmap` | `rankContextFiles`, which applies its own gate internally. |
 
-Both keyword arms are case-insensitive and expand camelCase, which favours the baselines. That is
-deliberate — a handicapped baseline proves nothing.
+Both keyword arms are case-insensitive and expand camelCase, which favours the baselines.
 
-Held-out suite, cases whose task did not name the file (9):
-
-| Arm | Top-1 | Top-3 | Top-5 |
-| --- | ---: | ---: | ---: |
-| `path-extraction` | 0.0% | 0.0% | 0.0% |
-| `lexical-literal` | 11.1% | 22.2% | 33.3% |
-| `bm25` | 11.1% | 22.2% | 33.3% |
-| `fixmap` | **44.4%** | **55.6%** | **66.7%** |
-
-Regression suite, same cohort (13):
+### Held-out, tasks that did not name the file (9)
 
 | Arm | Top-1 | Top-3 | Top-5 |
 | --- | ---: | ---: | ---: |
-| `path-extraction` | 0.0% | 0.0% | 0.0% |
-| `lexical-literal` | 7.7% | 30.8% | 30.8% |
-| `bm25` | 15.4% | 30.8% | 38.5% |
-| `fixmap` | **69.2%** | **100%** | **100%** |
+| `path-extraction` (any policy) | 0.0% | 0.0% | 0.0% |
+| `lexical-literal:raw` | 11.1% | 22.2% | 33.3% |
+| `lexical-literal:code` | 22.2% | 44.4% | 66.7% |
+| `bm25:raw` | 11.1% | 22.2% | 33.3% |
+| `bm25:source` | 11.1% | 22.2% | 44.4% |
+| **`bm25:code`** | **44.4%** | **55.6%** | **100%** |
+| `fixmap` | 44.4% | 55.6% | 66.7% |
 
-`path-extraction` scoring exactly 0.0% on the unmentioned cohort of both suites, and 66.7% on the
-named cohort, is the independent check that the cohort classifier measures what it claims.
+**FixMap does not beat BM25-over-code on repositories it was never tuned against.** Top-1 and Top-3
+are exact ties (McNemar p = 1.0, two disagreements each way). At Top-5 the baseline wins three cases
+FixMap misses and FixMap wins none — BM25 has the fixing file in its top five for 9 of 9 cases,
+FixMap for 6 of 9.
 
-Arms are compared with **McNemar's exact test** rather than by comparing two Wilson intervals: the
-arms ran on the same cases, and that pairing carries information independent intervals discard.
+The three FixMap misses BM25 catches are `socketio/socket.io`, `vitejs/vite` and `vuejs/core`.
 
-| Suite | Cohort | FixMap vs | Top-1 p | Top-3 p | Top-5 p |
-| --- | --- | --- | ---: | ---: | ---: |
-| Regression | unmentioned (13) | `lexical-literal` | 0.0078 | 0.0039 | 0.0039 |
-| Regression | unmentioned (13) | `bm25` | 0.0156 | 0.0039 | 0.0078 |
-| Held-out | unmentioned (9) | `lexical-literal` | 0.25 | 0.25 | 0.25 |
-| Held-out | unmentioned (9) | `bm25` | 0.25 | 0.25 | 0.375 |
+### Regression, tasks that did not name the file (13)
 
-FixMap never loses a disagreeing case to any baseline on the regression suite, and loses exactly one
-across the entire held-out comparison. The held-out p-values are **not** evidence of no effect: with
-three disagreeing cases the smallest attainable two-sided p-value is 0.25, so that cohort is
-arithmetically incapable of reaching 0.05. It is underpowered, which is the strongest available
-argument for growing it.
+| Arm | Top-1 | Top-3 | Top-5 |
+| --- | ---: | ---: | ---: |
+| `lexical-literal:code` | 30.8% | 30.8% | 30.8% |
+| `bm25:source` | 23.1% | 38.5% | 38.5% |
+| `bm25:code` | 38.5% | 61.5% | 61.5% |
+| **`fixmap`** | **69.2%** | **100%** | **100%** |
+
+FixMap leads here, but this is the suite whose cases shaped the ranker, and the lead is **not
+significant** against `bm25:code`: p = 0.125 at Top-1 and p = 0.0625 at Top-3 and Top-5.
+
+### Paired tests
+
+Arms are compared with **McNemar's exact test** rather than by comparing Wilson intervals: the arms
+ran on the same cases, and that pairing carries information independent intervals discard.
+
+| Suite | FixMap vs | Top-1 | Top-3 | Top-5 |
+| --- | --- | ---: | ---: | ---: |
+| Regression (13) | `lexical-literal:code` | 0.0625 | 0.0039 | 0.0039 |
+| Regression (13) | `bm25:code` | 0.125 | 0.0625 | 0.0625 |
+| Held-out (9) | `lexical-literal:code` | 0.625 | 1.0 | 1.0 |
+| Held-out (9) | `bm25:code` | 1.0 | 1.0 | 0.25 (baseline ahead) |
+
+Nine and thirteen cases cannot settle this either way; what they do show is that the previously
+published margin does not survive a fair baseline. Growing the held-out suite and closing the Top-5
+recall gap are the work this points at.
+
+`path-extraction` scoring 0.0% on the unmentioned cohort of both suites and 100% on the named
+cohort is the independent check that the cohort classifier measures what it claims.
 
 ```bash
 node scripts/evaluate-baseline.mjs --suite heldout
@@ -110,28 +140,7 @@ node scripts/evaluate-baseline.mjs --suite external
 node scripts/evaluate-baseline.mjs --suite heldout --record
 ```
 
-Per-arm rankings for every case are recorded in `benchmarks/<suite>/baseline-results.json`.
-
-The context comparison is intentionally a proxy:
-
-- **Assumed baseline:** send every scanned text-bearing file in FixMap's supported extension set—22,058,578 estimated tokens.
-- **FixMap comparison:** send only the Top-5 ranked files—318,546 estimated tokens.
-- **Estimator:** UTF-8 file bytes ÷ 4. This is not tokenizer output and does not include prompts, tool protocol, or generated responses.
-
-The supported set is `.cjs`, `.css`, `.go`, `.js`, `.json`, `.jsx`, `.md`, `.mjs`, `.py`, `.rs`, `.ts`, `.tsx`, `.yaml`, and `.yml`, so the assumed baseline includes tests, documentation, and configuration—not only implementation code.
-
-The visual also shows a 14.97-minute implied difference against an **assumed 15-minute manual-triage baseline**. That baseline was not measured in a controlled with/without-agent experiment, so it is not presented as a real-world time-savings claim.
-
-Run or deliberately refresh the evidence:
-
-```bash
-npm run evaluate:external
-npm run benchmark:savings
-npm run benchmark:savings:record
-npm run render:benchmark-card
-```
-
-See [`benchmarks/external/README.md`](../benchmarks/external/README.md) for case selection, exact repositories, fresh baseline comparison, and every recorded ranking.
+Per-arm, per-policy rankings for every case are recorded in `benchmarks/<suite>/baseline-results.json`.
 
 ## Scanner performance
 

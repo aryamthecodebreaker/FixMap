@@ -32,12 +32,14 @@ const cohortOf = (suite: typeof heldout) => ({
 });
 
 // The comparison a ranked list actually has to win: naive retrieval on the same corpus.
+// Each baseline is reported at its STRONGEST candidate policy — pointing a baseline at every
+// scanned file makes it rank READMEs and turns the comparison into a strawman.
 const baselineOf = (suite: typeof heldoutBaseline) => ({
   cases: suite.arms.fixmap.unmentioned.cases,
   fixmap: suite.arms.fixmap.unmentioned,
-  bm25: suite.arms.bm25.unmentioned,
-  lexical: suite.arms["lexical-literal"].unmentioned,
-  pathExtraction: suite.arms["path-extraction"].unmentioned
+  bm25: suite.arms["bm25:code"].unmentioned,
+  lexical: suite.arms["lexical-literal:code"].unmentioned,
+  pathExtraction: suite.arms["path-extraction:raw"].unmentioned
 });
 
 export const siteStats = {

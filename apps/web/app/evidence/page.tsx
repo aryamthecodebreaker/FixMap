@@ -85,18 +85,19 @@ export default function EvidencePage() {
           <p>
             A ranked list only earns its place if it beats what an agent already gets for free. Every
             arm below scores on <strong>the same repository scan</strong> — same files, same text
-            samples — so the only difference is ranking. Both keyword arms are case-insensitive and
-            expand camelCase, which favours the baselines on purpose.
+            samples. Each baseline is shown at its <strong>strongest</strong> candidate policy:
+            pointed at every scanned file a keyword search just returns <code>README.md</code>, which
+            would make this a strawman rather than a comparison.
           </p>
         </div>
         <div className="results-table" role="table" aria-label="FixMap against naive retrieval baselines on held-out cases that did not name the file">
           <div className="results-row results-head" role="row"><span role="columnheader">Arm</span><span role="columnheader">Top 1</span><span role="columnheader">Top 3</span><span role="columnheader">Top 5</span></div>
           <div className="results-row" role="row"><span role="cell">Path extraction — read paths out of the task</span><span role="cell">{rate(heldoutBaselines.pathExtraction.top1HitRate)}</span><span role="cell">{rate(heldoutBaselines.pathExtraction.top3HitRate)}</span><span role="cell">{rate(heldoutBaselines.pathExtraction.top5HitRate)}</span></div>
-          <div className="results-row" role="row"><span role="cell">Literal keyword search</span><span role="cell">{rate(heldoutBaselines.lexical.top1HitRate)}</span><span role="cell">{rate(heldoutBaselines.lexical.top3HitRate)}</span><span role="cell">{rate(heldoutBaselines.lexical.top5HitRate)}</span></div>
-          <div className="results-row" role="row"><span role="cell">BM25 retrieval</span><span role="cell">{rate(heldoutBaselines.bm25.top1HitRate)}</span><span role="cell">{rate(heldoutBaselines.bm25.top3HitRate)}</span><span role="cell">{rate(heldoutBaselines.bm25.top5HitRate)}</span></div>
-          <div className="results-row" role="row"><span role="cell"><strong>FixMap</strong></span><span role="cell"><strong>{rate(heldoutBaselines.fixmap.top1HitRate)}</strong></span><span role="cell"><strong>{rate(heldoutBaselines.fixmap.top3HitRate)}</strong></span><span role="cell"><strong>{rate(heldoutBaselines.fixmap.top5HitRate)}</strong></span></div>
+          <div className="results-row" role="row"><span role="cell">Literal keyword search, code files only</span><span role="cell">{rate(heldoutBaselines.lexical.top1HitRate)}</span><span role="cell">{rate(heldoutBaselines.lexical.top3HitRate)}</span><span role="cell">{rate(heldoutBaselines.lexical.top5HitRate)}</span></div>
+          <div className="results-row" role="row"><span role="cell"><strong>BM25 retrieval, code files only</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top1HitRate)}</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top3HitRate)}</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top5HitRate)}</strong></span></div>
+          <div className="results-row" role="row"><span role="cell">FixMap</span><span role="cell">{rate(heldoutBaselines.fixmap.top1HitRate)}</span><span role="cell">{rate(heldoutBaselines.fixmap.top3HitRate)}</span><span role="cell">{rate(heldoutBaselines.fixmap.top5HitRate)}</span></div>
         </div>
-        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>The held-out lead is real in direction but underpowered.</strong> FixMap wins the same comparison on the regression suite at p = 0.004–0.016 by a paired McNemar exact test, and never loses a disagreeing case there. On these {heldoutBaselines.cases} held-out cases it still never loses a disagreement, but it cannot reach significance: with three disagreeing cases the smallest possible two-sided p-value is 0.25. That is a sample-size limit, not a negative result. Path extraction scoring 0% here — and 67% on the cases that named the file — is the check that the cohort split measures what it claims.</p></div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap does not beat BM25 over code files on repositories it was never tuned against.</strong> Top 1 and Top 3 are exact ties — a paired McNemar exact test puts both at p = 1.0, with two disagreements each way. At Top 5 the baseline wins three cases FixMap misses and FixMap wins none: BM25 has the fixing file in its top five for 9 of 9 of these cases, FixMap for 6 of 9. FixMap does lead on the regression suite (69% vs 39% Top 1), but that is the suite whose cases shaped the ranker, and even there the lead is not significant against this baseline. We publish this because it is what the measurement says; closing the Top-5 recall gap is the next piece of work.</p></div>
       </section>
 
       <section className="section table-section">
