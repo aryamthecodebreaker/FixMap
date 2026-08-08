@@ -63,6 +63,57 @@ fixmap verify --report plan.json --diff main...HEAD
 
 Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked` when new files should count as changes, `--exclude` or `.fixmapignore` to focus the map, and `--no-cache` to force a fresh scan. Run `fixmap --help` for the complete command reference.
 
+## Complete feature catalog
+
+### Inputs and repository mapping
+
+- Accepts a public GitHub issue or pull-request URL, plain task text, a UTF-8 `--issue-file`, or task text from stdin.
+- Normalizes supported browser and GitHub API issue URLs, including `www`, query strings, and fragments, while rejecting credentials, lookalike hosts, ports, and unsafe encoded paths.
+- Scans the current checkout, another local path, a `file://` URL, or an isolated checkout of a public GitHub repository.
+- Maps `--diff <spec>`, `--base`/`--head`, or the current `--working-tree`; untracked changes remain opt-in with `--include-untracked`.
+- Reuses repository scans only when the repository root, commit, status, and binary diff are identical. `cache-hit` reports reuse, `--no-cache` bypasses it, and `FIXMAP_CACHE_DIR` moves the OS cache.
+- Detects npm, pnpm, Yarn, and Bun projects and reads the scripts declared by each workspace package.
+
+### Plan and ranking
+
+- Ranks source, test, configuration, documentation, and other files from path terms, source content, identifiers, quoted fragments, file mentions, and real diff content.
+- Recognizes JavaScript/TypeScript declaration tests, Go `_test.go`, Python `test_*.py` and `*_test.py`, common test directories, and framework single-file components.
+- Deprioritizes lockfiles, backups, bundled output, examples, and generated counterparts when maintained source exists.
+- Routes reachable test commands from real package scripts and pairs them with the nearest related test files.
+- Reports six bounded risk areas: authentication, billing, automation, data, public API, and dependencies.
+- Explains task grounding, ranking shape, unresolved or partially matched identifiers, exclusions, scan limits, unread content, skipped submodules, empty diffs, and Git failures.
+- Supports `--limit`, repeatable `--exclude`, and ordered `.fixmapignore` patterns with negation.
+- Produces Markdown for people or versioned JSON for tools, writes to `--output`, and gives one grounded next action.
+
+### Explain, Compare, Verify, and Doctor
+
+- **Explain** tells you whether a path ranked, fell below the cutoff, was excluded, resolves through a submodule, or was never scanned—and uses the same task and diff evidence as Plan.
+- **Compare** shows files that entered, left, moved, or changed confidence after the task was refined, plus changes in task grounding.
+- **Verify** compares a saved JSON plan with a diff or working tree and flags generated edits, unmapped changes, an untouched leading file, source changes without tests, newly reached risk areas, and plan/repository mismatches.
+- **Doctor** prints the running version and executable path and diagnoses project, global, PATH, and npm-exec version shadows.
+- `FIXMAP_PROGRESS` controls remote clone/scan progress, and `FIXMAP_VERBOSE_USAGE` restores full usage text after argument errors.
+
+### Agent and automation interfaces
+
+- The MCP server exposes `fixmap_plan`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor` over local stdio and is published in the official MCP Registry.
+- The GitHub Action runs Plan or Verify on pull requests, writes a full job summary, and creates or updates one bounded FixMap comment instead of posting duplicates.
+- The Action accepts explicit task input or pull-request context, uses the same report validator as the CLI and MCP server, and fails clearly when a requested diff cannot be resolved.
+- The browser demo runs the real core Plan, Explain, Compare, and Verify logic against a sample repository without uploading the task.
+
+### TypeScript library
+
+- `@aryam/fixmap-core` exposes repository scanning, exclusion resolution, ranking, task grounding, language and import-proximity analysis, test/risk routing, report validation, and Markdown/JSON rendering.
+- Its public API also exposes Explain, Compare, and Verify builders and result types, so another tool can compose the same workflow without shelling out to the CLI.
+- The `@aryam/fixmap-core/browser` entry runs the filesystem-free report, comparison, explanation, verification, and rendering logic in a browser bundle.
+
+### Trust, compatibility, and evidence
+
+- The core is deterministic and local-first: no account, API key, hosted model, source upload, dependency install, repository script, test execution, or Git hook.
+- Public-repository analysis uses a temporary shallow checkout with credentials, inherited Git config, hooks, LFS smudging, symlinks, and submodule traversal disabled.
+- `reportVersion: 1` defines the JSON compatibility boundary; additive fields are allowed, legacy unmarked reports remain accepted, and unsupported versions fail with an actionable message.
+- Checked-in self, external, held-out, adversarial, and performance records power the evidence page; CI checks empty cohorts, confidence gates, generated-asset drift, Action bundle drift, and the 1,000-file benchmark.
+- The documentation site includes the live demo, install paths, evidence with misses, release changelog, responsive navigation, keyboard focus, AA contrast, and a persistent system-aware light/dark theme.
+
 ## What the report contains
 
 - Ranked context files with scores, confidence, and evidence.
