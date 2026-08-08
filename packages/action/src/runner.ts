@@ -6,6 +6,7 @@ import {
   renderMarkdownReport,
   renderVerifyMarkdown,
   scanRepo,
+  validateFixMapReport,
   verifyPlan,
   type FixMapReport,
   type VerifyResult
@@ -70,7 +71,7 @@ export async function runAction(
     const planOnly = [
       readInput("limit", env) ? "limit" : "",
       readInput("exclude", env) ? "exclude" : "",
-      rawIssue ? "issue" : ""
+      readInput("issue", env) ? "issue" : ""
     ].filter(Boolean);
     if (planOnly.length > 0) {
       throw new Error(
@@ -108,6 +109,7 @@ export async function runAction(
     headRef,
     workingTree,
     includeUntracked,
+    useCache: true,
     limit,
     exclude
   });
@@ -199,9 +201,9 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
       `FixMap could not read the plan at "${reportPath}": ${error instanceof Error ? error.message : String(error)}.`
     );
   }
-  if (!Array.isArray(report.contextFiles)) {
-    throw new Error(`"${reportPath}" is not a FixMap JSON report: no contextFiles array.`);
-  }
+  const loaded = validateFixMapReport(report, `"${reportPath}"`);
+  if (!loaded.success) throw new Error(loaded.message);
+  report = loaded.report;
 
   const repo = await (context.dependencies.scanRepo ?? scanRepo)({
     repoRoot: (context.dependencies.cwd ?? process.cwd)(),
@@ -209,7 +211,8 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
     baseRef: context.baseRef,
     headRef: context.headRef,
     workingTree: context.workingTree,
-    includeUntracked: context.includeUntracked
+    includeUntracked: context.includeUntracked,
+    useCache: true
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
   if (diffFailure) {
@@ -353,7 +356,8 @@ export function fitStepSummary(markdown: string, limitBytes = STEP_SUMMARY_LIMIT
     throw new Error("GitHub step-summary limit is too small for the FixMap truncation notice.");
   }
 
-  let end = limitBytes - footer.length;
+  // trimToBoundary may append "\n```". Reserve those four bytes before cutting.
+  let end = limitBytes - footer.length - Buffer.byteLength("\n```");
   while (end > 0 && (bytes[end]! & 0xc0) === 0x80) {
     end -= 1;
   }

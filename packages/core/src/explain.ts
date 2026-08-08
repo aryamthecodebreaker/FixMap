@@ -153,6 +153,15 @@ function describeExclusion(
           "That is usually a sparse or partial checkout — widen the cone to rank it — and otherwise a deletion."
       };
     }
+    const parentSubmodule = repo.trackedFiles?.find((tracked) => path.startsWith(`${tracked}/`));
+    if (parentSubmodule) {
+      return {
+        status: "not-scanned",
+        summary:
+          `Not scanned: this path is inside the submodule ${parentSubmodule}, which is a separate repository. ` +
+          `Run FixMap with --repo ${parentSubmodule} to map it.`
+      };
+    }
     return {
       status: "not-scanned",
       summary: "Not scanned: no such path in this repository, or it is ignored by .gitignore."

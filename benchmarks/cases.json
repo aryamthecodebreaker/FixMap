@@ -30,5 +30,120 @@
   {
     "task": "packages/core/src/rank.ts gives boosted files the wrong confidence level",
     "expected": ["packages/core/src/rank.ts", "packages/core/src/index.ts", "packages/core/src/plan.ts"]
+  },
+  {
+    "issue": 451,
+    "task": "CLI --explain ranks without the diff, contradicting the plan it explains (MCP explain does not)",
+    "expected": ["packages/cli/src/cli-runner.ts"]
+  },
+  {
+    "issue": 452,
+    "task": "A truncated UTF-16BE package.json aborts the entire scan with a raw Buffer error",
+    "expected": ["packages/core/src/repo-scan.ts"]
+  },
+  {
+    "issue": 453,
+    "task": "Non-git directory scans silently drop the content-unread and generated-dominance diagnostics",
+    "expected": ["packages/core/src/repo-scan.ts"]
+  },
+  {
+    "issue": 454,
+    "task": "verify blames the ranking for a file the ranker excludes by design (tracked generated artifacts double-reported)",
+    "expected": ["packages/core/src/verify.ts"]
+  },
+  {
+    "issue": 455,
+    "task": "plan silently ignores the verify-only --report flag (the reverse guard exists)",
+    "expected": ["packages/cli/src/cli-runner.ts"]
+  },
+  {
+    "issue": 456,
+    "task": "Dead branch: new-risk-area can never be info because buildRiskNotes(changed, changed) never returns low",
+    "expected": ["packages/core/src/verify.ts"]
+  },
+  {
+    "issue": 457,
+    "task": "Action verify mode always fails on pull_request events, blaming an issue input the workflow never set",
+    "expected": ["packages/action/src/runner.ts"]
+  },
+  {
+    "issue": 458,
+    "task": "fitStepSummary and fitCommentBody exceed their own limits by 4 chars when closing an open fence",
+    "expected": ["packages/action/src/runner.ts", "packages/action/src/github.ts"]
+  },
+  {
+    "issue": 459,
+    "task": "Action rejects GitHub issue URLs the CLI accepts: query and fragment fail the run, www and api hosts silently rank as prose",
+    "expected": ["packages/action/src/issue-source.ts"]
+  },
+  {
+    "issue": 460,
+    "task": "--compare exits 0 on an unresolvable diff and reports the failure as a task-refinement result",
+    "expected": ["packages/cli/src/cli-runner.ts"]
+  },
+  {
+    "issue": 461,
+    "task": "npm run evaluate passes on an empty benchmarks/cases.json because NaN thresholds disable the ranking gate",
+    "expected": ["scripts/evaluate.mjs"]
+  },
+  {
+    "issue": 462,
+    "task": "Release CHANGELOG notes are validated only after npm and MCP publish, so a missing entry leaves a half-published release",
+    "expected": [".github/workflows/publish.yml"]
+  },
+  {
+    "issue": 463,
+    "task": "Demo prints a truncated, unescaped CLI command that reproduces a different ranking than the one on screen",
+    "expected": ["apps/web/app/demo.tsx"]
+  },
+  {
+    "issue": 464,
+    "task": "--diff reports zero changed files with no diagnostic and running from a subdirectory silently drops the whole change set",
+    "expected": ["packages/core/src/repo-scan.ts"]
+  },
+  {
+    "issue": 465,
+    "task": "verify accepts a plan from a different repository and reports a confident false verification",
+    "expected": ["packages/core/src/verify.ts"]
+  },
+  {
+    "issue": 466,
+    "task": "Mentioning a 404 or 500 in a task ranks package.json and vercel.json above the real fix site",
+    "expected": ["packages/core/src/rank.ts"]
+  },
+  {
+    "issue": 467,
+    "task": "Issue bodies written as unchecked checklists are silently emptied, then blamed on the repository",
+    "expected": ["packages/core/src/signals.ts", "packages/core/src/report.ts"]
+  },
+  {
+    "issue": 468,
+    "task": "CLI verify and compare plus the Action throw raw TypeErrors on a damaged plan file while MCP validates correctly",
+    "expected": ["packages/cli/src/cli-runner.ts"]
+  },
+  {
+    "issue": 469,
+    "task": "A repo with no commits yet gets a raw git diff command failure instead of the friendly message that exists for it",
+    "expected": ["packages/core/src/repo-scan.ts"]
+  },
+  {
+    "issue": 470,
+    "task": "diff-unavailable discards git stderr and reports Command failed git diff for every cause",
+    "expected": ["packages/core/src/repo-scan.ts"]
+  },
+  {
+    "issue": 471,
+    "task": "When exclusions remove the matching files, FixMap warns that the repository may not contain this behavior",
+    "expected": ["packages/core/src/report.ts"]
+  },
+  {
+    "issue": 472,
+    "task": "A small UTF-16 source file is reported as 0KB and exceeded the text-sampling limit",
+    "expected": ["packages/core/src/repo-scan.ts"]
+  },
+  {
+    "issue": 473,
+    "task": "Windows junction dedup keeps the alias path, not the real file, contradicting its documented contract",
+    "expected": ["packages/core/src/repo-scan.ts"]
   }
 ]

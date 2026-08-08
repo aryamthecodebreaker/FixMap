@@ -14,6 +14,25 @@ import type { FixMapReport, RepoMap, VerifyFinding, VerifyResult } from "./types
 export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
   const changed = repo.changedFiles;
   const findings: VerifyFinding[] = [];
+  const fileByPath = new Map(repo.files.map((file) => [file.path, file]));
+  const plannedPaths = report.contextFiles.map((file) => file.path);
+
+  if (plannedPaths.length > 0 && !plannedPaths.some((path) => fileByPath.has(path))) {
+    const mismatch: VerifyFinding = {
+      code: "plan-repository-mismatch",
+      severity: "error",
+      paths: plannedPaths.slice(0, 8),
+      message:
+        `Verification was not attempted: none of the ${plannedPaths.length} planned files exist in ${repo.root}. ` +
+        "This plan appears to be for a different repository or revision; check --repo or regenerate the plan against this checkout."
+    };
+    return {
+      summary: `None of the ${plannedPaths.length} planned files exist in ${repo.root}; the plan and repository do not match.`,
+      changedFiles: changed,
+      findings: [mismatch],
+      diagnostics: repo.diagnostics
+    };
+  }
 
   if (changed.length === 0) {
     return {
@@ -24,8 +43,7 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
     };
   }
 
-  const planned = new Set(report.contextFiles.map((file) => file.path));
-  const fileByPath = new Map(repo.files.map((file) => [file.path, file]));
+  const planned = new Set(plannedPaths);
   const isTest = (path: string) => fileByPath.get(path)?.isTest === true;
 
   // 1. Edits somewhere the next build discards. This is the only finding that is
@@ -71,6 +89,7 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
     !planned.has(path) &&
     !isTest(path) &&
     !discardedEdits.includes(path) &&
+    !trackedGeneratedEdits.includes(path) &&
     fileByPath.get(path)?.isSource !== false
   );
   if (unmapped.length > 0) {
@@ -99,7 +118,12 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
   }
 
   // 4. Source moved without any test moving. Test routes name what would exercise it.
-  const changedSource = changed.filter((path) => !isTest(path) && fileByPath.get(path)?.kind === "code");
+  const changedSource = changed.filter((path) =>
+    !isTest(path) &&
+    !trackedGeneratedEdits.includes(path) &&
+    !discardedEdits.includes(path) &&
+    fileByPath.get(path)?.kind === "code"
+  );
   const changedTests = changed.filter(isTest);
   if (changedSource.length > 0 && changedTests.length === 0) {
     const suggested = [...new Set(report.testRoutes.flatMap((route) => route.relatedFiles))].filter(isTest);
@@ -126,7 +150,7 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
   for (const risk of newRisks) {
     findings.push({
       code: "new-risk-area",
-      severity: risk.severity === "low" ? "info" : "warning",
+      severity: "warning",
       paths: pathsForRiskArea(risk.area, changed),
       message: `The change touches ${risk.area}, which the original plan did not flag: ${risk.reason}.`
     });

@@ -2,36 +2,85 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { rankContextFiles, scanRepo } from "../packages/core/dist/index.js";
+import { wilsonInterval } from "./lib/wilson.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
 const cases = JSON.parse(await readFile(join(repoRoot, "benchmarks", "cases.json"), "utf8"));
+// Reject the empty array before computing rates: 0 / 0 is NaN, and every
+// threshold comparison with NaN is false, which would turn the gate into a pass.
+if (!Array.isArray(cases) || cases.length === 0) {
+  throw new Error(
+    `benchmarks/cases.json must contain at least one case; found ${Array.isArray(cases) ? 0 : typeof cases}.`
+  );
+}
 const repo = await scanRepo({ repoRoot });
+// Do not let the ranker read its answer sheet. Every task is stored verbatim in
+// this file, so including it would reward benchmark leakage rather than ranking.
+const evaluationRepo = {
+  ...repo,
+  files: repo.files.filter((file) => file.path !== "benchmarks/cases.json")
+};
 const results = cases.map((benchmark) => {
-  const ranked = rankContextFiles(repo, { issueText: benchmark.task }, 3);
+  const ranked = rankContextFiles(evaluationRepo, { issueText: benchmark.task }, 5);
   const paths = ranked.map((file) => file.path);
-  const hit = benchmark.expected.some((expected) => paths.includes(expected));
-  return { task: benchmark.task, expected: benchmark.expected, top3: paths, hit };
+  return {
+    issue: benchmark.issue ?? null,
+    task: benchmark.task,
+    expected: benchmark.expected,
+    top5: paths,
+    top1: benchmark.expected.includes(paths[0]),
+    top3: benchmark.expected.some((expected) => paths.slice(0, 3).includes(expected)),
+    top5Hit: benchmark.expected.some((expected) => paths.includes(expected))
+  };
 });
 
-const hits = results.filter((result) => result.hit).length;
-const top1Hits = results.filter((result) => result.expected.includes(result.top3[0])).length;
-const top3HitRate = hits / results.length;
-const top1HitRate = top1Hits / results.length;
+function scoreCohort(cohort, floors) {
+  if (cohort.length === 0) {
+    throw new Error("Every evaluation cohort must contain at least one case.");
+  }
+  const score = (key) => {
+    const hits = cohort.filter((result) => result[key]).length;
+    return {
+      hits,
+      of: cohort.length,
+      rate: Number((hits / cohort.length).toFixed(3)),
+      interval95: wilsonInterval(hits, cohort.length)
+    };
+  };
+  return {
+    cases: cohort.length,
+    top1: score("top1"),
+    top3: score("top3"),
+    top5: score("top5Hit"),
+    floors
+  };
+}
+
+const legacyFloors = { top1: 0.5, top3: 0.8, top5: 0.8 };
+// These 23 title-only, path-unmentioned cases are a distinct single-repository
+// regression cohort. Their v0.8.7 measurement was much harder than the original
+// eight cases, so report and gate them separately instead of pooling the rates.
+const fixMapIssueFloors = { top1: 0.3, top3: 0.75, top5: 0.85 };
+const baseline = scoreCohort(results.filter((result) => result.issue === null), legacyFloors);
+const fixMapIssues = scoreCohort(results.filter((result) => result.issue !== null), fixMapIssueFloors);
 const summary = {
   cases: results.length,
-  hits,
-  top1Hits,
-  top1HitRate: Number(top1HitRate.toFixed(3)),
-  top3HitRate: Number(top3HitRate.toFixed(3)),
-  thresholds: { top1: 0.5, top3: 0.8 },
+  cohorts: { baseline, fixMapIssues },
   results
 };
 
 process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
-if (top1HitRate < summary.thresholds.top1 || top3HitRate < summary.thresholds.top3) {
+const failedCohorts = Object.entries(summary.cohorts).filter(([, cohort]) =>
+  cohort.top1.rate < cohort.floors.top1 ||
+  cohort.top3.rate < cohort.floors.top3 ||
+  cohort.top5.rate < cohort.floors.top5
+);
+if (failedCohorts.length > 0) {
   process.stderr.write(
-    `FixMap evaluation failed: top-1 ${(top1HitRate * 100).toFixed(1)}%, top-3 ${(top3HitRate * 100).toFixed(1)}%.\n`
+    `FixMap evaluation failed: ${failedCohorts.map(([name, cohort]) =>
+      `${name} top-1=${cohort.top1.rate}, top-3=${cohort.top3.rate}, top-5=${cohort.top5.rate}`
+    ).join("; ")}.\n`
   );
   process.exit(1);
 }

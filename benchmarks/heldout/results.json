@@ -278,8 +278,8 @@
         "src/logic/createFormControl.ts",
         "src/types/form.ts",
         "src/useController.ts",
-        "src/__typetest__/form-state-subscribe.test-d.ts",
-        "src/useFormState.ts"
+        "src/useFormState.ts",
+        "src/useForm.ts"
       ],
       "topConfidence": "medium",
       "top1": true,
@@ -370,7 +370,7 @@
         "packages-private/dts-built-test/tsconfig.json",
         "packages-private/tsconfig.json",
         "packages-private/vite-debug/tsconfig.json",
-        "packages-private/dts-test/ref.test-d.ts"
+        "packages/reactivity/src/ref.ts"
       ],
       "topConfidence": "high",
       "top1": false,

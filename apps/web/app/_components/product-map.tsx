@@ -1,20 +1,25 @@
 import { ArrowRight, CheckCircle, FileText, Warning } from "@phosphor-icons/react/ssr";
+import { buildReportFromRepo } from "@aryam/fixmap-core/browser";
+import { sampleRepo } from "../sample-repo";
+
+const task = "TOKEN_TTL_MINUTES is ignored and reset links expire immediately.";
+const report = buildReportFromRepo(sampleRepo, { issueText: task, limit: 3 });
 
 const outputs = [
   {
     icon: FileText,
     title: "Files to inspect",
-    items: ["src/timezone/resolve.ts", "src/invoices/summary.ts", "src/timezone/index.ts"]
+    items: report.contextFiles.map((file) => `${file.path} · ${file.confidence}, score ${file.score}`)
   },
   {
     icon: CheckCircle,
     title: "Checks to run",
-    items: ["Timezone conversion tests", "DST boundary cases", "Invoice rendering path"]
+    items: report.testRoutes.map((route) => route.command)
   },
   {
     icon: Warning,
     title: "Risks to review",
-    items: ["Cached timezone offsets", "External API assumptions", "Off-by-one date handling"]
+    items: report.risks.map((risk) => `${risk.severity} ${risk.area} · ${risk.reason}`)
   }
 ];
 
@@ -27,7 +32,7 @@ export function ProductMap({ compact = false }: { compact?: boolean }) {
           <strong>You describe the issue</strong>
           <span>in plain English</span>
         </div>
-        <p>Users sometimes see invoices in the wrong time zone after daylight saving time changes.</p>
+        <p>{task}</p>
       </div>
       <ArrowRight className="map-arrow" size={30} weight="bold" aria-hidden />
       <div className="map-output">

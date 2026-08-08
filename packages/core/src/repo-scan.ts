@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
-import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readdir, readFile, realpath, stat, unlink, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS, isGeneratedPath } from "./paths.js";
@@ -39,18 +41,36 @@ const SOURCE_EXTENSIONS = new Set([
  */
 const SFC_EXTENSIONS = new Set([".vue", ".svelte"]);
 const SFC_SCRIPT_BLOCK = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
-const TEST_PATTERNS = [/\.test\./, /\.spec\./, /(^|\/|\\)__tests__(\/|\\)/, /(^|\/|\\)tests?(\/|\\)/];
+const TEST_PATTERNS = [
+  /\.test(?:\.|-d\.)/,
+  /\.spec\./,
+  /(^|\/|\\)__tests__(\/|\\)/,
+  /(^|\/|\\)tests?(\/|\\)/,
+  /_test\.go$/,
+  /(^|\/|\\)(?:test_[^/\\]+|[^/\\]+_test)\.py$/
+];
 const MAX_TEXT_SAMPLE_BYTES = 64_000;
 const MAX_DIFF_TEXT_CHARS = 200_000;
 const MAX_SCANNED_FILES = 25_000;
 const GIT_MAX_BUFFER = 10 * 1024 * 1024;
 const exec = promisify(execFile);
 type ScanState = { count: number; limitReported: boolean };
+const SCAN_CACHE_VERSION = 1;
+
+type CachedScan = {
+  version: typeof SCAN_CACHE_VERSION;
+  stateKey: string;
+  files: RepoFile[];
+  trackedFiles: string[];
+  packageScripts: PackageScript[];
+  packageManager: RepoMap["packageManager"];
+  diagnostics: RepoMap["diagnostics"];
+};
 
 export async function scanRepo(
   input: Pick<
     FixMapInput,
-    "repoRoot" | "baseRef" | "headRef" | "diffSpec" | "workingTree" | "includeUntracked"
+    "repoRoot" | "baseRef" | "headRef" | "diffSpec" | "workingTree" | "includeUntracked" | "useCache"
   >
 ): Promise<RepoMap> {
   const repoRoot = resolve(input.repoRoot);
@@ -71,9 +91,39 @@ export async function scanRepo(
   }
 
   const diagnostics: RepoMap["diagnostics"] = [];
-  const files = await listFiles(repoRoot, diagnostics);
-  const trackedFiles = await listTrackedPaths(repoRoot);
-  const packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
+  const cacheLocation = input.useCache ? await buildScanCacheLocation(repoRoot) : undefined;
+  const cached = cacheLocation ? await readScanCache(cacheLocation) : undefined;
+  let files: RepoFile[];
+  let trackedFiles: string[];
+  let packageScripts: PackageScript[];
+  let packageManager: RepoMap["packageManager"];
+  if (cached) {
+    files = cached.files;
+    trackedFiles = cached.trackedFiles;
+    packageScripts = cached.packageScripts;
+    packageManager = cached.packageManager;
+    diagnostics.push(...cached.diagnostics, {
+      code: "cache-hit",
+      severity: "info",
+      message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files). Pass --no-cache to rescan.`
+    });
+  } else {
+    files = await listFiles(repoRoot, diagnostics);
+    trackedFiles = await listTrackedPaths(repoRoot);
+    packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
+    packageManager = detectPackageManager(files);
+    if (cacheLocation) {
+      await writeScanCache(cacheLocation, {
+        version: SCAN_CACHE_VERSION,
+        stateKey: cacheLocation.stateKey,
+        files,
+        trackedFiles,
+        packageScripts,
+        packageManager,
+        diagnostics: [...diagnostics]
+      });
+    }
+  }
   const diffSpec = resolveDiffSpec(input);
   const diff = input.workingTree
     ? await readWorkingTree(repoRoot, input.includeUntracked === true, diagnostics)
@@ -86,9 +136,96 @@ export async function scanRepo(
     packageScripts,
     changedFiles: diff.changedFiles,
     diffText: diff.diffText,
-    packageManager: detectPackageManager(files),
+    packageManager,
     diagnostics
   };
+}
+
+type ScanCacheLocation = { path: string; stateKey: string };
+
+async function buildScanCacheLocation(root: string): Promise<ScanCacheLocation | undefined> {
+  try {
+    const [{ stdout: head }, { stdout: status }] = await Promise.all([
+      exec("git", ["rev-parse", "HEAD"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "."], {
+        cwd: root,
+        maxBuffer: GIT_MAX_BUFFER
+      })
+    ]);
+    // Untracked files are scanner inputs but are absent from `git diff`. Do not cache that
+    // state rather than keying it on names alone and serving stale contents after an edit.
+    if (status.split("\0").some((entry) => entry.startsWith("?? "))) return undefined;
+    const dirtyDiff = status.length > 0
+      ? (await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", "--", "."], {
+          cwd: root,
+          maxBuffer: GIT_MAX_BUFFER
+        })).stdout
+      : "";
+    const stateKey = hashText([
+      String(SCAN_CACHE_VERSION),
+      resolve(root),
+      head.trim(),
+      status,
+      dirtyDiff
+    ].join("\0"));
+    const cacheRoot = process.env.FIXMAP_CACHE_DIR ?? join(
+      process.env.LOCALAPPDATA ?? process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"),
+      "fixmap",
+      "scans"
+    );
+    return {
+      path: join(cacheRoot, `${hashText(resolve(root))}-${stateKey}.json`),
+      stateKey
+    };
+  } catch {
+    // Non-git directories deliberately do not cache: they have no cheap exact invalidation key.
+    return undefined;
+  }
+}
+
+async function readScanCache(location: ScanCacheLocation): Promise<CachedScan | undefined> {
+  try {
+    const cached = JSON.parse(await readFile(location.path, "utf8")) as Partial<CachedScan>;
+    if (
+      cached.version !== SCAN_CACHE_VERSION ||
+      cached.stateKey !== location.stateKey ||
+      !Array.isArray(cached.files) ||
+      !Array.isArray(cached.trackedFiles) ||
+      !Array.isArray(cached.packageScripts) ||
+      !Array.isArray(cached.diagnostics) ||
+      !["npm", "pnpm", "yarn", "bun"].includes(cached.packageManager ?? "")
+    ) return undefined;
+    return cached as CachedScan;
+  } catch {
+    return undefined;
+  }
+}
+
+async function writeScanCache(location: ScanCacheLocation, cached: CachedScan): Promise<void> {
+  try {
+    await mkdir(dirname(location.path), { recursive: true });
+    await writeFile(location.path, `${JSON.stringify(cached)}\n`, { encoding: "utf8", flag: "wx" });
+  } catch (error) {
+    const code = (error as { code?: unknown }).code;
+    if (code !== "EEXIST") {
+      // Cache writes are an optimization. A read-only cache directory must not fail a plan.
+      return;
+    }
+    // An interrupted prior write can leave an invalid exact-key file. Replace only that
+    // FixMap-owned cache entry; never touch a repository path.
+    const existing = await readScanCache(location);
+    if (existing) return;
+    try {
+      await unlink(location.path);
+      await writeFile(location.path, `${JSON.stringify(cached)}\n`, { encoding: "utf8", flag: "wx" });
+    } catch {
+      // Another process may have won the replacement race; the current scan is still valid.
+    }
+  }
+}
+
+function hashText(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 24);
 }
 
 async function listTrackedPaths(root: string): Promise<string[]> {
@@ -110,22 +247,32 @@ function resolveDiffSpec(input: Pick<FixMapInput, "baseRef" | "headRef" | "diffS
 
 async function listFiles(root: string, diagnostics: RepoMap["diagnostics"]): Promise<RepoFile[]> {
   const gitPaths = await listGitPaths(root);
-  if (gitPaths) {
-    return buildFilesFromPaths(root, gitPaths, diagnostics);
-  }
+  const files = gitPaths
+    ? await buildFilesFromPaths(root, gitPaths.paths, diagnostics, gitPaths.gitLinks)
+    : (await walkFiles(root, root, diagnostics, { count: 0, limitReported: false }))
+      .sort((a, b) => a.path.localeCompare(b.path));
 
-  const files = await walkFiles(root, root, diagnostics, { count: 0, limitReported: false });
-  return files.sort((a, b) => a.path.localeCompare(b.path));
+  // These are properties of the scanned files, not of git. Keeping them here makes an
+  // extracted archive and a checkout report the same content limitations.
+  reportUnreadContent(diagnostics, files);
+  reportGeneratedDominance(diagnostics, files);
+  return files;
 }
 
-async function listGitPaths(root: string): Promise<string[] | undefined> {
+async function listGitPaths(root: string): Promise<{ paths: string[]; gitLinks: Set<string> } | undefined> {
   try {
-    const { stdout } = await exec(
-      "git",
-      ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
-      { cwd: root, maxBuffer: GIT_MAX_BUFFER }
-    );
-    return [...new Set(stdout.split("\0").filter(Boolean))];
+    const [{ stdout }, { stdout: staged }] = await Promise.all([
+      exec("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
+        cwd: root,
+        maxBuffer: GIT_MAX_BUFFER
+      }),
+      exec("git", ["ls-files", "--stage", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER })
+    ]);
+    const gitLinks = new Set(staged.split("\0").flatMap((entry) => {
+      const match = /^160000\s+[0-9a-f]+\s+\d+\t(.+)$/i.exec(entry);
+      return match?.[1] ? [normalizePath(match[1])] : [];
+    }));
+    return { paths: [...new Set(stdout.split("\0").filter(Boolean))], gitLinks };
   } catch {
     return undefined;
   }
@@ -134,10 +281,12 @@ async function listGitPaths(root: string): Promise<string[] | undefined> {
 async function buildFilesFromPaths(
   root: string,
   paths: string[],
-  diagnostics: RepoMap["diagnostics"]
+  diagnostics: RepoMap["diagnostics"],
+  knownGitLinks = new Set<string>()
 ): Promise<RepoFile[]> {
   const results: RepoFile[] = [];
   const absent: string[] = [];
+  const gitLinks: string[] = [];
   // Git can hand back two tracked paths that are one file on disk: a symlink beside its
   // target, or anything under a Windows junction. `stat` follows both, so each produced an
   // identically scored row and one module filled two slots in the plan.
@@ -161,10 +310,18 @@ async function buildFilesFromPaths(
     if (isInAlwaysIgnoredDir(relativePath)) {
       continue;
     }
+    if (knownGitLinks.has(relativePath)) {
+      gitLinks.push(relativePath);
+      continue;
+    }
 
     const scanned = await toRepoFile(join(root, rawPath), relativePath);
     if (scanned.status === "absent") {
       absent.push(relativePath);
+      continue;
+    }
+    if (scanned.status === "not-a-file") {
+      gitLinks.push(relativePath);
       continue;
     }
     if (scanned.status !== "ok") {
@@ -174,9 +331,11 @@ async function buildFilesFromPaths(
     const seenIndex = seenRealPaths.get(scanned.realPath);
     if (seenIndex !== undefined) {
       const seenFile = results[seenIndex]!;
-      // Exactly one of the two can be the real file, so a single lstat settles it. This
-      // runs only on a collision, which is rare by definition.
-      if (await isSymbolicLink(join(root, seenFile.path))) {
+      // Looking only at the leaf with lstat misses Windows junctions, where the linked
+      // object is an ancestor directory. Comparing literal and resolved paths covers both.
+      const seenIsAlias = !sameFilesystemPath(resolve(root, seenFile.path), scanned.realPath);
+      const currentIsAlias = !sameFilesystemPath(resolve(root, relativePath), scanned.realPath);
+      if (seenIsAlias && !currentIsAlias) {
         linked.push({ path: seenFile.path, target: relativePath });
         results[seenIndex] = scanned.file;
       } else {
@@ -190,8 +349,7 @@ async function buildFilesFromPaths(
 
   reportAbsentTrackedPaths(diagnostics, absent);
   reportLinkedDuplicates(diagnostics, linked);
-  reportUnreadContent(diagnostics, results);
-  reportGeneratedDominance(diagnostics, results);
+  reportSkippedSubmodules(diagnostics, gitLinks);
 
   return results.sort((a, b) => a.path.localeCompare(b.path));
 }
@@ -221,20 +379,45 @@ function reportAbsentTrackedPaths(diagnostics: RepoMap["diagnostics"], absent: s
 
 /**
  * A source file whose contents were never read still ranks — on its path alone. That is the
- * shape of the `got` miss behind #274: `source/core/index.ts` is 79KB, past the sample
+ * shape of the `got` miss behind #274: `source/core/index.ts` is 79 kB, past the sample
  * ceiling, so its entire content signal was silently absent and only an explicit path
  * mention kept it visible. Naming those files lets a reader see that the ranking for them
  * rests on the path and nothing else.
  */
 function reportUnreadContent(diagnostics: RepoMap["diagnostics"], files: RepoFile[]): void {
-  const unread = files.filter((file) => file.isSource && file.textSampleComplete === false);
+  const unavailable = files.filter((file) =>
+    file.isSource &&
+    file.textSampleComplete === false &&
+    file.textSampleSkipReason !== "too-large"
+  );
+  for (const reason of ["not-text", "unreadable"] as const) {
+    const affected = unavailable.filter((file) => file.textSampleSkipReason === reason);
+    if (affected.length === 0) continue;
+    const sample = affected.slice(0, 3).map((file) => file.path).join(", ");
+    const prefix = `${affected.length.toLocaleString()} source file${affected.length === 1 ? "" : "s"}`;
+    diagnostics.push({
+      code: "content-unread",
+      severity: "warning",
+      message: reason === "not-text"
+        ? `${prefix} ${affected.length === 1 ? "is" : "are"} not UTF-8 text (for example UTF-16 or binary) and ` +
+          `rank${affected.length === 1 ? "s" : ""} on path alone: ${sample}${affected.length > 3 ? ", ..." : ""}. Re-save source as UTF-8 to rank its contents.`
+        : `${prefix} could not be read and rank${affected.length === 1 ? "s" : ""} on path alone: ${sample}${affected.length > 3 ? ", ..." : ""}. Check file permissions and retry.`,
+      paths: affected.slice(0, 8).map((file) => file.path)
+    });
+  }
+
+  const unread = files.filter((file) =>
+    file.isSource &&
+    file.textSampleComplete === false &&
+    file.textSampleSkipReason === "too-large"
+  );
   if (unread.length === 0) return;
 
   const sample = unread
     .slice()
     .sort((a, b) => b.sizeBytes - a.sizeBytes)
     .slice(0, 3)
-    .map((file) => `${file.path} (${Math.round(file.sizeBytes / 1024).toLocaleString()}KB)`)
+    .map((file) => `${file.path} (${Math.ceil(file.sizeBytes / 1000).toLocaleString()} kB)`)
     .join(", ");
 
   diagnostics.push({
@@ -243,7 +426,21 @@ function reportUnreadContent(diagnostics: RepoMap["diagnostics"], files: RepoFil
     message:
       `${unread.length.toLocaleString()} source file${unread.length === 1 ? "" : "s"} could not be read as text and ` +
       `rank${unread.length === 1 ? "s" : ""} on path alone — largest: ${sample}` +
-      `${unread.length > 3 ? ", …" : ""}. Files over ${(MAX_TEXT_SAMPLE_BYTES / 1000).toLocaleString()}KB are not sampled.`
+      `${unread.length > 3 ? ", …" : ""}. Files over ${(MAX_TEXT_SAMPLE_BYTES / 1000).toLocaleString()} kB are not sampled.`,
+    paths: unread.slice(0, 8).map((file) => file.path)
+  });
+}
+
+function reportSkippedSubmodules(diagnostics: RepoMap["diagnostics"], gitLinks: string[]): void {
+  if (gitLinks.length === 0) return;
+  diagnostics.push({
+    code: "submodules-skipped",
+    severity: "info",
+    message:
+      `${gitLinks.length.toLocaleString()} git submodule${gitLinks.length === 1 ? " was" : "s were"} not scanned: ` +
+      `${gitLinks.slice(0, 3).join(", ")}${gitLinks.length > 3 ? ", …" : ""}. ` +
+      "Submodules are separate repositories; point --repo at one to map its contents.",
+    paths: gitLinks.slice(0, 8)
   });
 }
 
@@ -375,7 +572,8 @@ async function toRepoFile(absolutePath: string, relativePath: string): Promise<S
       isSource,
       kind: classifyFile(relativePath, extension),
       textSample: sample.text,
-      textSampleComplete: sample.complete
+      textSampleComplete: sample.complete,
+      ...(sample.skipReason ? { textSampleSkipReason: sample.skipReason } : {})
     }
   };
 }
@@ -403,12 +601,10 @@ function extractScriptBlocks(text: string): string {
   return joined || text;
 }
 
-async function isSymbolicLink(absolutePath: string): Promise<boolean> {
-  try {
-    return (await lstat(absolutePath)).isSymbolicLink();
-  } catch {
-    return false;
-  }
+function sameFilesystemPath(left: string, right: string): boolean {
+  return process.platform === "win32"
+    ? left.toLowerCase() === right.toLowerCase()
+    : left === right;
 }
 
 function isInAlwaysIgnoredDir(relativePath: string): boolean {
@@ -462,8 +658,9 @@ async function readPackageScripts(root: string, files: RepoFile[], diagnostics: 
       continue;
     }
 
-    const decoded = decodeManifest(bytes);
+    let decoded: { text: string; encoding: string } | undefined;
     try {
+      decoded = decodeManifest(bytes);
       const parsed = JSON.parse(decoded.text) as { name?: unknown; scripts?: Record<string, string> };
       const packageDir = normalizePath(dirname(manifest.path));
       // The declared workspace name, so a yarn route can address the package the way both
@@ -483,7 +680,7 @@ async function readPackageScripts(root: string, files: RepoFile[], diagnostics: 
           `Could not parse ${manifest.path}; scripts from that package were skipped.` +
           // Encoding is no longer a cause of failure, so naming it here rules it out rather
           // than sending someone to re-save a file whose real problem is a syntax error.
-          (decoded.encoding === "utf8" ? "" : ` It was decoded as ${decoded.encoding}, so the problem is the JSON itself, not the encoding.`)
+          (!decoded || decoded.encoding === "utf8" ? "" : ` It was decoded as ${decoded.encoding}, so the problem is the JSON itself, not the encoding.`)
       });
     }
   }
@@ -503,7 +700,11 @@ function decodeManifest(bytes: Buffer): { text: string; encoding: string } {
     return { text: bytes.subarray(2).toString("utf16le"), encoding: "UTF-16LE" };
   }
   if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
-    return { text: bytes.subarray(2).swap16().toString("utf16le"), encoding: "UTF-16BE" };
+    const body = bytes.subarray(2);
+    if (body.length % 2 !== 0) {
+      throw new Error("Truncated UTF-16BE input has an odd byte count");
+    }
+    return { text: Buffer.from(body).swap16().toString("utf16le"), encoding: "UTF-16BE" };
   }
   if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
     return { text: bytes.subarray(3).toString("utf8"), encoding: "UTF-8 with a byte order mark" };
@@ -531,20 +732,29 @@ async function readDiff(
       .filter(Boolean)
       .map(normalizePath);
     const untracked = diffSpec.includes("..") ? [] : await listUntrackedPaths(repoRoot);
+    const changedFiles = [...new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
+    diagnostics.push({
+      code: "diff-resolved",
+      severity: "info",
+      message: changedFiles.length === 0
+        ? `The diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}" resolved to zero changed files, so results use the task text only. Paths are relative to the working directory; run from the repository root to include changes outside it.`
+        : `Diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}" resolved ${changedFiles.length} changed ${changedFiles.length === 1 ? "path" : "paths"}.`,
+      paths: changedFiles.slice(0, 8)
+    });
     return {
-      changedFiles: [...new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b)),
+      changedFiles,
       diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS)
     };
   } catch (error) {
-    // git echoes the failing command back, so its own message contains the spec a second
-    // time. Truncating only the interpolation above would leave the full string in `detail`.
-    const rawDetail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
-    const detail = truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2);
+    const checkoutState = isMissingGit(error) ? undefined : await describeGitCheckout(repoRoot);
+    const detail = truncateForDiagnostic(gitErrorDetail(error), DIAGNOSTIC_SPEC_LIMIT * 2);
     diagnostics.push({
       code: "diff-unavailable",
       severity: "warning",
-      message: describesMissingRepository(error)
+      message: checkoutState === "not-repository"
         ? `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ${NOT_A_GIT_CHECKOUT}`
+        : checkoutState === "no-history"
+          ? `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ${NO_GIT_HISTORY}`
         : `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ` +
           `${detail}. Results use the task text only.`
     });
@@ -592,13 +802,15 @@ async function readWorkingTree(
 
     return { changedFiles, diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS) };
   } catch (error) {
-    const rawDetail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    const checkoutState = isMissingGit(error) ? undefined : await describeGitCheckout(repoRoot);
     diagnostics.push({
       code: "diff-unavailable",
       severity: "warning",
-      message: describesMissingRepository(error)
+      message: checkoutState === "not-repository"
         ? `Could not read the working tree: ${NOT_A_GIT_CHECKOUT}`
-        : `Could not read the working tree: ${truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2)}. ` +
+        : checkoutState === "no-history"
+          ? `Could not read the working tree: ${NO_GIT_HISTORY}`
+        : `Could not read the working tree: ${truncateForDiagnostic(gitErrorDetail(error), DIAGNOSTIC_SPEC_LIMIT * 2)}. ` +
           "Results use the task text only."
     });
     return { changedFiles: [], diffText: "" };
@@ -615,17 +827,39 @@ const NOT_A_GIT_CHECKOUT =
   "this directory is not a git checkout. Ranking still works from the task text; " +
   "--diff, --base/--head and --working-tree need a repository with history.";
 
+const NO_GIT_HISTORY =
+  "this repository has no commits yet, so there is nothing to diff against. " +
+  "Commit the initial work first, or run with --issue alone to rank from the task text.";
+
 /**
  * `execFile` puts "Command failed: git ..." in `message` and git's own explanation in
  * `stderr`, so matching on the message alone never saw the reason. Both are checked.
  */
-function describesMissingRepository(error: unknown): boolean {
-  const candidate = error as { message?: unknown; stderr?: unknown };
-  const text = [
-    typeof candidate?.message === "string" ? candidate.message : "",
-    typeof candidate?.stderr === "string" ? candidate.stderr : ""
-  ].join("\n");
-  return /not a git repository|does not have a commit checked out/i.test(text);
+async function describeGitCheckout(root: string): Promise<"not-repository" | "no-history" | undefined> {
+  try {
+    const { stdout } = await exec("git", ["rev-parse", "--is-inside-work-tree"], { cwd: root, maxBuffer: GIT_MAX_BUFFER });
+    if (stdout.trim() !== "true") return "not-repository";
+  } catch {
+    return "not-repository";
+  }
+  try {
+    await exec("git", ["rev-parse", "--verify", "HEAD"], { cwd: root, maxBuffer: GIT_MAX_BUFFER });
+    return undefined;
+  } catch {
+    return "no-history";
+  }
+}
+
+function gitErrorDetail(error: unknown): string {
+  const candidate = error as { code?: unknown; message?: unknown; stderr?: unknown };
+  if (candidate?.code === "ENOENT") return "Git is not installed or is not available on PATH";
+  const stderr = typeof candidate?.stderr === "string" ? candidate.stderr : "";
+  const message = typeof candidate?.message === "string" ? candidate.message : String(error);
+  return stderr.split(/\r?\n/).find((line) => line.trim()) ?? message.split(/\r?\n/)[0] ?? "unknown git error";
+}
+
+function isMissingGit(error: unknown): boolean {
+  return (error as { code?: unknown })?.code === "ENOENT";
 }
 
 function detectPackageManager(files: RepoFile[]): RepoMap["packageManager"] {
@@ -651,9 +885,9 @@ function classifyFile(path: string, extension: string): RepoFile["kind"] {
 async function readTextSample(
   path: string,
   sizeBytes: number
-): Promise<{ text: string; complete: boolean }> {
+): Promise<{ text: string; complete: boolean; skipReason?: RepoFile["textSampleSkipReason"] }> {
   if (sizeBytes > MAX_TEXT_SAMPLE_BYTES) {
-    return { text: "", complete: false };
+    return { text: "", complete: false, skipReason: "too-large" };
   }
 
   try {
@@ -664,11 +898,11 @@ async function readTextSample(
     // Reporting it as incomplete routes it through the same "content unavailable" handling
     // as an oversized file.
     if (bytes.includes(0)) {
-      return { text: "", complete: false };
+      return { text: "", complete: false, skipReason: "not-text" };
     }
     return { text: bytes.toString("utf8"), complete: true };
   } catch {
-    return { text: "", complete: false };
+    return { text: "", complete: false, skipReason: "unreadable" };
   }
 }
 

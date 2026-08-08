@@ -282,7 +282,8 @@ var TRAILING_E_VERB_STEMS = /* @__PURE__ */ new Set([
   "updat"
 ]);
 function extractTaskSignals(input) {
-  const issueText = stripUncheckedChecklistLines(input.issueText ?? "");
+  const prepared = prepareChecklistText(input.issueText ?? "");
+  const issueText = prepared.text;
   const taskText = [issueText, extractDiffContentLines(input.diffText ?? "")].join("\n");
   const tokens = tokenizeText(taskText);
   return {
@@ -291,11 +292,23 @@ function extractTaskSignals(input) {
     fileMentions: extractFileMentions(issueText),
     memberMentions: extractMemberMentions(issueText),
     exactFragments: extractExactFragments(taskText),
-    identifiers: extractIdentifiers(taskText)
+    identifiers: extractIdentifiers(taskText),
+    uncheckedChecklistLinesRemoved: prepared.removed,
+    uncheckedChecklistLinesPreserved: prepared.preserved
   };
 }
-function stripUncheckedChecklistLines(text) {
-  return text.split(/\r?\n/).filter((line) => !/^\s*[-*]\s*\[\s\]\s+/.test(line)).join("\n");
+function prepareChecklistText(text) {
+  const unchecked = /^\s*[-*]\s*\[\s\]\s+/;
+  const lines = text.split(/\r?\n/);
+  const removed = lines.filter((line) => unchecked.test(line));
+  if (removed.length === 0)
+    return { text, removed: 0, preserved: 0 };
+  const retained = lines.filter((line) => !unchecked.test(line));
+  const hasSubstantiveRetainedText = retained.some((line) => {
+    const trimmed = line.trim();
+    return trimmed.length > 0 && !/^#{1,6}\s+/.test(trimmed);
+  });
+  return hasSubstantiveRetainedText ? { text: retained.join("\n"), removed: removed.length, preserved: 0 } : { text, removed: 0, preserved: removed.length };
 }
 function extractExactFragments(text) {
   const fragments = /* @__PURE__ */ new Set();
@@ -523,7 +536,7 @@ function buildNextAction(grounding, ranking, contextFiles, hasRoutedTests = true
     return "Verify or correct the unresolved identifiers before editing ranked files.";
   }
   if (grounding.unverifiedIdentifiers.length > 0) {
-    return "Narrow the repository or inspect large unread files before trusting identifier-based recommendations.";
+    return "Inspect the content-unread diagnostics and make those source files readable before trusting identifier-based recommendations.";
   }
   if (grounding.partiallyResolvedIdentifiers.length > 0) {
     return "Verify the partially matched symbol name in the leading file before editing.";
@@ -538,7 +551,8 @@ function buildNextAction(grounding, ranking, contextFiles, hasRoutedTests = true
     return "Treat the leading files as a subsystem neighborhood and verify the exact edit point before changing code.";
   }
   if (contextFiles[0]) {
-    return hasRoutedTests ? `Inspect ${contextFiles[0].path} and its routed tests before editing.` : `Inspect ${contextFiles[0].path} before editing; no related test file was routed.`;
+    const leading = contextFiles.find((file) => !file.reasons.includes("generated build artifact; maintained source counterpart exists")) ?? contextFiles[0];
+    return hasRoutedTests ? `Inspect ${leading.path} and its routed tests before editing.` : `Inspect ${leading.path} before editing; no related test file was routed.`;
   }
   return "Add a concrete repository anchor and rerun FixMap.";
 }
@@ -955,10 +969,7 @@ var DEPLOYMENT_TERMS = [
   "kubernetes",
   "hosting",
   "serverless",
-  "production",
-  "404",
-  "500",
-  "502"
+  "production"
 ];
 var LOCKFILES = /* @__PURE__ */ new Set(["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"]);
 var AUXILIARY_CODE_DIRS = /* @__PURE__ */ new Set(["demo", "demos", "example", "examples", "sample", "samples"]);
@@ -976,6 +987,7 @@ var PRESENTATION_CODE_PENALTY = 8;
 var TYPE_DECLARATION_PENALTY = 4;
 var BACKUP_COPY_PENALTY = 10;
 var BUNDLED_OUTPUT_PENALTY = 12;
+var GENERATED_TWIN_PENALTY = 21;
 var GENERATED_TWIN_REASON = "generated build artifact; maintained source counterpart exists";
 var BUNDLED_LINE_LENGTH = 400;
 var MIN_BUNDLE_SAMPLE_BYTES = 2e3;
@@ -1056,7 +1068,9 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
       reasons.push("explicitly named in the task");
     }
     if (isGeneratedPath(file.path) && maintainedStems.has(moduleStem(file.path))) {
+      score -= GENERATED_TWIN_PENALTY;
       reasons.push(GENERATED_TWIN_REASON);
+      reasons.push("generated counterpart deprioritized below maintained source");
     }
     const pathTokens = tokenizePath(file.path);
     const pathOverlap = [...pathTokens].filter((token) => taskTokens.has(token));
@@ -1503,6 +1517,7 @@ function buildReportFromRepo(repo, input) {
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
   return {
+    reportVersion: 1,
     summary: buildSummary(contextFiles.length, testRoutes.length),
     contextFiles,
     testRoutes,
@@ -1512,8 +1527,9 @@ function buildReportFromRepo(repo, input) {
       ...repo.diagnostics,
       ...findGatedTestDiagnostics(repo.files, routedTestPaths),
       ...findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes),
-      ...findTaskDiagnostics(grounding, ranking),
-      ...grounding.specificity === "vague" ? [] : findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "")
+      ...findTaskDiagnostics(repo, grounding, ranking),
+      ...findTaskPreprocessingDiagnostics(input.issueText ?? ""),
+      ...grounding.specificity === "vague" ? [] : findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude)
     ],
     analysis: {
       grounding,
@@ -1548,7 +1564,7 @@ function findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes) {
     message: runner ? `No test command was routed. FixMap read this as a ${language} repository (${evidence}) and found no supported package script; \`${runner}\` is the runner that fits, but confirm it against the project's own configuration before relying on it.` : "No test command was routed. FixMap found code context but no supported package test script, so tests were not assumed to be absent."
   }];
 }
-function findTaskDiagnostics(grounding, ranking) {
+function findTaskDiagnostics(repo, grounding, ranking) {
   const diagnostics = [];
   if (grounding.unresolvedIdentifiers.length > 0) {
     diagnostics.push({
@@ -1565,10 +1581,12 @@ function findTaskDiagnostics(grounding, ranking) {
     });
   }
   if (grounding.unverifiedIdentifiers.length > 0) {
+    const skipReasons = new Set(repo.files.filter((file) => file.isSource && file.textSampleComplete === false).map((file) => file.textSampleSkipReason));
+    const cause = skipReasons.size === 1 && skipReasons.has("too-large") ? "one or more source files exceeded the text-sampling limit" : "one or more source files could not be sampled as UTF-8 text";
     diagnostics.push({
       code: "identifier-unverified",
       severity: "warning",
-      message: `Identifier${grounding.unverifiedIdentifiers.length === 1 ? "" : "s"} could not be verified because one or more source files exceeded the text-sampling limit: ${grounding.unverifiedIdentifiers.join(", ")}. FixMap did not claim that the identifier was absent, and confidence was capped at low without another anchor.`
+      message: `Identifier${grounding.unverifiedIdentifiers.length === 1 ? "" : "s"} could not be verified because ${cause}: ${grounding.unverifiedIdentifiers.join(", ")}. FixMap did not claim that the identifier was absent, and confidence was capped at low without another anchor.`
     });
   }
   if (grounding.specificity === "vague") {
@@ -1587,7 +1605,25 @@ function findTaskDiagnostics(grounding, ranking) {
   }
   return diagnostics;
 }
-function findEmptyResultDiagnostics(repo, contextFiles, issueText) {
+function findTaskPreprocessingDiagnostics(issueText) {
+  const signals = extractTaskSignals({ issueText });
+  if (signals.uncheckedChecklistLinesPreserved > 0) {
+    return [{
+      code: "task-checklist-filtered",
+      severity: "info",
+      message: `Preserved ${signals.uncheckedChecklistLinesPreserved} unchecked checklist ${signals.uncheckedChecklistLinesPreserved === 1 ? "line" : "lines"} because they contained the issue's only substantive task details.`
+    }];
+  }
+  if (signals.uncheckedChecklistLinesRemoved > 0) {
+    return [{
+      code: "task-checklist-filtered",
+      severity: "info",
+      message: `Removed ${signals.uncheckedChecklistLinesRemoved} unchecked issue-template ${signals.uncheckedChecklistLinesRemoved === 1 ? "option" : "options"} before ranking; selected checklist items and prose were retained.`
+    }];
+  }
+  return [];
+}
+function findEmptyResultDiagnostics(repo, contextFiles, issueText, exclude) {
   if (contextFiles.length > 0 || repo.files.length === 0) {
     return [];
   }
@@ -1597,6 +1633,19 @@ function findEmptyResultDiagnostics(repo, contextFiles, issueText) {
     changedFiles: repo.changedFiles
   });
   const terms = [...signals.tokens].sort();
+  if (exclude?.patterns.length) {
+    const withoutExclusions = rankContextFiles(repo, { issueText, diffText: repo.diffText }, DEFAULT_CONTEXT_FILE_LIMIT);
+    const excludedMatches = withoutExclusions.filter((file) => exclude.excludes(file.path));
+    if (excludedMatches.length > 0) {
+      const paths = excludedMatches.map((file) => file.path);
+      return [{
+        code: "no-context-match",
+        severity: "warning",
+        message: `No context files: ${paths.length} matching ${paths.length === 1 ? "file was" : "files were"} removed by exclusion patterns (${paths.slice(0, 3).join(", ")}${paths.length > 3 ? ", \u2026" : ""}). Remove the pattern or run --explain on one of these paths.`,
+        paths: paths.slice(0, 8)
+      }];
+    }
+  }
   if (terms.length === 0 && signals.identifiers.size === 0 && signals.fileMentions.size === 0) {
     return [{
       code: "no-task-terms",
@@ -1824,7 +1873,10 @@ function renderMarkdownReport(report) {
     "",
     "## Diagnostics",
     "",
-    ...listOrEmpty(report.diagnostics.map((diagnostic) => `- **${diagnostic.severity}** ${diagnostic.message}`))
+    ...listOrEmpty(report.diagnostics.flatMap((diagnostic) => [
+      `- **${diagnostic.severity}** ${diagnostic.message}`,
+      ...(diagnostic.paths ?? []).slice(0, 8).map((path) => `  - \`${path}\``)
+    ]))
   ];
   return `${lines.join("\n")}
 `;
@@ -1839,7 +1891,9 @@ function listOrEmpty(lines) {
 
 // packages/core/dist/repo-scan.js
 import { execFile } from "node:child_process";
-import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readdir, readFile, realpath, stat, unlink, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 var WALK_IGNORED_DIRS = /* @__PURE__ */ new Set([...ALWAYS_IGNORED_DIRS, ...GENERATED_DIRS]);
@@ -1869,12 +1923,20 @@ var SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
 ]);
 var SFC_EXTENSIONS = /* @__PURE__ */ new Set([".vue", ".svelte"]);
 var SFC_SCRIPT_BLOCK = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
-var TEST_PATTERNS = [/\.test\./, /\.spec\./, /(^|\/|\\)__tests__(\/|\\)/, /(^|\/|\\)tests?(\/|\\)/];
+var TEST_PATTERNS = [
+  /\.test(?:\.|-d\.)/,
+  /\.spec\./,
+  /(^|\/|\\)__tests__(\/|\\)/,
+  /(^|\/|\\)tests?(\/|\\)/,
+  /_test\.go$/,
+  /(^|\/|\\)(?:test_[^/\\]+|[^/\\]+_test)\.py$/
+];
 var MAX_TEXT_SAMPLE_BYTES = 64e3;
 var MAX_DIFF_TEXT_CHARS = 2e5;
 var MAX_SCANNED_FILES = 25e3;
 var GIT_MAX_BUFFER = 10 * 1024 * 1024;
 var exec = promisify(execFile);
+var SCAN_CACHE_VERSION = 1;
 async function scanRepo(input) {
   const repoRoot = resolve(input.repoRoot);
   if (!await isDirectory(repoRoot)) {
@@ -1893,9 +1955,39 @@ async function scanRepo(input) {
     };
   }
   const diagnostics = [];
-  const files = await listFiles(repoRoot, diagnostics);
-  const trackedFiles = await listTrackedPaths(repoRoot);
-  const packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
+  const cacheLocation = input.useCache ? await buildScanCacheLocation(repoRoot) : void 0;
+  const cached = cacheLocation ? await readScanCache(cacheLocation) : void 0;
+  let files;
+  let trackedFiles;
+  let packageScripts;
+  let packageManager;
+  if (cached) {
+    files = cached.files;
+    trackedFiles = cached.trackedFiles;
+    packageScripts = cached.packageScripts;
+    packageManager = cached.packageManager;
+    diagnostics.push(...cached.diagnostics, {
+      code: "cache-hit",
+      severity: "info",
+      message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files). Pass --no-cache to rescan.`
+    });
+  } else {
+    files = await listFiles(repoRoot, diagnostics);
+    trackedFiles = await listTrackedPaths(repoRoot);
+    packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
+    packageManager = detectPackageManager(files);
+    if (cacheLocation) {
+      await writeScanCache(cacheLocation, {
+        version: SCAN_CACHE_VERSION,
+        stateKey: cacheLocation.stateKey,
+        files,
+        trackedFiles,
+        packageScripts,
+        packageManager,
+        diagnostics: [...diagnostics]
+      });
+    }
+  }
   const diffSpec = resolveDiffSpec(input);
   const diff = input.workingTree ? await readWorkingTree(repoRoot, input.includeUntracked === true, diagnostics) : await readDiff(repoRoot, diffSpec, diagnostics);
   return {
@@ -1905,9 +1997,74 @@ async function scanRepo(input) {
     packageScripts,
     changedFiles: diff.changedFiles,
     diffText: diff.diffText,
-    packageManager: detectPackageManager(files),
+    packageManager,
     diagnostics
   };
+}
+async function buildScanCacheLocation(root) {
+  try {
+    const [{ stdout: head }, { stdout: status }] = await Promise.all([
+      exec("git", ["rev-parse", "HEAD"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "."], {
+        cwd: root,
+        maxBuffer: GIT_MAX_BUFFER
+      })
+    ]);
+    if (status.split("\0").some((entry) => entry.startsWith("?? ")))
+      return void 0;
+    const dirtyDiff = status.length > 0 ? (await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", "--", "."], {
+      cwd: root,
+      maxBuffer: GIT_MAX_BUFFER
+    })).stdout : "";
+    const stateKey = hashText([
+      String(SCAN_CACHE_VERSION),
+      resolve(root),
+      head.trim(),
+      status,
+      dirtyDiff
+    ].join("\0"));
+    const cacheRoot = process.env.FIXMAP_CACHE_DIR ?? join(process.env.LOCALAPPDATA ?? process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"), "fixmap", "scans");
+    return {
+      path: join(cacheRoot, `${hashText(resolve(root))}-${stateKey}.json`),
+      stateKey
+    };
+  } catch {
+    return void 0;
+  }
+}
+async function readScanCache(location) {
+  try {
+    const cached = JSON.parse(await readFile(location.path, "utf8"));
+    if (cached.version !== SCAN_CACHE_VERSION || cached.stateKey !== location.stateKey || !Array.isArray(cached.files) || !Array.isArray(cached.trackedFiles) || !Array.isArray(cached.packageScripts) || !Array.isArray(cached.diagnostics) || !["npm", "pnpm", "yarn", "bun"].includes(cached.packageManager ?? ""))
+      return void 0;
+    return cached;
+  } catch {
+    return void 0;
+  }
+}
+async function writeScanCache(location, cached) {
+  try {
+    await mkdir(dirname(location.path), { recursive: true });
+    await writeFile(location.path, `${JSON.stringify(cached)}
+`, { encoding: "utf8", flag: "wx" });
+  } catch (error) {
+    const code = error.code;
+    if (code !== "EEXIST") {
+      return;
+    }
+    const existing = await readScanCache(location);
+    if (existing)
+      return;
+    try {
+      await unlink(location.path);
+      await writeFile(location.path, `${JSON.stringify(cached)}
+`, { encoding: "utf8", flag: "wx" });
+    } catch {
+    }
+  }
+}
+function hashText(value) {
+  return createHash("sha256").update(value).digest("hex").slice(0, 24);
 }
 async function listTrackedPaths(root) {
   try {
@@ -1922,23 +2079,33 @@ function resolveDiffSpec(input) {
 }
 async function listFiles(root, diagnostics) {
   const gitPaths = await listGitPaths(root);
-  if (gitPaths) {
-    return buildFilesFromPaths(root, gitPaths, diagnostics);
-  }
-  const files = await walkFiles(root, root, diagnostics, { count: 0, limitReported: false });
-  return files.sort((a, b) => a.path.localeCompare(b.path));
+  const files = gitPaths ? await buildFilesFromPaths(root, gitPaths.paths, diagnostics, gitPaths.gitLinks) : (await walkFiles(root, root, diagnostics, { count: 0, limitReported: false })).sort((a, b) => a.path.localeCompare(b.path));
+  reportUnreadContent(diagnostics, files);
+  reportGeneratedDominance(diagnostics, files);
+  return files;
 }
 async function listGitPaths(root) {
   try {
-    const { stdout } = await exec("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER });
-    return [...new Set(stdout.split("\0").filter(Boolean))];
+    const [{ stdout }, { stdout: staged }] = await Promise.all([
+      exec("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
+        cwd: root,
+        maxBuffer: GIT_MAX_BUFFER
+      }),
+      exec("git", ["ls-files", "--stage", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER })
+    ]);
+    const gitLinks = new Set(staged.split("\0").flatMap((entry) => {
+      const match = /^160000\s+[0-9a-f]+\s+\d+\t(.+)$/i.exec(entry);
+      return match?.[1] ? [normalizePath(match[1])] : [];
+    }));
+    return { paths: [...new Set(stdout.split("\0").filter(Boolean))], gitLinks };
   } catch {
     return void 0;
   }
 }
-async function buildFilesFromPaths(root, paths, diagnostics) {
+async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* @__PURE__ */ new Set()) {
   const results = [];
   const absent = [];
+  const gitLinks = [];
   const seenRealPaths = /* @__PURE__ */ new Map();
   const linked = [];
   for (const [index, rawPath] of paths.entries()) {
@@ -1950,9 +2117,17 @@ async function buildFilesFromPaths(root, paths, diagnostics) {
     if (isInAlwaysIgnoredDir(relativePath)) {
       continue;
     }
+    if (knownGitLinks.has(relativePath)) {
+      gitLinks.push(relativePath);
+      continue;
+    }
     const scanned = await toRepoFile(join(root, rawPath), relativePath);
     if (scanned.status === "absent") {
       absent.push(relativePath);
+      continue;
+    }
+    if (scanned.status === "not-a-file") {
+      gitLinks.push(relativePath);
       continue;
     }
     if (scanned.status !== "ok") {
@@ -1961,7 +2136,9 @@ async function buildFilesFromPaths(root, paths, diagnostics) {
     const seenIndex = seenRealPaths.get(scanned.realPath);
     if (seenIndex !== void 0) {
       const seenFile = results[seenIndex];
-      if (await isSymbolicLink(join(root, seenFile.path))) {
+      const seenIsAlias = !sameFilesystemPath(resolve(root, seenFile.path), scanned.realPath);
+      const currentIsAlias = !sameFilesystemPath(resolve(root, relativePath), scanned.realPath);
+      if (seenIsAlias && !currentIsAlias) {
         linked.push({ path: seenFile.path, target: relativePath });
         results[seenIndex] = scanned.file;
       } else {
@@ -1974,8 +2151,7 @@ async function buildFilesFromPaths(root, paths, diagnostics) {
   }
   reportAbsentTrackedPaths(diagnostics, absent);
   reportLinkedDuplicates(diagnostics, linked);
-  reportUnreadContent(diagnostics, results);
-  reportGeneratedDominance(diagnostics, results);
+  reportSkippedSubmodules(diagnostics, gitLinks);
   return results.sort((a, b) => a.path.localeCompare(b.path));
 }
 function reportAbsentTrackedPaths(diagnostics, absent) {
@@ -1988,14 +2164,39 @@ function reportAbsentTrackedPaths(diagnostics, absent) {
   });
 }
 function reportUnreadContent(diagnostics, files) {
-  const unread = files.filter((file) => file.isSource && file.textSampleComplete === false);
+  const unavailable = files.filter((file) => file.isSource && file.textSampleComplete === false && file.textSampleSkipReason !== "too-large");
+  for (const reason of ["not-text", "unreadable"]) {
+    const affected = unavailable.filter((file) => file.textSampleSkipReason === reason);
+    if (affected.length === 0)
+      continue;
+    const sample2 = affected.slice(0, 3).map((file) => file.path).join(", ");
+    const prefix = `${affected.length.toLocaleString()} source file${affected.length === 1 ? "" : "s"}`;
+    diagnostics.push({
+      code: "content-unread",
+      severity: "warning",
+      message: reason === "not-text" ? `${prefix} ${affected.length === 1 ? "is" : "are"} not UTF-8 text (for example UTF-16 or binary) and rank${affected.length === 1 ? "s" : ""} on path alone: ${sample2}${affected.length > 3 ? ", ..." : ""}. Re-save source as UTF-8 to rank its contents.` : `${prefix} could not be read and rank${affected.length === 1 ? "s" : ""} on path alone: ${sample2}${affected.length > 3 ? ", ..." : ""}. Check file permissions and retry.`,
+      paths: affected.slice(0, 8).map((file) => file.path)
+    });
+  }
+  const unread = files.filter((file) => file.isSource && file.textSampleComplete === false && file.textSampleSkipReason === "too-large");
   if (unread.length === 0)
     return;
-  const sample = unread.slice().sort((a, b) => b.sizeBytes - a.sizeBytes).slice(0, 3).map((file) => `${file.path} (${Math.round(file.sizeBytes / 1024).toLocaleString()}KB)`).join(", ");
+  const sample = unread.slice().sort((a, b) => b.sizeBytes - a.sizeBytes).slice(0, 3).map((file) => `${file.path} (${Math.ceil(file.sizeBytes / 1e3).toLocaleString()} kB)`).join(", ");
   diagnostics.push({
     code: "content-unread",
     severity: "warning",
-    message: `${unread.length.toLocaleString()} source file${unread.length === 1 ? "" : "s"} could not be read as text and rank${unread.length === 1 ? "s" : ""} on path alone \u2014 largest: ${sample}${unread.length > 3 ? ", \u2026" : ""}. Files over ${(MAX_TEXT_SAMPLE_BYTES / 1e3).toLocaleString()}KB are not sampled.`
+    message: `${unread.length.toLocaleString()} source file${unread.length === 1 ? "" : "s"} could not be read as text and rank${unread.length === 1 ? "s" : ""} on path alone \u2014 largest: ${sample}${unread.length > 3 ? ", \u2026" : ""}. Files over ${(MAX_TEXT_SAMPLE_BYTES / 1e3).toLocaleString()} kB are not sampled.`,
+    paths: unread.slice(0, 8).map((file) => file.path)
+  });
+}
+function reportSkippedSubmodules(diagnostics, gitLinks) {
+  if (gitLinks.length === 0)
+    return;
+  diagnostics.push({
+    code: "submodules-skipped",
+    severity: "info",
+    message: `${gitLinks.length.toLocaleString()} git submodule${gitLinks.length === 1 ? " was" : "s were"} not scanned: ${gitLinks.slice(0, 3).join(", ")}${gitLinks.length > 3 ? ", \u2026" : ""}. Submodules are separate repositories; point --repo at one to map its contents.`,
+    paths: gitLinks.slice(0, 8)
   });
 }
 var GENERATED_DOMINANCE_SHARE = 0.4;
@@ -2085,7 +2286,8 @@ async function toRepoFile(absolutePath, relativePath) {
       isSource,
       kind: classifyFile(relativePath, extension),
       textSample: sample.text,
-      textSampleComplete: sample.complete
+      textSampleComplete: sample.complete,
+      ...sample.skipReason ? { textSampleSkipReason: sample.skipReason } : {}
     }
   };
 }
@@ -2101,12 +2303,8 @@ function extractScriptBlocks(text) {
   const joined = blocks.join("\n").trim();
   return joined || text;
 }
-async function isSymbolicLink(absolutePath) {
-  try {
-    return (await lstat(absolutePath)).isSymbolicLink();
-  } catch {
-    return false;
-  }
+function sameFilesystemPath(left, right) {
+  return process.platform === "win32" ? left.toLowerCase() === right.toLowerCase() : left === right;
 }
 function isInAlwaysIgnoredDir(relativePath) {
   return relativePath.split("/").slice(0, -1).some((segment) => ALWAYS_IGNORED_DIRS.has(segment));
@@ -2145,8 +2343,9 @@ async function readPackageScripts(root, files, diagnostics) {
       });
       continue;
     }
-    const decoded = decodeManifest(bytes);
+    let decoded;
     try {
+      decoded = decodeManifest(bytes);
       const parsed = JSON.parse(decoded.text);
       const packageDir = normalizePath(dirname(manifest.path));
       const packageName = typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : void 0;
@@ -2162,7 +2361,7 @@ async function readPackageScripts(root, files, diagnostics) {
         severity: "warning",
         message: `Could not parse ${manifest.path}; scripts from that package were skipped.` + // Encoding is no longer a cause of failure, so naming it here rules it out rather
         // than sending someone to re-save a file whose real problem is a syntax error.
-        (decoded.encoding === "utf8" ? "" : ` It was decoded as ${decoded.encoding}, so the problem is the JSON itself, not the encoding.`)
+        (!decoded || decoded.encoding === "utf8" ? "" : ` It was decoded as ${decoded.encoding}, so the problem is the JSON itself, not the encoding.`)
       });
     }
   }
@@ -2173,7 +2372,11 @@ function decodeManifest(bytes) {
     return { text: bytes.subarray(2).toString("utf16le"), encoding: "UTF-16LE" };
   }
   if (bytes.length >= 2 && bytes[0] === 254 && bytes[1] === 255) {
-    return { text: bytes.subarray(2).swap16().toString("utf16le"), encoding: "UTF-16BE" };
+    const body = bytes.subarray(2);
+    if (body.length % 2 !== 0) {
+      throw new Error("Truncated UTF-16BE input has an odd byte count");
+    }
+    return { text: Buffer.from(body).swap16().toString("utf16le"), encoding: "UTF-16BE" };
   }
   if (bytes.length >= 3 && bytes[0] === 239 && bytes[1] === 187 && bytes[2] === 191) {
     return { text: bytes.subarray(3).toString("utf8"), encoding: "UTF-8 with a byte order mark" };
@@ -2191,17 +2394,24 @@ async function readDiff(repoRoot, diffSpec, diagnostics) {
     ]);
     const tracked = names.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath);
     const untracked = diffSpec.includes("..") ? [] : await listUntrackedPaths(repoRoot);
+    const changedFiles = [.../* @__PURE__ */ new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
+    diagnostics.push({
+      code: "diff-resolved",
+      severity: "info",
+      message: changedFiles.length === 0 ? `The diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}" resolved to zero changed files, so results use the task text only. Paths are relative to the working directory; run from the repository root to include changes outside it.` : `Diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}" resolved ${changedFiles.length} changed ${changedFiles.length === 1 ? "path" : "paths"}.`,
+      paths: changedFiles.slice(0, 8)
+    });
     return {
-      changedFiles: [.../* @__PURE__ */ new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b)),
+      changedFiles,
       diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS)
     };
   } catch (error) {
-    const rawDetail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
-    const detail = truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2);
+    const checkoutState = isMissingGit(error) ? void 0 : await describeGitCheckout(repoRoot);
+    const detail = truncateForDiagnostic(gitErrorDetail(error), DIAGNOSTIC_SPEC_LIMIT * 2);
     diagnostics.push({
       code: "diff-unavailable",
       severity: "warning",
-      message: describesMissingRepository(error) ? `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ${NOT_A_GIT_CHECKOUT}` : `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ${detail}. Results use the task text only.`
+      message: checkoutState === "not-repository" ? `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ${NOT_A_GIT_CHECKOUT}` : checkoutState === "no-history" ? `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ${NO_GIT_HISTORY}` : `Could not resolve git diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}": ${detail}. Results use the task text only.`
     });
     return { changedFiles: [], diffText: "" };
   }
@@ -2223,23 +2433,42 @@ async function readWorkingTree(repoRoot, includeUntracked, diagnostics) {
     });
     return { changedFiles, diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS) };
   } catch (error) {
-    const rawDetail = error instanceof Error ? error.message.split(/\r?\n/)[0] : "unknown git error";
+    const checkoutState = isMissingGit(error) ? void 0 : await describeGitCheckout(repoRoot);
     diagnostics.push({
       code: "diff-unavailable",
       severity: "warning",
-      message: describesMissingRepository(error) ? `Could not read the working tree: ${NOT_A_GIT_CHECKOUT}` : `Could not read the working tree: ${truncateForDiagnostic(rawDetail ?? "unknown git error", DIAGNOSTIC_SPEC_LIMIT * 2)}. Results use the task text only.`
+      message: checkoutState === "not-repository" ? `Could not read the working tree: ${NOT_A_GIT_CHECKOUT}` : checkoutState === "no-history" ? `Could not read the working tree: ${NO_GIT_HISTORY}` : `Could not read the working tree: ${truncateForDiagnostic(gitErrorDetail(error), DIAGNOSTIC_SPEC_LIMIT * 2)}. Results use the task text only.`
     });
     return { changedFiles: [], diffText: "" };
   }
 }
 var NOT_A_GIT_CHECKOUT = "this directory is not a git checkout. Ranking still works from the task text; --diff, --base/--head and --working-tree need a repository with history.";
-function describesMissingRepository(error) {
+var NO_GIT_HISTORY = "this repository has no commits yet, so there is nothing to diff against. Commit the initial work first, or run with --issue alone to rank from the task text.";
+async function describeGitCheckout(root) {
+  try {
+    const { stdout } = await exec("git", ["rev-parse", "--is-inside-work-tree"], { cwd: root, maxBuffer: GIT_MAX_BUFFER });
+    if (stdout.trim() !== "true")
+      return "not-repository";
+  } catch {
+    return "not-repository";
+  }
+  try {
+    await exec("git", ["rev-parse", "--verify", "HEAD"], { cwd: root, maxBuffer: GIT_MAX_BUFFER });
+    return void 0;
+  } catch {
+    return "no-history";
+  }
+}
+function gitErrorDetail(error) {
   const candidate = error;
-  const text = [
-    typeof candidate?.message === "string" ? candidate.message : "",
-    typeof candidate?.stderr === "string" ? candidate.stderr : ""
-  ].join("\n");
-  return /not a git repository|does not have a commit checked out/i.test(text);
+  if (candidate?.code === "ENOENT")
+    return "Git is not installed or is not available on PATH";
+  const stderr = typeof candidate?.stderr === "string" ? candidate.stderr : "";
+  const message = typeof candidate?.message === "string" ? candidate.message : String(error);
+  return stderr.split(/\r?\n/).find((line) => line.trim()) ?? message.split(/\r?\n/)[0] ?? "unknown git error";
+}
+function isMissingGit(error) {
+  return error?.code === "ENOENT";
 }
 function detectPackageManager(files) {
   const paths = new Set(files.map((file) => file.path));
@@ -2263,16 +2492,16 @@ function classifyFile(path, extension) {
 }
 async function readTextSample(path, sizeBytes) {
   if (sizeBytes > MAX_TEXT_SAMPLE_BYTES) {
-    return { text: "", complete: false };
+    return { text: "", complete: false, skipReason: "too-large" };
   }
   try {
     const bytes = await readFile(path);
     if (bytes.includes(0)) {
-      return { text: "", complete: false };
+      return { text: "", complete: false, skipReason: "not-text" };
     }
     return { text: bytes.toString("utf8"), complete: true };
   } catch {
-    return { text: "", complete: false };
+    return { text: "", complete: false, skipReason: "unreadable" };
   }
 }
 async function listUntrackedPaths(repoRoot) {
@@ -2307,10 +2536,9 @@ async function buildFixMapReport(input) {
     const excludedPaths = repo.files.filter((file) => exclude.excludes(file.path)).map((file) => file.path);
     if (excludedPaths.length === 0)
       return report;
-    const rankablePaths = repo.files.filter((file) => file.isSource && !file.isTest);
     report.diagnostics.push({
       code: "paths-excluded",
-      severity: rankablePaths.length > 0 && rankablePaths.every((file) => exclude.excludes(file.path)) ? "warning" : "info",
+      severity: report.contextFiles.length === 0 ? "warning" : "info",
       message: `${exclude.patterns.length} exclusion ${exclude.patterns.length === 1 ? "pattern" : "patterns"} removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${exclude.patterns.join(", ")}. Run --explain on a file you expected to see if this is why it is absent.`
     });
   }
@@ -2332,6 +2560,22 @@ async function readIgnoreFile(repoRoot) {
 function verifyPlan(report, repo) {
   const changed = repo.changedFiles;
   const findings = [];
+  const fileByPath = new Map(repo.files.map((file) => [file.path, file]));
+  const plannedPaths = report.contextFiles.map((file) => file.path);
+  if (plannedPaths.length > 0 && !plannedPaths.some((path) => fileByPath.has(path))) {
+    const mismatch = {
+      code: "plan-repository-mismatch",
+      severity: "error",
+      paths: plannedPaths.slice(0, 8),
+      message: `Verification was not attempted: none of the ${plannedPaths.length} planned files exist in ${repo.root}. This plan appears to be for a different repository or revision; check --repo or regenerate the plan against this checkout.`
+    };
+    return {
+      summary: `None of the ${plannedPaths.length} planned files exist in ${repo.root}; the plan and repository do not match.`,
+      changedFiles: changed,
+      findings: [mismatch],
+      diagnostics: repo.diagnostics
+    };
+  }
   if (changed.length === 0) {
     return {
       summary: "No changes to verify: the diff resolved to zero files.",
@@ -2340,8 +2584,7 @@ function verifyPlan(report, repo) {
       diagnostics: repo.diagnostics
     };
   }
-  const planned = new Set(report.contextFiles.map((file) => file.path));
-  const fileByPath = new Map(repo.files.map((file) => [file.path, file]));
+  const planned = new Set(plannedPaths);
   const isTest = (path) => fileByPath.get(path)?.isTest === true;
   const maintainedStems = new Set(repo.files.filter((file) => file.isSource && !isGeneratedPath(file.path) && !isBackupPath(file.path)).map((file) => moduleStem(file.path)));
   const tracked = new Set(repo.trackedFiles ?? []);
@@ -2363,7 +2606,7 @@ function verifyPlan(report, repo) {
       message: `${trackedGeneratedEdits.length === 1 ? "A committed generated artifact was" : `${trackedGeneratedEdits.length} committed generated artifacts were`} edited. Confirm the maintained source changed too and the artifact was rebuilt; tracked release artifacts are not treated as discarded edits.`
     });
   }
-  const unmapped = changed.filter((path) => !planned.has(path) && !isTest(path) && !discardedEdits.includes(path) && fileByPath.get(path)?.isSource !== false);
+  const unmapped = changed.filter((path) => !planned.has(path) && !isTest(path) && !discardedEdits.includes(path) && !trackedGeneratedEdits.includes(path) && fileByPath.get(path)?.isSource !== false);
   if (unmapped.length > 0) {
     findings.push({
       code: "unmapped-change",
@@ -2381,7 +2624,7 @@ function verifyPlan(report, repo) {
       message: `The highest-ranked file was not changed (${leading.confidence} confidence). That is expected if it was only read for context, and worth a second look if it was not opened at all.`
     });
   }
-  const changedSource = changed.filter((path) => !isTest(path) && fileByPath.get(path)?.kind === "code");
+  const changedSource = changed.filter((path) => !isTest(path) && !trackedGeneratedEdits.includes(path) && !discardedEdits.includes(path) && fileByPath.get(path)?.kind === "code");
   const changedTests = changed.filter(isTest);
   if (changedSource.length > 0 && changedTests.length === 0) {
     const suggested = [...new Set(report.testRoutes.flatMap((route) => route.relatedFiles))].filter(isTest);
@@ -2398,7 +2641,7 @@ function verifyPlan(report, repo) {
   for (const risk of newRisks) {
     findings.push({
       code: "new-risk-area",
-      severity: risk.severity === "low" ? "info" : "warning",
+      severity: "warning",
       paths: pathsForRiskArea(risk.area, changed),
       message: `The change touches ${risk.area}, which the original plan did not flag: ${risk.reason}.`
     });
@@ -2452,13 +2695,58 @@ function renderVerifyMarkdown(result) {
 `;
 }
 
+// packages/core/dist/validate.js
+function validateFixMapReport(candidate, label) {
+  if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate) || !Array.isArray(candidate.contextFiles)) {
+    return {
+      success: false,
+      message: `${label} is not a FixMap JSON report: no contextFiles array.`
+    };
+  }
+  const contextFiles = candidate.contextFiles;
+  const record = candidate;
+  if (record.reportVersion !== void 0 && record.reportVersion !== 1) {
+    return {
+      success: false,
+      message: `${label} uses unsupported reportVersion ${JSON.stringify(record.reportVersion)}; this FixMap release supports reportVersion 1.`
+    };
+  }
+  if (contextFiles.length === 0 && !(typeof record.summary === "string" && Array.isArray(record.testRoutes) && Array.isArray(record.risks) && Array.isArray(record.changedFiles) && Array.isArray(record.diagnostics))) {
+    return {
+      success: false,
+      message: `${label} has no context files and is missing the complete FixMap report envelope (summary, testRoutes, risks, changedFiles, and diagnostics).`
+    };
+  }
+  const invalid = contextFiles.findIndex((file) => {
+    if (typeof file !== "object" || file === null)
+      return true;
+    const ranked = file;
+    if (typeof ranked.path !== "string" || ranked.path.trim().length === 0)
+      return true;
+    if (ranked.rank !== void 0 && (!Number.isSafeInteger(ranked.rank) || ranked.rank < 1))
+      return true;
+    if (ranked.score !== void 0 && (typeof ranked.score !== "number" || !Number.isFinite(ranked.score)))
+      return true;
+    if (ranked.confidence !== void 0 && ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low")
+      return true;
+    return false;
+  });
+  if (invalid !== -1) {
+    return {
+      success: false,
+      message: `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", and optional rank, score, and confidence fields must use their documented types.`
+    };
+  }
+  return { success: true, report: candidate };
+}
+
 // packages/action/src/github.ts
 var FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
 var MAX_COMMENT_BODY_CHARS = 65536;
 var COMMENT_TRUNCATION_FOOTER = "\n\n> Report truncated to fit GitHub's comment size limit. The complete report is in the step summary and the `report` output.\n";
 function fitCommentBody(body, limit = MAX_COMMENT_BODY_CHARS) {
   if (body.length <= limit) return body;
-  const keep = Math.max(0, limit - COMMENT_TRUNCATION_FOOTER.length);
+  const keep = Math.max(0, limit - COMMENT_TRUNCATION_FOOTER.length - "\n```".length);
   const cut = body.slice(0, keep);
   const lastBreak = cut.lastIndexOf("\n\n");
   const trimmed = lastBreak > keep / 2 ? cut.slice(0, lastBreak) : cut;
@@ -2510,25 +2798,26 @@ ${input.markdown}`);
   };
 }
 async function findExistingComment(fetchImpl, commentsUrl, headers, commentAuthor) {
-  let newest;
-  for (let page = 1; ; page += 1) {
+  const maxPages = 50;
+  for (let page = 1; page <= maxPages; page += 1) {
     const comments = await requestJson(
       fetchImpl,
-      `${commentsUrl}?per_page=100&page=${page}`,
+      `${commentsUrl}?per_page=100&page=${page}&sort=created&direction=desc`,
       { headers },
       "list pull request comments"
     );
-    const matches = comments.filter(
+    const match = comments.filter(
       (comment) => comment.body?.includes(FIXMAP_REPORT_MARKER) && // GitHub logins are case-insensitive, so a config saying "github-actions[bot]" did
       // not match a comment authored by "GitHub-Actions[bot]" and the Action posted a
       // second comment beside the one it meant to update.
       (!commentAuthor || comment.user?.login?.toLowerCase() === commentAuthor.toLowerCase())
-    );
-    for (const existing of matches) if (!newest || existing.id > newest.id) newest = existing;
+    ).sort((left, right) => right.id - left.id)[0];
+    if (match) return match;
     if (comments.length < 100) {
-      return newest;
+      return void 0;
     }
   }
+  return void 0;
 }
 function isPermissionDeniedError(error) {
   return error instanceof Error && /GitHub returned (401|403|404)\b/.test(error.message);
@@ -2547,7 +2836,32 @@ async function requestJson(fetchImpl, url, init, action) {
 var MAX_API_RESPONSE_CHARS = 1e6;
 var MAX_ISSUE_BODY_CHARS = 2e4;
 function parseActionIssueSource(input) {
-  const trimmed = input.trim();
+  let trimmed = input.trim();
+  if (/^https?:\/\/[^/\s]*@(?:www\.|api\.)?github\.com\//i.test(trimmed)) {
+    throw new Error(
+      "The issue URL contains credentials. Remove the user:token@ prefix and pass the public https://github.com/owner/repository/issues/123 URL; the Action reads public issues anonymously."
+    );
+  }
+  if (/^https?:\/\/(?:www\.|api\.)?github\.com\//i.test(trimmed)) {
+    const canonical = new URL(trimmed);
+    if (canonical.protocol !== "https:") {
+      throw new Error("GitHub issue input must use https://github.com/owner/repository/issues/123.");
+    }
+    if (/%(?:2f|5c|0[0-9a-f]|1[0-9a-f])/i.test(canonical.pathname)) {
+      throw new Error("GitHub issue URLs must not contain encoded separators or control characters.");
+    }
+    canonical.search = "";
+    canonical.hash = "";
+    if (canonical.hostname.toLowerCase() === "www.github.com") canonical.hostname = "github.com";
+    if (canonical.hostname.toLowerCase() === "api.github.com") {
+      const apiSegments = canonical.pathname.split("/").filter(Boolean);
+      if (apiSegments.length === 5 && apiSegments[0]?.toLowerCase() === "repos" && apiSegments[3]?.toLowerCase() === "issues") {
+        canonical.hostname = "github.com";
+        canonical.pathname = `/${apiSegments[1]}/${apiSegments[2]}/issues/${apiSegments[4]}`;
+      }
+    }
+    trimmed = canonical.toString();
+  }
   if (/^https?:\/\/[^/\s]*@github\.com\//i.test(trimmed)) {
     throw new Error(
       "The issue URL contains credentials. Remove the user:token@ prefix and pass the public https://github.com/owner/repository/issues/123 URL; the Action reads public issues anonymously."
@@ -2660,7 +2974,7 @@ async function runAction(env = process.env, dependencies = {}) {
     const planOnly = [
       readInput("limit", env) ? "limit" : "",
       readInput("exclude", env) ? "exclude" : "",
-      rawIssue ? "issue" : ""
+      readInput("issue", env) ? "issue" : ""
     ].filter(Boolean);
     if (planOnly.length > 0) {
       throw new Error(
@@ -2688,6 +3002,7 @@ async function runAction(env = process.env, dependencies = {}) {
     headRef,
     workingTree,
     includeUntracked,
+    useCache: true,
     limit,
     exclude
   });
@@ -2756,16 +3071,17 @@ async function runVerifyMode(context) {
       `FixMap could not read the plan at "${reportPath}": ${error instanceof Error ? error.message : String(error)}.`
     );
   }
-  if (!Array.isArray(report.contextFiles)) {
-    throw new Error(`"${reportPath}" is not a FixMap JSON report: no contextFiles array.`);
-  }
+  const loaded = validateFixMapReport(report, `"${reportPath}"`);
+  if (!loaded.success) throw new Error(loaded.message);
+  report = loaded.report;
   const repo = await (context.dependencies.scanRepo ?? scanRepo)({
     repoRoot: (context.dependencies.cwd ?? process.cwd)(),
     diffSpec: context.diffSpec,
     baseRef: context.baseRef,
     headRef: context.headRef,
     workingTree: context.workingTree,
-    includeUntracked: context.includeUntracked
+    includeUntracked: context.includeUntracked,
+    useCache: true
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
   if (diffFailure) {
@@ -2891,7 +3207,7 @@ function fitStepSummary(markdown, limitBytes = STEP_SUMMARY_LIMIT_BYTES) {
   if (footer.length >= limitBytes) {
     throw new Error("GitHub step-summary limit is too small for the FixMap truncation notice.");
   }
-  let end = limitBytes - footer.length;
+  let end = limitBytes - footer.length - Buffer.byteLength("\n```");
   while (end > 0 && (bytes[end] & 192) === 128) {
     end -= 1;
   }

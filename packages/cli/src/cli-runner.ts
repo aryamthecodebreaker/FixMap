@@ -13,6 +13,7 @@ import {
   verifyPlan,
   renderMarkdownReport,
   scanRepo,
+  validateFixMapReport,
   type FixMapReport
 } from "@aryam/fixmap-core";
 import { runDoctorChecks, renderDoctorReport, type DoctorReport } from "./doctor.js";
@@ -41,6 +42,7 @@ export type CliOptions = {
   exclude: string[];
   workingTree: boolean;
   includeUntracked: boolean;
+  noCache: boolean;
   unknownArgs: string[];
   invalidValues: string[];
 };
@@ -69,10 +71,11 @@ Usage:
   fixmap plan --issue "Fix login" --repo https://github.com/owner/repository
   fixmap plan --diff main...HEAD
   fixmap plan --working-tree --include-untracked --limit 12 --exclude "docs/**"
-  fixmap plan --issue "Fix login" --format json --output current.json --compare previous.json
+  fixmap plan --issue "Fix login" --format json --output plan.json
+  fixmap plan --issue "Fix login in auth middleware" --compare plan.json
   fixmap plan --base main --head HEAD --format json
-  fixmap verify --report fixmap-report.json --diff main...HEAD
-  fixmap verify --report fixmap-report.json --working-tree
+  fixmap verify --report plan.json --diff main...HEAD
+  fixmap verify --report plan.json --working-tree
   fixmap doctor --format json
   fixmap mcp
 
@@ -90,6 +93,7 @@ Options:
   --head <ref>        Head ref for diffing (defaults to HEAD)
   --working-tree      Map staged and unstaged changes against HEAD
   --include-untracked With --working-tree, also include untracked files
+  --no-cache          Bypass the exact git-state repository scan cache
   --repo <source>     Local path or public GitHub HTTPS URL (defaults to current directory)
   --limit <n>         Maximum context files to report (default 8, max 20)
   --exclude <glob>    Path pattern to leave out of ranking (repeatable)
@@ -192,6 +196,10 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       writeReport: dependencies.writeReport ?? ((path, contents) => writeFile(path, contents, "utf8"))
     });
   }
+  if (options.reportPath) {
+    stderr(withUsageHint("--report is a verify option. Did you mean --output to write this plan to a file?"));
+    return 1;
+  }
 
   try {
     options.issueText = loadIssueText(options, dependencies.readIssueFile ?? defaultReadIssueFile);
@@ -246,11 +254,12 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     }
     try {
       const repoRoot = options.repo ?? process.cwd();
-      const repo = await scanRepo({ repoRoot, diffSpec: options.diffSpec, baseRef: options.baseRef, headRef: options.headRef, workingTree: options.workingTree, includeUntracked: options.includeUntracked });
+      const repo = await scanRepo({ repoRoot, diffSpec: options.diffSpec, baseRef: options.baseRef, headRef: options.headRef, workingTree: options.workingTree, includeUntracked: options.includeUntracked, useCache: !options.noCache });
       const explanation = explainFile(
         repo,
         {
           issueText: options.issueText,
+          diffText: repo.diffText,
           // Without this, a file left out by .fixmapignore would be reported as having
           // scored below the cutoff — a false answer to the exact question --explain exists
           // to answer.
@@ -281,6 +290,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       headRef: options.headRef,
       workingTree: options.workingTree,
       includeUntracked: options.includeUntracked,
+      useCache: !options.noCache,
       limit: options.limit,
       exclude: options.exclude
     });
@@ -337,7 +347,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     } catch (error) {
       stderr(
         `Could not read comparison file "${options.comparePath}": ${error instanceof Error ? error.message : String(error)}\n` +
-        "Save one first with: fixmap plan --issue \"...\" --format json --output previous.json\n"
+        "Save one first with: fixmap plan --issue \"...\" --format json --output plan.json\n"
       );
       return 1;
     }
@@ -355,8 +365,14 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       stderr(`"${options.comparePath}" is not valid JSON: ${error instanceof Error ? error.message : String(error)}\n`);
       return 1;
     }
-    if (!Array.isArray(previous.contextFiles)) {
-      stderr(`"${options.comparePath}" is valid JSON but not a FixMap report: no contextFiles array.\n`);
+    const loaded = validateFixMapReport(previous, `"${options.comparePath}"`);
+    if (!loaded.success) {
+      stderr(`${loaded.message}\n`);
+      return 1;
+    }
+    previous = loaded.report;
+    if (unresolvedChangeRequest) {
+      stderr("The current plan lost its requested diff signal, so it was not compared with the saved plan. Fix the ref and rerun.\n");
       return 1;
     }
 
@@ -383,7 +399,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     stderr(moved === 0
       ? "\nComparison complete. Nothing entered, left, moved, or changed confidence — that task edit did not affect the ranking. Try naming a symbol, error string, or path from the file you expect.\n"
       : "\nComparison complete. Refine the task or inspect the files that entered, moved, or changed confidence, then rerun the plan.\n");
-    return 0;
+    return unresolvedChangeRequest ? 1 : 0;
   }
 
   const rendered = options.format === "json" ? renderJsonReport(report) : renderMarkdownReport(report);
@@ -541,6 +557,7 @@ export function parseArgs(args: string[]): CliOptions {
   let limit: number | undefined;
   let workingTree = false;
   let includeUntracked = false;
+  let noCache = false;
   const exclude: string[] = [];
   const unknownArgs: string[] = [];
   const invalidValues: string[] = [];
@@ -649,6 +666,10 @@ export function parseArgs(args: string[]): CliOptions {
       if (flagCounts.has(arg)) invalidValues.push(`pass ${arg} only once`);
       flagCounts.set(arg, 1);
       includeUntracked = true;
+    } else if (arg === "--no-cache") {
+      if (flagCounts.has(arg)) invalidValues.push(`pass ${arg} only once`);
+      flagCounts.set(arg, 1);
+      noCache = true;
     } else if (arg === "--output") {
       consumeValue();
       if (value?.trim()) output = value;
@@ -675,6 +696,7 @@ export function parseArgs(args: string[]): CliOptions {
     exclude,
     workingTree,
     includeUntracked,
+    noCache,
     unknownArgs,
     invalidValues
   };
@@ -684,8 +706,7 @@ function loadIssueText(
   options: CliOptions,
   read: (path: string | number) => string | Buffer
 ): string {
-  const implicitFile = options.issueText.startsWith("@") ? options.issueText.slice(1) : undefined;
-  const path = options.issueFile ?? implicitFile ?? (options.issueText === "-" ? "-" : undefined);
+  const path = options.issueFile ?? (options.issueText === "-" ? "-" : undefined);
   if (!path) {
     return options.issueText.trim();
   }
@@ -791,7 +812,7 @@ async function runVerify(
   } catch (error) {
     io.stderr(
       `Could not read "${options.reportPath}": ${error instanceof Error ? error.message : String(error)}\n` +
-      "Generate one with: fixmap plan --issue \"...\" --format json --output fixmap-report.json\n"
+      "Generate one with: fixmap plan --issue \"...\" --format json --output plan.json\n"
     );
     return 1;
   }
@@ -801,7 +822,7 @@ async function runVerify(
   if (/^\s*#\s*FixMap/i.test(reportText)) {
     io.stderr(
       `"${options.reportPath}" is a Markdown report. verify --report requires the JSON plan saved with --format json.\n` +
-      "Generate one with: fixmap plan --issue \"...\" --format json --output fixmap-report.json\n"
+      "Generate one with: fixmap plan --issue \"...\" --format json --output plan.json\n"
     );
     return 1;
   }
@@ -812,7 +833,7 @@ async function runVerify(
   } catch (error) {
     io.stderr(
       `"${options.reportPath}" is not valid JSON: ${error instanceof Error ? error.message : String(error)}\n` +
-      "Generate one with: fixmap plan --issue \"...\" --format json --output fixmap-report.json\n"
+      "Generate one with: fixmap plan --issue \"...\" --format json --output plan.json\n"
     );
     return 1;
   }
@@ -827,6 +848,12 @@ async function runVerify(
     io.stderr(`"${options.reportPath}" is not a FixMap JSON report: no contextFiles array.\n`);
     return 1;
   }
+  const loaded = validateFixMapReport(report, `"${options.reportPath}"`);
+  if (!loaded.success) {
+    io.stderr(`${loaded.message}\n`);
+    return 1;
+  }
+  report = loaded.report;
 
   try {
     const repo = await scanRepo({
@@ -835,7 +862,8 @@ async function runVerify(
       baseRef: options.baseRef,
       headRef: options.headRef,
       workingTree: options.workingTree,
-      includeUntracked: options.includeUntracked
+      includeUntracked: options.includeUntracked,
+      useCache: !options.noCache
     });
     const unresolvedDiff = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
     if (unresolvedDiff) {

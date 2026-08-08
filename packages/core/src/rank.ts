@@ -12,7 +12,7 @@ import { extractTaskSignals, tokenizePath, tokenizeText } from "./signals.js";
 import type { RankedFile, RepoMap } from "./types.js";
 
 const DEPLOYMENT_TERMS = [
-  "deploy", "deployment", "vercel", "netlify", "docker", "kubernetes", "hosting", "serverless", "production", "404", "500", "502"
+  "deploy", "deployment", "vercel", "netlify", "docker", "kubernetes", "hosting", "serverless", "production"
 ];
 const LOCKFILES = new Set(["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"]);
 const AUXILIARY_CODE_DIRS = new Set(["demo", "demos", "example", "examples", "sample", "samples"]);
@@ -30,6 +30,7 @@ const PRESENTATION_CODE_PENALTY = 8;
 const TYPE_DECLARATION_PENALTY = 4;
 const BACKUP_COPY_PENALTY = 10;
 const BUNDLED_OUTPUT_PENALTY = 12;
+const GENERATED_TWIN_PENALTY = 21;
 const GENERATED_TWIN_REASON = "generated build artifact; maintained source counterpart exists";
 // Bundlers strip newlines; people do not. A file averaging hundreds of characters per
 // line is machine output, whatever directory it sits in. Repositories commit these —
@@ -164,7 +165,9 @@ export function rankContextFiles(
       }
 
       if (isGeneratedPath(file.path) && maintainedStems.has(moduleStem(file.path))) {
+        score -= GENERATED_TWIN_PENALTY;
         reasons.push(GENERATED_TWIN_REASON);
+        reasons.push("generated counterpart deprioritized below maintained source");
       }
 
       const pathTokens = tokenizePath(file.path);

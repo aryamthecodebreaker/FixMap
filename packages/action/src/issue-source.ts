@@ -13,7 +13,37 @@ const MAX_API_RESPONSE_CHARS = 1_000_000;
 const MAX_ISSUE_BODY_CHARS = 20_000;
 
 export function parseActionIssueSource(input: string): ActionIssueSource | undefined {
-  const trimmed = input.trim();
+  let trimmed = input.trim();
+  if (/^https?:\/\/[^/\s]*@(?:www\.|api\.)?github\.com\//i.test(trimmed)) {
+    throw new Error(
+      "The issue URL contains credentials. Remove the user:token@ prefix and pass the public " +
+      "https://github.com/owner/repository/issues/123 URL; the Action reads public issues anonymously."
+    );
+  }
+  if (/^https?:\/\/(?:www\.|api\.)?github\.com\//i.test(trimmed)) {
+    const canonical = new URL(trimmed);
+    if (canonical.protocol !== "https:") {
+      throw new Error("GitHub issue input must use https://github.com/owner/repository/issues/123.");
+    }
+    if (/%(?:2f|5c|0[0-9a-f]|1[0-9a-f])/i.test(canonical.pathname)) {
+      throw new Error("GitHub issue URLs must not contain encoded separators or control characters.");
+    }
+    canonical.search = "";
+    canonical.hash = "";
+    if (canonical.hostname.toLowerCase() === "www.github.com") canonical.hostname = "github.com";
+    if (canonical.hostname.toLowerCase() === "api.github.com") {
+      const apiSegments = canonical.pathname.split("/").filter(Boolean);
+      if (
+        apiSegments.length === 5 &&
+        apiSegments[0]?.toLowerCase() === "repos" &&
+        apiSegments[3]?.toLowerCase() === "issues"
+      ) {
+        canonical.hostname = "github.com";
+        canonical.pathname = `/${apiSegments[1]}/${apiSegments[2]}/issues/${apiSegments[4]}`;
+      }
+    }
+    trimmed = canonical.toString();
+  }
   // A credentialed URL failed the bare `^https://github.com/` test and fell through as prose,
   // so a token pasted into the input was ranked as task text and echoed into the step summary
   // and the pull request comment. Anything addressing github.com is claimed here and refused

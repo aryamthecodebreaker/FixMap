@@ -1,12 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Browser, LockKey, Sparkle } from "@phosphor-icons/react/ssr";
+import { buildReportFromRepo, renderMarkdownReport, renderVerifyMarkdown, verifyPlan } from "@aryam/fixmap-core/browser";
 import { Demo } from "../demo";
+import { sampleRepo, sampleRepoWithChanges } from "../sample-repo";
 
 export const metadata: Metadata = {
   title: "Live demo",
-  description: "Try FixMap Plan, Explain, Compare, focus controls, and Verify on a sample repository in your browser."
+  description: "Try FixMap Plan, Explain, Compare, focus controls, and Verify on a sample repository in your browser.",
+  alternates: { canonical: "/demo" },
+  openGraph: {
+    title: "Live FixMap demo",
+    description: "Run the real FixMap ranking and verification engine in your browser.",
+    url: "/demo"
+  }
 };
+
+const agentTask = "sendMail times out when password reset email transport is unavailable";
+const agentPlan = buildReportFromRepo(sampleRepo, { issueText: agentTask, limit: 3 });
+const agentPlanOutput = renderMarkdownReport(agentPlan).trim();
+const agentVerification = verifyPlan(
+  agentPlan,
+  sampleRepoWithChanges(["src/config.ts", "src/email/transport.ts", "test/auth/reset-password.test.ts"])
+);
+const agentVerificationOutput = renderVerifyMarkdown(agentVerification).trim();
 
 export default function DemoPage() {
   return (
@@ -33,45 +50,37 @@ export default function DemoPage() {
         <div className="premium-section-intro compact">
           <p className="eyebrow">Example agent conversation</p>
           <h2>Plan → edit carefully → verify.</h2>
-          <p>A realistic TypeScript/Node.js password-reset repair using FixMap through MCP.</p>
+          <p>The FixMap turns below are generated from this page&rsquo;s sample repository at build time, using the same renderer as the CLI.</p>
         </div>
 
         <div className="doc-layout">
           <article className="doc-section">
             <h3>User</h3>
-            <p>Password reset emails are not being sent when a user requests a password reset. Can you fix it?</p>
+            <p>{agentTask}. Can you fix it?</p>
 
             <h3>Agent</h3>
             <p>I should get a focused map before searching blindly.</p>
             <p><strong>Calls <code>fixmap_plan</code>:</strong></p>
             <pre><code>{`{
-  "issue": "Password reset emails are not being sent when a user requests a password reset",
+  "issue": "${agentTask}",
   "limit": 3
 }`}</code></pre>
 
             <h3>FixMap</h3>
-            <pre><code>{`## Context Files
-1. src/auth/password-reset.ts — high confidence
-   Defines sendPasswordResetEmail and requestPasswordReset
-2. src/services/email.ts — medium confidence
-   Nodemailer wrapper imported by password-reset
-3. src/routes/auth.ts — medium confidence
-   Route that calls requestPasswordReset
-
-## Test Routes
-- npm test -- src/auth/password-reset.test.ts
-
-## Risk Map
-- shared email client behavior deserves review`}</code></pre>
+            <pre><code>{agentPlanOutput}</code></pre>
 
             <h3>Agent edits carefully</h3>
-            <p>The agent opens the leading file, confirms the evidence, and finds a missing <code>await</code>:</p>
+            <p>The agent opens the leading files, confirms the evidence, and adds a bounded SMTP connection timeout:</p>
             <pre><code>{`// Before
-emailService.sendPasswordResetEmail(user.email, token);
+const transport = createTransport({ host: config.smtpHost, port: config.smtpPort });
 
 // After
-await emailService.sendPasswordResetEmail(user.email, token);`}</code></pre>
-            <p>The related test is updated too.</p>
+const transport = createTransport({
+  host: config.smtpHost,
+  port: config.smtpPort,
+  connectionTimeout: config.smtpTimeoutMs
+});`}</code></pre>
+            <p>The configuration and related reset-email test are updated too.</p>
 
             <p><strong>Calls <code>fixmap_verify</code>:</strong></p>
             <pre><code>{`{
@@ -80,10 +89,10 @@ await emailService.sendPasswordResetEmail(user.email, token);`}</code></pre>
 }`}</code></pre>
 
             <h3>FixMap</h3>
-            <pre><code>{`FixMap verified 2 changed files against the plan and found nothing to flag.`}</code></pre>
+            <pre><code>{agentVerificationOutput}</code></pre>
 
             <h3>Agent proves the fix</h3>
-            <pre><code>npm test -- src/auth/password-reset.test.ts</code></pre>
+            <pre><code>npm run test</code></pre>
             <p>After the test passes, the agent reports the cause, the code change, and the validation result.</p>
           </article>
 

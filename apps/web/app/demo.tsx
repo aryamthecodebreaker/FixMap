@@ -99,16 +99,17 @@ export function Demo() {
     `${limit === 8 ? "" : ` --limit ${limit}`}` +
     `${excludeBuild ? ' --exclude "dist/**"' : ""}` +
     `${workingTree ? " --working-tree" : ""}`;
+  const quotedTask = quoteCliValue(task);
   const command = {
-    plan: `fixmap plan --issue "${truncate(task)}"${scanFlags}`,
-    explain: `fixmap plan --issue "${truncate(task)}" --explain ${explainTarget}${scanFlags}`,
-    compare: `fixmap plan --issue "${truncate(task)}" --compare before.json${scanFlags}`,
+    plan: `fixmap plan --issue ${quotedTask}${scanFlags} --format json --output plan.json`,
+    explain: `fixmap plan --issue ${quotedTask} --explain ${quoteCliValue(explainTarget)}${scanFlags}`,
+    compare: `fixmap plan --issue ${quotedTask} --compare plan.json${scanFlags}`,
     verify: `fixmap verify --report plan.json ${workingTree ? "--working-tree" : "--diff main...HEAD"}`
   }[stage];
 
   return (
     <div className="workbench">
-      <div className="stage-tabs" role="tablist" aria-label="FixMap stages">
+      <div className="stage-tabs" role="group" aria-label="FixMap stages">
         {(
           [
             ["plan", "1 · Plan", "Where do I start?"],
@@ -120,8 +121,7 @@ export function Demo() {
           <button
             key={value}
             type="button"
-            role="tab"
-            aria-selected={stage === value}
+            aria-pressed={stage === value}
             className={stage === value ? "stage-tab active" : "stage-tab"}
             onClick={() => setStage(value)}
           >
@@ -247,8 +247,8 @@ function PlanPanel({ report }: { report: ReturnType<typeof buildReportFromRepo> 
       {report.diagnostics.length > 0 ? (
         <div className="panel-block">
           <h4>Diagnostics</h4>
-          {report.diagnostics.map((diagnostic) => (
-            <p key={diagnostic.code}>
+          {report.diagnostics.map((diagnostic, index) => (
+            <p key={`${diagnostic.code}-${diagnostic.paths?.[0] ?? index}`}>
               <span className={`severity ${diagnostic.severity}`}>{diagnostic.severity}</span>
               {diagnostic.message}
             </p>
@@ -374,8 +374,8 @@ function VerifyPanel({
 
       <p className="explain-summary">{verification.summary}</p>
 
-      {verification.findings.map((finding) => (
-        <article className="finding" key={finding.code}>
+      {verification.findings.map((finding, index) => (
+        <article className="finding" key={`${finding.code}-${finding.paths[0] ?? index}`}>
           <span className={`severity ${finding.severity}`}>{finding.severity}</span>
           <div>
             <p>{finding.message}</p>
@@ -395,6 +395,6 @@ function VerifyPanel({
   );
 }
 
-function truncate(task: string): string {
-  return task.length <= 46 ? task : `${task.slice(0, 43)}...`;
+function quoteCliValue(value: string): string {
+  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }

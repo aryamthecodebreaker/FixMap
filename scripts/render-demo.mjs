@@ -35,7 +35,15 @@ const COLORS = {
 
 const run = spawnSync(
   process.execPath,
-  [join(repoRoot, "packages", "cli", "dist", "cli.js"), "plan", "--issue", "password reset emails fail", "--repo", join(repoRoot, "examples", "tiny-auth-app")],
+  [
+    join(repoRoot, "packages", "cli", "dist", "cli.js"),
+    "plan",
+    "--issue",
+    "password reset emails fail",
+    "--repo",
+    join(repoRoot, "examples", "tiny-auth-app"),
+    "--no-cache"
+  ],
   { encoding: "utf8" }
 );
 if (run.status !== 0) {

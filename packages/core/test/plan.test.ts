@@ -61,6 +61,22 @@ describe("buildFixMapReport", () => {
     expect(diagnostic?.message).toContain("flurbulator");
   });
 
+  it("names matching files removed by exclusions instead of blaming repository vocabulary", async () => {
+    const root = await createAuthFixture();
+
+    const report = await buildFixMapReport({
+      repoRoot: root,
+      issueText: "password reset emails fail",
+      exclude: ["src/auth/**"]
+    });
+
+    expect(report.contextFiles).toEqual([]);
+    const diagnostic = report.diagnostics.find((entry) => entry.code === "no-context-match");
+    expect(diagnostic?.message).toContain("removed by exclusion patterns");
+    expect(diagnostic?.paths).toContain("src/auth/reset-password.ts");
+    expect(report.diagnostics.find((entry) => entry.code === "paths-excluded")?.severity).toBe("warning");
+  });
+
   it("does not let a giant task token become a giant diagnostic", async () => {
     const root = await createAuthFixture();
     // A pasted blob with no spaces, which used to travel verbatim into the message and
