@@ -305,7 +305,9 @@ h3 { margin-bottom: 10px; font-size: 21px; line-height: 1.25; letter-spacing: -.
 .docs-cards a > svg:first-child { color: var(--green); }
 .docs-cards strong, .docs-cards span { grid-column: 1 / -1; }
 .docs-cards span { color: var(--ink-faint); font-size: 13px; }
-.doc-section { max-width: 880px; padding-block: 70px; border-top: 1px solid var(--line); }
+.doc-section { min-width: 0; max-width: 880px; padding-block: 70px; border-top: 1px solid var(--line); }
+.doc-section pre { max-width: 100%; overflow-x: auto; }
+.doc-section pre > code { display: block; width: max-content; min-width: 100%; }
 .doc-section h2 { font-size: 42px; }
 .doc-section > p:not(.eyebrow), .doc-section li { color: var(--ink-soft); font-size: 17px; }
 .doc-section ul { padding-left: 22px; }
