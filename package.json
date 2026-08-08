@@ -1,6 +1,6 @@
 {
   "name": "fixmap-workspace",
-  "version": "0.8.7",
+  "version": "0.8.8",
   "private": true,
   "description": "Local-first repo context for coding agents: paste a GitHub issue URL to get ranked files, test routes, and risks.",
   "license": "MIT",
@@ -49,7 +49,7 @@
     "benchmark:check": "npm run build:core && node scripts/benchmark-scan.mjs --tier 1000 --check",
     "benchmark:savings": "npm run build:core && node scripts/benchmark-savings.mjs",
     "benchmark:savings:record": "npm run build:core && node scripts/benchmark-savings.mjs --record",
-    "ci": "npm run typecheck && npm test && npm run audit:production && npm run lint && npm run build && npm run check:action-metadata && npm run check:server-manifest && npm run check:action-bundle && npm run smoke && npm run evaluate && npm run benchmark:check",
+    "ci": "npm run typecheck && npm test && npm run audit:production && npm run lint && npm run build && npm run check:action-metadata && npm run check:server-manifest && npm run check:action-bundle && npm run check:rendered && npm run smoke && npm run evaluate && npm run evaluate:adversarial:gate && npm run benchmark:check",
     "evaluate": "npm run build:core && node scripts/evaluate.mjs",
     "evaluate:external": "npm run build:core && node scripts/evaluate-external.mjs",
     "evaluate:external:record": "npm run build:core && node scripts/evaluate-external.mjs --record",
@@ -64,7 +64,8 @@
     "evaluate:adversarial": "npm run build:core && node scripts/evaluate-adversarial.mjs",
     "evaluate:adversarial:gate": "npm run build:core && node scripts/evaluate-adversarial.mjs --gate --check-recorded",
     "evaluate:adversarial:record": "npm run build:core && node scripts/evaluate-adversarial.mjs --record",
-    "render:examples": "npm run build:core && node scripts/render-honest-examples.mjs"
+    "render:examples": "npm run build:core && node scripts/render-honest-examples.mjs",
+    "check:rendered": "npm run render:examples && npm run build:cli && node scripts/render-demo.mjs && npm run render:benchmark-card && git diff --exit-code docs/assets examples/reports"
   },
   "engines": {
     "node": "24.x"
@@ -74,6 +75,8 @@
       "postcss": "8.5.23"
     },
     "fast-uri": "3.1.4",
+    "js-yaml": "4.3.1",
+    "nanoid": "3.3.17",
     "sharp": "0.35.3"
   },
   "devDependencies": {

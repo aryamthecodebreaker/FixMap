@@ -28,6 +28,7 @@ export type RepositoryPlanInput = {
   headRef?: string | undefined;
   workingTree?: boolean | undefined;
   includeUntracked?: boolean | undefined;
+  useCache?: boolean | undefined;
   limit?: number | undefined;
   exclude?: string[] | undefined;
 };
@@ -536,6 +537,7 @@ export async function buildReportForRepository(
         headRef: input.headRef,
         workingTree: input.workingTree,
         includeUntracked: input.includeUntracked,
+        useCache: input.useCache,
         limit: input.limit,
         exclude: input.exclude
       });

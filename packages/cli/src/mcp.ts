@@ -14,6 +14,7 @@ import {
   renderVerifyMarkdown,
   resolveExclusions,
   scanRepo,
+  validateFixMapReport,
   verifyPlan,
   type FixMapReport
 } from "@aryam/fixmap-core";
@@ -81,8 +82,7 @@ const PLAN_TOOL = {
     // that no longer exists — and a stale calibration number is worse than none, because an
     // agent weights its confidence by it. Point at the published evidence instead, which is
     // regenerated from the recorded results on every release.
-    "analysis.nextAction carries the single most useful next step for this report — the same " +
-    "guidance the CLI prints to stderr, which an MCP client never sees. Read it before acting. " +
+    "analysis.nextAction carries the single most useful next step for this report. Read it before acting. " +
     "Treat the result as a starting map, not proof the task is valid: check the analysis " +
     "block before editing, and when it reports unresolved or unverified identifiers, vague " +
     "task grounding, an incomplete scan, or a clustered ranking, widen the search or ask for " +
@@ -291,7 +291,8 @@ export function createFixMapMcpServer(
           baseRef: args.base,
           headRef: args.head,
           workingTree: args.workingTree,
-          includeUntracked: args.includeUntracked
+          includeUntracked: args.includeUntracked,
+          useCache: true
         });
         const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
         if (diffFailure) {
@@ -335,7 +336,8 @@ export function createFixMapMcpServer(
           baseRef: args.base,
           headRef: args.head,
           workingTree: args.workingTree,
-          includeUntracked: args.includeUntracked
+          includeUntracked: args.includeUntracked,
+          useCache: true
         });
         const explanation = explainFile(
           repo,
@@ -391,6 +393,7 @@ export function createFixMapMcpServer(
         headRef: args.head,
         workingTree: args.workingTree,
         includeUntracked: args.includeUntracked,
+        useCache: true,
         limit: args.limit,
         exclude: args.exclude
       }, repositorySourceDependencies);
@@ -658,63 +661,7 @@ function loadReportInput(input: unknown, label: string): LoadedReport {
 }
 
 function asFixMapReport(candidate: unknown, label: string): LoadedReport {
-  if (
-    typeof candidate !== "object" ||
-    candidate === null ||
-    Array.isArray(candidate) ||
-    !Array.isArray((candidate as Partial<FixMapReport>).contextFiles)
-  ) {
-    return {
-      success: false,
-      message: `${label} must be a FixMap JSON report with a contextFiles array, or a path to one.`
-    };
-  }
-
-  // A contextFiles-only empty object is indistinguishable from a truncated report. A real
-  // empty plan carries the full report envelope; trimmed non-empty reports remain useful as
-  // long as every field the comparison reads has the documented type.
-  const contextFiles = (candidate as FixMapReport).contextFiles;
-  const record = candidate as Record<string, unknown>;
-  if (
-    contextFiles.length === 0 &&
-    !(
-      typeof record.summary === "string" &&
-      Array.isArray(record.testRoutes) &&
-      Array.isArray(record.risks) &&
-      Array.isArray(record.changedFiles) &&
-      Array.isArray(record.diagnostics)
-    )
-  ) {
-    return {
-      success: false,
-      message:
-        `${label} has no context files and is missing the complete FixMap report envelope ` +
-        '(summary, testRoutes, risks, changedFiles, and diagnostics).'
-    };
-  }
-
-  const invalid = contextFiles.findIndex((file) => {
-    if (typeof file !== "object" || file === null) return true;
-    const ranked = file as Record<string, unknown>;
-    if (typeof ranked.path !== "string" || ranked.path.trim().length === 0) return true;
-    if (ranked.rank !== undefined && (!Number.isSafeInteger(ranked.rank) || (ranked.rank as number) < 1)) return true;
-    if (ranked.score !== undefined && (typeof ranked.score !== "number" || !Number.isFinite(ranked.score))) return true;
-    if (
-      ranked.confidence !== undefined &&
-      ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low"
-    ) return true;
-    return false;
-  });
-  if (invalid !== -1) {
-    return {
-      success: false,
-      message:
-        `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", ` +
-        'and optional rank, score, and confidence fields must use their documented types.'
-    };
-  }
-
-  return { success: true, report: candidate as FixMapReport };
+  return validateFixMapReport(candidate, label);
 }
 
 export async function runMcpServer(): Promise<void> {

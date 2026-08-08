@@ -3,6 +3,7 @@ import regression from "../../../../benchmarks/external/results.json";
 import heldoutBaseline from "../../../../benchmarks/heldout/baseline-results.json";
 import regressionBaseline from "../../../../benchmarks/external/baseline-results.json";
 import savings from "../../../../benchmarks/external/savings-results.json";
+import adversarial from "../../../../benchmarks/adversarial/results.json";
 import cli from "../../../../packages/cli/package.json";
 
 type EvaluationCase = {
@@ -79,6 +80,12 @@ export const siteStats = {
   baselines: {
     heldout: baselineOf(heldoutBaseline),
     regression: baselineOf(regressionBaseline)
+  },
+  adversarial: {
+    cases: adversarial.cases,
+    passed: adversarial.passed,
+    falseConfidenceRate: adversarial.falseConfidenceRate,
+    results: adversarial.results
   }
 };
 
@@ -87,6 +94,6 @@ export const commands = {
     "fixmap plan --issue https://github.com/chalk/chalk/issues/624",
   localTask: "fixmap plan --issue \"password reset emails fail\"",
   diff: "fixmap plan --diff main...HEAD",
-  verify: "fixmap verify --report fixmap-report.json --diff main...HEAD",
+  verify: "fixmap verify --report plan.json --diff main...HEAD",
   mcp: "fixmap mcp"
 };

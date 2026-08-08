@@ -6,7 +6,13 @@ import { commands, marketplaceUrl, repoUrl, siteStats } from "../_lib/site-data"
 
 export const metadata: Metadata = {
   title: "Get started",
-  description: "Run FixMap from the CLI, connect it through MCP, or add it to pull requests with the GitHub Action."
+  description: "Run FixMap from the CLI, connect it through MCP, or add it to pull requests with the GitHub Action.",
+  alternates: { canonical: "/get-started" },
+  openGraph: {
+    title: "Get started with FixMap",
+    description: "Install the CLI, connect MCP, or add the GitHub Action.",
+    url: "/get-started"
+  }
 };
 
 export default function GetStartedPage() {
@@ -46,6 +52,12 @@ Set-Location $fixmapTestPath -ErrorAction Stop
 npm init -y
 npm install --save-dev @aryam/fixmap
 npx fixmap --version
+New-Item -ItemType Directory -Path "src" -Force -ErrorAction Stop | Out-Null
+Set-Content -Path "src\\reset-password.ts" -Encoding utf8 -Value @'
+export async function resetPassword(email: string) {
+  return sendResetEmail(email);
+}
+'@
 npx fixmap plan --issue "password reset emails fail"`} />
           <p>Use <code>Get-Location</code> before installing whenever a directory command reports an error.</p>
 

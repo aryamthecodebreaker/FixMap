@@ -168,6 +168,18 @@ describe("extractTaskSignals", () => {
 
     expect(signals.exactFragments).not.toContain("@eslint/core");
     expect(signals.exactFragments).toContain("@eslint/config-helpers");
+    expect(signals.uncheckedChecklistLinesRemoved).toBe(1);
+  });
+
+  it("preserves unchecked lines when they are the issue's only substantive details", () => {
+    const signals = extractTaskSignals({
+      issueText: "## Tasks\n- [ ] resetPassword returns the wrong token\n- [ ] sendMail rejects silently"
+    });
+
+    expect(signals.identifiers).toContain("resetPassword");
+    expect(signals.identifiers).toContain("sendMail");
+    expect(signals.uncheckedChecklistLinesPreserved).toBe(2);
+    expect(signals.uncheckedChecklistLinesRemoved).toBe(0);
   });
 
   it("stays linear on a long unbroken run instead of backtracking quadratically", () => {

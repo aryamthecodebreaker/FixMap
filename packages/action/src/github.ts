@@ -16,7 +16,8 @@ const COMMENT_TRUNCATION_FOOTER =
 export function fitCommentBody(body: string, limit = MAX_COMMENT_BODY_CHARS): string {
   if (body.length <= limit) return body;
 
-  const keep = Math.max(0, limit - COMMENT_TRUNCATION_FOOTER.length);
+  // Closing an open fence adds four characters, so reserve them before the cut.
+  const keep = Math.max(0, limit - COMMENT_TRUNCATION_FOOTER.length - "\n```".length);
   const cut = body.slice(0, keep);
   // Cutting mid-fence leaves an unterminated block that swallows the footer explaining the
   // truncation, so fall back to the last paragraph break and close any fence left open.
@@ -108,28 +109,29 @@ async function findExistingComment(
   headers: Record<string, string>,
   commentAuthor: string | undefined
 ): Promise<GitHubComment | undefined> {
-  let newest: GitHubComment | undefined;
-  for (let page = 1; ; page += 1) {
+  const maxPages = 50;
+  for (let page = 1; page <= maxPages; page += 1) {
     const comments = await requestJson<GitHubComment[]>(
       fetchImpl,
-      `${commentsUrl}?per_page=100&page=${page}`,
+      `${commentsUrl}?per_page=100&page=${page}&sort=created&direction=desc`,
       { headers },
       "list pull request comments"
     );
-    const matches = comments.filter(
+    const match = comments.filter(
       (comment) =>
         comment.body?.includes(FIXMAP_REPORT_MARKER) &&
         // GitHub logins are case-insensitive, so a config saying "github-actions[bot]" did
         // not match a comment authored by "GitHub-Actions[bot]" and the Action posted a
         // second comment beside the one it meant to update.
         (!commentAuthor || comment.user?.login?.toLowerCase() === commentAuthor.toLowerCase())
-    );
-    for (const existing of matches) if (!newest || existing.id > newest.id) newest = existing;
+    ).sort((left, right) => right.id - left.id)[0];
+    if (match) return match;
 
     if (comments.length < 100) {
-      return newest;
+      return undefined;
     }
   }
+  return undefined;
 }
 
 export function isPermissionDeniedError(error: unknown): boolean {

@@ -47,6 +47,7 @@ export function buildReportFromRepo(
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
 
   return {
+    reportVersion: 1,
     summary: buildSummary(contextFiles.length, testRoutes.length),
     contextFiles,
     testRoutes,
@@ -56,10 +57,11 @@ export function buildReportFromRepo(
       ...repo.diagnostics,
       ...findGatedTestDiagnostics(repo.files, routedTestPaths),
       ...findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes),
-      ...findTaskDiagnostics(grounding, ranking),
+      ...findTaskDiagnostics(repo, grounding, ranking),
+      ...findTaskPreprocessingDiagnostics(input.issueText ?? ""),
       ...(grounding.specificity === "vague"
         ? []
-        : findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? ""))
+        : findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude))
     ],
     analysis: {
       grounding,
@@ -129,6 +131,7 @@ function findMissingTestRouteDiagnostics(
 }
 
 function findTaskDiagnostics(
+  repo: RepoMap,
   grounding: TaskGrounding,
   ranking: RankingShape
 ): ScanDiagnostic[] {
@@ -156,11 +159,17 @@ function findTaskDiagnostics(
   }
 
   if (grounding.unverifiedIdentifiers.length > 0) {
+    const skipReasons = new Set(repo.files
+      .filter((file) => file.isSource && file.textSampleComplete === false)
+      .map((file) => file.textSampleSkipReason));
+    const cause = skipReasons.size === 1 && skipReasons.has("too-large")
+      ? "one or more source files exceeded the text-sampling limit"
+      : "one or more source files could not be sampled as UTF-8 text";
     diagnostics.push({
       code: "identifier-unverified",
       severity: "warning",
       message:
-        `Identifier${grounding.unverifiedIdentifiers.length === 1 ? "" : "s"} could not be verified because one or more source files exceeded the text-sampling limit: ` +
+        `Identifier${grounding.unverifiedIdentifiers.length === 1 ? "" : "s"} could not be verified because ${cause}: ` +
         `${grounding.unverifiedIdentifiers.join(", ")}. FixMap did not claim that the identifier was absent, and confidence was capped at low without another anchor.`
     });
   }
@@ -188,13 +197,37 @@ function findTaskDiagnostics(
   return diagnostics;
 }
 
+function findTaskPreprocessingDiagnostics(issueText: string): ScanDiagnostic[] {
+  const signals = extractTaskSignals({ issueText });
+  if (signals.uncheckedChecklistLinesPreserved > 0) {
+    return [{
+      code: "task-checklist-filtered",
+      severity: "info",
+      message:
+        `Preserved ${signals.uncheckedChecklistLinesPreserved} unchecked checklist ` +
+        `${signals.uncheckedChecklistLinesPreserved === 1 ? "line" : "lines"} because they contained the issue's only substantive task details.`
+    }];
+  }
+  if (signals.uncheckedChecklistLinesRemoved > 0) {
+    return [{
+      code: "task-checklist-filtered",
+      severity: "info",
+      message:
+        `Removed ${signals.uncheckedChecklistLinesRemoved} unchecked issue-template ` +
+        `${signals.uncheckedChecklistLinesRemoved === 1 ? "option" : "options"} before ranking; selected checklist items and prose were retained.`
+    }];
+  }
+  return [];
+}
+
 // An empty report is the one result that explains nothing on its own. Say whether the task
 // text carried no searchable terms or whether the terms simply matched no file, so the
 // reader knows which end to fix.
 function findEmptyResultDiagnostics(
   repo: RepoMap,
   contextFiles: RankedFile[],
-  issueText: string
+  issueText: string,
+  exclude: PathExcluder | undefined
 ): ScanDiagnostic[] {
   if (contextFiles.length > 0 || repo.files.length === 0) {
     return [];
@@ -206,6 +239,25 @@ function findEmptyResultDiagnostics(
     changedFiles: repo.changedFiles
   });
   const terms = [...signals.tokens].sort();
+
+  if (exclude?.patterns.length) {
+    // An empty ranked set can mean the repository lacks the behavior, but it can
+    // also mean exclusion patterns removed the matching files. Re-rank without
+    // exclusions so the diagnostic identifies the latter case precisely.
+    const withoutExclusions = rankContextFiles(repo, { issueText, diffText: repo.diffText }, DEFAULT_CONTEXT_FILE_LIMIT);
+    const excludedMatches = withoutExclusions.filter((file) => exclude.excludes(file.path));
+    if (excludedMatches.length > 0) {
+      const paths = excludedMatches.map((file) => file.path);
+      return [{
+        code: "no-context-match",
+        severity: "warning",
+        message:
+          `No context files: ${paths.length} matching ${paths.length === 1 ? "file was" : "files were"} removed by exclusion patterns ` +
+          `(${paths.slice(0, 3).join(", ")}${paths.length > 3 ? ", …" : ""}). Remove the pattern or run --explain on one of these paths.`,
+        paths: paths.slice(0, 8)
+      }];
+    }
+  }
 
   if (terms.length === 0 && signals.identifiers.size === 0 && signals.fileMentions.size === 0) {
     return [{
@@ -542,7 +594,10 @@ export function renderMarkdownReport(report: FixMapReport): string {
     "",
     "## Diagnostics",
     "",
-    ...listOrEmpty(report.diagnostics.map((diagnostic) => `- **${diagnostic.severity}** ${diagnostic.message}`))
+    ...listOrEmpty(report.diagnostics.flatMap((diagnostic) => [
+      `- **${diagnostic.severity}** ${diagnostic.message}`,
+      ...(diagnostic.paths ?? []).slice(0, 8).map((path) => `  - \`${path}\``)
+    ]))
   ];
 
   return `${lines.join("\n")}\n`;

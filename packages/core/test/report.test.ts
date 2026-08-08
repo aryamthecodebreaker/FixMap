@@ -48,6 +48,31 @@ describe("report rendering", () => {
     );
   });
 
+  it("renders diagnostic paths and marks new JSON reports with version 1", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      files: [{
+        path: "src/auth.ts", extension: ".ts", sizeBytes: 20, isSource: true,
+        isTest: false, kind: "code", textSample: "export const resetPassword = true"
+      }],
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [{
+        code: "content-unread",
+        severity: "warning",
+        message: "One path could not be sampled.",
+        paths: ["src/large.ts"]
+      }]
+    };
+
+    const report = buildReportFromRepo(repo, { issueText: "resetPassword fails" });
+
+    expect(report.reportVersion).toBe(1);
+    expect(renderMarkdownReport(report)).toContain("  - `src/large.ts`");
+  });
+
   it("routes nearby tests by path overlap and adds risk notes", () => {
     const repo: RepoMap = {
       root: "/repo",

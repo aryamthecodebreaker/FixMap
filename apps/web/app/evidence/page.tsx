@@ -5,7 +5,13 @@ import { repoUrl, siteStats } from "../_lib/site-data";
 
 export const metadata: Metadata = {
   title: "Evidence",
-  description: "Read FixMap's held-out and regression benchmark results, methodology, confidence intervals, misses, and limitations."
+  description: "Read FixMap's held-out, regression, and adversarial benchmark results, methodology, confidence intervals, misses, and limitations.",
+  alternates: { canonical: "/evidence" },
+  openGraph: {
+    title: "FixMap evidence",
+    description: "Held-out, baseline, and adversarial results with misses and limitations included.",
+    url: "/evidence"
+  }
 };
 
 const percent = (value: number, total: number) => `${Math.round((value / total) * 100)}%`;
@@ -37,6 +43,13 @@ export default function EvidencePage() {
           the repository before the fix and tries to surface the file that actually changed.
         </p>
         <div className="button-row"><a className="button primary" href={`${repoUrl}/tree/main/benchmarks`}>Open benchmark data <ArrowRight size={18} weight="bold" aria-hidden /></a></div>
+      </section>
+
+      <section className="section page-shell">
+        <div className="section-heading split-heading">
+          <div><p className="eyebrow">Adversarial gate</p><h2>{siteStats.adversarial.passed}/{siteStats.adversarial.cases} cases pass.</h2></div>
+          <p>The checked-in adversarial record covers fabricated identifiers, wrong repositories, vague tasks, and generated output. Its measured false-confidence rate is {Math.round(siteStats.adversarial.falseConfidenceRate * 100)}%.</p>
+        </div>
       </section>
 
       <section className="section page-shell score-section">

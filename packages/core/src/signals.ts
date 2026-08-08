@@ -181,6 +181,8 @@ export type TaskSignals = {
   memberMentions: Set<string>;
   exactFragments: string[];
   identifiers: Set<string>;
+  uncheckedChecklistLinesRemoved: number;
+  uncheckedChecklistLinesPreserved: number;
 };
 
 export function extractTaskSignals(input: {
@@ -188,7 +190,8 @@ export function extractTaskSignals(input: {
   diffText?: string | undefined;
   changedFiles?: string[];
 }): TaskSignals {
-  const issueText = stripUncheckedChecklistLines(input.issueText ?? "");
+  const prepared = prepareChecklistText(input.issueText ?? "");
+  const issueText = prepared.text;
   const taskText = [issueText, extractDiffContentLines(input.diffText ?? "")].join("\n");
   const tokens = tokenizeText(taskText);
 
@@ -198,15 +201,28 @@ export function extractTaskSignals(input: {
     fileMentions: extractFileMentions(issueText),
     memberMentions: extractMemberMentions(issueText),
     exactFragments: extractExactFragments(taskText),
-    identifiers: extractIdentifiers(taskText)
+    identifiers: extractIdentifiers(taskText),
+    uncheckedChecklistLinesRemoved: prepared.removed,
+    uncheckedChecklistLinesPreserved: prepared.preserved
   };
 }
 
-function stripUncheckedChecklistLines(text: string): string {
-  return text
-    .split(/\r?\n/)
-    .filter((line) => !/^\s*[-*]\s*\[\s\]\s+/.test(line))
-    .join("\n");
+function prepareChecklistText(text: string): { text: string; removed: number; preserved: number } {
+  const unchecked = /^\s*[-*]\s*\[\s\]\s+/;
+  const lines = text.split(/\r?\n/);
+  const removed = lines.filter((line) => unchecked.test(line));
+  if (removed.length === 0) return { text, removed: 0, preserved: 0 };
+
+  const retained = lines.filter((line) => !unchecked.test(line));
+  // If the only remaining text is headings/whitespace, the checklist is the issue body,
+  // not a set of unselected template options. Preserve it instead of erasing the task.
+  const hasSubstantiveRetainedText = retained.some((line) => {
+    const trimmed = line.trim();
+    return trimmed.length > 0 && !/^#{1,6}\s+/.test(trimmed);
+  });
+  return hasSubstantiveRetainedText
+    ? { text: retained.join("\n"), removed: removed.length, preserved: 0 }
+    : { text, removed: 0, preserved: removed.length };
 }
 
 export function extractExactFragments(text: string): string[] {

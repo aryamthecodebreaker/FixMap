@@ -132,6 +132,23 @@ describe("GitHub Action runner", () => {
     expect(writes[0]?.contents).toContain("changed-file-count=1");
   });
 
+  it("does not mistake pull-request event context for an explicit verify issue input", async () => {
+    const stdout = vi.fn();
+    await expect(runAction({
+      INPUT_MODE: "verify",
+      INPUT_REPORT_PATH: "plan.json",
+      INPUT_DIFF: "main...HEAD",
+      GITHUB_EVENT_PATH: "event.json"
+    }, {
+      readFile: (path) => path === "event.json"
+        ? JSON.stringify({ pull_request: { number: 7, title: "Fix password reset" } })
+        : JSON.stringify(report),
+      scanRepo: async () => scannedRepo(["src/auth.ts"]),
+      stdout
+    })).resolves.toBeUndefined();
+    expect(stdout.mock.calls[0]?.[0]).toContain("# FixMap Verification");
+  });
+
   it("says what verify mode needs when report-path is missing", async () => {
     await expect(runAction({ INPUT_MODE: "verify", INPUT_DIFF: "main...HEAD" }, { stdout: vi.fn() }))
       .rejects.toThrow("report-path");
@@ -191,6 +208,13 @@ describe("Action input and output guards", () => {
 
     expect(body.length).toBeLessThanOrEqual(MAX_COMMENT_BODY_CHARS);
     expect(body).toContain("truncated to fit GitHub's comment size limit");
+  });
+
+  it("reserves room for a closing Markdown fence inside the comment limit", () => {
+    const body = fitCommentBody(`\`\`\`json\n${"x".repeat(500)}`, 180);
+
+    expect(body.length).toBeLessThanOrEqual(180);
+    expect((body.match(/^```/gm) ?? []).length % 2).toBe(0);
   });
 
   it("leaves a comment that already fits completely alone", () => {

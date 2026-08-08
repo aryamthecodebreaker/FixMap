@@ -119,7 +119,7 @@ export default function HomePage() {
           <div className="premium-proof-metrics">
             <div><strong>{siteStats.heldout.top3}/{siteStats.heldout.cases}</strong><span>held-out fixes surfaced in the top three</span></div>
             <div><strong>{siteStats.medianSeconds}s</strong><span>median scan and rank</span></div>
-            <div><strong>0</strong><span>false-confidence findings in adversarial cases</span></div>
+            <div><strong>{siteStats.adversarial.passed}/{siteStats.adversarial.cases}</strong><span>adversarial cases passed with {Math.round(siteStats.adversarial.falseConfidenceRate * 100)}% false confidence</span></div>
           </div>
         </div>
       </section>

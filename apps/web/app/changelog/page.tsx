@@ -13,7 +13,12 @@ import { repoUrl, siteStats } from "../_lib/site-data";
 export const metadata: Metadata = {
   title: "Changelog",
   description: "See what is new, improved, and fixed in every recent FixMap release.",
-  alternates: { canonical: "/changelog" }
+  alternates: { canonical: "/changelog" },
+  openGraph: {
+    title: "FixMap changelog",
+    description: "What changed in each published FixMap release.",
+    url: "/changelog"
+  }
 };
 
 type ChangeGroup = {
@@ -39,9 +44,39 @@ type Release = {
 
 const releases: Release[] = [
   {
+    version: "0.8.8",
+    date: "August 8, 2026",
+    label: "Latest release",
+    summary: "Forty-six issues closed across scan correctness, workflow honesty, the Action, documentation, accessibility, and release proof.",
+    groups: [
+      {
+        label: "Added",
+        items: [
+          "Exact git-state scan caching accelerates repeated plans and can be bypassed with --no-cache.",
+          "JSON reports carry reportVersion 1 and a documented additive compatibility policy.",
+          "The website follows the system colour scheme and includes a persistent theme toggle."
+        ]
+      },
+      {
+        label: "Fixed",
+        items: [
+          "Scanner, Explain, Compare, Verify, MCP, CLI, and Action diagnostics now distinguish the real failure state and preserve actionable paths.",
+          "Generated counterparts no longer outrank maintained source or become the recommended next action.",
+          "The demo workflow, transcript, product illustration, metadata, contrast, focus indicators, and accessibility semantics now match the real product."
+        ]
+      },
+      {
+        label: "Evidence",
+        items: [
+          "Added 23 release-specific self-evaluation cases and an empty-suite guard.",
+          "The homepage and evidence page now read the checked-in adversarial record, and CI rejects stale rendered assets."
+        ]
+      }
+    ]
+  },
+  {
     version: "0.8.7",
     date: "August 2, 2026",
-    label: "Latest release",
     summary: "Readable vendored dependency bundles stop posing as edit targets.",
     groups: [
       {

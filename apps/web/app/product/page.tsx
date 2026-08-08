@@ -15,7 +15,13 @@ import { ProductMap } from "../_components/product-map";
 
 export const metadata: Metadata = {
   title: "How it works",
-  description: "See how FixMap turns a software problem into ranked files, reachable checks, reviewable risks, and honest diagnostics."
+  description: "See how FixMap turns a software problem into ranked files, reachable checks, reviewable risks, and honest diagnostics.",
+  alternates: { canonical: "/product" },
+  openGraph: {
+    title: "How FixMap works",
+    description: "Plan, explain, compare, and verify with repository-grounded evidence.",
+    url: "/product"
+  }
 };
 
 const stages = [

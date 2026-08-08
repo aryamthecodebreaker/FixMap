@@ -7,7 +7,7 @@ import type { FixMapReport } from "@aryam/fixmap-core";
 
 const report: FixMapReport = {
   summary: "Found one context file.",
-  contextFiles: [{ rank: 1, path: "src/index.ts", score: 10, confidence: "medium", reasons: ["path matches task terms"] }],
+  contextFiles: [{ rank: 1, path: "README.md", score: 10, confidence: "medium", reasons: ["path matches task terms"] }],
   testRoutes: [],
   risks: [],
   changedFiles: [],
@@ -140,6 +140,22 @@ describe("CLI argument handling", () => {
     }));
   });
 
+  it("treats a leading @ as literal issue text unless --issue-file is explicit", async () => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+    const readIssueFile = vi.fn(() => "wrong task");
+
+    expect(await runCli(["plan", "--issue", "@amy fix the reset flow"], {
+      ...io.dependencies,
+      buildReport,
+      readIssueFile
+    })).toBe(0);
+    expect(readIssueFile).not.toHaveBeenCalled();
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({
+      issueText: "@amy fix the reset flow"
+    }));
+  });
+
   it.each([
     ["UTF-8 BOM", Buffer.from([0xef, 0xbb, 0xbf, ...Buffer.from("password reset")])],
     ["UTF-16 LE", Buffer.from([0xff, 0xfe, ...Buffer.from("password reset", "utf16le")])],
@@ -175,6 +191,30 @@ describe("CLI argument handling", () => {
     // does name the command that consumes it, on stderr so the artifact stays clean.
     expect(io.stdout).toEqual([]);
     expect(io.stderr.join("")).toContain("fixmap verify --report report.json");
+  });
+
+  it("rejects --report in plan mode and points to --output", async () => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+
+    expect(await runCli(["plan", "--issue", "reset fails", "--report", "plan.json"], {
+      ...io.dependencies,
+      buildReport
+    })).toBe(1);
+    expect(buildReport).not.toHaveBeenCalled();
+    expect(io.stderr.join("")).toContain("--report is a verify option");
+    expect(io.stderr.join("")).toContain("--output");
+  });
+
+  it("passes --no-cache through as an explicit scan bypass", async () => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+
+    expect(await runCli(["plan", "--issue", "reset fails", "--no-cache"], {
+      ...io.dependencies,
+      buildReport
+    })).toBe(0);
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({ useCache: false }));
   });
 
   it.each([
@@ -374,6 +414,24 @@ describe("CLI argument handling", () => {
 
     expect(exitCode).toBe(1);
     expect(io.stderr.join("")).toContain("no contextFiles array");
+  });
+
+  it("does not compare when the requested diff failed to resolve", async () => {
+    const io = capture();
+    const directory = await mkdtemp(join(tmpdir(), "fixmap-compare-diff-failure-"));
+    const previousPath = join(directory, "plan.json");
+    await writeFile(previousPath, JSON.stringify(report), "utf8");
+    const failed = structuredClone(report);
+    failed.diagnostics = [{ code: "diff-unavailable", severity: "warning", message: "missing ref" }];
+
+    expect(await runCli([
+      "plan", "--issue", "reset fails", "--diff", "missing...HEAD", "--compare", previousPath
+    ], {
+      ...io.dependencies,
+      buildReport: vi.fn(async () => failed)
+    })).toBe(1);
+    expect(io.stdout).toEqual([]);
+    expect(io.stderr.join("")).toContain("was not compared");
   });
 
   it("reports a healthy install and exits zero", async () => {

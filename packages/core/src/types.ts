@@ -9,7 +9,11 @@ export type FixMapInput = {
   workingTree?: boolean | undefined;
   /** Untracked files are opt-in even in working-tree mode; agent metadata lives there. */
   includeUntracked?: boolean | undefined;
+  /** Reuse an exact git-state scan from the OS cache. Non-git directories never cache. */
+  useCache?: boolean | undefined;
 };
+
+export type TextSampleSkipReason = "too-large" | "not-text" | "unreadable";
 
 export type RepoFile = {
   path: string;
@@ -20,6 +24,7 @@ export type RepoFile = {
   kind: "code" | "config" | "documentation" | "other";
   textSample: string;
   textSampleComplete?: boolean;
+  textSampleSkipReason?: TextSampleSkipReason;
 };
 
 export type PackageScript = {
@@ -37,6 +42,7 @@ export type ScanDiagnostic = {
     | "scan-limit-reached"
     | "tracked-paths-absent"
     | "duplicate-real-path"
+    | "submodules-skipped"
     | "repo-root-missing"
     | "gated-test-skipped"
     | "remote-issue-fetched"
@@ -55,7 +61,10 @@ export type ScanDiagnostic = {
     | "content-unread"
     | "generated-paths-dominant"
     | "paths-excluded"
-    | "working-tree-diff";
+    | "working-tree-diff"
+    | "diff-resolved"
+    | "cache-hit"
+    | "task-checklist-filtered";
   message: string;
   severity: "info" | "warning" | "error";
   /**
@@ -136,6 +145,8 @@ export type TaskAnalysis = {
 };
 
 export type FixMapReport = {
+  /** Machine-output contract. Additive fields do not bump this; breaking changes do. */
+  reportVersion?: 1;
   summary: string;
   contextFiles: RankedFile[];
   testRoutes: TestRoute[];
@@ -152,7 +163,8 @@ export type VerifyFinding = {
     | "unmapped-change"
     | "leading-file-untouched"
     | "no-test-changed"
-    | "new-risk-area";
+    | "new-risk-area"
+    | "plan-repository-mismatch";
   severity: "info" | "warning" | "error";
   paths: string[];
   message: string;

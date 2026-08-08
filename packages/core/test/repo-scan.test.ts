@@ -75,6 +75,22 @@ describe("scanRepo", () => {
     ]);
   });
 
+  it("recognizes Go, Python, and TypeScript declaration test naming conventions", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-test-patterns-"));
+    for (const path of ["handler_test.go", "test_reset.py", "reset_test.py", "types.test-d.ts"]) {
+      await writeFile(join(root, path), "test reset handler\n");
+    }
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.filter((file) => file.isTest).map((file) => file.path).sort()).toEqual([
+      "handler_test.go",
+      "reset_test.py",
+      "test_reset.py",
+      "types.test-d.ts"
+    ]);
+  });
+
   it("discovers workspace scripts and the package manager", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-workspace-"));
     await mkdir(join(root, "apps", "api"), { recursive: true });
@@ -343,6 +359,22 @@ describe("scanRepo", () => {
 
     expect(weird?.textSample).toBe("");
     expect(weird?.textSampleComplete).toBe(false);
+    expect(weird?.textSampleSkipReason).toBe("not-text");
+    const diagnostic = repo.diagnostics.find((entry) => entry.code === "content-unread");
+    expect(diagnostic?.message).toContain("not UTF-8 text");
+    expect(diagnostic?.message).not.toContain("Files over");
+    expect(diagnostic?.paths).toContain("src/weird.ts");
+  });
+
+  it("uses one decimal unit and rounds oversized samples up at the boundary", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-size-unit-"));
+    await writeFile(join(root, "history.ts"), "x".repeat(64_001));
+
+    const repo = await scanRepo({ repoRoot: root });
+    const diagnostic = repo.diagnostics.find((entry) => entry.code === "content-unread");
+
+    expect(diagnostic?.message).toContain("history.ts (65 kB)");
+    expect(diagnostic?.message).toContain("Files over 64 kB");
   });
 
   // A sparse checkout lists paths in the index that are not on disk. Dropping them silently
@@ -391,5 +423,134 @@ describe("scanRepo", () => {
     expect(repo.files.map((file) => file.path)).toEqual(["real-src/reset.ts"]);
     const diagnostic = repo.diagnostics.find((entry) => entry.code === "duplicate-real-path");
     expect(diagnostic?.message).toContain("link.ts -> real-src/reset.ts");
+  });
+
+  it("collapses files reached through a Windows junction ancestor", { timeout: 30_000 }, async () => {
+    if (process.platform !== "win32") return;
+    const root = await mkdtemp(join(tmpdir(), "fixmap-junction-"));
+    await mkdir(join(root, "real-src"), { recursive: true });
+    await writeFile(join(root, "real-src", "reset.ts"), "export const resetPassword = 1;\n");
+    await symlink(join(root, "real-src"), join(root, "alias-src"), "junction");
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+    await exec("git", ["add", "-A"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.filter((file) => file.path.endsWith("reset.ts"))).toHaveLength(1);
+    expect(repo.diagnostics.find((entry) => entry.code === "duplicate-real-path")?.message)
+      .toContain("alias-src/reset.ts -> real-src/reset.ts");
+  });
+
+  it("turns a truncated UTF-16BE manifest into a diagnostic instead of throwing", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-manifest-odd-be-"));
+    await writeFile(join(root, "package.json"), Buffer.from([0xfe, 0xff, 0x00]));
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.packageScripts).toEqual([]);
+    expect(repo.diagnostics.find((entry) => entry.code === "package-json-invalid")?.message)
+      .toContain("Could not parse package.json");
+  });
+
+  it("reports a successfully resolved empty diff", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-empty-diff-"));
+    await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: root, diffSpec: "HEAD...HEAD" });
+
+    expect(repo.changedFiles).toEqual([]);
+    expect(repo.diagnostics.find((entry) => entry.code === "diff-resolved")?.message)
+      .toContain("resolved to zero changed files");
+  });
+
+  it("distinguishes an unborn repository from a non-repository", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-unborn-"));
+    await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: root, workingTree: true });
+
+    expect(repo.diagnostics.find((entry) => entry.code === "diff-unavailable")?.message)
+      .toContain("no commits yet");
+  });
+
+  it("reports when Git is unavailable instead of calling the directory a non-repository", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-no-git-"));
+    await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+    const previousPath = process.env.PATH;
+    process.env.PATH = join(root, "missing-bin");
+    try {
+      const repo = await scanRepo({ repoRoot: root, diffSpec: "HEAD~1...HEAD" });
+      const message = repo.diagnostics.find((entry) => entry.code === "diff-unavailable")?.message;
+      expect(message).toContain("Git is not installed or is not available on PATH");
+      expect(message).not.toContain("not a git checkout");
+    } finally {
+      if (previousPath === undefined) delete process.env.PATH;
+      else process.env.PATH = previousPath;
+    }
+  });
+
+  it("reuses an exact clean or dirty scan but invalidates when tracked contents change", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "index.ts"), "export const value = 'one';\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await scanRepo({ repoRoot: root, useCache: true });
+      const cleanHit = await scanRepo({ repoRoot: root, useCache: true });
+      expect(cleanHit.diagnostics.map((entry) => entry.code)).toContain("cache-hit");
+
+      await writeFile(join(root, "index.ts"), "export const value = 'two';\n");
+      const firstDirty = await scanRepo({ repoRoot: root, useCache: true });
+      expect(firstDirty.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
+      expect(firstDirty.files[0]?.textSample).toContain("two");
+      expect((await scanRepo({ repoRoot: root, useCache: true })).diagnostics.map((entry) => entry.code))
+        .toContain("cache-hit");
+
+      await writeFile(join(root, "index.ts"), "export const value = 'three';\n");
+      const secondDirty = await scanRepo({ repoRoot: root, useCache: true });
+      expect(secondDirty.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
+      expect(secondDirty.files[0]?.textSample).toContain("three");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("names skipped git submodules and leaves their contents to the nested repository", { timeout: 30_000 }, async () => {
+    const child = await mkdtemp(join(tmpdir(), "fixmap-submodule-child-"));
+    const root = await mkdtemp(join(tmpdir(), "fixmap-submodule-parent-"));
+    await writeFile(join(child, "helper.ts"), "export const helper = 1;\n");
+    await exec("git", ["init", "-b", "main"], { cwd: child });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: child });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: child });
+    await exec("git", ["add", "."], { cwd: child });
+    await exec("git", ["commit", "-m", "child"], { cwd: child });
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+    await exec("git", ["-c", "protocol.file.allow=always", "submodule", "add", child, "packages/shared"], { cwd: root });
+    await exec("git", ["commit", "-am", "submodule"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: root });
+    const diagnostic = repo.diagnostics.find((entry) => entry.code === "submodules-skipped");
+
+    expect(repo.files.map((file) => file.path)).not.toContain("packages/shared/helper.ts");
+    expect(diagnostic?.paths).toEqual(["packages/shared"]);
   });
 });

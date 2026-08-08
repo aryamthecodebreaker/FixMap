@@ -136,7 +136,7 @@ export function buildNextAction(
     return "Verify or correct the unresolved identifiers before editing ranked files.";
   }
   if (grounding.unverifiedIdentifiers.length > 0) {
-    return "Narrow the repository or inspect large unread files before trusting identifier-based recommendations.";
+    return "Inspect the content-unread diagnostics and make those source files readable before trusting identifier-based recommendations.";
   }
   if (grounding.partiallyResolvedIdentifiers.length > 0) {
     return "Verify the partially matched symbol name in the leading file before editing.";
@@ -151,9 +151,12 @@ export function buildNextAction(
     return "Treat the leading files as a subsystem neighborhood and verify the exact edit point before changing code.";
   }
   if (contextFiles[0]) {
+    const leading = contextFiles.find((file) =>
+      !file.reasons.includes("generated build artifact; maintained source counterpart exists")
+    ) ?? contextFiles[0];
     return hasRoutedTests
-      ? `Inspect ${contextFiles[0].path} and its routed tests before editing.`
-      : `Inspect ${contextFiles[0].path} before editing; no related test file was routed.`;
+      ? `Inspect ${leading.path} and its routed tests before editing.`
+      : `Inspect ${leading.path} before editing; no related test file was routed.`;
   }
   return "Add a concrete repository anchor and rerun FixMap.";
 }

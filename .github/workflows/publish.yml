@@ -142,6 +142,18 @@ jobs:
           console.log(`Validated ${process.env.GITHUB_REF_NAME} at ${process.env.GITHUB_SHA}.`);
           NODE
 
+          RELEASE_NOTES="${RUNNER_TEMP}/fixmap-release-notes.md"
+          awk -v version="$VERSION" '
+            index($0, "## " version " - ") == 1 { capture = 1; next }
+            capture && /^## / { exit }
+            capture { print }
+          ' CHANGELOG.md > "$RELEASE_NOTES"
+          if [[ ! -s "$RELEASE_NOTES" ]]; then
+            echo "::error::CHANGELOG.md has no release notes for ${VERSION}."
+            exit 1
+          fi
+          echo "Validated release notes for ${VERSION} before publication."
+
       - name: Require an unpublished GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -348,19 +360,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RELEASE_NOTES="${RUNNER_TEMP}/fixmap-release-notes.md"
-          awk -v version="$VERSION" '
-            index($0, "## " version " - ") == 1 { capture = 1; next }
-            capture && /^## / { exit }
-            capture { print }
-          ' CHANGELOG.md > "$RELEASE_NOTES"
-          if [[ ! -s "$RELEASE_NOTES" ]]; then
-            echo "::error::CHANGELOG.md has no release notes for ${VERSION}."
-            exit 1
-          fi
-
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --title "FixMap ${GITHUB_REF_NAME}" \
-            --notes-file "$RELEASE_NOTES"
+            --notes-file "${RUNNER_TEMP}/fixmap-release-notes.md"

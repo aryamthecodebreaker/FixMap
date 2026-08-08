@@ -48,6 +48,21 @@ describe("explainFile", () => {
     expect(explanation.reasons.join(" ")).toContain("path matches task terms");
   });
 
+  it("uses diff content when explaining a file", () => {
+    const repo = createRepo([
+      file("src/transport.ts", "export function reconnectSocket() { return true; }")
+    ]);
+    repo.diffText = "+reconnectSocket();";
+
+    const explanation = explainFile(repo, {
+      issueText: "connection fails",
+      diffText: repo.diffText
+    }, "src/transport.ts");
+
+    expect(explanation.status).toBe("ranked");
+    expect(explanation.reasons.join(" ")).toContain("reconnectSocket");
+  });
+
   it("reports the score a candidate earned when it fell below the cutoff", () => {
     const explanation = explainFile(authRepo(), task, "src/billing/invoice.ts");
 
@@ -74,6 +89,16 @@ describe("explainFile", () => {
 
     expect(explanation.status).toBe("not-scanned");
     expect(explanation.summary).toContain("no such path");
+  });
+
+  it("identifies a path inside a skipped submodule", () => {
+    const repo = authRepo();
+    repo.trackedFiles = ["packages/shared"];
+
+    const explanation = explainFile(repo, task, "packages/shared/lib/helper.ts");
+
+    expect(explanation.status).toBe("not-scanned");
+    expect(explanation.summary).toContain("inside the submodule packages/shared");
   });
 
   it("blames the scan limit when one was reached", () => {

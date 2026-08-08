@@ -6,6 +6,41 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://usefixmap.vercel.app/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.8.8 - 2026-08-08
+
+### Added
+
+- Exact git-state repository scan caching now accelerates repeated Plan, Explain, Compare, Verify, MCP, and Action runs. Non-git and untracked-file states stay uncached, `cache-hit` makes reuse visible, and `--no-cache` forces a fresh scan (#495).
+- JSON plans now carry `reportVersion: 1` with a documented additive-compatibility policy, and every report consumer shares the same structural validator (#468, #488).
+- The website now follows the system colour scheme, includes a persistent light/dark toggle and accessible focus colour, and gives every route its own canonical and Open Graph metadata (#485-#487, #491-#492).
+
+### Fixed
+
+- Scanner diagnostics now distinguish oversized, non-text, and unreadable source; identify skipped submodules and resolved empty diffs; preserve paths in Markdown; use consistent decimal kB units; handle odd UTF-16BE manifests; and report friendly non-repository, unborn-repository, and missing-Git failures (#452-#453, #464, #469-#473, #481, #489-#490).
+- Explain receives diff content in every interface, Verify rejects plans from a different repository and avoids duplicate generated-artifact findings, and generated counterparts rank below their maintained source and no longer become the next action (#451, #454, #465, #493).
+- CLI validation now rejects plan-only `--report`, unresolved comparisons, empty evaluation inputs, and accidental leading-`@` file reads while preserving literal task text; the Action reserves its Markdown truncation fence, validates reports consistently, canonicalizes supported GitHub URL forms, bounds comment pagination, and separates explicit issue inputs from event-derived context (#455, #457-#460, #462-#463, #468, #482, #496).
+- Checklist-only issues retain their task text, exclusions explain the matching files they removed, deployment ranking no longer treats bare HTTP status numbers as infrastructure terms, Go/Python/type-declaration tests are recognized, and new unplanned risk areas use an explicit warning severity without an unreachable informational branch (#456, #466-#467, #471, #476).
+
+### Website and documentation
+
+- The live four-stage walkthrough now writes and reuses one `plan.json`, quotes the complete task, and uses valid button-group semantics. Its agent transcript and the product illustration are generated from the real FixMap report engine rather than hand-written output (#463, #478-#480, #483, #492).
+- The homepage and evidence page read the checked-in adversarial record, CI checks rendered assets for drift, the PowerShell first-run project contains rankable source, and the README is a focused 153-line entry point that routes detailed material to maintained docs (#475, #480, #484, #494).
+
+### Evidence
+
+- Added 23 self-evaluation cases covering the first half of the v0.8.8 issue set, and release CI rejects empty evaluation files before calculating rates (#461, #474).
+- The release verification matrix for all 46 issues is published in `docs/releases/v0.8.8-issue-verification.md`.
+
+### Installation
+
+```bash
+npm install --global @aryam/fixmap@0.8.8
+fixmap doctor
+fixmap plan --issue https://github.com/chalk/chalk/issues/624
+```
+
+The npm core and CLI packages, MCP Registry entry, GitHub tag/release, Action tag, README, changelog, recorded evidence, and production website must all resolve to 0.8.8 before the release is considered complete.
+
 ## 0.8.7 - 2026-08-02
 
 ### Fixed

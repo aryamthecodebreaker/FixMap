@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CaretDown, GithubLogo, List } from "@phosphor-icons/react/ssr";
 import { Logo } from "./logo";
 import { repoUrl } from "../_lib/site-data";
+import { ThemeToggle } from "./theme-toggle";
 
 const links = [
   { href: "/product", label: "Product" },
@@ -42,10 +43,13 @@ export function SiteHeader() {
         <nav className="desktop-nav" aria-label="Primary navigation">
           <NavLinks />
         </nav>
-        <details className="mobile-menu">
-          <summary aria-label="Open navigation"><List size={25} weight="bold" aria-hidden /></summary>
-          <nav aria-label="Mobile navigation"><NavLinks /></nav>
-        </details>
+        <div className="header-actions">
+          <ThemeToggle />
+          <details className="mobile-menu">
+            <summary aria-label="Open navigation"><List size={25} weight="bold" aria-hidden /></summary>
+            <nav aria-label="Mobile navigation"><NavLinks /></nav>
+          </details>
+        </div>
       </div>
     </header>
   );

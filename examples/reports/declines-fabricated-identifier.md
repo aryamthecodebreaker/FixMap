@@ -14,7 +14,7 @@ FixMap found 0 context files and generated 0 test routes.
 
 - None found
 
-## Test Route
+## Test Routes
 
 - None found
 

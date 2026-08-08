@@ -112,6 +112,35 @@ describe("GitHub Action helpers", () => {
     expect(calls.some((url) => url.includes("page=11"))).toBe(true);
   });
 
+  it("stops after fifty pages when a proxy repeats full pages", async () => {
+    const calls: string[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes("/comments?")) {
+        return jsonResponse(Array.from({ length: 100 }, (_, index) => ({
+          id: index,
+          body: "ordinary comment",
+          user: { login: "contributor" }
+        })));
+      }
+      expect(init?.method).toBe("POST");
+      return jsonResponse({ id: 9001 }, 201);
+    };
+
+    const result = await createGitHubClient({ fetchImpl }).upsertPullRequestComment({
+      token: "test-token",
+      owner: "octo",
+      repo: "demo",
+      issueNumber: 42,
+      markdown: "# FixMap Report"
+    });
+
+    expect(result).toBe("created");
+    expect(calls.filter((url) => url.includes("/comments?")).length).toBe(50);
+    expect(calls.some((url) => url.includes("page=51"))).toBe(false);
+  });
+
   it("reports a useful error when GitHub rejects comment lookup", async () => {
     const fetchImpl: typeof fetch = async () => new Response("Bad credentials", { status: 401, statusText: "Unauthorized" });
 

@@ -76,6 +76,18 @@ describe("verifyPlan", () => {
       severity: "warning"
     }));
     expect(result.findings.map((entry) => entry.code)).not.toContain("edit-in-generated-location");
+    expect(result.findings.map((entry) => entry.code)).not.toContain("unmapped-change");
+    expect(result.findings.map((entry) => entry.code)).not.toContain("no-test-changed");
+  });
+
+  it("refuses to verify a plan whose paths do not exist in this repository", () => {
+    const result = verifyPlan(planFor("other-repo/src/auth.ts"), repoWith(["src/auth/reset-password.ts"]));
+
+    expect(result.findings).toEqual([expect.objectContaining({
+      code: "plan-repository-mismatch",
+      severity: "error"
+    })]);
+    expect(result.summary).toContain("plan and repository do not match");
   });
 
   it("names files the change needed that the plan never ranked", () => {

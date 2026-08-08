@@ -227,6 +227,26 @@ describe("rankContextFiles", () => {
     expect(ranked.flatMap((file) => file.reasons).join(" ")).not.toMatch(/\bnot\b|\bdoe\b/);
   });
 
+  it("does not treat a bare HTTP status as deployment evidence", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        { path: "vercel.json", extension: ".json", sizeBytes: 20, isSource: true, isTest: false, kind: "config", textSample: "{}" },
+        { path: "src/http/account.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "return response.status(404).json({ error: 'account missing' });" }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "account lookup returns 404" });
+
+    expect(ranked[0]?.path).toBe("src/http/account.ts");
+    expect(ranked.flatMap((file) => file.reasons)).not.toContain("root configuration for a deployment-related task");
+  });
+
   it("ranks files explicitly named in the task, including test files", () => {
     const repo: RepoMap = {
       root: "/repo",
@@ -813,6 +833,34 @@ describe("rankContextFiles", () => {
     expect(ranked[0]?.path).toBe("packages/action/dist/index.mjs");
     expect(ranked[0]?.confidence).toBe("medium");
     expect(ranked[0]?.reasons).toContain("generated build artifact; maintained source counterpart exists");
+  });
+
+  it("keeps an edited generated twin visible but below its maintained source", () => {
+    const file = (path: string, extension: string) => ({
+      path,
+      extension,
+      sizeBytes: 100,
+      isSource: true,
+      isTest: false,
+      kind: "code" as const,
+      textSample: "export function resetPassword() { return 'token'; }"
+    });
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: ["dist/app.js"],
+      diffText: "+export function resetPassword() { return 'wrong'; }",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [file("src/app.ts", ".ts"), file("dist/app.js", ".js")]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "resetPassword returns the wrong value" });
+
+    expect(ranked[0]?.path).toBe("src/app.ts");
+    expect(ranked.map((entry) => entry.path)).toContain("dist/app.js");
+    expect(ranked.find((entry) => entry.path === "dist/app.js")?.reasons)
+      .toContain("generated counterpart deprioritized below maintained source");
   });
 
   it("still credits a task term that most of a focused repository mentions", () => {
