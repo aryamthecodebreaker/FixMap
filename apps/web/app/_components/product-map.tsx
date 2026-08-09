@@ -25,7 +25,7 @@ const outputs = [
 
 export function ProductMap({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={compact ? "product-map compact" : "product-map"} aria-label="How FixMap turns a problem into a focused map">
+    <div className={compact ? "product-map compact" : "product-map"} role="group" aria-label="How FixMap turns a problem into a focused map">
       <div className="map-step map-input">
         <span className="step-number">1</span>
         <div>
@@ -45,7 +45,7 @@ export function ProductMap({ compact = false }: { compact?: boolean }) {
             <article key={title}>
               <Icon size={23} aria-hidden />
               <div>
-                <h3>{title}</h3>
+                <h2>{title}</h2>
                 {items.map((item, index) => <p key={item}><span>{index + 1}</span>{item}</p>)}
               </div>
             </article>

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -17,6 +18,7 @@ import {
   type FixMapReport
 } from "@aryam/fixmap-core";
 import { runDoctorChecks, renderDoctorReport, type DoctorReport } from "./doctor.js";
+import { installAgentCommands, renderFeatureCatalog, type AgentTarget } from "./agent-setup.js";
 import {
   buildReportForRepository,
   parseGitHubIssueSource,
@@ -71,18 +73,25 @@ Usage:
   fixmap plan --issue "Fix login" --repo https://github.com/owner/repository
   fixmap plan --diff main...HEAD
   fixmap plan --working-tree --include-untracked --limit 12 --exclude "docs/**"
+  fixmap plan --no-cache --issue "Fix login" --repo .
   fixmap plan --issue "Fix login" --format json --output plan.json
   fixmap plan --issue "Fix login in auth middleware" --compare plan.json
   fixmap plan --base main --head HEAD --format json
   fixmap verify --report plan.json --diff main...HEAD
   fixmap verify --report plan.json --working-tree
   fixmap doctor --format json
+  fixmap validate plan.json
+  fixmap features
+  fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>]
   fixmap mcp
 
 Commands:
   plan                Generate a FixMap report for a task or diff
   verify              Compare a saved report against the diff that followed it
   doctor              Check the FixMap install for stale global or npx shadows
+  validate            Validate a saved FixMap JSON report
+  features            List every FixMap capability and its command
+  setup               Install a discoverable /fixmap command for coding agents
   mcp                 Run FixMap as an MCP server over stdio for AI coding agents
 
 Options:
@@ -106,12 +115,15 @@ Options:
   --version, -v       Show the FixMap version
 
 A repository may also list exclusion patterns in .fixmapignore, one per line. Supported
-syntax is *, **, ?, root-leading /, directory-trailing /, comments, and ! negation.
+syntax is *, **, ?, repository-root-leading /, directory-trailing /, comments, and ! negation.
+Absolute paths pasted from inside the repository are normalized to repository-relative patterns.
 Set FIXMAP_PROGRESS=1 to print scan and clone phases to stderr.
 `;
 
 const DOCTOR_USAGE = `Usage: fixmap doctor [--format markdown|json]\n\nChecks the running FixMap binary, PATH/global shadows, and known install blind spots.\n`;
 const MCP_USAGE = `Usage: fixmap mcp\n\nRuns the FixMap MCP server over stdio. Configure your MCP client to execute \"fixmap mcp\".\n`;
+const SETUP_USAGE = `Usage: fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>] [--force]\n\nInstalls a /fixmap command that lists and runs FixMap workflows.\n`;
+const VALIDATE_USAGE = `Usage: fixmap validate <report.json> [--format markdown|json]\n\nChecks a saved report against FixMap's structural compatibility contract.\n`;
 
 export async function runCli(args: string[], dependencies: CliDependencies = {}): Promise<number> {
   const stdout = dependencies.stdout ?? ((text: string) => process.stdout.write(text));
@@ -142,6 +154,122 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 0;
   }
 
+  if (args[0] === "features") {
+    const featureArgs = args.slice(1);
+    let format: "markdown" | "json" = "markdown";
+    if (featureArgs.length > 0) {
+      const value = featureArgs.length === 2 && featureArgs[0] === "--format"
+        ? featureArgs[1]
+        : featureArgs.length === 1
+          ? featureArgs[0]?.match(/^--format=(.+)$/)?.[1]
+          : undefined;
+      const normalized = value?.trim().toLowerCase();
+      if (normalized !== "markdown" && normalized !== "json") {
+        stderr('features accepts only --format markdown or --format json.\n');
+        return 1;
+      }
+      format = normalized;
+    }
+    stdout(renderFeatureCatalog(format));
+    return 0;
+  }
+
+  if (args[0] === "setup") {
+    if (args[1] === "--help" || args[1] === "-h") { stdout(SETUP_USAGE); return 0; }
+    let repoRoot = process.cwd();
+    let targets: AgentTarget[] = ["claude", "cursor", "copilot", "agents"];
+    let force = false;
+    for (let index = 1; index < args.length; index += 1) {
+      const arg = args[index];
+      if (arg === "--force") { force = true; continue; }
+      if (arg?.startsWith("--repo=")) {
+        const value = arg.slice("--repo=".length).trim();
+        if (!value) { stderr(`--repo requires a directory.\n\n${SETUP_USAGE}`); return 1; }
+        repoRoot = expandHomePath(value);
+        continue;
+      }
+      if (arg === "--repo") {
+        const value = args[index + 1];
+        if (!value?.trim() || value.startsWith("--")) { stderr(`--repo requires a directory.\n\n${SETUP_USAGE}`); return 1; }
+        repoRoot = expandHomePath(value.trim());
+        index += 1;
+        continue;
+      }
+      if (arg?.startsWith("--agent=")) {
+        const value = arg.slice("--agent=".length).trim().toLowerCase();
+        if (!["claude", "cursor", "copilot", "agents", "all"].includes(value)) {
+          stderr(`--agent must be claude, cursor, copilot, agents, or all.\n\n${SETUP_USAGE}`);
+          return 1;
+        }
+        targets = value === "all" ? ["claude", "cursor", "copilot", "agents"] : [value as AgentTarget];
+        continue;
+      }
+      if (arg === "--agent") {
+        const value = args[index + 1]?.trim().toLowerCase();
+        if (!value || !["claude", "cursor", "copilot", "agents", "all"].includes(value)) {
+          stderr(`--agent must be claude, cursor, copilot, agents, or all.\n\n${SETUP_USAGE}`);
+          return 1;
+        }
+        targets = value === "all" ? ["claude", "cursor", "copilot", "agents"] : [value as AgentTarget];
+        index += 1;
+        continue;
+      }
+      stderr(`Unknown setup option: ${arg}\n\n${SETUP_USAGE}`);
+      return 1;
+    }
+    try {
+      const installed = await installAgentCommands({ repoRoot, targets, force });
+      stdout(`${installed.map((entry) => `${entry.status}: ${entry.path}`).join("\n")}\n\nType /fixmap in a supported agent to open the full FixMap feature menu.\n`);
+      return 0;
+    } catch (error) {
+      stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
+
+  if (args[0] === "validate") {
+    if (args[1] === "--help" || args[1] === "-h") { stdout(VALIDATE_USAGE); return 0; }
+    let reportPath: string | undefined;
+    let format: "markdown" | "json" = "markdown";
+    for (let index = 1; index < args.length; index += 1) {
+      const arg = args[index]!;
+      if (arg === "--format") {
+        const value = args[index + 1]?.trim().toLowerCase();
+        if (value !== "markdown" && value !== "json") { stderr(`--format must be markdown or json.\n\n${VALIDATE_USAGE}`); return 1; }
+        format = value;
+        index += 1;
+      } else if (arg.startsWith("--format=")) {
+        const value = arg.slice("--format=".length).trim().toLowerCase();
+        if (value !== "markdown" && value !== "json") { stderr(`--format must be markdown or json.\n\n${VALIDATE_USAGE}`); return 1; }
+        format = value;
+      } else if (arg.startsWith("-") || reportPath) {
+        stderr(`Unknown validate argument: ${arg}\n\n${VALIDATE_USAGE}`);
+        return 1;
+      } else {
+        reportPath = expandHomePath(arg);
+      }
+    }
+    if (!reportPath) { stderr(`validate requires a report path.\n\n${VALIDATE_USAGE}`); return 1; }
+    try {
+      const parsed = JSON.parse(readFileSync(reportPath, "utf8")) as unknown;
+      const result = validateFixMapReport(parsed, `"${reportPath}"`);
+      if (!result.success) { stderr(`${result.message}\n`); return 1; }
+      const payload = {
+        valid: true,
+        path: reportPath,
+        reportVersion: result.report.reportVersion ?? "legacy",
+        contextFiles: result.report.contextFiles.length
+      };
+      stdout(format === "json"
+        ? `${JSON.stringify(payload, null, 2)}\n`
+        : `Valid FixMap report: ${reportPath} (${payload.contextFiles} context files, reportVersion ${payload.reportVersion}).\n`);
+      return 0;
+    } catch (error) {
+      stderr(`Could not validate "${reportPath}": ${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
+
   if (args[0] === "doctor") {
     if (args[1] === "--help" || args[1] === "-h") { stdout(DOCTOR_USAGE); return 0; }
     const doctorArgs = args.slice(1);
@@ -149,7 +277,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     if (doctorArgs.length > 0) {
       const match = doctorArgs.length === 2 && doctorArgs[0] === "--format" ? doctorArgs[1] :
         doctorArgs.length === 1 ? doctorArgs[0]?.match(/^--format=(.+)$/)?.[1] : undefined;
-      const normalized = match?.toLowerCase();
+      const normalized = match?.trim().toLowerCase();
       if (normalized === "markdown" || normalized === "json") doctorFormat = normalized;
       else { stderr(`Unknown doctor option(s): ${doctorArgs.join(", ")}\n\n${DOCTOR_USAGE}`); return 1; }
     }
@@ -606,7 +734,7 @@ export function parseArgs(args: string[]): CliOptions {
       else invalidValues.push('--issue requires non-empty text or a GitHub issue URL');
     } else if (arg === "--issue-file") {
       consumeValue();
-      if (value?.trim()) issueFile = value.trim();
+      if (value?.trim()) issueFile = expandHomePath(value.trim());
       else invalidValues.push("--issue-file requires a UTF-8 file path or - for stdin");
     } else if (arg === "--diff") {
       consumeValue();
@@ -622,11 +750,11 @@ export function parseArgs(args: string[]): CliOptions {
       else invalidValues.push("--head requires a non-empty git ref");
     } else if (arg === "--repo") {
       consumeValue();
-      if (value?.trim()) repo = value;
+      if (value?.trim()) repo = expandHomePath(value.trim());
       else invalidValues.push("--repo requires a local path or public GitHub repository URL");
     } else if (arg === "--format") {
       consumeValue();
-      const normalized = value?.toLowerCase();
+      const normalized = value?.trim().toLowerCase();
       if (normalized === "markdown" || normalized === "json") {
         format = normalized;
       } else {
@@ -634,7 +762,7 @@ export function parseArgs(args: string[]): CliOptions {
       }
     } else if (arg === "--report") {
       consumeValue();
-      if (value?.trim()) reportPath = value.trim();
+      if (value?.trim()) reportPath = expandHomePath(value.trim());
       else invalidValues.push("--report requires a path to a FixMap JSON report");
     } else if (arg === "--explain") {
       consumeValue();
@@ -642,7 +770,7 @@ export function parseArgs(args: string[]): CliOptions {
       else invalidValues.push("--explain requires a repository-relative file path");
     } else if (arg === "--compare") {
       consumeValue();
-      if (value?.trim()) comparePath = value.trim();
+      if (value?.trim()) comparePath = expandHomePath(value.trim());
       else invalidValues.push("--compare requires a path to an earlier FixMap JSON report");
     } else if (arg === "--exclude") {
       consumeValue();
@@ -672,7 +800,7 @@ export function parseArgs(args: string[]): CliOptions {
       noCache = true;
     } else if (arg === "--output") {
       consumeValue();
-      if (value?.trim()) output = value;
+      if (value?.trim()) output = expandHomePath(value.trim());
       else invalidValues.push("--output requires a non-empty file path");
     } else {
       unknownArgs.push(rawArg);
@@ -700,6 +828,14 @@ export function parseArgs(args: string[]): CliOptions {
     unknownArgs,
     invalidValues
   };
+}
+
+function expandHomePath(value: string): string {
+  if (value === "~") return homedir();
+  if (value.startsWith("~/") || value.startsWith("~\\")) {
+    return join(homedir(), value.slice(2));
+  }
+  return value;
 }
 
 function loadIssueText(

@@ -143,7 +143,7 @@ export function InteractiveMapStage() {
   };
 
   return (
-    <div className="interactive-map-stage" aria-label="Interactive example of a FixMap report">
+    <div className="interactive-map-stage" role="group" aria-label="Interactive example of a FixMap report">
       <div className="stage-toolbar">
         <span className="stage-mini-brand"><ShieldCheck size={19} weight="duotone" aria-hidden /><b>FixMap</b></span>
         <label className="stage-example-select">
@@ -171,7 +171,7 @@ export function InteractiveMapStage() {
         </div>
 
         <div className="stage-output-column">
-          <div className="stage-progress" aria-label="Analysis progress">
+          <div className="stage-progress" role="group" aria-label="Analysis progress">
             {stageMeta.map((stage, index) => {
               const isReady = readyCount > index;
               return (

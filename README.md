@@ -33,6 +33,14 @@ For a one-off trial:
 npx -y @aryam/fixmap@latest plan --issue https://github.com/chalk/chalk/issues/624
 ```
 
+Install a discoverable `/fixmap` command for Claude Code, Cursor, GitHub Copilot, and Agent Skills:
+
+```bash
+fixmap setup
+```
+
+Type `/fixmap` with no task to see the full feature menu, or run `fixmap features` in a terminal. Use `fixmap setup --agent <name>` to install one integration, and `--force` only after reviewing an existing customized command.
+
 FixMap fetches a public task, infers its repository, scans a temporary isolated checkout, and removes it when the report is complete. Local repository analysis never uploads source.
 
 ## Everyday workflow
@@ -61,6 +69,12 @@ Verify the completed diff against the saved plan:
 fixmap verify --report plan.json --diff main...HEAD
 ```
 
+Validate a saved report before another tool consumes it:
+
+```bash
+fixmap validate plan.json
+```
+
 Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked` when new files should count as changes, `--exclude` or `.fixmapignore` to focus the map, and `--no-cache` to force a fresh scan. Run `fixmap --help` for the complete command reference.
 
 ## Complete feature catalog
@@ -71,7 +85,7 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 - Normalizes supported browser and GitHub API issue URLs, including `www`, query strings, and fragments, while rejecting credentials, lookalike hosts, ports, and unsafe encoded paths.
 - Scans the current checkout, another local path, a `file://` URL, or an isolated checkout of a public GitHub repository.
 - Maps `--diff <spec>`, `--base`/`--head`, or the current `--working-tree`; untracked changes remain opt-in with `--include-untracked`.
-- Reuses repository scans only when the repository root, commit, status, and binary diff are identical. `cache-hit` reports reuse, `--no-cache` bypasses it, and `FIXMAP_CACHE_DIR` moves the OS cache.
+- Reuses repository scans only when the repository root, commit, status, and binary diff are identical. `cache-hit` reports reuse and scan age, entries expire after seven days, `--no-cache` reports a fresh bypass, and `FIXMAP_CACHE_DIR` moves the OS cache.
 - Detects npm, pnpm, Yarn, and Bun projects and reads the scripts declared by each workspace package.
 
 ### Plan and ranking
@@ -82,19 +96,21 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 - Routes reachable test commands from real package scripts and pairs them with the nearest related test files.
 - Reports six bounded risk areas: authentication, billing, automation, data, public API, and dependencies.
 - Explains task grounding, ranking shape, unresolved or partially matched identifiers, exclusions, scan limits, unread content, skipped submodules, empty diffs, and Git failures.
-- Supports `--limit`, repeatable `--exclude`, and ordered `.fixmapignore` patterns with negation.
+- Supports `--limit`, repeatable `--exclude`, and ordered `.fixmapignore` patterns with negation. Root-leading patterns are repository-relative, pasted absolute paths inside the repository are normalized, and patterns that match nothing produce a warning.
 - Produces Markdown for people or versioned JSON for tools, writes to `--output`, and gives one grounded next action.
 
-### Explain, Compare, Verify, and Doctor
+### Explain, Compare, Verify, Validate, and Doctor
 
 - **Explain** tells you whether a path ranked, fell below the cutoff, was excluded, resolves through a submodule, or was never scanned—and uses the same task and diff evidence as Plan.
 - **Compare** shows files that entered, left, moved, or changed confidence after the task was refined, plus changes in task grounding.
 - **Verify** compares a saved JSON plan with a diff or working tree and flags generated edits, unmapped changes, an untouched leading file, source changes without tests, newly reached risk areas, and plan/repository mismatches.
+- **Validate** checks any saved JSON report with the structural compatibility validator shared by Compare, Verify, the Action, and MCP.
 - **Doctor** prints the running version and executable path and diagnoses project, global, PATH, and npm-exec version shadows.
 - `FIXMAP_PROGRESS` controls remote clone/scan progress, and `FIXMAP_VERBOSE_USAGE` restores full usage text after argument errors.
 
 ### Agent and automation interfaces
 
+- `fixmap setup` installs `/fixmap` discovery for Claude Code, Cursor, GitHub Copilot prompt files, and the open Agent Skills layout; the no-argument command lists every FixMap workflow before making changes.
 - The MCP server exposes `fixmap_plan`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor` over local stdio and is published in the official MCP Registry.
 - The GitHub Action runs Plan or Verify on pull requests, writes a full job summary, and creates or updates one bounded FixMap comment instead of posting duplicates.
 - The Action accepts explicit task input or pull-request context, uses the same report validator as the CLI and MCP server, and fails clearly when a requested diff cannot be resolved.

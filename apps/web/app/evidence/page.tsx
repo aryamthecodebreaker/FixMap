@@ -37,7 +37,7 @@ export default function EvidencePage() {
     <main>
       <section className="subpage-hero page-shell evidence-hero">
         <p className="eyebrow">Evidence</p>
-        <h1>Measured honestly.<br /><em>Misses included.</em></h1>
+        <h1>Measured honestly.{" "}<br /><em>Misses included.</em></h1>
         <p>
           Every benchmark case is a real issue later closed by a merged pull request. FixMap sees
           the repository before the fix and tries to surface the file that actually changed.

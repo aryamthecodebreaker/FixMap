@@ -242,7 +242,7 @@ export default function ChangelogPage() {
     <main>
       <section className="subpage-hero page-shell changelog-hero">
         <p className="eyebrow">Product changelog</p>
-        <h1>Every improvement.<br /><em>Plainly recorded.</em></h1>
+        <h1>Every improvement.{" "}<br /><em>Plainly recorded.</em></h1>
         <p>New features, important fixes, and the evidence behind each recent FixMap release.</p>
         <div className="changelog-hero-meta">
           <span><CheckCircle size={19} weight="fill" aria-hidden /> Current package: v{siteStats.version}</span>

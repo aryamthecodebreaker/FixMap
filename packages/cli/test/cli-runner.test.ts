@@ -1,5 +1,5 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { parseArgs, runCli } from "../src/cli-runner.js";
@@ -83,6 +83,51 @@ describe("CLI argument handling", () => {
     expect(io.stderr).toEqual([]);
   });
 
+  it("lists the complete feature catalog for slash-command discovery", async () => {
+    const io = capture();
+
+    expect(await runCli(["features"], io.dependencies)).toBe(0);
+    for (const feature of ["Plan", "Explain", "Compare", "Verify", "Validate", "Doctor", "MCP", "Focus", "Live changes", "Fresh scan"]) {
+      expect(io.stdout.join("")).toContain(`**${feature}**`);
+    }
+    expect(io.stdout.join("")).toContain("fixmap setup");
+  });
+
+  it("installs an idempotent /fixmap command for a selected agent", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-"));
+    const first = capture();
+    const second = capture();
+
+    expect(await runCli(["setup", "--repo", root, "--agent", "cursor"], first.dependencies)).toBe(0);
+    const installed = await readFile(join(root, ".cursor", "commands", "fixmap.md"), "utf8");
+    expect(installed).toContain("fixmap features");
+    expect(first.stdout.join("")).toContain("created: .cursor/commands/fixmap.md");
+
+    expect(await runCli(["setup", "--repo", root, "--agent", "cursor"], second.dependencies)).toBe(0);
+    expect(second.stdout.join("")).toContain("unchanged: .cursor/commands/fixmap.md");
+  });
+
+  it("accepts equals syntax for setup and rejects a missing repository value", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-equals-"));
+    const installed = capture();
+    const invalid = capture();
+
+    expect(await runCli(["setup", `--repo=${root}`, "--agent=claude"], installed.dependencies)).toBe(0);
+    expect(await readFile(join(root, ".claude", "skills", "fixmap", "SKILL.md"), "utf8")).toContain("fixmap features");
+    expect(await runCli(["setup", "--repo", "--agent", "cursor"], invalid.dependencies)).toBe(1);
+    expect(invalid.stderr.join("")).toContain("--repo requires a directory");
+  });
+
+  it("validates a saved report without requiring custom JavaScript", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-validate-"));
+    const path = join(root, "report.json");
+    await writeFile(path, JSON.stringify(report));
+    const io = capture();
+
+    expect(await runCli(["validate", path, "--format", "json"], io.dependencies)).toBe(0);
+    expect(JSON.parse(io.stdout.join(""))).toMatchObject({ valid: true, path, contextFiles: 1 });
+  });
+
   it("does not let a nested version flag short-circuit the requested command", async () => {
     const io = capture();
     const exitCode = await runCli(["plan", "--version"], io.dependencies);
@@ -108,6 +153,20 @@ describe("CLI argument handling", () => {
       "--output requires a non-empty file path"
     ]);
     expect(parsed.unknownArgs).toEqual([]);
+  });
+
+  it("trims accidental whitespace around a format value", () => {
+    expect(parseArgs(["plan", "--issue", "x", "--format", " JSON\n"]).format).toBe("json");
+  });
+
+  it("expands the home directory consistently for path options", () => {
+    const parsed = parseArgs([
+      "plan", "--issue", "x", "--repo", "~", "--output", "~/plan.json", "--compare", "~\\before.json"
+    ]);
+
+    expect(parsed.repo).toBe(homedir());
+    expect(parsed.output).toBe(join(homedir(), "plan.json"));
+    expect(parsed.comparePath).toBe(join(homedir(), "before.json"));
   });
 
   it.each([

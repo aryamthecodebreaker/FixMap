@@ -61,9 +61,12 @@ export type ScanDiagnostic = {
     | "content-unread"
     | "generated-paths-dominant"
     | "paths-excluded"
+    | "exclusion-no-match"
     | "working-tree-diff"
     | "diff-resolved"
     | "cache-hit"
+    | "cache-bypass"
+    | "cache-skip"
     | "task-checklist-filtered";
   message: string;
   severity: "info" | "warning" | "error";

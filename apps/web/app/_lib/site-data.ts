@@ -95,5 +95,8 @@ export const commands = {
   localTask: "fixmap plan --issue \"password reset emails fail\"",
   diff: "fixmap plan --diff main...HEAD",
   verify: "fixmap verify --report plan.json --diff main...HEAD",
+  validate: "fixmap validate plan.json",
+  setup: "fixmap setup",
+  features: "fixmap features",
   mcp: "fixmap mcp"
 };

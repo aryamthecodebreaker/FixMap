@@ -6,14 +6,15 @@ import { appendFileSync, readFileSync } from "node:fs";
 
 // packages/core/dist/plan.js
 import { readFile as readFile2 } from "node:fs/promises";
-import { join as join2 } from "node:path";
+import { join as join2, resolve as resolve2 } from "node:path";
 
 // packages/core/dist/exclude.js
 var COMMENT = /^\s*#/;
 var NO_EXCLUSIONS = {
   excludes: () => false,
   reasonFor: () => void 0,
-  patterns: []
+  patterns: [],
+  matchedPatterns: /* @__PURE__ */ new Set()
 };
 function buildPathExcluder(patterns) {
   const cleaned = [...new Set(patterns.map((pattern) => normalizeSeparators(pattern.trim())).filter((pattern) => pattern.length > 0 && !COMMENT.test(pattern)))];
@@ -26,14 +27,17 @@ function buildPathExcluder(patterns) {
     return { pattern, negated, test: compile(body) };
   });
   const cache = /* @__PURE__ */ new Map();
+  const matchedPatterns = /* @__PURE__ */ new Set();
   const reasonFor = (path) => {
     if (cache.has(path)) {
       return cache.get(path);
     }
     let hit;
     for (const matcher of matchers) {
-      if (matcher.test(path))
+      if (matcher.test(path)) {
+        matchedPatterns.add(matcher.pattern);
         hit = matcher.negated ? void 0 : matcher.pattern;
+      }
     }
     cache.set(path, hit);
     return hit;
@@ -41,7 +45,8 @@ function buildPathExcluder(patterns) {
   return {
     excludes: (path) => reasonFor(path) !== void 0,
     reasonFor,
-    patterns: cleaned
+    patterns: cleaned,
+    matchedPatterns
   };
 }
 function parseIgnoreFile(contents) {
@@ -1936,7 +1941,9 @@ var MAX_DIFF_TEXT_CHARS = 2e5;
 var MAX_SCANNED_FILES = 25e3;
 var GIT_MAX_BUFFER = 10 * 1024 * 1024;
 var exec = promisify(execFile);
-var SCAN_CACHE_VERSION = 1;
+var SCAN_CACHE_VERSION = 2;
+var SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
+var SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
 async function scanRepo(input) {
   const repoRoot = resolve(input.repoRoot);
   if (!await isDirectory(repoRoot)) {
@@ -1955,7 +1962,21 @@ async function scanRepo(input) {
     };
   }
   const diagnostics = [];
-  const cacheLocation = input.useCache ? await buildScanCacheLocation(repoRoot) : void 0;
+  const cacheDecision = input.useCache === true ? await buildScanCacheLocation(repoRoot) : void 0;
+  const cacheLocation = cacheDecision?.location;
+  if (input.useCache === false) {
+    diagnostics.push({
+      code: "cache-bypass",
+      severity: "info",
+      message: "Repository scan caching was bypassed by --no-cache; this report used a fresh scan."
+    });
+  } else if (input.useCache === true && cacheDecision?.skipReason) {
+    diagnostics.push({
+      code: "cache-skip",
+      severity: "info",
+      message: cacheDecision.skipReason
+    });
+  }
   const cached = cacheLocation ? await readScanCache(cacheLocation) : void 0;
   let files;
   let trackedFiles;
@@ -1969,7 +1990,7 @@ async function scanRepo(input) {
     diagnostics.push(...cached.diagnostics, {
       code: "cache-hit",
       severity: "info",
-      message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files). Pass --no-cache to rescan.`
+      message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files, ${describeCacheAge(cached.createdAt)}). Pass --no-cache to rescan.`
     });
   } else {
     files = await listFiles(repoRoot, diagnostics);
@@ -1980,6 +2001,7 @@ async function scanRepo(input) {
       await writeScanCache(cacheLocation, {
         version: SCAN_CACHE_VERSION,
         stateKey: cacheLocation.stateKey,
+        createdAt: (/* @__PURE__ */ new Date()).toISOString(),
         files,
         trackedFiles,
         packageScripts,
@@ -2010,8 +2032,11 @@ async function buildScanCacheLocation(root) {
         maxBuffer: GIT_MAX_BUFFER
       })
     ]);
-    if (status.split("\0").some((entry) => entry.startsWith("?? ")))
-      return void 0;
+    if (status.split("\0").some((entry) => entry.startsWith("?? "))) {
+      return {
+        skipReason: "Repository scan caching was skipped because untracked files are scanner inputs and can change without a stable git diff."
+      };
+    }
     const dirtyDiff = status.length > 0 ? (await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", "--", "."], {
       cwd: root,
       maxBuffer: GIT_MAX_BUFFER
@@ -2024,18 +2049,20 @@ async function buildScanCacheLocation(root) {
       dirtyDiff
     ].join("\0"));
     const cacheRoot = process.env.FIXMAP_CACHE_DIR ?? join(process.env.LOCALAPPDATA ?? process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"), "fixmap", "scans");
-    return {
+    return { location: {
       path: join(cacheRoot, `${hashText(resolve(root))}-${stateKey}.json`),
       stateKey
-    };
+    } };
   } catch {
-    return void 0;
+    return {
+      skipReason: "Repository scan caching was skipped because this directory has no exact git state to key safely."
+    };
   }
 }
 async function readScanCache(location) {
   try {
     const cached = JSON.parse(await readFile(location.path, "utf8"));
-    if (cached.version !== SCAN_CACHE_VERSION || cached.stateKey !== location.stateKey || !Array.isArray(cached.files) || !Array.isArray(cached.trackedFiles) || !Array.isArray(cached.packageScripts) || !Array.isArray(cached.diagnostics) || !["npm", "pnpm", "yarn", "bun"].includes(cached.packageManager ?? ""))
+    if (cached.version !== SCAN_CACHE_VERSION || cached.stateKey !== location.stateKey || typeof cached.createdAt !== "string" || !Number.isFinite(Date.parse(cached.createdAt)) || Date.now() - Date.parse(cached.createdAt) > SCAN_CACHE_MAX_AGE_MS || !Array.isArray(cached.files) || !Array.isArray(cached.trackedFiles) || !Array.isArray(cached.packageScripts) || !Array.isArray(cached.diagnostics) || !["npm", "pnpm", "yarn", "bun"].includes(cached.packageManager ?? ""))
       return void 0;
     return cached;
   } catch {
@@ -2045,6 +2072,7 @@ async function readScanCache(location) {
 async function writeScanCache(location, cached) {
   try {
     await mkdir(dirname(location.path), { recursive: true });
+    await pruneExpiredScanCache(dirname(location.path));
     await writeFile(location.path, `${JSON.stringify(cached)}
 `, { encoding: "utf8", flag: "wx" });
   } catch (error) {
@@ -2062,6 +2090,36 @@ async function writeScanCache(location, cached) {
     } catch {
     }
   }
+}
+async function pruneExpiredScanCache(cacheRoot) {
+  try {
+    const entries = await readdir(cacheRoot, { withFileTypes: true });
+    const now = Date.now();
+    await Promise.all(entries.filter((entry) => entry.isFile() && SCAN_CACHE_FILE.test(entry.name)).map(async (entry) => {
+      const path = join(cacheRoot, entry.name);
+      try {
+        const metadata = await stat(path);
+        if (now - metadata.mtimeMs > SCAN_CACHE_MAX_AGE_MS)
+          await unlink(path);
+      } catch {
+      }
+    }));
+  } catch {
+  }
+}
+function describeCacheAge(createdAt) {
+  const ageMs = Math.max(0, Date.now() - Date.parse(createdAt));
+  if (ageMs < 5e3)
+    return "scanned just now";
+  const minutes = Math.floor(ageMs / 6e4);
+  if (minutes < 1)
+    return "scanned less than a minute ago";
+  if (minutes < 60)
+    return `scanned ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24)
+    return `scanned ${hours}h ago`;
+  return `scanned ${Math.floor(hours / 24)}d ago`;
 }
 function hashText(value) {
   return createHash("sha256").update(value).digest("hex").slice(0, 24);
@@ -2534,19 +2592,40 @@ async function buildFixMapReport(input) {
   });
   if (exclude.patterns.length > 0) {
     const excludedPaths = repo.files.filter((file) => exclude.excludes(file.path)).map((file) => file.path);
-    if (excludedPaths.length === 0)
-      return report;
-    report.diagnostics.push({
-      code: "paths-excluded",
-      severity: report.contextFiles.length === 0 ? "warning" : "info",
-      message: `${exclude.patterns.length} exclusion ${exclude.patterns.length === 1 ? "pattern" : "patterns"} removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${exclude.patterns.join(", ")}. Run --explain on a file you expected to see if this is why it is absent.`
-    });
+    const unmatchedPatterns = exclude.patterns.filter((pattern) => !pattern.startsWith("!") && !exclude.matchedPatterns.has(pattern));
+    if (unmatchedPatterns.length > 0) {
+      const sample = unmatchedPatterns.slice(0, 5).join(", ");
+      report.diagnostics.push({
+        code: "exclusion-no-match",
+        severity: "warning",
+        message: `${unmatchedPatterns.length} exclusion ${unmatchedPatterns.length === 1 ? "pattern matched" : "patterns matched"} no scanned paths: ${sample}${unmatchedPatterns.length > 5 ? ", ..." : ""}. Check that patterns are repository-relative or run --explain on an expected file.`
+      });
+    }
+    if (excludedPaths.length > 0) {
+      report.diagnostics.push({
+        code: "paths-excluded",
+        severity: report.contextFiles.length === 0 ? "warning" : "info",
+        message: `${exclude.patterns.length} exclusion ${exclude.patterns.length === 1 ? "pattern" : "patterns"} removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${exclude.patterns.join(", ")}. Run --explain on a file you expected to see if this is why it is absent.`
+      });
+    }
   }
   return report;
 }
 async function resolveExclusions(repoRoot, patterns) {
-  const combined = [...await readIgnoreFile(repoRoot), ...patterns];
+  const combined = [...await readIgnoreFile(repoRoot), ...patterns].map((pattern) => normalizeAbsolutePattern(repoRoot, pattern));
   return combined.length > 0 ? buildPathExcluder(combined) : NO_EXCLUSIONS;
+}
+function normalizeAbsolutePattern(repoRoot, pattern) {
+  const trimmed = pattern.trim();
+  const negated = trimmed.startsWith("!");
+  const body = (negated ? trimmed.slice(1) : trimmed).replace(/\\/g, "/");
+  const normalizedRoot = resolve2(repoRoot).replace(/\\/g, "/").replace(/\/$/, "");
+  const caseInsensitive = /^[A-Za-z]:\//.test(normalizedRoot);
+  const comparableBody = caseInsensitive ? body.toLowerCase() : body;
+  const comparableRoot = caseInsensitive ? normalizedRoot.toLowerCase() : normalizedRoot;
+  if (!comparableBody.startsWith(`${comparableRoot}/`))
+    return pattern;
+  return `${negated ? "!" : ""}/${body.slice(normalizedRoot.length + 1)}`;
 }
 async function readIgnoreFile(repoRoot) {
   try {

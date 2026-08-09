@@ -150,11 +150,24 @@ describe(".fixmapignore", () => {
     expect(report.diagnostics.some((entry) => entry.code === "paths-excluded")).toBe(false);
   });
 
-  it("stays silent when patterns match no scanned path", async () => {
+  it("warns when an exclusion pattern matches no scanned path", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-nomatch-ignore-"));
     await writeFile(join(root, "reset.ts"), "export function sendResetEmail() { return 1; }\n");
     const report = await buildFixMapReport({ repoRoot: root, issueText: "sendResetEmail fails", exclude: ["missing/**"] });
     expect(report.diagnostics.some((entry) => entry.code === "paths-excluded")).toBe(false);
+    expect(report.diagnostics.find((entry) => entry.code === "exclusion-no-match")?.message)
+      .toContain("missing/**");
+  });
+
+  it("normalizes an absolute pattern inside the repository to a root-relative pattern", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-absolute-ignore-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src", "reset.ts"), "export function sendResetEmail() { return 1; }\n");
+
+    const excluder = await resolveExclusions(root, [join(root, "src", "**")]);
+
+    expect(excluder.patterns).toEqual(["/src/**"]);
+    expect(excluder.excludes("src/reset.ts")).toBe(true);
   });
 });
 

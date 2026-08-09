@@ -135,7 +135,7 @@ export function Demo() {
         <div className="demo-input">
           <label htmlFor="task">The task</label>
           <textarea id="task" value={task} onChange={(event) => setTask(event.target.value)} rows={3} />
-          <div className="preset-list" aria-label="Example tasks">
+          <div className="preset-list" role="group" aria-label="Example tasks">
             {presets.map((preset) => (
               <button
                 key={preset.label}
@@ -160,7 +160,7 @@ export function Demo() {
           </p>
 
           <div className="privacy-note">
-            <span>●</span>
+            <span aria-hidden="true">●</span>
             <p>
               <strong>This is FixMap itself, not a mockup.</strong> The page imports the same
               ranking, explanation, and verification code the CLI runs, and executes it on a
@@ -234,7 +234,7 @@ function PlanPanel({ report }: { report: ReturnType<typeof buildReportFromRepo> 
 
       {report.risks.length > 0 ? (
         <div className="panel-block">
-          <h4>Risk</h4>
+          <p className="panel-heading">Risk</p>
           {report.risks.map((risk) => (
             <p key={risk.area}>
               <span className={`severity ${risk.severity}`}>{risk.severity}</span>
@@ -246,7 +246,7 @@ function PlanPanel({ report }: { report: ReturnType<typeof buildReportFromRepo> 
 
       {report.diagnostics.length > 0 ? (
         <div className="panel-block">
-          <h4>Diagnostics</h4>
+          <p className="panel-heading">Diagnostics</p>
           {report.diagnostics.map((diagnostic, index) => (
             <p key={`${diagnostic.code}-${diagnostic.paths?.[0] ?? index}`}>
               <span className={`severity ${diagnostic.severity}`}>{diagnostic.severity}</span>
@@ -297,7 +297,7 @@ function ExplainPanel({
 
       {explanation.reasons.length > 0 ? (
         <div className="panel-block">
-          <h4>Scored for</h4>
+          <p className="panel-heading">Scored for</p>
           {explanation.reasons.map((reason) => (
             <p key={reason}>{reason}</p>
           ))}

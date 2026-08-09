@@ -55,11 +55,14 @@ const MAX_SCANNED_FILES = 25_000;
 const GIT_MAX_BUFFER = 10 * 1024 * 1024;
 const exec = promisify(execFile);
 type ScanState = { count: number; limitReported: boolean };
-const SCAN_CACHE_VERSION = 1;
+const SCAN_CACHE_VERSION = 2;
+const SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
 
 type CachedScan = {
   version: typeof SCAN_CACHE_VERSION;
   stateKey: string;
+  createdAt: string;
   files: RepoFile[];
   trackedFiles: string[];
   packageScripts: PackageScript[];
@@ -91,7 +94,21 @@ export async function scanRepo(
   }
 
   const diagnostics: RepoMap["diagnostics"] = [];
-  const cacheLocation = input.useCache ? await buildScanCacheLocation(repoRoot) : undefined;
+  const cacheDecision = input.useCache === true ? await buildScanCacheLocation(repoRoot) : undefined;
+  const cacheLocation = cacheDecision?.location;
+  if (input.useCache === false) {
+    diagnostics.push({
+      code: "cache-bypass",
+      severity: "info",
+      message: "Repository scan caching was bypassed by --no-cache; this report used a fresh scan."
+    });
+  } else if (input.useCache === true && cacheDecision?.skipReason) {
+    diagnostics.push({
+      code: "cache-skip",
+      severity: "info",
+      message: cacheDecision.skipReason
+    });
+  }
   const cached = cacheLocation ? await readScanCache(cacheLocation) : undefined;
   let files: RepoFile[];
   let trackedFiles: string[];
@@ -105,7 +122,7 @@ export async function scanRepo(
     diagnostics.push(...cached.diagnostics, {
       code: "cache-hit",
       severity: "info",
-      message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files). Pass --no-cache to rescan.`
+      message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files, ${describeCacheAge(cached.createdAt)}). Pass --no-cache to rescan.`
     });
   } else {
     files = await listFiles(repoRoot, diagnostics);
@@ -116,6 +133,7 @@ export async function scanRepo(
       await writeScanCache(cacheLocation, {
         version: SCAN_CACHE_VERSION,
         stateKey: cacheLocation.stateKey,
+        createdAt: new Date().toISOString(),
         files,
         trackedFiles,
         packageScripts,
@@ -142,8 +160,9 @@ export async function scanRepo(
 }
 
 type ScanCacheLocation = { path: string; stateKey: string };
+type ScanCacheDecision = { location?: ScanCacheLocation; skipReason?: string };
 
-async function buildScanCacheLocation(root: string): Promise<ScanCacheLocation | undefined> {
+async function buildScanCacheLocation(root: string): Promise<ScanCacheDecision> {
   try {
     const [{ stdout: head }, { stdout: status }] = await Promise.all([
       exec("git", ["rev-parse", "HEAD"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
@@ -154,7 +173,11 @@ async function buildScanCacheLocation(root: string): Promise<ScanCacheLocation |
     ]);
     // Untracked files are scanner inputs but are absent from `git diff`. Do not cache that
     // state rather than keying it on names alone and serving stale contents after an edit.
-    if (status.split("\0").some((entry) => entry.startsWith("?? "))) return undefined;
+    if (status.split("\0").some((entry) => entry.startsWith("?? "))) {
+      return {
+        skipReason: "Repository scan caching was skipped because untracked files are scanner inputs and can change without a stable git diff."
+      };
+    }
     const dirtyDiff = status.length > 0
       ? (await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", "--", "."], {
           cwd: root,
@@ -173,13 +196,15 @@ async function buildScanCacheLocation(root: string): Promise<ScanCacheLocation |
       "fixmap",
       "scans"
     );
-    return {
+    return { location: {
       path: join(cacheRoot, `${hashText(resolve(root))}-${stateKey}.json`),
       stateKey
-    };
+    } };
   } catch {
     // Non-git directories deliberately do not cache: they have no cheap exact invalidation key.
-    return undefined;
+    return {
+      skipReason: "Repository scan caching was skipped because this directory has no exact git state to key safely."
+    };
   }
 }
 
@@ -189,6 +214,9 @@ async function readScanCache(location: ScanCacheLocation): Promise<CachedScan | 
     if (
       cached.version !== SCAN_CACHE_VERSION ||
       cached.stateKey !== location.stateKey ||
+      typeof cached.createdAt !== "string" ||
+      !Number.isFinite(Date.parse(cached.createdAt)) ||
+      Date.now() - Date.parse(cached.createdAt) > SCAN_CACHE_MAX_AGE_MS ||
       !Array.isArray(cached.files) ||
       !Array.isArray(cached.trackedFiles) ||
       !Array.isArray(cached.packageScripts) ||
@@ -204,6 +232,7 @@ async function readScanCache(location: ScanCacheLocation): Promise<CachedScan | 
 async function writeScanCache(location: ScanCacheLocation, cached: CachedScan): Promise<void> {
   try {
     await mkdir(dirname(location.path), { recursive: true });
+    await pruneExpiredScanCache(dirname(location.path));
     await writeFile(location.path, `${JSON.stringify(cached)}\n`, { encoding: "utf8", flag: "wx" });
   } catch (error) {
     const code = (error as { code?: unknown }).code;
@@ -222,6 +251,37 @@ async function writeScanCache(location: ScanCacheLocation, cached: CachedScan): 
       // Another process may have won the replacement race; the current scan is still valid.
     }
   }
+}
+
+async function pruneExpiredScanCache(cacheRoot: string): Promise<void> {
+  try {
+    const entries = await readdir(cacheRoot, { withFileTypes: true });
+    const now = Date.now();
+    await Promise.all(entries
+      .filter((entry) => entry.isFile() && SCAN_CACHE_FILE.test(entry.name))
+      .map(async (entry) => {
+        const path = join(cacheRoot, entry.name);
+        try {
+          const metadata = await stat(path);
+          if (now - metadata.mtimeMs > SCAN_CACHE_MAX_AGE_MS) await unlink(path);
+        } catch {
+          // Cache cleanup is best effort and must never block a report.
+        }
+      }));
+  } catch {
+    // A read-only or concurrently removed cache directory is harmless.
+  }
+}
+
+function describeCacheAge(createdAt: string): string {
+  const ageMs = Math.max(0, Date.now() - Date.parse(createdAt));
+  if (ageMs < 5_000) return "scanned just now";
+  const minutes = Math.floor(ageMs / 60_000);
+  if (minutes < 1) return "scanned less than a minute ago";
+  if (minutes < 60) return `scanned ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `scanned ${hours}h ago`;
+  return `scanned ${Math.floor(hours / 24)}d ago`;
 }
 
 function hashText(value: string): string {

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -513,6 +513,12 @@ describe("scanRepo", () => {
       await scanRepo({ repoRoot: root, useCache: true });
       const cleanHit = await scanRepo({ repoRoot: root, useCache: true });
       expect(cleanHit.diagnostics.map((entry) => entry.code)).toContain("cache-hit");
+      expect(cleanHit.diagnostics.find((entry) => entry.code === "cache-hit")?.message)
+        .toContain("scanned just now");
+
+      const bypassed = await scanRepo({ repoRoot: root, useCache: false });
+      expect(bypassed.diagnostics.find((entry) => entry.code === "cache-bypass")?.message)
+        .toContain("fresh scan");
 
       await writeFile(join(root, "index.ts"), "export const value = 'two';\n");
       const firstDirty = await scanRepo({ repoRoot: root, useCache: true });
@@ -525,6 +531,65 @@ describe("scanRepo", () => {
       const secondDirty = await scanRepo({ repoRoot: root, useCache: true });
       expect(secondDirty.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
       expect(secondDirty.files[0]?.textSample).toContain("three");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("does not reuse a staged scan after the same edit becomes unstaged", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-stage-state-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-stage-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "index.ts"), "export const value = 'one';\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await writeFile(join(root, "index.ts"), "export const value = 'changed';\n");
+      await exec("git", ["add", "index.ts"], { cwd: root });
+      await scanRepo({ repoRoot: root, useCache: true });
+      expect((await scanRepo({ repoRoot: root, useCache: true })).diagnostics.map((entry) => entry.code))
+        .toContain("cache-hit");
+
+      await exec("git", ["reset", "HEAD", "--", "index.ts"], { cwd: root });
+      const unstaged = await scanRepo({ repoRoot: root, useCache: true });
+      expect(unstaged.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("expires scan-cache entries older than seven days", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-expiry-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-expiry-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await scanRepo({ repoRoot: root, useCache: true });
+      const cachePath = join(cacheRoot, (await readdir(cacheRoot))[0]!);
+      const cached = JSON.parse(await readFile(cachePath, "utf8")) as Record<string, unknown>;
+      cached.createdAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+      await writeFile(cachePath, `${JSON.stringify(cached)}\n`);
+
+      const expired = await scanRepo({ repoRoot: root, useCache: true });
+      expect(expired.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
+      expect((await scanRepo({ repoRoot: root, useCache: true })).diagnostics.map((entry) => entry.code))
+        .toContain("cache-hit");
     } finally {
       if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
       else process.env.FIXMAP_CACHE_DIR = previousCache;
