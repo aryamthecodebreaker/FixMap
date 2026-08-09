@@ -1947,6 +1947,7 @@ var GIT_MAX_BUFFER = 10 * 1024 * 1024;
 var exec = promisify(execFile);
 var SCAN_CACHE_VERSION = 2;
 var SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
+var SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1e3;
 var SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
 var SCAN_CACHE_TEMP_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i;
 async function scanRepo(input) {
@@ -2103,7 +2104,8 @@ async function buildScanCacheLocation(root, cacheRoot, internalPaths) {
 async function readScanCache(location) {
   try {
     const cached = JSON.parse(await readFile(location.path, "utf8"));
-    if (cached.version !== SCAN_CACHE_VERSION || cached.stateKey !== location.stateKey || typeof cached.createdAt !== "string" || !Number.isFinite(Date.parse(cached.createdAt)) || Date.now() - Date.parse(cached.createdAt) > SCAN_CACHE_MAX_AGE_MS || !Array.isArray(cached.files) || !cached.files.every(isCachedRepoFile) || !Array.isArray(cached.trackedFiles) || !cached.trackedFiles.every((path) => typeof path === "string") || !Array.isArray(cached.packageScripts) || !cached.packageScripts.every(isCachedPackageScript) || !Array.isArray(cached.diagnostics) || !cached.diagnostics.every(isCachedDiagnostic) || !["npm", "pnpm", "yarn", "bun"].includes(cached.packageManager ?? ""))
+    const createdAt = typeof cached.createdAt === "string" ? Date.parse(cached.createdAt) : Number.NaN;
+    if (cached.version !== SCAN_CACHE_VERSION || cached.stateKey !== location.stateKey || typeof cached.createdAt !== "string" || !Number.isFinite(createdAt) || Date.now() - createdAt > SCAN_CACHE_MAX_AGE_MS || createdAt - Date.now() > SCAN_CACHE_MAX_FUTURE_SKEW_MS || !Array.isArray(cached.files) || !cached.files.every(isCachedRepoFile) || !Array.isArray(cached.trackedFiles) || !cached.trackedFiles.every(isCachedRelativePath) || !Array.isArray(cached.packageScripts) || !cached.packageScripts.every(isCachedPackageScript) || !Array.isArray(cached.diagnostics) || !cached.diagnostics.every(isCachedDiagnostic) || !["npm", "pnpm", "yarn", "bun"].includes(cached.packageManager ?? ""))
       return void 0;
     return cached;
   } catch {
@@ -2113,20 +2115,28 @@ async function readScanCache(location) {
 function isCachedRepoFile(candidate) {
   if (!isRecord(candidate))
     return false;
-  return typeof candidate.path === "string" && candidate.path.trim().length > 0 && typeof candidate.extension === "string" && typeof candidate.sizeBytes === "number" && Number.isFinite(candidate.sizeBytes) && candidate.sizeBytes >= 0 && typeof candidate.isTest === "boolean" && typeof candidate.isSource === "boolean" && (candidate.kind === "code" || candidate.kind === "config" || candidate.kind === "documentation" || candidate.kind === "other") && typeof candidate.textSample === "string" && (candidate.textSampleComplete === void 0 || typeof candidate.textSampleComplete === "boolean") && (candidate.textSampleSkipReason === void 0 || candidate.textSampleSkipReason === "too-large" || candidate.textSampleSkipReason === "not-text" || candidate.textSampleSkipReason === "unreadable");
+  const validSkipReason = candidate.textSampleSkipReason === "too-large" || candidate.textSampleSkipReason === "not-text" || candidate.textSampleSkipReason === "unreadable";
+  return isCachedRelativePath(candidate.path) && typeof candidate.extension === "string" && typeof candidate.sizeBytes === "number" && Number.isFinite(candidate.sizeBytes) && candidate.sizeBytes >= 0 && typeof candidate.isTest === "boolean" && typeof candidate.isSource === "boolean" && (candidate.kind === "code" || candidate.kind === "config" || candidate.kind === "documentation" || candidate.kind === "other") && typeof candidate.textSample === "string" && typeof candidate.textSampleComplete === "boolean" && (candidate.textSampleComplete && candidate.textSampleSkipReason === void 0 || !candidate.textSampleComplete && validSkipReason);
 }
 function isCachedPackageScript(candidate) {
   if (!isRecord(candidate))
     return false;
-  return typeof candidate.name === "string" && typeof candidate.command === "string" && typeof candidate.packageDir === "string" && (candidate.packageName === void 0 || typeof candidate.packageName === "string");
+  return typeof candidate.name === "string" && candidate.name.trim().length > 0 && typeof candidate.command === "string" && (candidate.packageDir === "" || isCachedRelativePath(candidate.packageDir)) && (candidate.packageName === void 0 || typeof candidate.packageName === "string" && candidate.packageName.trim().length > 0);
 }
 function isCachedDiagnostic(candidate) {
   if (!isRecord(candidate))
     return false;
-  return typeof candidate.code === "string" && typeof candidate.message === "string" && (candidate.severity === "info" || candidate.severity === "warning" || candidate.severity === "error") && (candidate.paths === void 0 || Array.isArray(candidate.paths) && candidate.paths.every((path) => typeof path === "string"));
+  return typeof candidate.code === "string" && candidate.code.trim().length > 0 && typeof candidate.message === "string" && candidate.message.trim().length > 0 && (candidate.severity === "info" || candidate.severity === "warning" || candidate.severity === "error") && (candidate.paths === void 0 || Array.isArray(candidate.paths) && candidate.paths.every(isCachedRelativePath));
 }
 function isRecord(candidate) {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
+}
+function isCachedRelativePath(candidate) {
+  if (typeof candidate !== "string" || candidate.trim().length === 0 || candidate.includes("\0") || isAbsolute(candidate) || /^[A-Za-z]:[\\/]/.test(candidate)) {
+    return false;
+  }
+  const segments = normalizePath(candidate).split("/");
+  return segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..");
 }
 async function writeScanCache(location, cached) {
   const temporaryPath = `${location.path}.${process.pid}-${randomUUID()}.tmp`;
@@ -2866,34 +2876,11 @@ function validateFixMapReport(candidate, label) {
       message: `${label} is not a FixMap JSON report: no contextFiles array.`
     };
   }
-  const contextFiles = candidate.contextFiles;
   const record = candidate;
   if (record.reportVersion !== void 0 && record.reportVersion !== 1) {
     return {
       success: false,
       message: `${label} uses unsupported reportVersion ${JSON.stringify(record.reportVersion)}; this FixMap release supports reportVersion 1.`
-    };
-  }
-  const invalid = contextFiles.findIndex((file) => {
-    if (!isRecord2(file))
-      return true;
-    const ranked = file;
-    if (typeof ranked.path !== "string" || ranked.path.trim().length === 0)
-      return true;
-    if (ranked.rank !== void 0 && (!Number.isSafeInteger(ranked.rank) || ranked.rank < 1))
-      return true;
-    if (ranked.score !== void 0 && (typeof ranked.score !== "number" || !Number.isFinite(ranked.score)))
-      return true;
-    if (ranked.confidence !== void 0 && ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low")
-      return true;
-    if (ranked.reasons !== void 0 && !isStringArray(ranked.reasons))
-      return true;
-    return false;
-  });
-  if (invalid !== -1) {
-    return {
-      success: false,
-      message: `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", and optional rank, score, confidence, and reasons fields must use their documented types.`
     };
   }
   const invalidEnvelopeFields = [
@@ -2909,11 +2896,51 @@ function validateFixMapReport(candidate, label) {
       message: `${label} is missing or has invalid fields in the complete FixMap report envelope: ${invalidEnvelopeFields.join(", ")}.`
     };
   }
+  const versioned = record.reportVersion === 1;
+  const contextFiles = candidate.contextFiles;
+  const invalid = contextFiles.findIndex((file) => {
+    if (!isRecord2(file))
+      return true;
+    const ranked = file;
+    if (typeof ranked.path !== "string" || ranked.path.trim().length === 0)
+      return true;
+    if ((versioned || ranked.rank !== void 0) && (!Number.isSafeInteger(ranked.rank) || ranked.rank < 1))
+      return true;
+    if ((versioned || ranked.score !== void 0) && (typeof ranked.score !== "number" || !Number.isFinite(ranked.score)))
+      return true;
+    if ((versioned || ranked.confidence !== void 0) && ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low")
+      return true;
+    if ((versioned || ranked.reasons !== void 0) && !isStringArray(ranked.reasons))
+      return true;
+    return false;
+  });
+  if (invalid !== -1) {
+    return {
+      success: false,
+      message: `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", ${versioned ? "and version 1 requires" : "and optional"} rank, score, confidence, and reasons fields with their documented types.`
+    };
+  }
+  const duplicatePath = contextFiles.findIndex((file, index) => contextFiles.findIndex((candidate2) => candidate2.path === file.path) !== index);
+  if (duplicatePath !== -1) {
+    return {
+      success: false,
+      message: `${label} has a duplicate contextFiles path at index ${duplicatePath}; each ranked path must appear once.`
+    };
+  }
+  if (versioned) {
+    const outOfOrderRank = contextFiles.findIndex((file, index) => file.rank !== index + 1);
+    if (outOfOrderRank !== -1) {
+      return {
+        success: false,
+        message: `${label} has an out-of-order contextFiles rank at index ${outOfOrderRank}; version 1 ranks must be sequential and match array order.`
+      };
+    }
+  }
   const testRoutes = record.testRoutes;
   const invalidRoute = testRoutes.findIndex((route) => {
     if (!isRecord2(route))
       return true;
-    return typeof route.command !== "string" || !route.command.trim() || !isNonBlankStringArray(route.relatedFiles) || route.kind !== void 0 && route.kind !== "test" && route.kind !== "validation" || route.reason !== void 0 && typeof route.reason !== "string";
+    return typeof route.command !== "string" || !route.command.trim() || !isNonBlankStringArray(route.relatedFiles) || (versioned || route.kind !== void 0) && route.kind !== "test" && route.kind !== "validation" || (versioned || route.reason !== void 0) && typeof route.reason !== "string";
   });
   if (invalidRoute !== -1) {
     return {
@@ -2925,7 +2952,7 @@ function validateFixMapReport(candidate, label) {
   const invalidRisk = risks.findIndex((risk) => {
     if (!isRecord2(risk))
       return true;
-    return typeof risk.area !== "string" || !risk.area.trim() || risk.reason !== void 0 && typeof risk.reason !== "string" || risk.severity !== void 0 && risk.severity !== "low" && risk.severity !== "medium" && risk.severity !== "high";
+    return typeof risk.area !== "string" || !risk.area.trim() || (versioned || risk.reason !== void 0) && typeof risk.reason !== "string" || (versioned || risk.severity !== void 0) && risk.severity !== "low" && risk.severity !== "medium" && risk.severity !== "high";
   });
   if (invalidRisk !== -1) {
     return {
@@ -2964,7 +2991,7 @@ function validateFixMapReport(candidate, label) {
         message: `${label} has incomplete or invalid analysis grounding, ranking, or nextAction fields.`
       };
     }
-    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord2(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || typeof identifier.status !== "string" || !identifier.status.trim() || !isNonBlankStringArray(identifier.matchedFiles));
+    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord2(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isNonBlankStringArray(identifier.matchedFiles));
     if (invalidIdentifier !== -1) {
       return {
         success: false,
@@ -2985,6 +3012,9 @@ function isNonBlankStringArray(candidate) {
 }
 function isNullableFiniteNumber(candidate) {
   return candidate === null || typeof candidate === "number" && Number.isFinite(candidate);
+}
+function isIdentifierStatus(candidate) {
+  return candidate === "exact-definition" || candidate === "exact-text" || candidate === "partial-definition" || candidate === "not-found" || candidate === "unverified";
 }
 
 // packages/action/src/github.ts

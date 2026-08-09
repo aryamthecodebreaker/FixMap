@@ -221,6 +221,22 @@ describe("CLI argument handling", () => {
     expect(verifyIo.stderr.join("")).not.toContain("Cannot read properties");
   });
 
+  it("rejects incomplete marked version 1 entries while accepting legacy partial entries", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-versioned-report-"));
+    const versionedPath = join(root, "versioned.json");
+    const legacyPath = join(root, "legacy.json");
+    const partial = { ...report, contextFiles: [{ path: "src/reset.ts" }] };
+    await writeFile(versionedPath, JSON.stringify({ ...partial, reportVersion: 1 }));
+    await writeFile(legacyPath, JSON.stringify({ ...partial, reportVersion: undefined }));
+    const versionedIo = capture();
+    const legacyIo = capture();
+
+    expect(await runCli(["validate", versionedPath], versionedIo.dependencies)).toBe(1);
+    expect(versionedIo.stderr.join("")).toContain("version 1 requires");
+    expect(await runCli(["validate", legacyPath, "--format", "json"], legacyIo.dependencies)).toBe(0);
+    expect(JSON.parse(legacyIo.stdout.join(""))).toMatchObject({ valid: true, reportVersion: "legacy" });
+  });
+
   it("does not let a nested version flag short-circuit the requested command", async () => {
     const io = capture();
     const exitCode = await runCli(["plan", "--version"], io.dependencies);

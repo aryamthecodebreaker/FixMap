@@ -205,6 +205,20 @@ describe("GitHub Action runner", () => {
     expect(scanRepo).not.toHaveBeenCalled();
   });
 
+  it("rejects an incomplete marked version 1 entry before scanning", async () => {
+    const scanRepo = vi.fn(async () => scannedRepo(["src/auth.ts"]));
+    await expect(runAction({
+      INPUT_MODE: "verify",
+      INPUT_REPORT_PATH: "plan.json",
+      INPUT_DIFF: "main...HEAD"
+    }, {
+      readFile: () => JSON.stringify({ ...report, reportVersion: 1, contextFiles: [{ path: "src/auth.ts" }] }),
+      scanRepo,
+      stdout: vi.fn()
+    })).rejects.toThrow("version 1 requires");
+    expect(scanRepo).not.toHaveBeenCalled();
+  });
+
   it("says what verify mode needs when report-path is missing", async () => {
     await expect(runAction({ INPUT_MODE: "verify", INPUT_DIFF: "main...HEAD" }, { stdout: vi.fn() }))
       .rejects.toThrow("report-path");

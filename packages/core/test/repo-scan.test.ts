@@ -772,6 +772,59 @@ describe("scanRepo", () => {
     }
   });
 
+  it("rebuilds typed cache data with unsafe paths, impossible sampling state, or a future timestamp", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-integrity-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-integrity-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await scanRepo({ repoRoot: root, useCache: true });
+      const cachePath = join(cacheRoot, (await readdir(cacheRoot))[0]!);
+      type MutableCachedScan = Record<string, unknown> & {
+        createdAt: string;
+        files: Array<{ path: string; textSampleComplete: boolean; textSampleSkipReason?: string }>;
+        trackedFiles: string[];
+      };
+      const mutations: Array<(cached: MutableCachedScan) => void> = [
+        (cached) => { cached.files[0].path = "../outside.ts"; },
+        (cached) => { cached.trackedFiles = ["C:/outside.ts"]; },
+        (cached) => {
+          cached.packageScripts = [{ name: "test", command: "npm test", packageDir: "../outside" }];
+        },
+        (cached) => {
+          cached.diagnostics = [{ code: "content-unread", message: "Unread", severity: "warning", paths: ["../outside.ts"] }];
+        },
+        (cached) => {
+          cached.files[0].textSampleComplete = true;
+          cached.files[0].textSampleSkipReason = "too-large";
+        },
+        (cached) => { cached.createdAt = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString(); }
+      ];
+
+      for (const mutate of mutations) {
+        const cached = JSON.parse(await readFile(cachePath, "utf8")) as MutableCachedScan;
+        mutate(cached);
+        await writeFile(cachePath, `${JSON.stringify(cached)}\n`);
+
+        const repaired = await scanRepo({ repoRoot: root, useCache: true });
+        expect(repaired.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
+        expect(repaired.files.map((file) => file.path)).toEqual(["index.ts"]);
+      }
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("keeps the exact-state cache valid across concurrent first scans", { timeout: 30_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-cache-concurrent-repo-"));
     const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-concurrent-store-"));

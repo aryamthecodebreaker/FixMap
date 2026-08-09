@@ -57,6 +57,7 @@ const exec = promisify(execFile);
 type ScanState = { count: number; limitReported: boolean };
 const SCAN_CACHE_VERSION = 2;
 const SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 const SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
 const SCAN_CACHE_TEMP_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i;
 
@@ -276,16 +277,18 @@ async function buildScanCacheLocation(
 async function readScanCache(location: ScanCacheLocation): Promise<CachedScan | undefined> {
   try {
     const cached = JSON.parse(await readFile(location.path, "utf8")) as Partial<CachedScan>;
+    const createdAt = typeof cached.createdAt === "string" ? Date.parse(cached.createdAt) : Number.NaN;
     if (
       cached.version !== SCAN_CACHE_VERSION ||
       cached.stateKey !== location.stateKey ||
       typeof cached.createdAt !== "string" ||
-      !Number.isFinite(Date.parse(cached.createdAt)) ||
-      Date.now() - Date.parse(cached.createdAt) > SCAN_CACHE_MAX_AGE_MS ||
+      !Number.isFinite(createdAt) ||
+      Date.now() - createdAt > SCAN_CACHE_MAX_AGE_MS ||
+      createdAt - Date.now() > SCAN_CACHE_MAX_FUTURE_SKEW_MS ||
       !Array.isArray(cached.files) ||
       !cached.files.every(isCachedRepoFile) ||
       !Array.isArray(cached.trackedFiles) ||
-      !cached.trackedFiles.every((path) => typeof path === "string") ||
+      !cached.trackedFiles.every(isCachedRelativePath) ||
       !Array.isArray(cached.packageScripts) ||
       !cached.packageScripts.every(isCachedPackageScript) ||
       !Array.isArray(cached.diagnostics) ||
@@ -300,39 +303,49 @@ async function readScanCache(location: ScanCacheLocation): Promise<CachedScan | 
 
 function isCachedRepoFile(candidate: unknown): candidate is RepoFile {
   if (!isRecord(candidate)) return false;
-  return typeof candidate.path === "string" && candidate.path.trim().length > 0 &&
+  const validSkipReason = candidate.textSampleSkipReason === "too-large" ||
+    candidate.textSampleSkipReason === "not-text" || candidate.textSampleSkipReason === "unreadable";
+  return isCachedRelativePath(candidate.path) &&
     typeof candidate.extension === "string" &&
     typeof candidate.sizeBytes === "number" && Number.isFinite(candidate.sizeBytes) && candidate.sizeBytes >= 0 &&
     typeof candidate.isTest === "boolean" &&
     typeof candidate.isSource === "boolean" &&
     (candidate.kind === "code" || candidate.kind === "config" || candidate.kind === "documentation" || candidate.kind === "other") &&
     typeof candidate.textSample === "string" &&
-    (candidate.textSampleComplete === undefined || typeof candidate.textSampleComplete === "boolean") &&
-    (candidate.textSampleSkipReason === undefined ||
-      candidate.textSampleSkipReason === "too-large" ||
-      candidate.textSampleSkipReason === "not-text" ||
-      candidate.textSampleSkipReason === "unreadable");
+    typeof candidate.textSampleComplete === "boolean" &&
+    ((candidate.textSampleComplete && candidate.textSampleSkipReason === undefined) ||
+      (!candidate.textSampleComplete && validSkipReason));
 }
 
 function isCachedPackageScript(candidate: unknown): candidate is PackageScript {
   if (!isRecord(candidate)) return false;
-  return typeof candidate.name === "string" &&
+  return typeof candidate.name === "string" && candidate.name.trim().length > 0 &&
     typeof candidate.command === "string" &&
-    typeof candidate.packageDir === "string" &&
-    (candidate.packageName === undefined || typeof candidate.packageName === "string");
+    (candidate.packageDir === "" || isCachedRelativePath(candidate.packageDir)) &&
+    (candidate.packageName === undefined ||
+      (typeof candidate.packageName === "string" && candidate.packageName.trim().length > 0));
 }
 
 function isCachedDiagnostic(candidate: unknown): candidate is RepoMap["diagnostics"][number] {
   if (!isRecord(candidate)) return false;
-  return typeof candidate.code === "string" &&
-    typeof candidate.message === "string" &&
+  return typeof candidate.code === "string" && candidate.code.trim().length > 0 &&
+    typeof candidate.message === "string" && candidate.message.trim().length > 0 &&
     (candidate.severity === "info" || candidate.severity === "warning" || candidate.severity === "error") &&
     (candidate.paths === undefined ||
-      (Array.isArray(candidate.paths) && candidate.paths.every((path) => typeof path === "string")));
+      (Array.isArray(candidate.paths) && candidate.paths.every(isCachedRelativePath)));
 }
 
 function isRecord(candidate: unknown): candidate is Record<string, unknown> {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
+}
+
+function isCachedRelativePath(candidate: unknown): candidate is string {
+  if (typeof candidate !== "string" || candidate.trim().length === 0 || candidate.includes("\0") ||
+    isAbsolute(candidate) || /^[A-Za-z]:[\\/]/.test(candidate)) {
+    return false;
+  }
+  const segments = normalizePath(candidate).split("/");
+  return segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..");
 }
 
 async function writeScanCache(location: ScanCacheLocation, cached: CachedScan): Promise<void> {

@@ -11,13 +11,52 @@ const envelope = {
   diagnostics: []
 };
 
+const rankedContext = {
+  rank: 1,
+  path: "src/reset.ts",
+  score: 12,
+  confidence: "high",
+  reasons: ["path matches task terms: reset"]
+} as const;
+
 describe("validateFixMapReport", () => {
   it("accepts a complete empty report and legacy reports without a marker", () => {
     expect(validateFixMapReport(envelope, "report").success).toBe(true);
-    const legacy = Object.fromEntries(
-      Object.entries(envelope).filter(([key]) => key !== "reportVersion")
-    );
+    const legacy = {
+      ...Object.fromEntries(Object.entries(envelope).filter(([key]) => key !== "reportVersion")),
+      contextFiles: [{ path: "src/reset.ts" }],
+      testRoutes: [{ command: "npm test", relatedFiles: [] }],
+      risks: [{ area: "authentication" }]
+    };
     expect(validateFixMapReport(legacy, "report").success).toBe(true);
+  });
+
+  it("requires all existing version 1 entry fields while leaving legacy entries compatible", () => {
+    const result = validateFixMapReport({
+      ...envelope,
+      contextFiles: [{ path: "src/reset.ts" }],
+      testRoutes: [{ command: "npm test", relatedFiles: [] }],
+      risks: [{ area: "authentication" }]
+    }, "report");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.message).toContain("version 1 requires");
+  });
+
+  it("rejects duplicate paths and version 1 ranks that disagree with array order", () => {
+    const duplicate = validateFixMapReport({
+      ...envelope,
+      contextFiles: [rankedContext, { ...rankedContext, rank: 2 }]
+    }, "report");
+    const outOfOrder = validateFixMapReport({
+      ...envelope,
+      contextFiles: [{ ...rankedContext, rank: 2 }]
+    }, "report");
+
+    expect(duplicate.success).toBe(false);
+    if (!duplicate.success) expect(duplicate.message).toContain("duplicate contextFiles path");
+    expect(outOfOrder.success).toBe(false);
+    if (!outOfOrder.success) expect(outOfOrder.message).toContain("out-of-order contextFiles rank");
   });
 
   it("rejects unsupported report versions", () => {
@@ -49,20 +88,22 @@ describe("validateFixMapReport", () => {
   });
 
   it.each([
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], testRoutes: [null] }, "testRoutes entry"],
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], testRoutes: [{ command: "npm test" }] }, "relatedFiles"],
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts", reasons: [42] }] }, "contextFiles entry"],
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], testRoutes: [{ command: " ", relatedFiles: [] }] }, "testRoutes entry"],
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], testRoutes: [{ command: "npm test", relatedFiles: [], kind: "check" }] }, "testRoutes entry"],
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], risks: [null] }, "risks entry"],
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], risks: [{ area: " ", severity: "low" }] }, "risks entry"],
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], risks: [{ area: "auth", severity: "critical" }] }, "risks entry"],
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], changedFiles: [42] }, "changedFiles"],
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], changedFiles: [" "] }, "changedFiles"],
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], diagnostics: [null] }, "diagnostics entry"],
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], diagnostics: [{ code: "x", message: "x", severity: "warning", paths: [""] }] }, "diagnostics entry"],
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], analysis: {} }, "analysis.grounding.specificity"],
-    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], analysis: { grounding: { specificity: "anchored" } } }, "incomplete or invalid analysis"]
+    [{ ...envelope, contextFiles: [rankedContext], testRoutes: [null] }, "testRoutes entry"],
+    [{ ...envelope, contextFiles: [rankedContext], testRoutes: [{ command: "npm test" }] }, "relatedFiles"],
+    [{ ...envelope, contextFiles: [{ ...rankedContext, reasons: [42] }] }, "contextFiles entry"],
+    [{ ...envelope, contextFiles: [rankedContext], testRoutes: [{ command: " ", kind: "test", reason: "tests", relatedFiles: [] }] }, "testRoutes entry"],
+    [{ ...envelope, contextFiles: [rankedContext], testRoutes: [{ command: "npm test", kind: "check", reason: "tests", relatedFiles: [] }] }, "testRoutes entry"],
+    [{ ...envelope, contextFiles: [rankedContext], testRoutes: [{ command: "npm test", relatedFiles: [] }] }, "testRoutes entry"],
+    [{ ...envelope, contextFiles: [rankedContext], risks: [null] }, "risks entry"],
+    [{ ...envelope, contextFiles: [rankedContext], risks: [{ area: " ", reason: "risk", severity: "low" }] }, "risks entry"],
+    [{ ...envelope, contextFiles: [rankedContext], risks: [{ area: "auth", reason: "risk", severity: "critical" }] }, "risks entry"],
+    [{ ...envelope, contextFiles: [rankedContext], risks: [{ area: "auth" }] }, "risks entry"],
+    [{ ...envelope, contextFiles: [rankedContext], changedFiles: [42] }, "changedFiles"],
+    [{ ...envelope, contextFiles: [rankedContext], changedFiles: [" "] }, "changedFiles"],
+    [{ ...envelope, contextFiles: [rankedContext], diagnostics: [null] }, "diagnostics entry"],
+    [{ ...envelope, contextFiles: [rankedContext], diagnostics: [{ code: "x", message: "x", severity: "warning", paths: [""] }] }, "diagnostics entry"],
+    [{ ...envelope, contextFiles: [rankedContext], analysis: {} }, "analysis.grounding.specificity"],
+    [{ ...envelope, contextFiles: [rankedContext], analysis: { grounding: { specificity: "anchored" } } }, "incomplete or invalid analysis"]
   ])("rejects consumer-unsafe nested report data: %s", (candidate, message) => {
     const result = validateFixMapReport(candidate, "report");
     expect(result.success).toBe(false);
@@ -88,5 +129,26 @@ describe("validateFixMapReport", () => {
     }, "report");
 
     expect(result.success).toBe(true);
+  });
+
+  it("rejects an unknown identifier grounding status", () => {
+    const result = validateFixMapReport({
+      ...envelope,
+      analysis: {
+        grounding: {
+          specificity: "anchored",
+          identifiers: [{ identifier: "sendMail", status: "future-status", matchedFiles: ["src/mail.ts"] }],
+          unresolvedIdentifiers: [],
+          partiallyResolvedIdentifiers: [],
+          unverifiedIdentifiers: [],
+          scanComplete: true
+        },
+        ranking: { topScore: 20, runnerUpScore: null, topGap: null, clustered: false },
+        nextAction: "Inspect src/mail.ts."
+      }
+    }, "report");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.message).toContain("analysis.grounding.identifiers entry");
   });
 });

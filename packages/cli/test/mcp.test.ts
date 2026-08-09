@@ -223,11 +223,12 @@ describe("fixmap mcp server", () => {
     [{ path: "a.ts", confidence: "certain" }, "confidence"]
   ])("rejects malformed optional comparison fields in %j", async (entry, expectedField) => {
     const client = await connectClient();
+    const envelope = { summary: "", testRoutes: [], risks: [], changedFiles: [], diagnostics: [] };
     const result = await client.callTool({
       name: "fixmap_compare",
       arguments: {
-        previous: { contextFiles: [entry] },
-        current: { contextFiles: [{ path: "a.ts" }] }
+        previous: { ...envelope, contextFiles: [entry] },
+        current: { ...envelope, contextFiles: [{ path: "a.ts" }] }
       }
     });
 
@@ -352,6 +353,28 @@ describe("fixmap mcp server", () => {
     const text = (result.content as Array<{ text: string }>)[0]?.text ?? "";
     expect(text).toContain("complete FixMap report envelope");
     expect(text).not.toContain("Cannot read properties");
+  });
+
+  it("rejects incomplete marked version 1 entries before verify scans", async () => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_verify",
+      arguments: {
+        report: {
+          reportVersion: 1,
+          summary: "Incomplete versioned report",
+          contextFiles: [{ path: "src/auth/reset-password.ts" }],
+          testRoutes: [],
+          risks: [],
+          changedFiles: [],
+          diagnostics: []
+        },
+        diff: "HEAD"
+      }
+    });
+
+    expect(result.isError).toBe(true);
+    expect((result.content as Array<{ text: string }>)[0]?.text).toContain("version 1 requires");
   });
 
   it("says why a report path did not work instead of only naming the object shape", async () => {

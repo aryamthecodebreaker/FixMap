@@ -18,33 +18,11 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     };
   }
 
-  const contextFiles = (candidate as FixMapReport).contextFiles;
   const record = candidate as Record<string, unknown>;
   if (record.reportVersion !== undefined && record.reportVersion !== 1) {
     return {
       success: false,
       message: `${label} uses unsupported reportVersion ${JSON.stringify(record.reportVersion)}; this FixMap release supports reportVersion 1.`
-    };
-  }
-  const invalid = contextFiles.findIndex((file) => {
-    if (!isRecord(file)) return true;
-    const ranked = file;
-    if (typeof ranked.path !== "string" || ranked.path.trim().length === 0) return true;
-    if (ranked.rank !== undefined && (!Number.isSafeInteger(ranked.rank) || (ranked.rank as number) < 1)) return true;
-    if (ranked.score !== undefined && (typeof ranked.score !== "number" || !Number.isFinite(ranked.score))) return true;
-    if (
-      ranked.confidence !== undefined &&
-      ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low"
-    ) return true;
-    if (ranked.reasons !== undefined && !isStringArray(ranked.reasons)) return true;
-    return false;
-  });
-  if (invalid !== -1) {
-    return {
-      success: false,
-      message:
-        `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", ` +
-        "and optional rank, score, confidence, and reasons fields must use their documented types."
     };
   }
 
@@ -64,13 +42,55 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     };
   }
 
+  const versioned = record.reportVersion === 1;
+  const contextFiles = (candidate as FixMapReport).contextFiles;
+  const invalid = contextFiles.findIndex((file) => {
+    if (!isRecord(file)) return true;
+    const ranked = file;
+    if (typeof ranked.path !== "string" || ranked.path.trim().length === 0) return true;
+    if ((versioned || ranked.rank !== undefined) && (!Number.isSafeInteger(ranked.rank) || (ranked.rank as number) < 1)) return true;
+    if ((versioned || ranked.score !== undefined) && (typeof ranked.score !== "number" || !Number.isFinite(ranked.score))) return true;
+    if (
+      (versioned || ranked.confidence !== undefined) &&
+      ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low"
+    ) return true;
+    if ((versioned || ranked.reasons !== undefined) && !isStringArray(ranked.reasons)) return true;
+    return false;
+  });
+  if (invalid !== -1) {
+    return {
+      success: false,
+      message:
+        `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", ` +
+        `${versioned ? "and version 1 requires" : "and optional"} rank, score, confidence, and reasons fields with their documented types.`
+    };
+  }
+  const duplicatePath = contextFiles.findIndex((file, index) =>
+    contextFiles.findIndex((candidate) => candidate.path === file.path) !== index
+  );
+  if (duplicatePath !== -1) {
+    return {
+      success: false,
+      message: `${label} has a duplicate contextFiles path at index ${duplicatePath}; each ranked path must appear once.`
+    };
+  }
+  if (versioned) {
+    const outOfOrderRank = contextFiles.findIndex((file, index) => file.rank !== index + 1);
+    if (outOfOrderRank !== -1) {
+      return {
+        success: false,
+        message: `${label} has an out-of-order contextFiles rank at index ${outOfOrderRank}; version 1 ranks must be sequential and match array order.`
+      };
+    }
+  }
+
   const testRoutes = record.testRoutes as unknown[];
   const invalidRoute = testRoutes.findIndex((route) => {
     if (!isRecord(route)) return true;
     return typeof route.command !== "string" || !route.command.trim() ||
       !isNonBlankStringArray(route.relatedFiles) ||
-      (route.kind !== undefined && route.kind !== "test" && route.kind !== "validation") ||
-      (route.reason !== undefined && typeof route.reason !== "string");
+      ((versioned || route.kind !== undefined) && route.kind !== "test" && route.kind !== "validation") ||
+      ((versioned || route.reason !== undefined) && typeof route.reason !== "string");
   });
   if (invalidRoute !== -1) {
     return {
@@ -85,8 +105,8 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
   const invalidRisk = risks.findIndex((risk) => {
     if (!isRecord(risk)) return true;
     return typeof risk.area !== "string" || !risk.area.trim() ||
-      (risk.reason !== undefined && typeof risk.reason !== "string") ||
-      (risk.severity !== undefined && risk.severity !== "low" && risk.severity !== "medium" && risk.severity !== "high");
+      ((versioned || risk.reason !== undefined) && typeof risk.reason !== "string") ||
+      ((versioned || risk.severity !== undefined) && risk.severity !== "low" && risk.severity !== "medium" && risk.severity !== "high");
   });
   if (invalidRisk !== -1) {
     return {
@@ -146,7 +166,7 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     const invalidIdentifier = grounding.identifiers.findIndex((identifier) =>
       !isRecord(identifier) ||
       typeof identifier.identifier !== "string" || !identifier.identifier.trim() ||
-      typeof identifier.status !== "string" || !identifier.status.trim() ||
+      !isIdentifierStatus(identifier.status) ||
       !isNonBlankStringArray(identifier.matchedFiles)
     );
     if (invalidIdentifier !== -1) {
@@ -174,4 +194,9 @@ function isNonBlankStringArray(candidate: unknown): candidate is string[] {
 
 function isNullableFiniteNumber(candidate: unknown): boolean {
   return candidate === null || (typeof candidate === "number" && Number.isFinite(candidate));
+}
+
+function isIdentifierStatus(candidate: unknown): boolean {
+  return candidate === "exact-definition" || candidate === "exact-text" ||
+    candidate === "partial-definition" || candidate === "not-found" || candidate === "unverified";
 }
