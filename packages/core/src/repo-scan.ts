@@ -33,6 +33,13 @@ const SOURCE_EXTENSIONS = new Set([
   ".yaml",
   ".yml"
 ]);
+const CONVENTIONAL_DOCUMENT_NAMES = new Set([
+  "authors", "changelog", "code_of_conduct", "contributing", "license", "notice", "readme", "security"
+]);
+const CONVENTIONAL_CONFIG_NAMES = new Set([
+  ".dockerignore", ".editorconfig", ".gitattributes", ".gitignore", ".npmignore",
+  "codeowners", "dockerfile", "gemfile", "jenkinsfile", "makefile", "procfile", "rakefile", "vagrantfile"
+]);
 
 /**
  * A single-file component is mostly template and style. Sampling the whole file let markup
@@ -341,10 +348,13 @@ function isRecord(candidate: unknown): candidate is Record<string, unknown> {
 
 function isCachedRelativePath(candidate: unknown): candidate is string {
   if (typeof candidate !== "string" || candidate.trim().length === 0 || candidate.includes("\0") ||
-    isAbsolute(candidate) || /^[A-Za-z]:[\\/]/.test(candidate)) {
+    isAbsolute(candidate) || /^[\\/]/.test(candidate) || /^[A-Za-z]:/.test(candidate)) {
     return false;
   }
-  const segments = normalizePath(candidate).split("/");
+  // Cache files may move between Windows and POSIX. Normalize both separators regardless
+  // of the current host so `..\secret`, UNC paths, and drive-relative paths cannot become
+  // trusted repository paths merely because they were read on Linux.
+  const segments = candidate.replace(/\\/g, "/").split("/");
   return segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..");
 }
 
@@ -760,7 +770,8 @@ async function toRepoFile(absolutePath: string, relativePath: string): Promise<S
   }
 
   const extension = extname(relativePath);
-  const isSource = SOURCE_EXTENSIONS.has(extension);
+  const conventionalKind = classifyConventionalTextFile(relativePath);
+  const isSource = SOURCE_EXTENSIONS.has(extension) || conventionalKind !== undefined;
   const sample = isSource
     ? await readTextSample(absolutePath, fileStat.size)
     : { text: "", complete: true };
@@ -1081,7 +1092,9 @@ function detectPackageManager(files: RepoFile[]): RepoMap["packageManager"] {
 
 function classifyFile(path: string, extension: string): RepoFile["kind"] {
   const lower = path.toLowerCase();
-  if (extension === ".md" || lower.startsWith("docs/") || lower === "license") return "documentation";
+  const conventionalKind = classifyConventionalTextFile(path);
+  if (conventionalKind) return conventionalKind;
+  if (extension === ".md" || lower.startsWith("docs/")) return "documentation";
   if (
     lower.startsWith(".github/") ||
     [".json", ".yaml", ".yml"].includes(extension) ||
@@ -1089,6 +1102,13 @@ function classifyFile(path: string, extension: string): RepoFile["kind"] {
   ) return "config";
   if (SOURCE_EXTENSIONS.has(extension)) return "code";
   return "other";
+}
+
+function classifyConventionalTextFile(path: string): "documentation" | "config" | undefined {
+  const name = path.replace(/\\/g, "/").split("/").at(-1)?.toLowerCase() ?? "";
+  if (CONVENTIONAL_DOCUMENT_NAMES.has(name)) return "documentation";
+  if (CONVENTIONAL_CONFIG_NAMES.has(name)) return "config";
+  return undefined;
 }
 
 async function readTextSample(

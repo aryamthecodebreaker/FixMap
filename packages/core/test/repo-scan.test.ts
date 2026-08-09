@@ -75,6 +75,21 @@ describe("scanRepo", () => {
     ]);
   });
 
+  it("samples and classifies conventional extensionless documents and build files", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-conventional-text-"));
+    await writeFile(join(root, "README"), "Hello from the project documentation\n");
+    await writeFile(join(root, "Dockerfile"), "FROM node:24\n");
+
+    const repo = await scanRepo({ repoRoot: root });
+    const readme = repo.files.find((file) => file.path === "README");
+    const dockerfile = repo.files.find((file) => file.path === "Dockerfile");
+
+    expect(readme).toMatchObject({ isSource: true, kind: "documentation" });
+    expect(readme?.textSample).toContain("project documentation");
+    expect(dockerfile).toMatchObject({ isSource: true, kind: "config" });
+    expect(dockerfile?.textSample).toContain("FROM node:24");
+  });
+
   it("recognizes Go, Python, and TypeScript declaration test naming conventions", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-test-patterns-"));
     for (const path of ["handler_test.go", "test_reset.py", "reset_test.py", "types.test-d.ts"]) {
@@ -794,7 +809,10 @@ describe("scanRepo", () => {
       };
       const mutations: Array<(cached: MutableCachedScan) => void> = [
         (cached) => { cached.files[0].path = "../outside.ts"; },
+        (cached) => { cached.files[0].path = "..\\outside.ts"; },
+        (cached) => { cached.files[0].path = "\\\\server\\share\\outside.ts"; },
         (cached) => { cached.trackedFiles = ["C:/outside.ts"]; },
+        (cached) => { cached.trackedFiles = ["C:outside.ts"]; },
         (cached) => {
           cached.packageScripts = [{ name: "test", command: "npm test", packageDir: "../outside" }];
         },

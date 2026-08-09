@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
+import { realpath, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -336,6 +336,8 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   if (options.command === "verify") {
     const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain"].filter(Boolean);
     if (planOnly.length > 0) { stderr(`verify does not accept plan-only option(s): ${planOnly.join(", ")}.\n`); return 1; }
+    const outputCollision = await describeOutputInputCollision(options);
+    if (outputCollision) { stderr(`${outputCollision}\n`); return 1; }
     return runVerify(options, {
       stdout,
       stderr,
@@ -346,6 +348,9 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     stderr(withUsageHint("--report is a verify option. Did you mean --output to write this plan to a file?"));
     return 1;
   }
+
+  const outputCollision = await describeOutputInputCollision(options);
+  if (outputCollision) { stderr(`${outputCollision}\n`); return 1; }
 
   try {
     options.issueText = loadIssueText(options, dependencies.readIssueFile ?? defaultReadIssueFile);
@@ -906,6 +911,68 @@ function localPlanArtifactExclusions(options: CliOptions): string[] {
       const distance = relative(root, path);
       return distance !== "" && distance !== ".." && !distance.startsWith(`..${sep}`) && !isAbsolute(distance);
     });
+}
+
+/**
+ * A workflow input must remain usable after the command finishes. Reading a plan, task, or
+ * source file and then writing the result back through the same path silently destroyed the
+ * only copy while still exiting zero. Compare both path spelling and filesystem identity so
+ * relative aliases, symlinks, and hardlinks receive the same protection.
+ */
+async function describeOutputInputCollision(options: CliOptions): Promise<string | undefined> {
+  if (!options.output) return undefined;
+
+  const inputs: Array<{ flag: string; path: string }> = [];
+  if (options.command === "verify" && options.reportPath) {
+    inputs.push({ flag: "--report", path: options.reportPath });
+  } else {
+    if (options.issueFile && options.issueFile !== "-") {
+      inputs.push({ flag: "--issue-file", path: options.issueFile });
+    }
+    if (options.comparePath) {
+      inputs.push({ flag: "--compare", path: options.comparePath });
+    }
+    if (options.explainPath) {
+      inputs.push({
+        flag: "--explain",
+        path: isAbsolute(options.explainPath)
+          ? options.explainPath
+          : resolve(options.repo ?? process.cwd(), options.explainPath)
+      });
+    }
+  }
+
+  for (const input of inputs) {
+    if (await pathsReferToSameFile(options.output, input.path)) {
+      return `Refusing to write --output "${options.output}" because it is the same file as ${input.flag} "${input.path}". ` +
+        "Choose a different --output path so FixMap does not overwrite its input.";
+    }
+  }
+  return undefined;
+}
+
+async function pathsReferToSameFile(leftPath: string, rightPath: string): Promise<boolean> {
+  const left = resolve(leftPath);
+  const right = resolve(rightPath);
+  const normalize = process.platform === "win32"
+    ? (path: string) => path.toLowerCase()
+    : (path: string) => path;
+  if (normalize(left) === normalize(right)) return true;
+
+  try {
+    const [leftReal, rightReal] = await Promise.all([realpath(left), realpath(right)]);
+    if (normalize(leftReal) === normalize(rightReal)) return true;
+  } catch {
+    // A missing path cannot already alias an existing input. The command that consumes it
+    // will produce the more useful read/write error later.
+  }
+
+  try {
+    const [leftStat, rightStat] = await Promise.all([stat(left), stat(right)]);
+    return leftStat.ino !== 0 && leftStat.dev === rightStat.dev && leftStat.ino === rightStat.ino;
+  } catch {
+    return false;
+  }
 }
 
 function loadIssueText(

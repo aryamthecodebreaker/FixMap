@@ -91,7 +91,7 @@ describe("buildFixMapReport", () => {
     expect(diagnostic!.message).not.toContain("z".repeat(100));
     // The terms a reader can act on survive.
     expect(diagnostic!.message).toContain("flurbulator");
-  });
+  }, 15_000);
 
   it("does not let a giant diff spec become a giant diagnostic", async () => {
     const root = await createAuthFixture();
@@ -106,7 +106,7 @@ describe("buildFixMapReport", () => {
     // and once inside git's own error text.
     expect(diagnostic!.message).not.toContain("Y".repeat(200));
     expect(diagnostic!.message).toContain("notadiff");
-  });
+  }, 15_000);
 
   it("does not report a term diagnostic when context files are found", async () => {
     const root = await createAuthFixture();

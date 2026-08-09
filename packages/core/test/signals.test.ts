@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { extractTaskSignals, tokenizeText } from "../src/signals.js";
 
 describe("extractTaskSignals", () => {
+  it.each([
+    ["README typo", "readme"],
+    ["fix dockerfile", "dockerfile"],
+    ["update CODEOWNERS", "codeowners"]
+  ])("recognizes conventional extensionless file mentions in %j", (issueText, expected) => {
+    const signals = extractTaskSignals({ issueText });
+    expect([...signals.fileMentions].map((mention) => mention.toLowerCase())).toContain(expected);
+  });
+
   it("tokenizes only added and removed diff lines, not diff metadata", () => {
     const diffText = [
       "diff --git a/src/auth/reset-password.ts b/src/auth/reset-password.ts",

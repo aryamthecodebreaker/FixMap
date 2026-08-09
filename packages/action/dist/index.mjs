@@ -235,6 +235,7 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
 ]);
 var MAX_FILE_MENTION_LENGTH = 200;
 var FILE_MENTION_PATTERN = new RegExp(`[A-Za-z0-9_@$][A-Za-z0-9_.$/\\\\-]{0,${MAX_FILE_MENTION_LENGTH}}\\.(?:[cm]?[jt]sx?|json|ya?ml|mdx?|css|scss|less|html|py|rb|rs|go|java|kt|c|cc|cpp|h|hpp|d\\.ts)\\b`, "g");
+var CONVENTIONAL_FILE_MENTION_PATTERN = /\b(?:AUTHORS|CHANGELOG|CODE_OF_CONDUCT|CONTRIBUTING|LICENSE|NOTICE|README|SECURITY|CODEOWNERS|Dockerfile|Gemfile|Jenkinsfile|Makefile|Procfile|Rakefile|Vagrantfile)\b/gi;
 var MEMBER_MENTION_PATTERN = /\b(?:window|globalThis|process|request|response|req|res|this)\.([$A-Za-z_][$A-Za-z0-9_$]*)\b/g;
 var FILE_EXTENSIONS = /* @__PURE__ */ new Set([
   "c",
@@ -402,6 +403,10 @@ function isEscaped(text, index) {
 }
 function extractFileMentions(text) {
   const mentions = /* @__PURE__ */ new Set();
+  for (const match of text.matchAll(CONVENTIONAL_FILE_MENTION_PATTERN)) {
+    if (match[0])
+      mentions.add(match[0]);
+  }
   for (const match of text.matchAll(
     // blob, tree and blame all address a path in the repository; only the view differs, and
     // a tree or blame link is the same deliberate "the code is here" gesture as a blob one.
@@ -1312,7 +1317,16 @@ function matchMentionedPaths(mentions, repoPaths) {
   return matched;
 }
 function pathMatchesMention2(path, mention) {
-  return path === mention || path.endsWith(`/${mention}`) || mention.endsWith(`/${path}`);
+  const normalizedPath = path.toLowerCase();
+  const normalizedMention = mention.toLowerCase();
+  if (normalizedPath === normalizedMention || normalizedPath.endsWith(`/${normalizedMention}`) || normalizedMention.endsWith(`/${normalizedPath}`)) {
+    return true;
+  }
+  if (!normalizedMention.includes("/") && !normalizedMention.includes(".")) {
+    const fileName = normalizedPath.split("/").at(-1) ?? "";
+    return fileName.replace(/\.[^.]+$/, "") === normalizedMention;
+  }
+  return false;
 }
 function compiledSourcePathVariants(path) {
   const lowerPath = path.toLowerCase();
@@ -1386,8 +1400,9 @@ function isTypeDeclarationPath(path) {
 }
 function targetsDocumentation(taskText) {
   const documentation = "(?:docs?|documentation|readme|guide|copy)";
-  const action = "(?:add|edit|update|write|rewrite|revise|remove|correct|document|improve)";
-  return new RegExp(`\\b${action}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) || new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${action}\\b`, "i").test(taskText);
+  const action = "(?:add|change|correct|document|edit|fix|improve|remove|revise|rewrite|update|write)";
+  const defect = "(?:typos?|spelling|grammar|wording|broken links?)";
+  return new RegExp(`\\b${action}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) || new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${action}\\b`, "i").test(taskText) || new RegExp(`\\b${defect}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) || new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${defect}\\b`, "i").test(taskText);
 }
 function buildDefinitionSignals(identifiers) {
   return [...identifiers].sort((a, b) => a.localeCompare(b)).map((identifier) => ({
@@ -1930,6 +1945,31 @@ var SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
   ".yaml",
   ".yml"
 ]);
+var CONVENTIONAL_DOCUMENT_NAMES = /* @__PURE__ */ new Set([
+  "authors",
+  "changelog",
+  "code_of_conduct",
+  "contributing",
+  "license",
+  "notice",
+  "readme",
+  "security"
+]);
+var CONVENTIONAL_CONFIG_NAMES = /* @__PURE__ */ new Set([
+  ".dockerignore",
+  ".editorconfig",
+  ".gitattributes",
+  ".gitignore",
+  ".npmignore",
+  "codeowners",
+  "dockerfile",
+  "gemfile",
+  "jenkinsfile",
+  "makefile",
+  "procfile",
+  "rakefile",
+  "vagrantfile"
+]);
 var SFC_EXTENSIONS = /* @__PURE__ */ new Set([".vue", ".svelte"]);
 var SFC_SCRIPT_BLOCK = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
 var TEST_PATTERNS = [
@@ -2132,10 +2172,10 @@ function isRecord(candidate) {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
 function isCachedRelativePath(candidate) {
-  if (typeof candidate !== "string" || candidate.trim().length === 0 || candidate.includes("\0") || isAbsolute(candidate) || /^[A-Za-z]:[\\/]/.test(candidate)) {
+  if (typeof candidate !== "string" || candidate.trim().length === 0 || candidate.includes("\0") || isAbsolute(candidate) || /^[\\/]/.test(candidate) || /^[A-Za-z]:/.test(candidate)) {
     return false;
   }
-  const segments = normalizePath(candidate).split("/");
+  const segments = candidate.replace(/\\/g, "/").split("/");
   return segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..");
 }
 async function writeScanCache(location, cached) {
@@ -2408,7 +2448,8 @@ async function toRepoFile(absolutePath, relativePath) {
     return { status: "not-a-file" };
   }
   const extension = extname(relativePath);
-  const isSource = SOURCE_EXTENSIONS.has(extension);
+  const conventionalKind = classifyConventionalTextFile(relativePath);
+  const isSource = SOURCE_EXTENSIONS.has(extension) || conventionalKind !== void 0;
   const sample = isSource ? await readTextSample(absolutePath, fileStat.size) : { text: "", complete: true };
   if (SFC_EXTENSIONS.has(extension) && sample.text) {
     sample.text = extractScriptBlocks(sample.text);
@@ -2620,13 +2661,24 @@ function detectPackageManager(files) {
 }
 function classifyFile(path, extension) {
   const lower = path.toLowerCase();
-  if (extension === ".md" || lower.startsWith("docs/") || lower === "license")
+  const conventionalKind = classifyConventionalTextFile(path);
+  if (conventionalKind)
+    return conventionalKind;
+  if (extension === ".md" || lower.startsWith("docs/"))
     return "documentation";
   if (lower.startsWith(".github/") || [".json", ".yaml", ".yml"].includes(extension) || /(^|\/)([^/]+\.)?(config|rc)\.[^/]+$/.test(lower))
     return "config";
   if (SOURCE_EXTENSIONS.has(extension))
     return "code";
   return "other";
+}
+function classifyConventionalTextFile(path) {
+  const name = path.replace(/\\/g, "/").split("/").at(-1)?.toLowerCase() ?? "";
+  if (CONVENTIONAL_DOCUMENT_NAMES.has(name))
+    return "documentation";
+  if (CONVENTIONAL_CONFIG_NAMES.has(name))
+    return "config";
+  return void 0;
 }
 async function readTextSample(path, sizeBytes) {
   if (sizeBytes > MAX_TEXT_SAMPLE_BYTES) {
@@ -2902,7 +2954,7 @@ function validateFixMapReport(candidate, label) {
     if (!isRecord2(file))
       return true;
     const ranked = file;
-    if (typeof ranked.path !== "string" || ranked.path.trim().length === 0)
+    if (!isRepositoryRelativePath(ranked.path))
       return true;
     if ((versioned || ranked.rank !== void 0) && (!Number.isSafeInteger(ranked.rank) || ranked.rank < 1))
       return true;
@@ -2940,7 +2992,7 @@ function validateFixMapReport(candidate, label) {
   const invalidRoute = testRoutes.findIndex((route) => {
     if (!isRecord2(route))
       return true;
-    return typeof route.command !== "string" || !route.command.trim() || !isNonBlankStringArray(route.relatedFiles) || (versioned || route.kind !== void 0) && route.kind !== "test" && route.kind !== "validation" || (versioned || route.reason !== void 0) && typeof route.reason !== "string";
+    return typeof route.command !== "string" || !route.command.trim() || !isRepositoryRelativePathArray(route.relatedFiles) || (versioned || route.kind !== void 0) && route.kind !== "test" && route.kind !== "validation" || (versioned || route.reason !== void 0) && typeof route.reason !== "string";
   });
   if (invalidRoute !== -1) {
     return {
@@ -2960,14 +3012,14 @@ function validateFixMapReport(candidate, label) {
       message: `${label} has an invalid risks entry at index ${invalidRisk}; each risk needs a non-empty string "area", and optional reason and severity fields must use their documented types.`
     };
   }
-  if (!isNonBlankStringArray(record.changedFiles)) {
-    return { success: false, message: `${label} has invalid changedFiles; every entry must be a non-empty string path.` };
+  if (!isRepositoryRelativePathArray(record.changedFiles)) {
+    return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
   }
   const diagnostics = record.diagnostics;
   const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
     if (!isRecord2(diagnostic))
       return true;
-    return typeof diagnostic.code !== "string" || !diagnostic.code.trim() || typeof diagnostic.message !== "string" || diagnostic.severity !== "info" && diagnostic.severity !== "warning" && diagnostic.severity !== "error" || diagnostic.paths !== void 0 && !isNonBlankStringArray(diagnostic.paths);
+    return typeof diagnostic.code !== "string" || !diagnostic.code.trim() || typeof diagnostic.message !== "string" || diagnostic.severity !== "info" && diagnostic.severity !== "warning" && diagnostic.severity !== "error" || diagnostic.paths !== void 0 && !isRepositoryRelativePathArray(diagnostic.paths);
   });
   if (invalidDiagnostic !== -1) {
     return {
@@ -2991,7 +3043,7 @@ function validateFixMapReport(candidate, label) {
         message: `${label} has incomplete or invalid analysis grounding, ranking, or nextAction fields.`
       };
     }
-    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord2(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isNonBlankStringArray(identifier.matchedFiles));
+    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord2(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isRepositoryRelativePathArray(identifier.matchedFiles));
     if (invalidIdentifier !== -1) {
       return {
         success: false,
@@ -3007,8 +3059,15 @@ function isRecord2(candidate) {
 function isStringArray(candidate) {
   return Array.isArray(candidate) && candidate.every((entry) => typeof entry === "string");
 }
-function isNonBlankStringArray(candidate) {
-  return isStringArray(candidate) && candidate.every((entry) => entry.trim().length > 0);
+function isRepositoryRelativePathArray(candidate) {
+  return Array.isArray(candidate) && candidate.every(isRepositoryRelativePath);
+}
+function isRepositoryRelativePath(candidate) {
+  if (typeof candidate !== "string" || !candidate.trim() || candidate.includes("\0") || /^[\\/]/.test(candidate) || /^[A-Za-z]:/.test(candidate)) {
+    return false;
+  }
+  const segments = candidate.replace(/\\/g, "/").split("/");
+  return segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..");
 }
 function isNullableFiniteNumber(candidate) {
   return candidate === null || typeof candidate === "number" && Number.isFinite(candidate);

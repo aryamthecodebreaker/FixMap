@@ -1,8 +1,9 @@
 import { link, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { parseArgs, runCli } from "../src/cli-runner.js";
+import { installAgentCommands } from "../src/agent-setup.js";
 import type { FixMapReport } from "@aryam/fixmap-core";
 
 const report: FixMapReport = {
@@ -182,6 +183,104 @@ describe("CLI argument handling", () => {
     expect(await runCli(["setup", "--repo", root, "--agent", "cursor", "--force"], io.dependencies)).toBe(1);
     expect(io.stderr.join("")).toContain("hard-linked");
     expect(await readFile(outside, "utf8")).toBe("custom command\n");
+  });
+
+  it("rolls back earlier agent commands when a later setup commit fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-rollback-"));
+
+    await expect(installAgentCommands({
+      repoRoot: root,
+      targets: ["claude", "cursor"]
+    }, {
+      beforeCommit: async (_entry, index) => {
+        if (index === 1) throw new Error("simulated second-target failure");
+      }
+    })).rejects.toThrow("simulated second-target failure");
+
+    await expect(readFile(join(root, ".claude", "skills", "fixmap", "SKILL.md"), "utf8"))
+      .rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(join(root, ".cursor", "commands", "fixmap.md"), "utf8"))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects a target hard link inserted after setup preflight without touching its destination", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-race-"));
+    const outside = join(root, "outside-command.md");
+    const target = join(root, ".cursor", "commands", "fixmap.md");
+    await writeFile(outside, "outside stays unchanged\n", "utf8");
+
+    await expect(installAgentCommands({
+      repoRoot: root,
+      targets: ["claude", "cursor"]
+    }, {
+      beforeCommit: async (_entry, index) => {
+        if (index === 1) await link(outside, target);
+      }
+    })).rejects.toThrow("hard-linked");
+
+    expect(await readFile(outside, "utf8")).toBe("outside stays unchanged\n");
+    await expect(readFile(join(root, ".claude", "skills", "fixmap", "SKILL.md"), "utf8"))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects a regular target inserted after setup preflight without overwriting it", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-created-race-"));
+    const target = join(root, ".cursor", "commands", "fixmap.md");
+
+    await expect(installAgentCommands({
+      repoRoot: root,
+      targets: ["claude", "cursor"]
+    }, {
+      beforeCommit: async (_entry, index) => {
+        if (index === 1) await writeFile(target, "concurrent custom command\n", "utf8");
+      }
+    })).rejects.toThrow("changed while setup was running");
+
+    expect(await readFile(target, "utf8")).toBe("concurrent custom command\n");
+    await expect(readFile(join(root, ".claude", "skills", "fixmap", "SKILL.md"), "utf8"))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects an existing target modified after setup preflight without overwriting it", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-modified-race-"));
+    const target = join(root, ".cursor", "commands", "fixmap.md");
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, "original custom command\n", "utf8");
+
+    await expect(installAgentCommands({
+      repoRoot: root,
+      targets: ["cursor"],
+      force: true
+    }, {
+      beforeCommit: async () => {
+        await writeFile(target, "concurrent replacement\n", "utf8");
+      }
+    })).rejects.toThrow("changed while setup was running");
+
+    expect(await readFile(target, "utf8")).toBe("concurrent replacement\n");
+  });
+
+  it("serializes concurrent setup calls without partial files or Windows rename collisions", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-concurrent-"));
+    const targets = ["claude", "cursor", "copilot", "agents"] as const;
+
+    const runs = await Promise.all(Array.from(
+      { length: 20 },
+      () => installAgentCommands({ repoRoot: root, targets: [...targets] })
+    ));
+
+    expect(runs).toHaveLength(20);
+    expect(runs.every((entries) => entries.length === 4)).toBe(true);
+    for (const path of [
+      [".claude", "skills", "fixmap", "SKILL.md"],
+      [".cursor", "commands", "fixmap.md"],
+      [".github", "prompts", "fixmap.prompt.md"],
+      [".agents", "skills", "fixmap", "SKILL.md"]
+    ]) {
+      expect(await readFile(join(root, ...path), "utf8")).toContain("fixmap features");
+    }
+    await expect(readFile(join(root, ".fixmap-setup.lock"), "utf8"))
+      .rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("validates a saved report with a Windows byte-order mark without custom JavaScript", async () => {
@@ -465,6 +564,62 @@ describe("CLI argument handling", () => {
     expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({
       internalExclude: expect.arrayContaining([issuePath, baselinePath, outputPath])
     }));
+  });
+
+  it.each([
+    ["--compare", (root: string, input: string) => [
+      "plan", "--issue", "reset fails", "--repo", root,
+      "--compare", input, "--format", "json", "--output", input
+    ]],
+    ["--report", (root: string, input: string) => [
+      "verify", "--report", input, "--repo", root,
+      "--working-tree", "--format", "json", "--output", input
+    ]],
+    ["--issue-file", (root: string, input: string) => [
+      "plan", "--issue-file", input, "--repo", root,
+      "--format", "json", "--output", input
+    ]],
+    ["--explain", (root: string, input: string) => [
+      "plan", "--issue", "reset fails", "--repo", root,
+      "--explain", "source.ts", "--format", "json", "--output", input
+    ]]
+  ])("refuses to overwrite its %s input", async (flag, makeArgs) => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-output-input-collision-"));
+    const input = join(root, flag === "--explain" ? "source.ts" : flag === "--issue-file" ? "task.md" : "plan.json");
+    const contents = flag === "--issue-file" || flag === "--explain"
+      ? "reset fails\n"
+      : JSON.stringify(report);
+    await writeFile(input, contents, "utf8");
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+
+    expect(await runCli(makeArgs(root, input), { ...io.dependencies, buildReport })).toBe(1);
+    expect(await readFile(input, "utf8")).toBe(contents);
+    expect(buildReport).not.toHaveBeenCalled();
+    expect(io.stderr.join("")).toContain(`same file as ${flag}`);
+    expect(io.stderr.join("")).toContain("does not overwrite its input");
+  });
+
+  it.each([
+    ["symbolic link", async (target: string, alias: string) => symlink(target, alias)],
+    ["hard link", async (target: string, alias: string) => link(target, alias)]
+  ])("detects a comparison input reached through a %s alias", async (_label, makeAlias) => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-output-alias-collision-"));
+    const planPath = join(root, "plan.json");
+    const outputAlias = join(root, "result.json");
+    const contents = JSON.stringify(report);
+    await writeFile(planPath, contents, "utf8");
+    await makeAlias(planPath, outputAlias);
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+
+    expect(await runCli([
+      "plan", "--issue", "reset fails", "--repo", root,
+      "--compare", planPath, "--format", "json", "--output", outputAlias
+    ], { ...io.dependencies, buildReport })).toBe(1);
+    expect(await readFile(planPath, "utf8")).toBe(contents);
+    expect(buildReport).not.toHaveBeenCalled();
+    expect(io.stderr.join("")).toContain("same file as --compare");
   });
 
   it("writes an explanation to --output instead of silently printing it", async () => {

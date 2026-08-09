@@ -47,7 +47,7 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
   const invalid = contextFiles.findIndex((file) => {
     if (!isRecord(file)) return true;
     const ranked = file;
-    if (typeof ranked.path !== "string" || ranked.path.trim().length === 0) return true;
+    if (!isRepositoryRelativePath(ranked.path)) return true;
     if ((versioned || ranked.rank !== undefined) && (!Number.isSafeInteger(ranked.rank) || (ranked.rank as number) < 1)) return true;
     if ((versioned || ranked.score !== undefined) && (typeof ranked.score !== "number" || !Number.isFinite(ranked.score))) return true;
     if (
@@ -88,7 +88,7 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
   const invalidRoute = testRoutes.findIndex((route) => {
     if (!isRecord(route)) return true;
     return typeof route.command !== "string" || !route.command.trim() ||
-      !isNonBlankStringArray(route.relatedFiles) ||
+      !isRepositoryRelativePathArray(route.relatedFiles) ||
       ((versioned || route.kind !== undefined) && route.kind !== "test" && route.kind !== "validation") ||
       ((versioned || route.reason !== undefined) && typeof route.reason !== "string");
   });
@@ -115,8 +115,8 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     };
   }
 
-  if (!isNonBlankStringArray(record.changedFiles)) {
-    return { success: false, message: `${label} has invalid changedFiles; every entry must be a non-empty string path.` };
+  if (!isRepositoryRelativePathArray(record.changedFiles)) {
+    return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
   }
 
   const diagnostics = record.diagnostics as unknown[];
@@ -125,7 +125,7 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     return typeof diagnostic.code !== "string" || !diagnostic.code.trim() ||
       typeof diagnostic.message !== "string" ||
       (diagnostic.severity !== "info" && diagnostic.severity !== "warning" && diagnostic.severity !== "error") ||
-      (diagnostic.paths !== undefined && !isNonBlankStringArray(diagnostic.paths));
+      (diagnostic.paths !== undefined && !isRepositoryRelativePathArray(diagnostic.paths));
   });
   if (invalidDiagnostic !== -1) {
     return {
@@ -167,7 +167,7 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
       !isRecord(identifier) ||
       typeof identifier.identifier !== "string" || !identifier.identifier.trim() ||
       !isIdentifierStatus(identifier.status) ||
-      !isNonBlankStringArray(identifier.matchedFiles)
+      !isRepositoryRelativePathArray(identifier.matchedFiles)
     );
     if (invalidIdentifier !== -1) {
       return {
@@ -188,8 +188,17 @@ function isStringArray(candidate: unknown): candidate is string[] {
   return Array.isArray(candidate) && candidate.every((entry) => typeof entry === "string");
 }
 
-function isNonBlankStringArray(candidate: unknown): candidate is string[] {
-  return isStringArray(candidate) && candidate.every((entry) => entry.trim().length > 0);
+function isRepositoryRelativePathArray(candidate: unknown): candidate is string[] {
+  return Array.isArray(candidate) && candidate.every(isRepositoryRelativePath);
+}
+
+function isRepositoryRelativePath(candidate: unknown): candidate is string {
+  if (typeof candidate !== "string" || !candidate.trim() || candidate.includes("\0") ||
+    /^[\\/]/.test(candidate) || /^[A-Za-z]:/.test(candidate)) {
+    return false;
+  }
+  const segments = candidate.replace(/\\/g, "/").split("/");
+  return segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..");
 }
 
 function isNullableFiniteNumber(candidate: unknown): boolean {

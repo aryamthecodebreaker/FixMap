@@ -159,6 +159,8 @@ const FILE_MENTION_PATTERN =
     "\\.(?:[cm]?[jt]sx?|json|ya?ml|mdx?|css|scss|less|html|py|rb|rs|go|java|kt|c|cc|cpp|h|hpp|d\\.ts)\\b",
     "g"
   );
+const CONVENTIONAL_FILE_MENTION_PATTERN =
+  /\b(?:AUTHORS|CHANGELOG|CODE_OF_CONDUCT|CONTRIBUTING|LICENSE|NOTICE|README|SECURITY|CODEOWNERS|Dockerfile|Gemfile|Jenkinsfile|Makefile|Procfile|Rakefile|Vagrantfile)\b/gi;
 const MEMBER_MENTION_PATTERN =
   /\b(?:window|globalThis|process|request|response|req|res|this)\.([$A-Za-z_][$A-Za-z0-9_$]*)\b/g;
 const FILE_EXTENSIONS = new Set([
@@ -327,6 +329,9 @@ function isEscaped(text: string, index: number): boolean {
 
 export function extractFileMentions(text: string): Set<string> {
   const mentions = new Set<string>();
+  for (const match of text.matchAll(CONVENTIONAL_FILE_MENTION_PATTERN)) {
+    if (match[0]) mentions.add(match[0]);
+  }
   // A blob permalink with an immutable commit is stronger than a prose path mention: it
   // is a deliberate pointer to code. Preserve only its repository-relative path before
   // stripping URLs generally. This avoids turning badges, issue links and external docs

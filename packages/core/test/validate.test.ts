@@ -59,6 +59,23 @@ describe("validateFixMapReport", () => {
     if (!outOfOrder.success) expect(outOfOrder.message).toContain("out-of-order contextFiles rank");
   });
 
+  it.each([
+    ["POSIX traversal", "../outside.ts"],
+    ["Windows traversal", "..\\outside.ts"],
+    ["POSIX absolute", "/etc/passwd"],
+    ["Windows absolute", "C:\\outside.ts"],
+    ["Windows drive-relative", "C:outside.ts"],
+    ["UNC", "\\\\server\\share\\outside.ts"]
+  ])("rejects %s report paths on every host", (_label, path) => {
+    const result = validateFixMapReport({
+      ...envelope,
+      contextFiles: [{ ...rankedContext, path }]
+    }, "report");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.message).toContain("invalid contextFiles entry");
+  });
+
   it("rejects unsupported report versions", () => {
     const result = validateFixMapReport({ ...envelope, reportVersion: 2 }, "report");
 

@@ -537,7 +537,18 @@ function matchMentionedPaths(mentions: Set<string>, repoPaths: string[]): Set<st
 }
 
 function pathMatchesMention(path: string, mention: string): boolean {
-  return path === mention || path.endsWith(`/${mention}`) || mention.endsWith(`/${path}`);
+  const normalizedPath = path.toLowerCase();
+  const normalizedMention = mention.toLowerCase();
+  if (normalizedPath === normalizedMention ||
+    normalizedPath.endsWith(`/${normalizedMention}`) ||
+    normalizedMention.endsWith(`/${normalizedPath}`)) {
+    return true;
+  }
+  if (!normalizedMention.includes("/") && !normalizedMention.includes(".")) {
+    const fileName = normalizedPath.split("/").at(-1) ?? "";
+    return fileName.replace(/\.[^.]+$/, "") === normalizedMention;
+  }
+  return false;
 }
 
 function compiledSourcePathVariants(path: string): string[] {
@@ -631,10 +642,13 @@ function isTypeDeclarationPath(path: string): boolean {
 
 function targetsDocumentation(taskText: string): boolean {
   const documentation = "(?:docs?|documentation|readme|guide|copy)";
-  const action = "(?:add|edit|update|write|rewrite|revise|remove|correct|document|improve)";
+  const action = "(?:add|change|correct|document|edit|fix|improve|remove|revise|rewrite|update|write)";
+  const defect = "(?:typos?|spelling|grammar|wording|broken links?)";
   return (
     new RegExp(`\\b${action}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) ||
-    new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${action}\\b`, "i").test(taskText)
+    new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${action}\\b`, "i").test(taskText) ||
+    new RegExp(`\\b${defect}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) ||
+    new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${defect}\\b`, "i").test(taskText)
   );
 }
 

@@ -298,6 +298,47 @@ describe("rankContextFiles", () => {
     expect(ranked[0]?.reasons).toContain("explicitly named in the task");
   });
 
+  it.each(["README", "README.md"])("ranks %s for a terse README typo task", (path) => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        { path, extension: path.endsWith(".md") ? ".md" : "", sizeBytes: 100, isSource: true, isTest: false, kind: "documentation", textSample: "Hello World" },
+        { path: "src/server.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export const server = true;" }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "README typo" });
+
+    expect(ranked[0]?.path).toBe(path);
+    expect(ranked[0]?.reasons).toContain("explicitly named in the task");
+    expect(ranked[0]?.reasons).toContain("documentation-focused task");
+  });
+
+  it("treats changing README copy as documentation work", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        { path: "README", extension: "", sizeBytes: 100, isSource: true, isTest: false, kind: "documentation", textSample: "Hello World" }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "change README.md greeting" });
+
+    expect(ranked[0]?.path).toBe("README");
+    expect(ranked[0]?.reasons).toContain("documentation-focused task");
+    expect(ranked[0]?.reasons).not.toContain("documentation deprioritized for an implementation task");
+  });
+
   it("matches a compiled JavaScript path mention to its TypeScript source file", () => {
     const repo: RepoMap = {
       root: "/repo",
