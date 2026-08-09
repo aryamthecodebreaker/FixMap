@@ -128,4 +128,23 @@ describe("compareReports", () => {
     expect(markdown).toContain("`b.ts`");
     expect(markdown).toContain("confidence medium to high");
   });
+
+  it("renders compatible legacy entries without leaking undefined values", () => {
+    const legacy = (paths: string[]) => ({
+      summary: "",
+      contextFiles: paths.map((path) => ({ path })),
+      testRoutes: [],
+      risks: [],
+      changedFiles: [],
+      diagnostics: []
+    }) as unknown as FixMapReport;
+
+    const entered = renderComparisonMarkdown(compareReports(legacy(["a.ts"]), legacy(["a.ts", "b.ts"])));
+    const moved = renderComparisonMarkdown(compareReports(legacy(["a.ts", "b.ts"]), legacy(["b.ts", "a.ts"])));
+
+    expect(entered).toContain("`b.ts` at rank 2");
+    expect(moved).toContain("rose from rank 2 to 1");
+    expect(entered).not.toContain("undefined");
+    expect(moved).not.toContain("undefined");
+  });
 });

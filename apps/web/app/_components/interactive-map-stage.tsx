@@ -15,6 +15,7 @@ type StageKey = "files" | "checks" | "risks";
 type Example = {
   label: string;
   issue: string;
+  keywords: string[];
   files: [string, string, string];
   checks: [string, string, string];
   risks: [string, string, string];
@@ -24,6 +25,7 @@ const examples: Example[] = [
   {
     label: "Expiring reset links",
     issue: "Password reset links expire too early",
+    keywords: ["auth", "email", "expire", "link", "password", "reset", "token"],
     files: ["src/features/auth/reset/request.ts", "src/features/auth/reset/token-service.ts", "src/lib/email/templates/reset.ts"],
     checks: ["Token expiration logic", "Reset token integration tests", "Email link TTL configuration"],
     risks: ["Clock and timezone boundary", "Cached authentication config", "Email client link prefetch"]
@@ -31,6 +33,7 @@ const examples: Example[] = [
   {
     label: "Wrong invoice time zone",
     issue: "Invoices show the wrong time after daylight saving changes",
+    keywords: ["date", "daylight", "dst", "invoice", "time", "timezone"],
     files: ["src/timezone/resolve.ts", "src/invoices/summary.ts", "src/timezone/index.ts"],
     checks: ["Timezone conversion tests", "DST boundary cases", "Invoice rendering path"],
     risks: ["Cached timezone offsets", "External API assumptions", "Off-by-one date handling"]
@@ -38,6 +41,7 @@ const examples: Example[] = [
   {
     label: "Duplicate webhook event",
     issue: "Payment webhooks sometimes create duplicate orders",
+    keywords: ["duplicate", "idempotency", "order", "payment", "retry", "webhook"],
     files: ["src/payments/webhook.ts", "src/orders/create-order.ts", "src/payments/idempotency.ts"],
     checks: ["Webhook replay test", "Order idempotency suite", "Concurrent insert handling"],
     risks: ["Retry timing window", "Missing unique constraint", "Out-of-order delivery"]
@@ -45,6 +49,39 @@ const examples: Example[] = [
 ];
 
 const firstExample = examples[0]!;
+const genericWords = new Set([
+  "a", "an", "and", "are", "be", "because", "broken", "bug", "create", "does", "error", "failed", "fails", "failure",
+  "fix", "for", "from", "in", "is", "issue", "it", "of", "on", "or", "problem", "sometimes", "the", "to", "when", "with", "wrong"
+]);
+
+function issueWords(issue: string): string[] {
+  return [...new Set(issue.toLowerCase().match(/[a-z0-9]+/g) ?? [])]
+    .filter((word) => word.length > 2 && !genericWords.has(word));
+}
+
+function customResult(issue: string): Example {
+  const words = issueWords(issue);
+  const area = words[0]?.slice(0, 32) ?? "feature";
+  const behavior = words[1]?.slice(0, 32) ?? "behavior";
+  const title = `${area} ${behavior}`;
+  return {
+    label: "Custom issue preview",
+    issue,
+    keywords: words,
+    files: [`src/${area}/${behavior}.ts`, `src/${area}/index.ts`, `test/${area}/${behavior}.test.ts`],
+    checks: [`${title} behavior`, `${area} integration path`, `Regression for the reported issue`],
+    risks: ["Existing behavior compatibility", "Uncovered input boundary", "Related integration assumptions"]
+  };
+}
+
+function resultForIssue(issue: string): { example: Example; index: number } {
+  const words = new Set(issueWords(issue));
+  const ranked = examples
+    .map((example, index) => ({ example, index, score: example.keywords.filter((keyword) => words.has(keyword)).length }))
+    .sort((left, right) => right.score - left.score);
+  const match = ranked[0];
+  return match && match.score > 0 ? match : { example: customResult(issue), index: -1 };
+}
 
 const stageMeta: Array<{ key: StageKey; label: string; hint: string }> = [
   { key: "files", label: "Files", hint: "Finding relevant code" },
@@ -100,11 +137,11 @@ function OutputCard({
 export function InteractiveMapStage() {
   const [exampleIndex, setExampleIndex] = useState(0);
   const [issue, setIssue] = useState(firstExample.issue);
+  const [result, setResult] = useState(firstExample);
   const [activeStage, setActiveStage] = useState<StageKey>("files");
   const [readyCount, setReadyCount] = useState(3);
   const [isRunning, setIsRunning] = useState(false);
   const timers = useRef<number[]>([]);
-  const example = examples[exampleIndex] ?? firstExample;
 
   const clearTimers = () => {
     timers.current.forEach(window.clearTimeout);
@@ -114,12 +151,15 @@ export function InteractiveMapStage() {
   useEffect(() => clearTimers, []);
 
   const stageItems = useMemo(
-    () => ({ files: example.files, checks: example.checks, risks: example.risks }),
-    [example]
+    () => ({ files: result.files, checks: result.checks, risks: result.risks }),
+    [result]
   );
 
   const runMap = () => {
     clearTimers();
+    const next = resultForIssue(issue);
+    setExampleIndex(next.index);
+    setResult(next.example);
     setIsRunning(true);
     setReadyCount(0);
     setActiveStage("files");
@@ -137,6 +177,7 @@ export function InteractiveMapStage() {
     clearTimers();
     setExampleIndex(index);
     setIssue(nextExample.issue);
+    setResult(nextExample);
     setReadyCount(3);
     setActiveStage("files");
     setIsRunning(false);
@@ -149,11 +190,12 @@ export function InteractiveMapStage() {
         <label className="stage-example-select">
           <span className="sr-only">Choose an example issue</span>
           <select value={exampleIndex} onChange={(event) => chooseExample(Number(event.target.value))}>
+            {exampleIndex === -1 ? <option value={-1}>Custom issue preview</option> : null}
             {examples.map((item, index) => <option value={index} key={item.label}>Example: {item.label}</option>)}
           </select>
           <CaretDown size={14} weight="bold" aria-hidden />
         </label>
-        <span className="stage-local-status"><i /> Local analysis</span>
+        <span className="stage-local-status"><i /> Local demo</span>
       </div>
 
       <div className="stage-body">

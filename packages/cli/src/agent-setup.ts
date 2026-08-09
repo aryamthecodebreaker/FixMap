@@ -13,7 +13,7 @@ export const FIXMAP_FEATURES = [
   { name: "MCP", command: "fixmap mcp", detail: "Expose Plan, Explain, Compare, Verify, and Doctor over local stdio." },
   { name: "Focus", command: "--limit, --exclude, .fixmapignore", detail: "Narrow ranking without changing the repository." },
   { name: "Live changes", command: "--working-tree --include-untracked", detail: "Map staged, unstaged, and optionally untracked work against HEAD." },
-  { name: "Fresh scan", command: "--no-cache", detail: "Bypass the exact git-state scan cache and report that a fresh scan was used." }
+  { name: "Fresh scan", command: "--no-cache", detail: "Bypass the exact git-state cache with CLI --no-cache, MCP noCache: true, or Action no-cache: true, and report that a fresh scan was used." }
 ] as const;
 
 export function renderFeatureCatalog(format: "markdown" | "json" = "markdown"): string {

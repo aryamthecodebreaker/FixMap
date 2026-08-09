@@ -54,6 +54,7 @@ export async function runAction(
   const diffSpec = readInput("diff", env);
   const workingTree = parseBooleanInput("working-tree", readInput("working-tree", env));
   const includeUntracked = parseBooleanInput("include-untracked", readInput("include-untracked", env));
+  const noCache = parseBooleanInput("no-cache", readInput("no-cache", env));
   const baseRef = readInput("base", env) || (!workingTree && env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : undefined);
   const headRef = readInput("head", env) || (!workingTree && env.GITHUB_HEAD_REF ? "HEAD" : undefined);
   const format = parseFormat(readInput("format", env));
@@ -81,7 +82,7 @@ export async function runAction(
         "Remove them, or set mode: plan."
       );
     }
-    return runVerifyMode({ env, dependencies, readFile, appendFile, stdout, format, diffSpec, baseRef, headRef, workingTree, includeUntracked });
+    return runVerifyMode({ env, dependencies, readFile, appendFile, stdout, format, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache });
   }
 
   const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : undefined;
@@ -111,7 +112,7 @@ export async function runAction(
     headRef,
     workingTree,
     includeUntracked,
-    useCache: true,
+    useCache: !noCache,
     limit,
     exclude
   });
@@ -181,6 +182,7 @@ type VerifyModeContext = {
   headRef: string | undefined;
   workingTree: boolean;
   includeUntracked: boolean;
+  noCache: boolean;
 };
 
 async function runVerifyMode(context: VerifyModeContext): Promise<void> {
@@ -215,7 +217,7 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
     headRef: context.headRef,
     workingTree: context.workingTree,
     includeUntracked: context.includeUntracked,
-    useCache: true,
+    useCache: !context.noCache,
     internalExclude: [resolve(repoRoot, reportPath)]
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");

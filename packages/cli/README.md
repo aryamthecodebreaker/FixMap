@@ -71,7 +71,7 @@ For long task text, use `--issue-file task.md` or pipe text to `--issue -`. A le
 
 ## MCP server
 
-FixMap ships five Model Context Protocol tools: `fixmap_plan`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor`.
+FixMap ships five Model Context Protocol tools: `fixmap_plan`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor`. Plan, Explain, and Verify accept `noCache: true` when an agent needs a fresh repository scan rather than an exact-state cache hit.
 
 Claude Code:
 

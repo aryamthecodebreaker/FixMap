@@ -4,7 +4,7 @@ export type ValidatedFixMapReport =
   | { success: true; report: FixMapReport }
   | { success: false; message: string };
 
-/** Validate the report fields read by compare and verify without rejecting additive fields. */
+/** Validate the documented report structure without rejecting additive fields. */
 export function validateFixMapReport(candidate: unknown, label: string): ValidatedFixMapReport {
   if (
     typeof candidate !== "object" ||
@@ -27,8 +27,8 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     };
   }
   const invalid = contextFiles.findIndex((file) => {
-    if (typeof file !== "object" || file === null) return true;
-    const ranked = file as unknown as Record<string, unknown>;
+    if (!isRecord(file)) return true;
+    const ranked = file;
     if (typeof ranked.path !== "string" || ranked.path.trim().length === 0) return true;
     if (ranked.rank !== undefined && (!Number.isSafeInteger(ranked.rank) || (ranked.rank as number) < 1)) return true;
     if (ranked.score !== undefined && (typeof ranked.score !== "number" || !Number.isFinite(ranked.score))) return true;
@@ -36,6 +36,7 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
       ranked.confidence !== undefined &&
       ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low"
     ) return true;
+    if (ranked.reasons !== undefined && !isStringArray(ranked.reasons)) return true;
     return false;
   });
   if (invalid !== -1) {
@@ -43,7 +44,7 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
       success: false,
       message:
         `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", ` +
-        "and optional rank, score, and confidence fields must use their documented types."
+        "and optional rank, score, confidence, and reasons fields must use their documented types."
     };
   }
 
@@ -65,52 +66,112 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
 
   const testRoutes = record.testRoutes as unknown[];
   const invalidRoute = testRoutes.findIndex((route) => {
-    if (typeof route !== "object" || route === null || Array.isArray(route)) return true;
-    const entry = route as Record<string, unknown>;
-    return typeof entry.command !== "string" ||
-      !Array.isArray(entry.relatedFiles) ||
-      !entry.relatedFiles.every((path) => typeof path === "string");
+    if (!isRecord(route)) return true;
+    return typeof route.command !== "string" || !route.command.trim() ||
+      !isNonBlankStringArray(route.relatedFiles) ||
+      (route.kind !== undefined && route.kind !== "test" && route.kind !== "validation") ||
+      (route.reason !== undefined && typeof route.reason !== "string");
   });
   if (invalidRoute !== -1) {
     return {
       success: false,
       message:
         `${label} has an invalid testRoutes entry at index ${invalidRoute}; each route needs a string "command" ` +
-        "and a string array named relatedFiles."
+        "and an array of non-empty string paths named relatedFiles; optional kind and reason fields must use their documented types."
     };
   }
 
   const risks = record.risks as unknown[];
   const invalidRisk = risks.findIndex((risk) => {
-    if (typeof risk !== "object" || risk === null || Array.isArray(risk)) return true;
-    return typeof (risk as Record<string, unknown>).area !== "string";
+    if (!isRecord(risk)) return true;
+    return typeof risk.area !== "string" || !risk.area.trim() ||
+      (risk.reason !== undefined && typeof risk.reason !== "string") ||
+      (risk.severity !== undefined && risk.severity !== "low" && risk.severity !== "medium" && risk.severity !== "high");
   });
   if (invalidRisk !== -1) {
     return {
       success: false,
-      message: `${label} has an invalid risks entry at index ${invalidRisk}; each risk needs a string "area".`
+      message: `${label} has an invalid risks entry at index ${invalidRisk}; each risk needs a non-empty string "area", and optional reason and severity fields must use their documented types.`
     };
   }
 
-  if (!(record.changedFiles as unknown[]).every((path) => typeof path === "string")) {
-    return { success: false, message: `${label} has invalid changedFiles; every entry must be a string path.` };
+  if (!isNonBlankStringArray(record.changedFiles)) {
+    return { success: false, message: `${label} has invalid changedFiles; every entry must be a non-empty string path.` };
+  }
+
+  const diagnostics = record.diagnostics as unknown[];
+  const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
+    if (!isRecord(diagnostic)) return true;
+    return typeof diagnostic.code !== "string" || !diagnostic.code.trim() ||
+      typeof diagnostic.message !== "string" ||
+      (diagnostic.severity !== "info" && diagnostic.severity !== "warning" && diagnostic.severity !== "error") ||
+      (diagnostic.paths !== undefined && !isNonBlankStringArray(diagnostic.paths));
+  });
+  if (invalidDiagnostic !== -1) {
+    return {
+      success: false,
+      message:
+        `${label} has an invalid diagnostics entry at index ${invalidDiagnostic}; each diagnostic needs string code and message fields, ` +
+        "an info, warning, or error severity, and optional non-empty string paths."
+    };
   }
 
   if (record.analysis !== undefined) {
     const analysis = record.analysis;
-    const grounding = typeof analysis === "object" && analysis !== null && !Array.isArray(analysis)
-      ? (analysis as Record<string, unknown>).grounding
-      : undefined;
-    const specificity = typeof grounding === "object" && grounding !== null && !Array.isArray(grounding)
-      ? (grounding as Record<string, unknown>).specificity
-      : undefined;
+    const grounding = isRecord(analysis) ? analysis.grounding : undefined;
+    const specificity = isRecord(grounding) ? grounding.specificity : undefined;
     if (specificity !== "anchored" && specificity !== "descriptive" && specificity !== "vague") {
       return {
         success: false,
         message: `${label} has invalid analysis.grounding.specificity; expected anchored, descriptive, or vague.`
       };
     }
+    if (!isRecord(analysis) || !isRecord(grounding) ||
+      !Array.isArray(grounding.identifiers) ||
+      !isStringArray(grounding.unresolvedIdentifiers) ||
+      !isStringArray(grounding.partiallyResolvedIdentifiers) ||
+      !isStringArray(grounding.unverifiedIdentifiers) ||
+      typeof grounding.scanComplete !== "boolean" ||
+      !isRecord(analysis.ranking) ||
+      !isNullableFiniteNumber(analysis.ranking.topScore) ||
+      !isNullableFiniteNumber(analysis.ranking.runnerUpScore) ||
+      !isNullableFiniteNumber(analysis.ranking.topGap) ||
+      typeof analysis.ranking.clustered !== "boolean" ||
+      typeof analysis.nextAction !== "string") {
+      return {
+        success: false,
+        message: `${label} has incomplete or invalid analysis grounding, ranking, or nextAction fields.`
+      };
+    }
+    const invalidIdentifier = grounding.identifiers.findIndex((identifier) =>
+      !isRecord(identifier) ||
+      typeof identifier.identifier !== "string" || !identifier.identifier.trim() ||
+      typeof identifier.status !== "string" || !identifier.status.trim() ||
+      !isNonBlankStringArray(identifier.matchedFiles)
+    );
+    if (invalidIdentifier !== -1) {
+      return {
+        success: false,
+        message: `${label} has an invalid analysis.grounding.identifiers entry at index ${invalidIdentifier}.`
+      };
+    }
   }
 
   return { success: true, report: candidate as FixMapReport };
+}
+
+function isRecord(candidate: unknown): candidate is Record<string, unknown> {
+  return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
+}
+
+function isStringArray(candidate: unknown): candidate is string[] {
+  return Array.isArray(candidate) && candidate.every((entry) => typeof entry === "string");
+}
+
+function isNonBlankStringArray(candidate: unknown): candidate is string[] {
+  return isStringArray(candidate) && candidate.every((entry) => entry.trim().length > 0);
+}
+
+function isNullableFiniteNumber(candidate: unknown): boolean {
+  return candidate === null || (typeof candidate === "number" && Number.isFinite(candidate));
 }

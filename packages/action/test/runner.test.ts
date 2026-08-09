@@ -76,6 +76,15 @@ describe("GitHub Action runner", () => {
     expect(stdout.mock.calls[0]?.[0]).toContain('"contextFiles"');
   });
 
+  it("passes no-cache through to a fresh plan scan", async () => {
+    const buildReport = vi.fn(async () => structuredClone(report));
+    await runAction({ INPUT_ISSUE: "password reset", INPUT_NO_CACHE: "true" }, {
+      buildReport,
+      stdout: vi.fn()
+    });
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({ useCache: false }));
+  });
+
   it("fetches same-repository GitHub issue URLs before ranking", async () => {
     const buildReport = vi.fn(async () => structuredClone(report));
     await runAction({
@@ -165,6 +174,21 @@ describe("GitHub Action runner", () => {
     expect(scanRepo).toHaveBeenCalledWith(expect.objectContaining({
       internalExclude: [expect.stringMatching(/plan\.json$/)]
     }));
+  });
+
+  it("passes no-cache through to a fresh verify scan", async () => {
+    const scanRepo = vi.fn(async () => scannedRepo(["src/auth.ts"]));
+    await runAction({
+      INPUT_MODE: "verify",
+      INPUT_REPORT_PATH: "plan.json",
+      INPUT_DIFF: "main...HEAD",
+      INPUT_NO_CACHE: "true"
+    }, {
+      readFile: () => JSON.stringify(report),
+      scanRepo,
+      stdout: vi.fn()
+    });
+    expect(scanRepo).toHaveBeenCalledWith(expect.objectContaining({ useCache: false }));
   });
 
   it("rejects a truncated non-empty report before scanning or dereferencing missing fields", async () => {

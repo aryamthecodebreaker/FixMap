@@ -88,7 +88,7 @@ npx fixmap plan --issue "password reset emails fail"`} />
           <h3>Claude Code</h3>
           <CopyCommand command="claude mcp add fixmap -- fixmap mcp" />
           <h3>Cursor, Windsurf, and other MCP clients</h3>
-          <pre className="code-block"><code>{`{
+          <pre className="code-block" tabIndex={0}><code>{`{
   "mcpServers": {
     "fixmap": {
       "command": "fixmap",
@@ -96,15 +96,15 @@ npx fixmap plan --issue "password reset emails fail"`} />
     }
   }
 }`}</code></pre>
-          <p className="small-note">Analysis runs locally over stdio. FixMap does not send repository source to a hosted model or service.</p>
+          <p className="small-note">Analysis runs locally over stdio. FixMap does not send repository source to a hosted model or service. Plan, Explain, and Verify accept <code>noCache: true</code> for an explicit fresh scan.</p>
         </div>
       </section>
 
       <section className="setup-section page-shell" id="action">
         <div className="setup-heading"><span>04</span><GithubLogo size={34} weight="fill" aria-hidden /><div><p className="eyebrow">GitHub Action</p><h2>Map every pull request.</h2></div></div>
         <div className="setup-content">
-          <p className="setup-lede">The Action posts one report as a pull-request comment and writes the complete result to the job summary.</p>
-          <pre className="code-block"><code>{`name: FixMap
+          <p className="setup-lede">The Action posts one report as a pull-request comment and writes the complete result to the job summary. Set <code>no-cache: true</code> when a workflow needs an explicit fresh scan.</p>
+          <pre className="code-block" tabIndex={0}><code>{`name: FixMap
 on:
   pull_request:
 

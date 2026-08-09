@@ -58,6 +58,7 @@ type ScanState = { count: number; limitReported: boolean };
 const SCAN_CACHE_VERSION = 2;
 const SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
+const SCAN_CACHE_TEMP_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i;
 
 type CachedScan = {
   version: typeof SCAN_CACHE_VERSION;
@@ -282,15 +283,56 @@ async function readScanCache(location: ScanCacheLocation): Promise<CachedScan | 
       !Number.isFinite(Date.parse(cached.createdAt)) ||
       Date.now() - Date.parse(cached.createdAt) > SCAN_CACHE_MAX_AGE_MS ||
       !Array.isArray(cached.files) ||
+      !cached.files.every(isCachedRepoFile) ||
       !Array.isArray(cached.trackedFiles) ||
+      !cached.trackedFiles.every((path) => typeof path === "string") ||
       !Array.isArray(cached.packageScripts) ||
+      !cached.packageScripts.every(isCachedPackageScript) ||
       !Array.isArray(cached.diagnostics) ||
+      !cached.diagnostics.every(isCachedDiagnostic) ||
       !["npm", "pnpm", "yarn", "bun"].includes(cached.packageManager ?? "")
     ) return undefined;
     return cached as CachedScan;
   } catch {
     return undefined;
   }
+}
+
+function isCachedRepoFile(candidate: unknown): candidate is RepoFile {
+  if (!isRecord(candidate)) return false;
+  return typeof candidate.path === "string" && candidate.path.trim().length > 0 &&
+    typeof candidate.extension === "string" &&
+    typeof candidate.sizeBytes === "number" && Number.isFinite(candidate.sizeBytes) && candidate.sizeBytes >= 0 &&
+    typeof candidate.isTest === "boolean" &&
+    typeof candidate.isSource === "boolean" &&
+    (candidate.kind === "code" || candidate.kind === "config" || candidate.kind === "documentation" || candidate.kind === "other") &&
+    typeof candidate.textSample === "string" &&
+    (candidate.textSampleComplete === undefined || typeof candidate.textSampleComplete === "boolean") &&
+    (candidate.textSampleSkipReason === undefined ||
+      candidate.textSampleSkipReason === "too-large" ||
+      candidate.textSampleSkipReason === "not-text" ||
+      candidate.textSampleSkipReason === "unreadable");
+}
+
+function isCachedPackageScript(candidate: unknown): candidate is PackageScript {
+  if (!isRecord(candidate)) return false;
+  return typeof candidate.name === "string" &&
+    typeof candidate.command === "string" &&
+    typeof candidate.packageDir === "string" &&
+    (candidate.packageName === undefined || typeof candidate.packageName === "string");
+}
+
+function isCachedDiagnostic(candidate: unknown): candidate is RepoMap["diagnostics"][number] {
+  if (!isRecord(candidate)) return false;
+  return typeof candidate.code === "string" &&
+    typeof candidate.message === "string" &&
+    (candidate.severity === "info" || candidate.severity === "warning" || candidate.severity === "error") &&
+    (candidate.paths === undefined ||
+      (Array.isArray(candidate.paths) && candidate.paths.every((path) => typeof path === "string")));
+}
+
+function isRecord(candidate: unknown): candidate is Record<string, unknown> {
+  return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
 
 async function writeScanCache(location: ScanCacheLocation, cached: CachedScan): Promise<void> {
@@ -316,7 +358,10 @@ async function pruneExpiredScanCache(cacheRoot: string): Promise<void> {
     const entries = await readdir(cacheRoot, { withFileTypes: true });
     const now = Date.now();
     await Promise.all(entries
-      .filter((entry) => entry.isFile() && SCAN_CACHE_FILE.test(entry.name))
+      // A killed process can leave its uniquely named atomic-write file behind. It is not
+      // readable as a cache entry, but without pruning it the cache directory grows forever.
+      // The same seven-day horizon preserves any plausible active writer.
+      .filter((entry) => entry.isFile() && (SCAN_CACHE_FILE.test(entry.name) || SCAN_CACHE_TEMP_FILE.test(entry.name)))
       .map(async (entry) => {
         const path = join(cacheRoot, entry.name);
         try {
@@ -398,7 +443,7 @@ function isInternalCachePath(root: string, path: string, internalCacheRoot?: str
   // repository. Hide only filenames owned by FixMap's cache format.
   return sameFilesystemPath(internalCacheRoot, root) && (
     SCAN_CACHE_FILE.test(path) ||
-    /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i.test(path)
+    SCAN_CACHE_TEMP_FILE.test(path)
   );
 }
 

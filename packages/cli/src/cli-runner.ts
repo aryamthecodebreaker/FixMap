@@ -831,15 +831,18 @@ export function parseArgs(args: string[]): CliOptions {
     } else if (arg === "--working-tree") {
       if (flagCounts.has(arg)) invalidValues.push(`pass ${arg} only once`);
       flagCounts.set(arg, 1);
-      workingTree = true;
+      if (inlineValue !== undefined) invalidValues.push(`${arg} does not accept a value; pass ${arg} by itself`);
+      else workingTree = true;
     } else if (arg === "--include-untracked") {
       if (flagCounts.has(arg)) invalidValues.push(`pass ${arg} only once`);
       flagCounts.set(arg, 1);
-      includeUntracked = true;
+      if (inlineValue !== undefined) invalidValues.push(`${arg} does not accept a value; pass ${arg} by itself`);
+      else includeUntracked = true;
     } else if (arg === "--no-cache") {
       if (flagCounts.has(arg)) invalidValues.push(`pass ${arg} only once`);
       flagCounts.set(arg, 1);
-      noCache = true;
+      if (inlineValue !== undefined) invalidValues.push(`${arg} does not accept a value; pass ${arg} by itself`);
+      else noCache = true;
     } else if (arg === "--output") {
       consumeValue();
       if (value?.trim()) output = expandHomePath(value.trim());

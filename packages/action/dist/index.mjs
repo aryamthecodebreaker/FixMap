@@ -1948,6 +1948,7 @@ var exec = promisify(execFile);
 var SCAN_CACHE_VERSION = 2;
 var SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
 var SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
+var SCAN_CACHE_TEMP_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i;
 async function scanRepo(input) {
   const repoRoot = resolve(input.repoRoot);
   if (!await isDirectory(repoRoot)) {
@@ -2102,12 +2103,30 @@ async function buildScanCacheLocation(root, cacheRoot, internalPaths) {
 async function readScanCache(location) {
   try {
     const cached = JSON.parse(await readFile(location.path, "utf8"));
-    if (cached.version !== SCAN_CACHE_VERSION || cached.stateKey !== location.stateKey || typeof cached.createdAt !== "string" || !Number.isFinite(Date.parse(cached.createdAt)) || Date.now() - Date.parse(cached.createdAt) > SCAN_CACHE_MAX_AGE_MS || !Array.isArray(cached.files) || !Array.isArray(cached.trackedFiles) || !Array.isArray(cached.packageScripts) || !Array.isArray(cached.diagnostics) || !["npm", "pnpm", "yarn", "bun"].includes(cached.packageManager ?? ""))
+    if (cached.version !== SCAN_CACHE_VERSION || cached.stateKey !== location.stateKey || typeof cached.createdAt !== "string" || !Number.isFinite(Date.parse(cached.createdAt)) || Date.now() - Date.parse(cached.createdAt) > SCAN_CACHE_MAX_AGE_MS || !Array.isArray(cached.files) || !cached.files.every(isCachedRepoFile) || !Array.isArray(cached.trackedFiles) || !cached.trackedFiles.every((path) => typeof path === "string") || !Array.isArray(cached.packageScripts) || !cached.packageScripts.every(isCachedPackageScript) || !Array.isArray(cached.diagnostics) || !cached.diagnostics.every(isCachedDiagnostic) || !["npm", "pnpm", "yarn", "bun"].includes(cached.packageManager ?? ""))
       return void 0;
     return cached;
   } catch {
     return void 0;
   }
+}
+function isCachedRepoFile(candidate) {
+  if (!isRecord(candidate))
+    return false;
+  return typeof candidate.path === "string" && candidate.path.trim().length > 0 && typeof candidate.extension === "string" && typeof candidate.sizeBytes === "number" && Number.isFinite(candidate.sizeBytes) && candidate.sizeBytes >= 0 && typeof candidate.isTest === "boolean" && typeof candidate.isSource === "boolean" && (candidate.kind === "code" || candidate.kind === "config" || candidate.kind === "documentation" || candidate.kind === "other") && typeof candidate.textSample === "string" && (candidate.textSampleComplete === void 0 || typeof candidate.textSampleComplete === "boolean") && (candidate.textSampleSkipReason === void 0 || candidate.textSampleSkipReason === "too-large" || candidate.textSampleSkipReason === "not-text" || candidate.textSampleSkipReason === "unreadable");
+}
+function isCachedPackageScript(candidate) {
+  if (!isRecord(candidate))
+    return false;
+  return typeof candidate.name === "string" && typeof candidate.command === "string" && typeof candidate.packageDir === "string" && (candidate.packageName === void 0 || typeof candidate.packageName === "string");
+}
+function isCachedDiagnostic(candidate) {
+  if (!isRecord(candidate))
+    return false;
+  return typeof candidate.code === "string" && typeof candidate.message === "string" && (candidate.severity === "info" || candidate.severity === "warning" || candidate.severity === "error") && (candidate.paths === void 0 || Array.isArray(candidate.paths) && candidate.paths.every((path) => typeof path === "string"));
+}
+function isRecord(candidate) {
+  return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
 async function writeScanCache(location, cached) {
   const temporaryPath = `${location.path}.${process.pid}-${randomUUID()}.tmp`;
@@ -2128,7 +2147,7 @@ async function pruneExpiredScanCache(cacheRoot) {
   try {
     const entries = await readdir(cacheRoot, { withFileTypes: true });
     const now = Date.now();
-    await Promise.all(entries.filter((entry) => entry.isFile() && SCAN_CACHE_FILE.test(entry.name)).map(async (entry) => {
+    await Promise.all(entries.filter((entry) => entry.isFile() && (SCAN_CACHE_FILE.test(entry.name) || SCAN_CACHE_TEMP_FILE.test(entry.name))).map(async (entry) => {
       const path = join(cacheRoot, entry.name);
       try {
         const metadata = await stat(path);
@@ -2185,7 +2204,7 @@ function isInternalCachePath(root, path, internalCacheRoot) {
     const cachePath = process.platform === "win32" ? relativeCacheRoot.toLowerCase() : relativeCacheRoot;
     return candidate === cachePath || candidate.startsWith(`${cachePath}/`);
   }
-  return sameFilesystemPath(internalCacheRoot, root) && (SCAN_CACHE_FILE.test(path) || /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i.test(path));
+  return sameFilesystemPath(internalCacheRoot, root) && (SCAN_CACHE_FILE.test(path) || SCAN_CACHE_TEMP_FILE.test(path));
 }
 async function listGitPaths(root) {
   try {
@@ -2856,7 +2875,7 @@ function validateFixMapReport(candidate, label) {
     };
   }
   const invalid = contextFiles.findIndex((file) => {
-    if (typeof file !== "object" || file === null)
+    if (!isRecord2(file))
       return true;
     const ranked = file;
     if (typeof ranked.path !== "string" || ranked.path.trim().length === 0)
@@ -2867,12 +2886,14 @@ function validateFixMapReport(candidate, label) {
       return true;
     if (ranked.confidence !== void 0 && ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low")
       return true;
+    if (ranked.reasons !== void 0 && !isStringArray(ranked.reasons))
+      return true;
     return false;
   });
   if (invalid !== -1) {
     return {
       success: false,
-      message: `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", and optional rank, score, and confidence fields must use their documented types.`
+      message: `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", and optional rank, score, confidence, and reasons fields must use their documented types.`
     };
   }
   const invalidEnvelopeFields = [
@@ -2890,44 +2911,80 @@ function validateFixMapReport(candidate, label) {
   }
   const testRoutes = record.testRoutes;
   const invalidRoute = testRoutes.findIndex((route) => {
-    if (typeof route !== "object" || route === null || Array.isArray(route))
+    if (!isRecord2(route))
       return true;
-    const entry = route;
-    return typeof entry.command !== "string" || !Array.isArray(entry.relatedFiles) || !entry.relatedFiles.every((path) => typeof path === "string");
+    return typeof route.command !== "string" || !route.command.trim() || !isNonBlankStringArray(route.relatedFiles) || route.kind !== void 0 && route.kind !== "test" && route.kind !== "validation" || route.reason !== void 0 && typeof route.reason !== "string";
   });
   if (invalidRoute !== -1) {
     return {
       success: false,
-      message: `${label} has an invalid testRoutes entry at index ${invalidRoute}; each route needs a string "command" and a string array named relatedFiles.`
+      message: `${label} has an invalid testRoutes entry at index ${invalidRoute}; each route needs a string "command" and an array of non-empty string paths named relatedFiles; optional kind and reason fields must use their documented types.`
     };
   }
   const risks = record.risks;
   const invalidRisk = risks.findIndex((risk) => {
-    if (typeof risk !== "object" || risk === null || Array.isArray(risk))
+    if (!isRecord2(risk))
       return true;
-    return typeof risk.area !== "string";
+    return typeof risk.area !== "string" || !risk.area.trim() || risk.reason !== void 0 && typeof risk.reason !== "string" || risk.severity !== void 0 && risk.severity !== "low" && risk.severity !== "medium" && risk.severity !== "high";
   });
   if (invalidRisk !== -1) {
     return {
       success: false,
-      message: `${label} has an invalid risks entry at index ${invalidRisk}; each risk needs a string "area".`
+      message: `${label} has an invalid risks entry at index ${invalidRisk}; each risk needs a non-empty string "area", and optional reason and severity fields must use their documented types.`
     };
   }
-  if (!record.changedFiles.every((path) => typeof path === "string")) {
-    return { success: false, message: `${label} has invalid changedFiles; every entry must be a string path.` };
+  if (!isNonBlankStringArray(record.changedFiles)) {
+    return { success: false, message: `${label} has invalid changedFiles; every entry must be a non-empty string path.` };
+  }
+  const diagnostics = record.diagnostics;
+  const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
+    if (!isRecord2(diagnostic))
+      return true;
+    return typeof diagnostic.code !== "string" || !diagnostic.code.trim() || typeof diagnostic.message !== "string" || diagnostic.severity !== "info" && diagnostic.severity !== "warning" && diagnostic.severity !== "error" || diagnostic.paths !== void 0 && !isNonBlankStringArray(diagnostic.paths);
+  });
+  if (invalidDiagnostic !== -1) {
+    return {
+      success: false,
+      message: `${label} has an invalid diagnostics entry at index ${invalidDiagnostic}; each diagnostic needs string code and message fields, an info, warning, or error severity, and optional non-empty string paths.`
+    };
   }
   if (record.analysis !== void 0) {
     const analysis = record.analysis;
-    const grounding = typeof analysis === "object" && analysis !== null && !Array.isArray(analysis) ? analysis.grounding : void 0;
-    const specificity = typeof grounding === "object" && grounding !== null && !Array.isArray(grounding) ? grounding.specificity : void 0;
+    const grounding = isRecord2(analysis) ? analysis.grounding : void 0;
+    const specificity = isRecord2(grounding) ? grounding.specificity : void 0;
     if (specificity !== "anchored" && specificity !== "descriptive" && specificity !== "vague") {
       return {
         success: false,
         message: `${label} has invalid analysis.grounding.specificity; expected anchored, descriptive, or vague.`
       };
     }
+    if (!isRecord2(analysis) || !isRecord2(grounding) || !Array.isArray(grounding.identifiers) || !isStringArray(grounding.unresolvedIdentifiers) || !isStringArray(grounding.partiallyResolvedIdentifiers) || !isStringArray(grounding.unverifiedIdentifiers) || typeof grounding.scanComplete !== "boolean" || !isRecord2(analysis.ranking) || !isNullableFiniteNumber(analysis.ranking.topScore) || !isNullableFiniteNumber(analysis.ranking.runnerUpScore) || !isNullableFiniteNumber(analysis.ranking.topGap) || typeof analysis.ranking.clustered !== "boolean" || typeof analysis.nextAction !== "string") {
+      return {
+        success: false,
+        message: `${label} has incomplete or invalid analysis grounding, ranking, or nextAction fields.`
+      };
+    }
+    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord2(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || typeof identifier.status !== "string" || !identifier.status.trim() || !isNonBlankStringArray(identifier.matchedFiles));
+    if (invalidIdentifier !== -1) {
+      return {
+        success: false,
+        message: `${label} has an invalid analysis.grounding.identifiers entry at index ${invalidIdentifier}.`
+      };
+    }
   }
   return { success: true, report: candidate };
+}
+function isRecord2(candidate) {
+  return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
+}
+function isStringArray(candidate) {
+  return Array.isArray(candidate) && candidate.every((entry) => typeof entry === "string");
+}
+function isNonBlankStringArray(candidate) {
+  return isStringArray(candidate) && candidate.every((entry) => entry.trim().length > 0);
+}
+function isNullableFiniteNumber(candidate) {
+  return candidate === null || typeof candidate === "number" && Number.isFinite(candidate);
 }
 
 // packages/action/src/github.ts
@@ -3151,6 +3208,7 @@ async function runAction(env = process.env, dependencies = {}) {
   const diffSpec = readInput("diff", env);
   const workingTree = parseBooleanInput("working-tree", readInput("working-tree", env));
   const includeUntracked = parseBooleanInput("include-untracked", readInput("include-untracked", env));
+  const noCache = parseBooleanInput("no-cache", readInput("no-cache", env));
   const baseRef = readInput("base", env) || (!workingTree && env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : void 0);
   const headRef = readInput("head", env) || (!workingTree && env.GITHUB_HEAD_REF ? "HEAD" : void 0);
   const format = parseFormat(readInput("format", env));
@@ -3171,7 +3229,7 @@ async function runAction(env = process.env, dependencies = {}) {
         `FixMap verify mode does not use plan-only input${planOnly.length === 1 ? "" : "s"}: ${planOnly.join(", ")}. Remove them, or set mode: plan.`
       );
     }
-    return runVerifyMode({ env, dependencies, readFile: readFile3, appendFile, stdout, format, diffSpec, baseRef, headRef, workingTree, includeUntracked });
+    return runVerifyMode({ env, dependencies, readFile: readFile3, appendFile, stdout, format, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache });
   }
   const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : void 0;
   if (issueSource && env.GITHUB_REPOSITORY && env.GITHUB_REPOSITORY.toLowerCase() !== `${issueSource.owner}/${issueSource.repository}`.toLowerCase()) {
@@ -3192,7 +3250,7 @@ async function runAction(env = process.env, dependencies = {}) {
     headRef,
     workingTree,
     includeUntracked,
-    useCache: true,
+    useCache: !noCache,
     limit,
     exclude
   });
@@ -3272,7 +3330,7 @@ async function runVerifyMode(context) {
     headRef: context.headRef,
     workingTree: context.workingTree,
     includeUntracked: context.includeUntracked,
-    useCache: true,
+    useCache: !context.noCache,
     internalExclude: [resolve3(repoRoot, reportPath)]
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");

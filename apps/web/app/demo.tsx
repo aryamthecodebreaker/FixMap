@@ -315,7 +315,14 @@ function ExplainPanel({
 }
 
 function ComparePanel({ comparison }: { comparison: ReturnType<typeof compareReports> }) {
-  const changes = [...comparison.entered, ...comparison.moved, ...comparison.confidenceChanged];
+  // Leaving the plan is a change too. Omitting it made the counter say "0 changed" beside
+  // summaries such as "7 left", and hid the paths that explained the delta.
+  const changes = [
+    ...comparison.entered,
+    ...comparison.left,
+    ...comparison.moved,
+    ...comparison.confidenceChanged
+  ];
   return (
     <>
       <div className="results-head"><span>Earlier plan vs. current task</span><small>{changes.length} changed</small></div>
@@ -379,9 +386,11 @@ function VerifyPanel({
           <span className={`severity ${finding.severity}`}>{finding.severity}</span>
           <div>
             <p>{finding.message}</p>
-            {finding.paths.map((path) => (
-              <code key={path}>{path}</code>
-            ))}
+            <span className="finding-paths">
+              {finding.paths.map((path) => (
+                <code key={path}>{path}</code>
+              ))}
+            </span>
           </div>
         </article>
       ))}

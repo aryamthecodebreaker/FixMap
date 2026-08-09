@@ -252,6 +252,17 @@ describe("CLI argument handling", () => {
     expect(parseArgs(["plan", "--issue", "x", "--format", " JSON\n"]).format).toBe("json");
   });
 
+  it.each(["--working-tree", "--include-untracked", "--no-cache"])(
+    "rejects an inline value on boolean flag %s instead of silently treating false as true",
+    (flag) => {
+      const parsed = parseArgs(["plan", "--issue", "x", `${flag}=false`]);
+      expect(parsed.invalidValues).toContain(`${flag} does not accept a value; pass ${flag} by itself`);
+      expect(parsed.workingTree).toBe(false);
+      expect(parsed.includeUntracked).toBe(false);
+      expect(parsed.noCache).toBe(false);
+    }
+  );
+
   it("trims accidental whitespace around git refs", () => {
     const parsed = parseArgs([
       "plan", "--issue", "x", "--diff", " HEAD~1...HEAD\n", "--base", " main ", "--head", " feature "

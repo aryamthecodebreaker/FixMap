@@ -46,6 +46,10 @@ inputs:
     description: With working-tree, include untracked files.
     required: false
     default: "false"
+  no-cache:
+    description: Bypass the exact-state repository scan cache and perform a fresh scan.
+    required: false
+    default: "false"
   format:
     description: >-
       Output format. JSON is posted as a fenced JSON pull-request comment, and the step

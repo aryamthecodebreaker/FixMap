@@ -39,6 +39,7 @@ type PlanArguments = {
   exclude?: string[];
   workingTree?: boolean;
   includeUntracked?: boolean;
+  noCache?: boolean;
 };
 
 type ExplainArguments = {
@@ -53,6 +54,7 @@ type ExplainArguments = {
   format?: "markdown" | "json";
   workingTree?: boolean;
   includeUntracked?: boolean;
+  noCache?: boolean;
 };
 
 type PlanArgumentsValidation =
@@ -69,6 +71,7 @@ type VerifyArguments = {
   format?: "markdown" | "json";
   workingTree?: boolean;
   includeUntracked?: boolean;
+  noCache?: boolean;
 };
 
 const PLAN_TOOL = {
@@ -125,7 +128,8 @@ const PLAN_TOOL = {
           "A .fixmapignore file in the repository is applied as well."
       },
       workingTree: { type: "boolean", description: "Map staged and unstaged tracked changes against HEAD" },
-      includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" }
+      includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" },
+      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" }
     },
     additionalProperties: false
   }
@@ -166,7 +170,8 @@ const EXPLAIN_TOOL = {
         description: "The same exclusion patterns used for the plan"
       },
       limit: { type: "number", description: `Maximum reported context files, 1 to ${MAX_MCP_LIMIT}` },
-      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" },
+      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" }
     },
     required: ["path"],
     additionalProperties: false
@@ -196,7 +201,8 @@ const VERIFY_TOOL = {
       repo: { type: "string", description: "Local repository path, defaults to the server working directory" },
       workingTree: { type: "boolean", description: "Verify staged and unstaged tracked changes against HEAD" },
       includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" },
-      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" },
+      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" }
     },
     required: ["report"],
     additionalProperties: false
@@ -246,6 +252,13 @@ export function createFixMapMcpServer(
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name === COMPARE_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["previous", "current", "format"].includes(key));
+      if (unknown.length > 0) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }]
+        };
+      }
       const previous = loadReportInput(record?.previous, '"previous"');
       if (!previous.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${previous.message}` }] };
       const current = loadReportInput(record?.current, '"current"');
@@ -294,7 +307,7 @@ export function createFixMapMcpServer(
           headRef: args.head,
           workingTree: args.workingTree,
           includeUntracked: args.includeUntracked,
-          useCache: true,
+          useCache: !args.noCache,
           internalExclude: args.reportPath ? [resolve(args.reportPath)] : undefined
         });
         const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
@@ -340,7 +353,7 @@ export function createFixMapMcpServer(
           headRef: args.head,
           workingTree: args.workingTree,
           includeUntracked: args.includeUntracked,
-          useCache: true
+          useCache: !args.noCache
         });
         const explanation = explainFile(
           repo,
@@ -396,7 +409,7 @@ export function createFixMapMcpServer(
         headRef: args.head,
         workingTree: args.workingTree,
         includeUntracked: args.includeUntracked,
-        useCache: true,
+        useCache: !args.noCache,
         limit: args.limit,
         exclude: args.exclude
       }, repositorySourceDependencies);
@@ -436,7 +449,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "format", "limit", "exclude", "workingTree", "includeUntracked"]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return {
@@ -451,8 +464,10 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
       return { success: false, message: `"${name}" must be a string.` };
     }
   }
-  if (record.issue !== undefined && typeof record.issue === "string" && !record.issue.trim()) return { success: false, message: '"issue" must not be blank.' };
-  for (const name of ["workingTree", "includeUntracked"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
+  for (const name of ["issue", "diff", "base", "head", "repo"] as const) {
+    if (typeof record[name] === "string" && !record[name].trim()) return { success: false, message: `"${name}" must not be blank.` };
+  }
+  for (const name of ["workingTree", "includeUntracked", "noCache"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
   if (record.includeUntracked === true && record.workingTree !== true) return { success: false, message: '"includeUntracked" requires "workingTree".' };
   if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
   if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
@@ -483,6 +498,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
   if (record.workingTree === true) value.workingTree = true;
   if (record.includeUntracked === true) value.includeUntracked = true;
+  if (record.noCache === true) value.noCache = true;
   if (value.issue && /^https?:\/\/\S+$/i.test(value.issue) && !tryParseGitHubIssueSource(value.issue)) return { success: false, message: '"issue" URL must be a canonical public GitHub issue or pull request URL.' };
   return { success: true, value };
 }
@@ -523,7 +539,7 @@ export function parseExplainArguments(
     return { success: false, message: "tool arguments must be an object." };
   }
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["path", "issue", "diff", "base", "head", "repo", "exclude", "format", "limit", "workingTree", "includeUntracked"]);
+  const allowed = new Set(["path", "issue", "diff", "base", "head", "repo", "exclude", "format", "limit", "workingTree", "includeUntracked", "noCache"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
@@ -534,7 +550,12 @@ export function parseExplainArguments(
       return { success: false, message: `"${name}" must be a string.` };
     }
   }
-  for (const name of ["workingTree", "includeUntracked"] as const) {
+  for (const name of ["issue", "diff", "base", "head", "repo"] as const) {
+    if (typeof record[name] === "string" && !record[name].trim()) {
+      return { success: false, message: `"${name}" must not be blank.` };
+    }
+  }
+  for (const name of ["workingTree", "includeUntracked", "noCache"] as const) {
     if (record[name] !== undefined && typeof record[name] !== "boolean") {
       return { success: false, message: `"${name}" must be a boolean.` };
     }
@@ -543,6 +564,10 @@ export function parseExplainArguments(
   if (!path) {
     return { success: false, message: '"path" is required and must be a repository-relative file path.' };
   }
+  if (record.includeUntracked === true && record.workingTree !== true) return { success: false, message: '"includeUntracked" requires "workingTree".' };
+  if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
+  if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
+  if (record.head && !record.base) return { success: false, message: '"head" requires "base".' };
   const format = normalizeFormat(record.format); if (!format.success) return format;
   const limit = validateLimit(record.limit); if (!limit.success) return limit;
   const exclude = validateExclude(record.exclude);
@@ -560,6 +585,7 @@ export function parseExplainArguments(
       ...(typeof record.head === "string" && record.head.trim() ? { head: record.head.trim() } : {}),
       ...(record.workingTree === true ? { workingTree: true } : {}),
       ...(record.includeUntracked === true ? { includeUntracked: true } : {}),
+      ...(record.noCache === true ? { noCache: true } : {}),
       ...(typeof record.repo === "string" && record.repo.trim() ? { repo: record.repo.trim() } : {}),
       ...(exclude.value.length > 0 ? { exclude: exclude.value } : {}),
       ...(limit.value !== undefined ? { limit: limit.value } : {}),
@@ -577,7 +603,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
     return { success: false, message: "tool arguments must be an object." };
   }
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["report", "diff", "base", "head", "repo", "format", "workingTree", "includeUntracked"]);
+  const allowed = new Set(["report", "diff", "base", "head", "repo", "format", "workingTree", "includeUntracked", "noCache"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
@@ -596,7 +622,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
   if (!record.diff && !record.base && record.workingTree !== true) {
     return { success: false, message: 'provide "diff", "base"/"head", or "workingTree" so FixMap can see what changed.' };
   }
-  for (const name of ["workingTree", "includeUntracked"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
+  for (const name of ["workingTree", "includeUntracked", "noCache"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
   if (record.includeUntracked === true && record.workingTree !== true) return { success: false, message: '"includeUntracked" requires "workingTree".' };
   if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
   if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
@@ -613,6 +639,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
       ...(typeof record.repo === "string" ? { repo: record.repo.trim() } : {}),
       ...(record.workingTree === true ? { workingTree: true } : {}),
       ...(record.includeUntracked === true ? { includeUntracked: true } : {}),
+      ...(record.noCache === true ? { noCache: true } : {}),
       ...(format.value ? { format: format.value } : {})
     }
   };
@@ -621,7 +648,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
 function normalizeFormat(candidate: unknown): { success: true; value: "markdown" | "json" | undefined } | { success: false; message: string } {
   if (candidate === undefined) return { success: true, value: undefined };
   if (typeof candidate !== "string") return { success: false, message: '"format" must be either "markdown" or "json".' };
-  const value = candidate.toLowerCase();
+  const value = candidate.trim().toLowerCase();
   return value === "markdown" || value === "json" ? { success: true, value } : { success: false, message: '"format" must be either "markdown" or "json".' };
 }
 

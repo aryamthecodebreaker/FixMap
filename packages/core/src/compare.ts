@@ -151,13 +151,15 @@ export function renderComparisonMarkdown(comparison: ReportComparison): string {
   }
 
   appendSection(lines, "Entered", comparison.entered, (delta) =>
-    `\`${delta.path}\` at rank ${delta.currentRank} (${delta.currentConfidence}, score ${delta.currentScore})`);
+    `\`${delta.path}\` at rank ${delta.currentRank}${formatMetrics(delta.currentConfidence, delta.currentScore)}`);
   appendSection(lines, "Left", comparison.left, (delta) =>
-    `\`${delta.path}\` was rank ${delta.previousRank} (${delta.previousConfidence}, score ${delta.previousScore})`);
+    `\`${delta.path}\` was rank ${delta.previousRank}${formatMetrics(delta.previousConfidence, delta.previousScore)}`);
   appendSection(lines, "Moved", comparison.moved, (delta) =>
     `\`${delta.path}\` ${describeMove(delta)}`);
   appendSection(lines, "Confidence changed", comparison.confidenceChanged, (delta) =>
-    `\`${delta.path}\` stayed at rank ${delta.currentRank} and score ${delta.currentScore}; confidence changed from ${delta.previousConfidence} to ${delta.currentConfidence}`);
+    `\`${delta.path}\` stayed at rank ${delta.currentRank}` +
+    `${delta.currentScore === undefined ? "" : ` and score ${delta.currentScore}`}; confidence changed from ` +
+    `${delta.previousConfidence ?? "unknown"} to ${delta.currentConfidence ?? "unknown"}`);
 
   if (comparison.unchanged.length > 0) {
     lines.push(`## Unchanged`, "", `${comparison.unchanged.length} file(s) held their rank, score, and confidence.`, "");
@@ -173,11 +175,23 @@ function describeMove(delta: RankDelta): string {
   const rank = direction === "held"
     ? `stayed at rank ${delta.currentRank}`
     : `${direction} from rank ${delta.previousRank} to ${delta.currentRank}`;
-  const score = `score ${delta.previousScore} to ${delta.currentScore}`;
-  const confidence = delta.previousConfidence === delta.currentConfidence
-    ? `${delta.currentConfidence} confidence`
-    : `confidence ${delta.previousConfidence} to ${delta.currentConfidence}`;
-  return `${rank}, ${score}, ${confidence}`;
+  const score = delta.previousScore === undefined && delta.currentScore === undefined
+    ? ""
+    : `score ${delta.previousScore ?? "unknown"} to ${delta.currentScore ?? "unknown"}`;
+  const confidence = delta.previousConfidence === undefined && delta.currentConfidence === undefined
+    ? ""
+    : delta.previousConfidence === delta.currentConfidence
+      ? `${delta.currentConfidence} confidence`
+      : `confidence ${delta.previousConfidence ?? "unknown"} to ${delta.currentConfidence ?? "unknown"}`;
+  return [rank, score, confidence].filter(Boolean).join(", ");
+}
+
+function formatMetrics(confidence: RankedFile["confidence"] | undefined, score: number | undefined): string {
+  const metrics = [
+    confidence ? `${confidence} confidence` : "",
+    score === undefined ? "" : `score ${score}`
+  ].filter(Boolean);
+  return metrics.length > 0 ? ` (${metrics.join(", ")})` : "";
 }
 
 function appendSection(

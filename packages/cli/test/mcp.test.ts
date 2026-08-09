@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
-import { createFixMapMcpServer, parseExplainArguments, parsePlanArguments } from "../src/mcp.js";
+import { createFixMapMcpServer, parseExplainArguments, parsePlanArguments, parseVerifyArguments } from "../src/mcp.js";
 import type { RepositorySourceDependencies } from "../src/repository-source.js";
 
 const exec = promisify(execFile);
@@ -118,6 +118,22 @@ describe("fixmap mcp server", () => {
     });
   });
 
+  it("bypasses the repository cache when an MCP caller requests a fresh scan", async () => {
+    const root = await createAuthFixture();
+    const client = await connectClient();
+
+    const result = await client.callTool({
+      name: "fixmap_plan",
+      arguments: { issue: "password reset fails", repo: root, noCache: true, format: "json" }
+    });
+
+    expect(result.isError).toBeFalsy();
+    const report = JSON.parse((result.content as Array<{ text: string }>)[0]!.text) as {
+      diagnostics: Array<{ code: string }>;
+    };
+    expect(report.diagnostics.map((diagnostic) => diagnostic.code)).toContain("cache-bypass");
+  });
+
   it("caps the reported context files through MCP", async () => {
     const root = await createAuthFixture();
     const client = await connectClient();
@@ -143,15 +159,15 @@ describe("fixmap mcp server", () => {
     expect(plan).toBeDefined();
     expect(plan?.description).toContain("test commands");
     expect(Object.keys(plan?.inputSchema.properties ?? {})).toEqual(
-      expect.arrayContaining(["issue", "diff", "base", "head", "repo", "format"])
+      expect.arrayContaining(["issue", "diff", "base", "head", "repo", "format", "noCache"])
     );
     expect(plan?.inputSchema.properties?.repo?.description).toContain("public GitHub HTTPS");
     expect(plan?.inputSchema.properties?.issue?.description).toContain("GitHub issue URL");
     expect(verify).toBeDefined();
-    expect(Object.keys(verify?.inputSchema.properties ?? {})).toContain("report");
+    expect(Object.keys(verify?.inputSchema.properties ?? {})).toEqual(expect.arrayContaining(["report", "noCache"]));
     const explain = tools.tools.find((tool) => tool.name === "fixmap_explain");
     expect(explain).toBeDefined();
-    expect(Object.keys(explain?.inputSchema.properties ?? {})).toContain("path");
+    expect(Object.keys(explain?.inputSchema.properties ?? {})).toEqual(expect.arrayContaining(["path", "noCache"]));
     expect(explain?.inputSchema.required).toContain("path");
     expect(tools.tools.find((tool) => tool.name === "fixmap_compare")).toBeDefined();
     expect(tools.tools.find((tool) => tool.name === "fixmap_doctor")).toBeDefined();
@@ -561,9 +577,43 @@ describe("MCP surface parity", () => {
     expect(wrong.success === false && wrong.message).toContain('"workingTree" must be a boolean');
   });
 
+  it("rejects contradictory explain scan options instead of silently changing their meaning", () => {
+    expect(parseExplainArguments({ path: "a.ts", includeUntracked: true }).success).toBe(false);
+    expect(parseExplainArguments({ path: "a.ts", workingTree: true, diff: "HEAD" }).success).toBe(false);
+    expect(parseExplainArguments({ path: "a.ts", diff: "main...HEAD", base: "main" }).success).toBe(false);
+    expect(parseExplainArguments({ path: "a.ts", head: "HEAD" }).success).toBe(false);
+  });
+
   // #278: a four-literal enum rejected `Markdown` in strict clients before normalization ran.
-  it.each(["markdown", "JSON", "Markdown", "JsOn"])("accepts %j as a format", (format) => {
+  it.each(["markdown", "JSON", "Markdown", "JsOn", " JSON\n"])("accepts %j as a format", (format) => {
     expect(parsePlanArguments({ issue: "x", format }).success).toBe(true);
+  });
+
+  it("normalizes fresh-scan and whitespace inputs consistently across MCP tools", () => {
+    const report = { summary: "No matches", contextFiles: [], testRoutes: [], risks: [], changedFiles: [], diagnostics: [] };
+    expect(parsePlanArguments({ issue: " x ", format: " JSON ", noCache: true })).toEqual({
+      success: true,
+      value: { issue: "x", format: "json", noCache: true }
+    });
+    expect(parseExplainArguments({ path: " a.ts ", issue: " x ", format: " Markdown ", noCache: true })).toEqual({
+      success: true,
+      value: { path: "a.ts", issue: "x", noCache: true, format: "markdown" }
+    });
+    expect(parseVerifyArguments({ report, diff: " HEAD ", format: " JSON ", noCache: true })).toEqual({
+      success: true,
+      value: { report, diff: "HEAD", noCache: true, format: "json" }
+    });
+  });
+
+  it("rejects unknown compare arguments at the request handler", async () => {
+    const client = await connectClient();
+    const report = { summary: "No matches", contextFiles: [], testRoutes: [], risks: [], changedFiles: [], diagnostics: [] };
+    const result = await client.callTool({
+      name: "fixmap_compare",
+      arguments: { previous: report, current: report, surprise: true }
+    });
+    expect(result.isError).toBe(true);
+    expect((result.content as Array<{ text: string }>)[0]?.text).toContain("unknown argument: surprise");
   });
 
   // #369: the throwing parser surfaced an uncaught exception instead of Invalid arguments.
