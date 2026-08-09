@@ -1,5 +1,5 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { lstat, mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 export type AgentTarget = "claude" | "cursor" | "copilot" | "agents";
 
@@ -68,28 +68,89 @@ export async function installAgentCommands(input: {
   targets: AgentTarget[];
   force?: boolean;
 }): Promise<Array<{ path: string; status: "created" | "unchanged" | "updated" }>> {
-  const root = resolve(input.repoRoot);
+  const requestedRoot = resolve(input.repoRoot);
   try {
-    if (!(await stat(root)).isDirectory()) throw new Error("not a directory");
+    if (!(await stat(requestedRoot)).isDirectory()) throw new Error("not a directory");
   } catch {
-    throw new Error(`Setup repository "${root}" does not exist or is not a directory.`);
+    throw new Error(`Setup repository "${requestedRoot}" does not exist or is not a directory.`);
   }
-  const results: Array<{ path: string; status: "created" | "unchanged" | "updated" }> = [];
+  const root = await realpath(requestedRoot);
+  const prepared: Array<{
+    path: string;
+    displayPath: string;
+    contents: string;
+    existing: string | undefined;
+  }> = [];
+
+  // Preflight every target before writing any of them. A customized command or unsafe link
+  // must not leave a half-installed multi-agent setup behind.
   for (const target of input.targets) {
     const template = templates[target];
     const path = join(root, template.path);
+    const displayPath = relative(root, path).replace(/\\/g, "/");
+    await assertSafeTarget(root, path, displayPath);
     let existing: string | undefined;
-    try { existing = await readFile(path, "utf8"); } catch { /* A missing file is expected. */ }
-    if (existing === template.contents) {
-      results.push({ path: relative(root, path).replace(/\\/g, "/"), status: "unchanged" });
-      continue;
+    try {
+      existing = await readFile(path, "utf8");
+    } catch (error) {
+      if ((error as { code?: unknown }).code !== "ENOENT") {
+        throw new Error(`Could not inspect existing ${displayPath}: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
     if (existing !== undefined && !input.force) {
-      throw new Error(`Refusing to overwrite existing ${relative(root, path)}. Re-run with --force after reviewing it.`);
+      if (existing !== template.contents) {
+        throw new Error(`Refusing to overwrite existing ${displayPath}. Re-run with --force after reviewing it.`);
+      }
     }
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, template.contents, "utf8");
-    results.push({ path: relative(root, path).replace(/\\/g, "/"), status: existing === undefined ? "created" : "updated" });
+    prepared.push({ path, displayPath, contents: template.contents, existing });
+  }
+
+  const results: Array<{ path: string; status: "created" | "unchanged" | "updated" }> = [];
+  for (const entry of prepared) {
+    if (entry.existing === entry.contents) {
+      results.push({ path: entry.displayPath, status: "unchanged" });
+      continue;
+    }
+    await mkdir(dirname(entry.path), { recursive: true });
+    await writeFile(entry.path, entry.contents, "utf8");
+    results.push({ path: entry.displayPath, status: entry.existing === undefined ? "created" : "updated" });
   }
   return results;
+}
+
+async function assertSafeTarget(root: string, target: string, displayPath: string): Promise<void> {
+  try {
+    const targetMetadata = await lstat(target);
+    if (targetMetadata.isSymbolicLink()) {
+      throw new Error(`Refusing to write ${displayPath} because the target is a symbolic link.`);
+    }
+    if (!targetMetadata.isFile()) {
+      throw new Error(`Refusing to write ${displayPath} because the target is not a regular file.`);
+    }
+  } catch (error) {
+    if ((error as { code?: unknown }).code !== "ENOENT") throw error;
+  }
+
+  let ancestor = dirname(target);
+  while (true) {
+    try {
+      const ancestorMetadata = await lstat(ancestor);
+      if (!ancestorMetadata.isDirectory() && !ancestorMetadata.isSymbolicLink()) {
+        throw new Error(`Refusing to write ${displayPath} because ${ancestor} is not a directory.`);
+      }
+      const resolvedAncestor = await realpath(ancestor);
+      const distance = relative(root, resolvedAncestor);
+      if (distance === ".." || distance.startsWith(`..${sep}`) || isAbsolute(distance)) {
+        throw new Error(`Refusing to write ${displayPath} because its parent resolves outside the setup repository.`);
+      }
+      return;
+    } catch (error) {
+      if ((error as { code?: unknown }).code !== "ENOENT") throw error;
+      const parent = dirname(ancestor);
+      if (parent === ancestor) {
+        throw new Error(`Could not find a safe parent directory for ${displayPath}.`);
+      }
+      ancestor = parent;
+    }
+  }
 }

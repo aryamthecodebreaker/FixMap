@@ -6,6 +6,7 @@ import {
   renderMarkdownReport,
   renderVerifyMarkdown,
   scanRepo,
+  stripByteOrderMark,
   validateFixMapReport,
   verifyPlan,
   type FixMapReport,
@@ -195,7 +196,7 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
 
   let report: FixMapReport;
   try {
-    report = JSON.parse(context.readFile(reportPath)) as FixMapReport;
+    report = JSON.parse(stripByteOrderMark(context.readFile(reportPath))) as FixMapReport;
   } catch (error) {
     throw new Error(
       `FixMap could not read the plan at "${reportPath}": ${error instanceof Error ? error.message : String(error)}.`

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -93,6 +93,25 @@ describe("CLI argument handling", () => {
     expect(io.stdout.join("")).toContain("fixmap setup");
   });
 
+  it("documents the features subcommand directly", async () => {
+    const io = capture();
+    expect(await runCli(["features", "--help"], io.dependencies)).toBe(0);
+    expect(io.stdout.join("")).toContain("Usage: fixmap features [--format markdown|json]");
+  });
+
+  it("keeps the npm package README aligned with the complete public feature catalog", async () => {
+    const npmReadme = await readFile(new URL("../README.md", import.meta.url), "utf8");
+    for (const feature of [
+      "Plan", "Explain", "Compare", "Verify", "Validate", "Doctor", "MCP",
+      "Focus controls", "Live changes", "Exact-state cache", "Slash-command discovery"
+    ]) {
+      expect(npmReadme).toContain(`**${feature}**`);
+    }
+    for (const command of ["fixmap setup", "fixmap features", "fixmap validate", "--no-cache"]) {
+      expect(npmReadme).toContain(command);
+    }
+  });
+
   it("installs an idempotent /fixmap command for a selected agent", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-"));
     const first = capture();
@@ -118,10 +137,43 @@ describe("CLI argument handling", () => {
     expect(invalid.stderr.join("")).toContain("--repo requires a directory");
   });
 
-  it("validates a saved report without requiring custom JavaScript", async () => {
+  it("rejects repeated setup destinations instead of silently choosing the last one", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-repeat-"));
+    const repeatedRepo = capture();
+    const repeatedAgent = capture();
+
+    expect(await runCli(["setup", "--repo", root, `--repo=${root}`], repeatedRepo.dependencies)).toBe(1);
+    expect(repeatedRepo.stderr.join("")).toContain("Pass --repo only once");
+    expect(await runCli(["setup", "--agent", "all", "--agent=cursor"], repeatedAgent.dependencies)).toBe(1);
+    expect(repeatedAgent.stderr.join("")).toContain("Pass --agent only once");
+  });
+
+  it("preflights every setup target before creating files", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-atomic-"));
+    await mkdir(join(root, ".cursor", "commands"), { recursive: true });
+    await writeFile(join(root, ".cursor", "commands", "fixmap.md"), "custom command\n");
+    const io = capture();
+
+    expect(await runCli(["setup", "--repo", root, "--agent", "all"], io.dependencies)).toBe(1);
+    expect(io.stderr.join("")).toContain("Refusing to overwrite existing .cursor/commands/fixmap.md");
+    await expect(readFile(join(root, ".claude", "skills", "fixmap", "SKILL.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("refuses setup paths whose parent link escapes the repository", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-link-"));
+    const outside = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-outside-"));
+    await symlink(outside, join(root, ".claude"), process.platform === "win32" ? "junction" : "dir");
+    const io = capture();
+
+    expect(await runCli(["setup", "--repo", root, "--agent", "claude"], io.dependencies)).toBe(1);
+    expect(io.stderr.join("")).toContain("resolves outside the setup repository");
+    await expect(readFile(join(outside, "skills", "fixmap", "SKILL.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("validates a saved report with a Windows byte-order mark without custom JavaScript", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-validate-"));
     const path = join(root, "report.json");
-    await writeFile(path, JSON.stringify(report));
+    await writeFile(path, `\uFEFF${JSON.stringify(report)}`);
     const io = capture();
 
     expect(await runCli(["validate", path, "--format", "json"], io.dependencies)).toBe(0);

@@ -14,6 +14,7 @@ import {
   renderVerifyMarkdown,
   resolveExclusions,
   scanRepo,
+  stripByteOrderMark,
   validateFixMapReport,
   verifyPlan,
   type FixMapReport
@@ -639,7 +640,7 @@ function loadReportInput(input: unknown, label: string): LoadedReport {
     }
     let contents: string;
     try {
-      contents = readFileSync(path, "utf8");
+      contents = stripByteOrderMark(readFileSync(path, "utf8"));
     } catch (error) {
       return {
         success: false,

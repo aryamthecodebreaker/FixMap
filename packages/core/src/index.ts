@@ -21,6 +21,7 @@ export { scanRepo } from "./repo-scan.js";
 export { validateFixMapReport } from "./validate.js";
 export type { ValidatedFixMapReport } from "./validate.js";
 export { findGatedTestDiagnostics } from "./test-gates.js";
+export { stripByteOrderMark } from "./text.js";
 export type {
   FixMapInput,
   FixMapReport,

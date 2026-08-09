@@ -14,6 +14,7 @@ import {
   verifyPlan,
   renderMarkdownReport,
   scanRepo,
+  stripByteOrderMark,
   validateFixMapReport,
   type FixMapReport
 } from "@aryam/fixmap-core";
@@ -122,6 +123,7 @@ Set FIXMAP_PROGRESS=1 to print scan and clone phases to stderr.
 
 const DOCTOR_USAGE = `Usage: fixmap doctor [--format markdown|json]\n\nChecks the running FixMap binary, PATH/global shadows, and known install blind spots.\n`;
 const MCP_USAGE = `Usage: fixmap mcp\n\nRuns the FixMap MCP server over stdio. Configure your MCP client to execute \"fixmap mcp\".\n`;
+const FEATURES_USAGE = `Usage: fixmap features [--format markdown|json]\n\nLists every FixMap capability and the command that exposes it.\n`;
 const SETUP_USAGE = `Usage: fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>] [--force]\n\nInstalls a /fixmap command that lists and runs FixMap workflows.\n`;
 const VALIDATE_USAGE = `Usage: fixmap validate <report.json> [--format markdown|json]\n\nChecks a saved report against FixMap's structural compatibility contract.\n`;
 
@@ -156,6 +158,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
 
   if (args[0] === "features") {
     const featureArgs = args.slice(1);
+    if (featureArgs[0] === "--help" || featureArgs[0] === "-h") { stdout(FEATURES_USAGE); return 0; }
     let format: "markdown" | "json" = "markdown";
     if (featureArgs.length > 0) {
       const value = featureArgs.length === 2 && featureArgs[0] === "--format"
@@ -179,38 +182,48 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     let repoRoot = process.cwd();
     let targets: AgentTarget[] = ["claude", "cursor", "copilot", "agents"];
     let force = false;
+    let repoSeen = false;
+    let agentSeen = false;
     for (let index = 1; index < args.length; index += 1) {
       const arg = args[index];
       if (arg === "--force") { force = true; continue; }
       if (arg?.startsWith("--repo=")) {
+        if (repoSeen) { stderr(`Pass --repo only once.\n\n${SETUP_USAGE}`); return 1; }
         const value = arg.slice("--repo=".length).trim();
         if (!value) { stderr(`--repo requires a directory.\n\n${SETUP_USAGE}`); return 1; }
         repoRoot = expandHomePath(value);
+        repoSeen = true;
         continue;
       }
       if (arg === "--repo") {
+        if (repoSeen) { stderr(`Pass --repo only once.\n\n${SETUP_USAGE}`); return 1; }
         const value = args[index + 1];
         if (!value?.trim() || value.startsWith("--")) { stderr(`--repo requires a directory.\n\n${SETUP_USAGE}`); return 1; }
         repoRoot = expandHomePath(value.trim());
+        repoSeen = true;
         index += 1;
         continue;
       }
       if (arg?.startsWith("--agent=")) {
+        if (agentSeen) { stderr(`Pass --agent only once.\n\n${SETUP_USAGE}`); return 1; }
         const value = arg.slice("--agent=".length).trim().toLowerCase();
         if (!["claude", "cursor", "copilot", "agents", "all"].includes(value)) {
           stderr(`--agent must be claude, cursor, copilot, agents, or all.\n\n${SETUP_USAGE}`);
           return 1;
         }
         targets = value === "all" ? ["claude", "cursor", "copilot", "agents"] : [value as AgentTarget];
+        agentSeen = true;
         continue;
       }
       if (arg === "--agent") {
+        if (agentSeen) { stderr(`Pass --agent only once.\n\n${SETUP_USAGE}`); return 1; }
         const value = args[index + 1]?.trim().toLowerCase();
         if (!value || !["claude", "cursor", "copilot", "agents", "all"].includes(value)) {
           stderr(`--agent must be claude, cursor, copilot, agents, or all.\n\n${SETUP_USAGE}`);
           return 1;
         }
         targets = value === "all" ? ["claude", "cursor", "copilot", "agents"] : [value as AgentTarget];
+        agentSeen = true;
         index += 1;
         continue;
       }
@@ -251,7 +264,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     }
     if (!reportPath) { stderr(`validate requires a report path.\n\n${VALIDATE_USAGE}`); return 1; }
     try {
-      const parsed = JSON.parse(readFileSync(reportPath, "utf8")) as unknown;
+      const parsed = JSON.parse(stripByteOrderMark(readFileSync(reportPath, "utf8"))) as unknown;
       const result = validateFixMapReport(parsed, `"${reportPath}"`);
       if (!result.success) { stderr(`${result.message}\n`); return 1; }
       const payload = {
@@ -471,7 +484,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     let previous: FixMapReport;
     let previousText: string;
     try {
-      previousText = readFileSync(options.comparePath, "utf8");
+      previousText = stripByteOrderMark(readFileSync(options.comparePath, "utf8"));
     } catch (error) {
       stderr(
         `Could not read comparison file "${options.comparePath}": ${error instanceof Error ? error.message : String(error)}\n` +
@@ -944,7 +957,7 @@ async function runVerify(
 
   let reportText: string;
   try {
-    reportText = readFileSync(options.reportPath, "utf8");
+    reportText = stripByteOrderMark(readFileSync(options.reportPath, "utf8"));
   } catch (error) {
     io.stderr(
       `Could not read "${options.reportPath}": ${error instanceof Error ? error.message : String(error)}\n` +

@@ -597,6 +597,63 @@ describe("scanRepo", () => {
     }
   });
 
+  it("heals a corrupt exact-state cache and never serves partial JSON", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-corrupt-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-corrupt-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await scanRepo({ repoRoot: root, useCache: true });
+      const cachePath = join(cacheRoot, (await readdir(cacheRoot))[0]!);
+      await writeFile(cachePath, "{truncated");
+
+      const repaired = await scanRepo({ repoRoot: root, useCache: true });
+      expect(repaired.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
+      const repairedJson = await readFile(cachePath, "utf8");
+      expect(() => JSON.parse(repairedJson)).not.toThrow();
+      expect((await scanRepo({ repoRoot: root, useCache: true })).diagnostics.map((entry) => entry.code))
+        .toContain("cache-hit");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the exact-state cache valid across concurrent first scans", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-concurrent-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-concurrent-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await Promise.all(Array.from({ length: 4 }, () => scanRepo({ repoRoot: root, useCache: true })));
+      const entries = (await readdir(cacheRoot)).filter((entry) => entry.endsWith(".json"));
+      expect(entries).toHaveLength(1);
+      const concurrentJson = await readFile(join(cacheRoot, entries[0]!), "utf8");
+      expect(() => JSON.parse(concurrentJson)).not.toThrow();
+      expect((await scanRepo({ repoRoot: root, useCache: true })).diagnostics.map((entry) => entry.code))
+        .toContain("cache-hit");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+    }
+  });
+
   it("names skipped git submodules and leaves their contents to the nested repository", { timeout: 30_000 }, async () => {
     const child = await mkdtemp(join(tmpdir(), "fixmap-submodule-child-"));
     const root = await mkdtemp(join(tmpdir(), "fixmap-submodule-parent-"));

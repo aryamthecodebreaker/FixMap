@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, realpath, stat, unlink, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
@@ -230,26 +230,20 @@ async function readScanCache(location: ScanCacheLocation): Promise<CachedScan | 
 }
 
 async function writeScanCache(location: ScanCacheLocation, cached: CachedScan): Promise<void> {
+  const temporaryPath = `${location.path}.${process.pid}-${randomUUID()}.tmp`;
   try {
     await mkdir(dirname(location.path), { recursive: true });
     await pruneExpiredScanCache(dirname(location.path));
-    await writeFile(location.path, `${JSON.stringify(cached)}\n`, { encoding: "utf8", flag: "wx" });
-  } catch (error) {
-    const code = (error as { code?: unknown }).code;
-    if (code !== "EEXIST") {
-      // Cache writes are an optimization. A read-only cache directory must not fail a plan.
-      return;
-    }
-    // An interrupted prior write can leave an invalid exact-key file. Replace only that
-    // FixMap-owned cache entry; never touch a repository path.
-    const existing = await readScanCache(location);
-    if (existing) return;
+    // Write beside the destination and rename only after the JSON is complete. Readers never
+    // observe a truncated cache file, and a corrupt/expired exact-key entry heals immediately.
+    await writeFile(temporaryPath, `${JSON.stringify(cached)}\n`, { encoding: "utf8", flag: "wx" });
+    await rename(temporaryPath, location.path);
+  } catch {
+    // Cache writes are an optimization. Read-only directories and concurrent writers must not
+    // fail a report. Remove only this process's uniquely named temporary file.
     try {
-      await unlink(location.path);
-      await writeFile(location.path, `${JSON.stringify(cached)}\n`, { encoding: "utf8", flag: "wx" });
-    } catch {
-      // Another process may have won the replacement race; the current scan is still valid.
-    }
+      await unlink(temporaryPath);
+    } catch { /* The rename may already have consumed it. */ }
   }
 }
 

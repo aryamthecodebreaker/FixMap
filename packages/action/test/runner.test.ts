@@ -149,6 +149,20 @@ describe("GitHub Action runner", () => {
     expect(stdout.mock.calls[0]?.[0]).toContain("# FixMap Verification");
   });
 
+  it("accepts a verify report saved by a Windows editor with a byte-order mark", async () => {
+    const stdout = vi.fn();
+    await expect(runAction({
+      INPUT_MODE: "verify",
+      INPUT_REPORT_PATH: "plan.json",
+      INPUT_DIFF: "main...HEAD"
+    }, {
+      readFile: () => `\uFEFF${JSON.stringify(report)}`,
+      scanRepo: async () => scannedRepo(["src/auth.ts"]),
+      stdout
+    })).resolves.toBeUndefined();
+    expect(stdout.mock.calls[0]?.[0]).toContain("# FixMap Verification");
+  });
+
   it("says what verify mode needs when report-path is missing", async () => {
     await expect(runAction({ INPUT_MODE: "verify", INPUT_DIFF: "main...HEAD" }, { stdout: vi.fn() }))
       .rejects.toThrow("report-path");

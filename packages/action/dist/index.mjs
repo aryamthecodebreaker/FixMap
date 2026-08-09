@@ -1,7 +1,7 @@
 import { createRequire as __fixmapCreateRequire } from 'module'; const require = __fixmapCreateRequire(import.meta.url);
 
 // packages/action/src/runner.ts
-import { randomUUID } from "node:crypto";
+import { randomUUID as randomUUID2 } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
 
 // packages/core/dist/plan.js
@@ -1501,6 +1501,9 @@ function extractEnvNames(textSample) {
 // packages/core/dist/text.js
 var DIAGNOSTIC_TERM_LIMIT = 48;
 var DIAGNOSTIC_SPEC_LIMIT = 80;
+function stripByteOrderMark(value) {
+  return value.replace(/^\uFEFF/, "");
+}
 function truncateForDiagnostic(value, limit) {
   return value.length <= limit ? value : `${value.slice(0, limit)}\u2026`;
 }
@@ -1896,8 +1899,8 @@ function listOrEmpty(lines) {
 
 // packages/core/dist/repo-scan.js
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, realpath, stat, unlink, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
@@ -2070,23 +2073,16 @@ async function readScanCache(location) {
   }
 }
 async function writeScanCache(location, cached) {
+  const temporaryPath = `${location.path}.${process.pid}-${randomUUID()}.tmp`;
   try {
     await mkdir(dirname(location.path), { recursive: true });
     await pruneExpiredScanCache(dirname(location.path));
-    await writeFile(location.path, `${JSON.stringify(cached)}
+    await writeFile(temporaryPath, `${JSON.stringify(cached)}
 `, { encoding: "utf8", flag: "wx" });
-  } catch (error) {
-    const code = error.code;
-    if (code !== "EEXIST") {
-      return;
-    }
-    const existing = await readScanCache(location);
-    if (existing)
-      return;
+    await rename(temporaryPath, location.path);
+  } catch {
     try {
-      await unlink(location.path);
-      await writeFile(location.path, `${JSON.stringify(cached)}
-`, { encoding: "utf8", flag: "wx" });
+      await unlink(temporaryPath);
     } catch {
     }
   }
@@ -3099,7 +3095,7 @@ async function runAction(env = process.env, dependencies = {}) {
     appendFile(env.GITHUB_STEP_SUMMARY, fitStepSummary(format === "json" ? withJsonDetails(markdown, output) : markdown));
   }
   if (env.GITHUB_OUTPUT) {
-    appendFile(env.GITHUB_OUTPUT, renderActionOutputs(output, report, dependencies.uuid ?? randomUUID));
+    appendFile(env.GITHUB_OUTPUT, renderActionOutputs(output, report, dependencies.uuid ?? randomUUID2));
   }
   const token = readInput("github-token", env) || env.GITHUB_TOKEN;
   const commentAuthor = readInput("comment-author", env);
@@ -3144,7 +3140,7 @@ async function runVerifyMode(context) {
   }
   let report;
   try {
-    report = JSON.parse(context.readFile(reportPath));
+    report = JSON.parse(stripByteOrderMark(context.readFile(reportPath)));
   } catch (error) {
     throw new Error(
       `FixMap could not read the plan at "${reportPath}": ${error instanceof Error ? error.message : String(error)}.`
@@ -3177,7 +3173,7 @@ async function runVerifyMode(context) {
   if (context.env.GITHUB_OUTPUT) {
     context.appendFile(
       context.env.GITHUB_OUTPUT,
-      renderVerifyOutputs(output, result, context.dependencies.uuid ?? randomUUID)
+      renderVerifyOutputs(output, result, context.dependencies.uuid ?? randomUUID2)
     );
   }
   if (result.findings.some((finding) => finding.severity === "error")) {
@@ -3186,7 +3182,7 @@ async function runVerifyMode(context) {
     );
   }
 }
-function renderVerifyOutputs(reportText, result, uuid = randomUUID) {
+function renderVerifyOutputs(reportText, result, uuid = randomUUID2) {
   const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;
   const terminated = reportText.endsWith("\n") ? reportText : `${reportText}
 `;
@@ -3224,7 +3220,7 @@ function parseBooleanInput(name, value) {
   if (/^(?:false|0|no)$/i.test(value)) return false;
   throw new Error(`${name} must be true or false.`);
 }
-function renderActionOutputs(reportText, report, uuid = randomUUID) {
+function renderActionOutputs(reportText, report, uuid = randomUUID2) {
   const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;
   const terminatedReport = reportText.endsWith("\n") ? reportText : `${reportText}
 `;

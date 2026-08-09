@@ -293,7 +293,7 @@ describe("fixmap mcp server", () => {
       "export function sendResetEmail(email: string) { return email.trim(); }\n"
     );
     const planPath = join(root, "plan.json");
-    await writeFile(planPath, JSON.stringify({
+    await writeFile(planPath, `\uFEFF${JSON.stringify({
       summary: "",
       contextFiles: [{
         path: "src/auth/reset-password.ts",
@@ -305,7 +305,7 @@ describe("fixmap mcp server", () => {
       risks: [],
       changedFiles: [],
       diagnostics: []
-    }));
+    })}`);
     const client = await connectClient();
 
     // Agents that used the CLI first pass a path. Requiring the object form also made the
