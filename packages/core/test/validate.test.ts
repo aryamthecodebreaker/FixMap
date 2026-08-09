@@ -33,4 +33,30 @@ describe("validateFixMapReport", () => {
     expect(result.success).toBe(false);
     if (!result.success) expect(result.message).toContain("complete FixMap report envelope");
   });
+
+  it("rejects a non-empty context list when the rest of the report envelope is truncated", () => {
+    const result = validateFixMapReport({
+      reportVersion: 1,
+      contextFiles: [{ path: "src/reset.ts" }]
+    }, "report");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.message).toContain("complete FixMap report envelope");
+      expect(result.message).toContain("testRoutes");
+      expect(result.message).toContain("risks");
+    }
+  });
+
+  it.each([
+    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], testRoutes: [null] }, "testRoutes entry"],
+    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], testRoutes: [{ command: "npm test" }] }, "relatedFiles"],
+    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], risks: [null] }, "risks entry"],
+    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], changedFiles: [42] }, "changedFiles"],
+    [{ ...envelope, contextFiles: [{ path: "src/reset.ts" }], analysis: {} }, "analysis.grounding.specificity"]
+  ])("rejects consumer-unsafe nested report data: %s", (candidate, message) => {
+    const result = validateFixMapReport(candidate, "report");
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.message).toContain(message);
+  });
 });

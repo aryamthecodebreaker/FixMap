@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   buildFixMapReport,
   renderJsonReport,
@@ -206,14 +207,16 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
   if (!loaded.success) throw new Error(loaded.message);
   report = loaded.report;
 
+  const repoRoot = (context.dependencies.cwd ?? process.cwd)();
   const repo = await (context.dependencies.scanRepo ?? scanRepo)({
-    repoRoot: (context.dependencies.cwd ?? process.cwd)(),
+    repoRoot,
     diffSpec: context.diffSpec,
     baseRef: context.baseRef,
     headRef: context.headRef,
     workingTree: context.workingTree,
     includeUntracked: context.includeUntracked,
-    useCache: true
+    useCache: true,
+    internalExclude: [resolve(repoRoot, reportPath)]
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
   if (diffFailure) {

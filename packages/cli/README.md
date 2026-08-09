@@ -62,6 +62,7 @@ For long task text, use `--issue-file task.md` or pipe text to `--issue -`. A le
 - **Focus controls** — cap output with `--limit`, repeat `--exclude`, or use ordered `.fixmapignore` patterns with negation. Pasted absolute paths inside the repository are normalized, and unmatched patterns produce a warning.
 - **Live changes** — `--working-tree` maps staged and unstaged tracked edits; `--include-untracked` opts new files into the changed-file set.
 - **Exact-state cache** — clean and tracked dirty git states are cached by repository, commit, status, and binary diff. Cache hits report age, entries expire after seven days, and `--no-cache` reports a fresh bypass.
+- **Artifact isolation** — current issue, comparison, verification, and output files are removed from ranking, change detection, and cache state, so a saved plan cannot recommend or invalidate itself.
 - **Doctor** — report the running version, resolved binary, global/PATH shadows, Node compatibility, and an optionally requested npm version.
 - **MCP** — expose Plan, Explain, Compare, Verify, and Doctor as five local stdio tools.
 - **Slash-command discovery** — `fixmap setup` installs `/fixmap`; `fixmap features` prints the same complete catalog in Markdown or JSON.

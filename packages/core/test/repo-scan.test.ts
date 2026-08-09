@@ -538,6 +538,86 @@ describe("scanRepo", () => {
     }
   });
 
+  it("never scans a configured cache directory inside the repository", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-inside-repo-"));
+    const cacheRoot = join(root, ".fixmap-cache");
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await mkdir(cacheRoot, { recursive: true });
+      await writeFile(join(root, "index.ts"), "export const passwordReset = true;\n");
+      await writeFile(
+        join(cacheRoot, "aaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbbbbbbbbbb.json"),
+        JSON.stringify({ repeated: "password reset password reset password reset" })
+      );
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "index.ts"], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      const cached = await scanRepo({ repoRoot: root, useCache: true });
+      expect(cached.files.map((file) => file.path)).toEqual(["index.ts"]);
+      expect(cached.diagnostics.find((entry) => entry.code === "cache-skip")?.message)
+        .toContain("FIXMAP_CACHE_DIR is inside");
+
+      const bypassed = await scanRepo({ repoRoot: root, useCache: false });
+      expect(bypassed.files.map((file) => file.path)).toEqual(["index.ts"]);
+      expect(bypassed.diagnostics.map((entry) => entry.code)).toContain("cache-bypass");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps exact workflow artifacts out of files, diffs, and cache invalidation", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-internal-artifacts-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-internal-artifact-cache-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      const sourcePath = join(root, "index.ts");
+      const issuePath = join(root, "task.md");
+      const reportPath = join(root, "plan.json");
+      await writeFile(sourcePath, "export const passwordReset = 'one';\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "index.ts"], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+      await writeFile(issuePath, "password reset password reset\n");
+      await writeFile(reportPath, JSON.stringify({ repeated: "password reset password reset" }));
+
+      const internalExclude = process.platform === "win32"
+        ? [issuePath, reportPath].map((path) => path.toUpperCase())
+        : [issuePath, reportPath];
+      const first = await scanRepo({ repoRoot: root, useCache: true, internalExclude });
+      expect(first.files.map((file) => file.path)).toEqual(["index.ts"]);
+      expect(first.diagnostics.map((entry) => entry.code)).not.toContain("cache-skip");
+      expect((await scanRepo({ repoRoot: root, useCache: true, internalExclude })).diagnostics.map((entry) => entry.code))
+        .toContain("cache-hit");
+
+      await writeFile(sourcePath, "export const passwordReset = 'two';\n");
+      await writeFile(reportPath, JSON.stringify({ repeated: "changed report contents" }));
+      const working = await scanRepo({
+        repoRoot: root,
+        workingTree: true,
+        includeUntracked: true,
+        useCache: true,
+        internalExclude
+      });
+      expect(working.files.map((file) => file.path)).toEqual(["index.ts"]);
+      expect(working.changedFiles).toEqual(["index.ts"]);
+      expect(working.diffText).not.toContain("changed report contents");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("does not reuse a staged scan after the same edit becomes unstaged", { timeout: 30_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-cache-stage-state-"));
     const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-stage-store-"));

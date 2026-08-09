@@ -86,6 +86,7 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 - Scans the current checkout, another local path, a `file://` URL, or an isolated checkout of a public GitHub repository.
 - Maps `--diff <spec>`, `--base`/`--head`, or the current `--working-tree`; untracked changes remain opt-in with `--include-untracked`.
 - Reuses repository scans only when the repository root, commit, status, and binary diff are identical. `cache-hit` reports reuse and scan age, entries expire after seven days, `--no-cache` reports a fresh bypass, and `FIXMAP_CACHE_DIR` moves the OS cache.
+- Keeps the current `--issue-file`, `--compare`, `--report`, and `--output` artifacts out of repository ranking, change detection, and cache invalidation, so FixMap never recommends its own report as the fix site.
 - Detects npm, pnpm, Yarn, and Bun projects and reads the scripts declared by each workspace package.
 
 ### Plan and ranking

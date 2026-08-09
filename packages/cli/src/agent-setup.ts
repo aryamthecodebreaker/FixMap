@@ -127,6 +127,9 @@ async function assertSafeTarget(root: string, target: string, displayPath: strin
     if (!targetMetadata.isFile()) {
       throw new Error(`Refusing to write ${displayPath} because the target is not a regular file.`);
     }
+    if (targetMetadata.nlink > 1) {
+      throw new Error(`Refusing to write ${displayPath} because the target is hard-linked to another file.`);
+    }
   } catch (error) {
     if ((error as { code?: unknown }).code !== "ENOENT") throw error;
   }

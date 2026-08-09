@@ -31,6 +31,7 @@ export type RepositoryPlanInput = {
   useCache?: boolean | undefined;
   limit?: number | undefined;
   exclude?: string[] | undefined;
+  internalExclude?: string[] | undefined;
 };
 
 export type ClonedRepository = {
@@ -539,7 +540,8 @@ export async function buildReportForRepository(
         includeUntracked: input.includeUntracked,
         useCache: input.useCache,
         limit: input.limit,
-        exclude: input.exclude
+        exclude: input.exclude,
+        internalExclude: input.internalExclude
       });
       reportProgress(`ranked ${report.contextFiles.length} context files`);
       const sourceDiagnostics = [issueDiagnostic, resolvedSource.diagnostic].filter(

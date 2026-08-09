@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   compareReports,
@@ -244,17 +244,22 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     if (args[1] === "--help" || args[1] === "-h") { stdout(VALIDATE_USAGE); return 0; }
     let reportPath: string | undefined;
     let format: "markdown" | "json" = "markdown";
+    let formatSeen = false;
     for (let index = 1; index < args.length; index += 1) {
       const arg = args[index]!;
       if (arg === "--format") {
+        if (formatSeen) { stderr(`Pass --format only once.\n\n${VALIDATE_USAGE}`); return 1; }
         const value = args[index + 1]?.trim().toLowerCase();
         if (value !== "markdown" && value !== "json") { stderr(`--format must be markdown or json.\n\n${VALIDATE_USAGE}`); return 1; }
         format = value;
+        formatSeen = true;
         index += 1;
       } else if (arg.startsWith("--format=")) {
+        if (formatSeen) { stderr(`Pass --format only once.\n\n${VALIDATE_USAGE}`); return 1; }
         const value = arg.slice("--format=".length).trim().toLowerCase();
         if (value !== "markdown" && value !== "json") { stderr(`--format must be markdown or json.\n\n${VALIDATE_USAGE}`); return 1; }
         format = value;
+        formatSeen = true;
       } else if (arg.startsWith("-") || reportPath) {
         stderr(`Unknown validate argument: ${arg}\n\n${VALIDATE_USAGE}`);
         return 1;
@@ -395,7 +400,16 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     }
     try {
       const repoRoot = options.repo ?? process.cwd();
-      const repo = await scanRepo({ repoRoot, diffSpec: options.diffSpec, baseRef: options.baseRef, headRef: options.headRef, workingTree: options.workingTree, includeUntracked: options.includeUntracked, useCache: !options.noCache });
+      const repo = await scanRepo({
+        repoRoot,
+        diffSpec: options.diffSpec,
+        baseRef: options.baseRef,
+        headRef: options.headRef,
+        workingTree: options.workingTree,
+        includeUntracked: options.includeUntracked,
+        useCache: !options.noCache,
+        internalExclude: localPlanArtifactExclusions(options)
+      });
       const explanation = explainFile(
         repo,
         {
@@ -404,16 +418,30 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
           // Without this, a file left out by .fixmapignore would be reported as having
           // scored below the cutoff — a false answer to the exact question --explain exists
           // to answer.
-          exclude: await resolveExclusions(repoRoot, options.exclude),
+          exclude: await resolveExclusions(repoRoot, [
+            ...options.exclude,
+            ...localPlanArtifactExclusions(options)
+          ]),
           limit: options.limit
         },
         options.explainPath
       );
-      stdout(
-        options.format === "json"
-          ? `${JSON.stringify(explanation, null, 2)}\n`
-          : renderExplanationMarkdown(explanation)
-      );
+      const renderedExplanation = options.format === "json"
+        ? `${JSON.stringify(explanation, null, 2)}\n`
+        : renderExplanationMarkdown(explanation);
+      if (options.output) {
+        try {
+          await (dependencies.writeReport ?? ((path, contents) => writeFile(path, contents, "utf8")))(
+            options.output,
+            renderedExplanation
+          );
+        } catch (error) {
+          stderr(formatOutputError(options.output, error, "explanation"));
+          return 1;
+        }
+      } else {
+        stdout(renderedExplanation);
+      }
       return 0;
     } catch (error) {
       stderr(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -433,7 +461,8 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       includeUntracked: options.includeUntracked,
       useCache: !options.noCache,
       limit: options.limit,
-      exclude: options.exclude
+      exclude: options.exclude,
+      internalExclude: localPlanArtifactExclusions(options)
     });
   } catch (error) {
     stderr(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -751,15 +780,15 @@ export function parseArgs(args: string[]): CliOptions {
       else invalidValues.push("--issue-file requires a UTF-8 file path or - for stdin");
     } else if (arg === "--diff") {
       consumeValue();
-      if (value?.trim()) diffSpec = value;
+      if (value?.trim()) diffSpec = value.trim();
       else invalidValues.push("--diff requires a non-empty git diff spec");
     } else if (arg === "--base") {
       consumeValue();
-      if (value?.trim()) baseRef = value;
+      if (value?.trim()) baseRef = value.trim();
       else invalidValues.push("--base requires a non-empty git ref");
     } else if (arg === "--head") {
       consumeValue();
-      if (value?.trim()) headRef = value;
+      if (value?.trim()) headRef = value.trim();
       else invalidValues.push("--head requires a non-empty git ref");
     } else if (arg === "--repo") {
       consumeValue();
@@ -849,6 +878,31 @@ function expandHomePath(value: string): string {
     return join(homedir(), value.slice(2));
   }
   return value;
+}
+
+/**
+ * Inputs and outputs generated by the current FixMap workflow are rich in the task's own
+ * vocabulary. If they live inside the scanned checkout, ranking them as repository context
+ * creates a self-fulfilling result (`plan.json` explaining why `plan.json` is relevant).
+ */
+function localPlanArtifactExclusions(options: CliOptions): string[] {
+  const remoteIssue = options.issueText ? parseGitHubIssueSource(options.issueText) : undefined;
+  const remoteRepository = /^https?:\/\//i.test(options.repo ?? "") || (remoteIssue && !options.repo);
+  if (remoteRepository) return [];
+
+  const root = resolve(options.repo ?? process.cwd());
+  return [
+    options.output,
+    options.comparePath,
+    options.reportPath,
+    options.issueFile === "-" ? undefined : options.issueFile
+  ]
+    .filter((path): path is string => path !== undefined)
+    .map((path) => resolve(path))
+    .filter((path) => {
+      const distance = relative(root, path);
+      return distance !== "" && distance !== ".." && !distance.startsWith(`..${sep}`) && !isAbsolute(distance);
+    });
 }
 
 function loadIssueText(
@@ -1012,7 +1066,8 @@ async function runVerify(
       headRef: options.headRef,
       workingTree: options.workingTree,
       includeUntracked: options.includeUntracked,
-      useCache: !options.noCache
+      useCache: !options.noCache,
+      internalExclude: localPlanArtifactExclusions(options)
     });
     const unresolvedDiff = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
     if (unresolvedDiff) {

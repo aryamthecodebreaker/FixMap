@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { link, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -170,6 +170,20 @@ describe("CLI argument handling", () => {
     await expect(readFile(join(outside, "skills", "fixmap", "SKILL.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("refuses to overwrite a hard-linked setup target", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-hardlink-"));
+    const outside = join(root, "outside-command.md");
+    const target = join(root, ".cursor", "commands", "fixmap.md");
+    await mkdir(join(root, ".cursor", "commands"), { recursive: true });
+    await writeFile(outside, "custom command\n");
+    await link(outside, target);
+    const io = capture();
+
+    expect(await runCli(["setup", "--repo", root, "--agent", "cursor", "--force"], io.dependencies)).toBe(1);
+    expect(io.stderr.join("")).toContain("hard-linked");
+    expect(await readFile(outside, "utf8")).toBe("custom command\n");
+  });
+
   it("validates a saved report with a Windows byte-order mark without custom JavaScript", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-validate-"));
     const path = join(root, "report.json");
@@ -178,6 +192,33 @@ describe("CLI argument handling", () => {
 
     expect(await runCli(["validate", path, "--format", "json"], io.dependencies)).toBe(0);
     expect(JSON.parse(io.stdout.join(""))).toMatchObject({ valid: true, path, contextFiles: 1 });
+  });
+
+  it("rejects duplicate validate formats instead of silently choosing the last one", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-validate-format-"));
+    const path = join(root, "report.json");
+    await writeFile(path, JSON.stringify(report));
+    const io = capture();
+
+    expect(await runCli(["validate", path, "--format", "json", "--format=markdown"], io.dependencies)).toBe(1);
+    expect(io.stderr.join("")).toContain("Pass --format only once");
+  });
+
+  it("rejects a truncated non-empty report before validate or verify can crash", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-truncated-report-"));
+    const path = join(root, "report.json");
+    await writeFile(path, JSON.stringify({
+      reportVersion: 1,
+      contextFiles: [{ path: "src/reset.ts" }]
+    }));
+    const validateIo = capture();
+    const verifyIo = capture();
+
+    expect(await runCli(["validate", path], validateIo.dependencies)).toBe(1);
+    expect(validateIo.stderr.join("")).toContain("complete FixMap report envelope");
+    expect(await runCli(["verify", "--report", path, "--working-tree"], verifyIo.dependencies)).toBe(1);
+    expect(verifyIo.stderr.join("")).toContain("complete FixMap report envelope");
+    expect(verifyIo.stderr.join("")).not.toContain("Cannot read properties");
   });
 
   it("does not let a nested version flag short-circuit the requested command", async () => {
@@ -209,6 +250,15 @@ describe("CLI argument handling", () => {
 
   it("trims accidental whitespace around a format value", () => {
     expect(parseArgs(["plan", "--issue", "x", "--format", " JSON\n"]).format).toBe("json");
+  });
+
+  it("trims accidental whitespace around git refs", () => {
+    const parsed = parseArgs([
+      "plan", "--issue", "x", "--diff", " HEAD~1...HEAD\n", "--base", " main ", "--head", " feature "
+    ]);
+    expect(parsed.diffSpec).toBe("HEAD~1...HEAD");
+    expect(parsed.baseRef).toBe("main");
+    expect(parsed.headRef).toBe("feature");
   });
 
   it("expands the home directory consistently for path options", () => {
@@ -326,6 +376,84 @@ describe("CLI argument handling", () => {
       buildReport
     })).toBe(0);
     expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({ useCache: false }));
+  });
+
+  it("applies --no-cache to the current scan in compare mode", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-compare-no-cache-"));
+    const previousPath = join(root, "previous.json");
+    await writeFile(previousPath, JSON.stringify(report));
+    const buildReport = vi.fn(async () => report);
+    const io = capture();
+
+    expect(await runCli([
+      "plan", "--issue", "reset fails", "--compare", previousPath, "--no-cache"
+    ], { ...io.dependencies, buildReport })).toBe(0);
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({ useCache: false }));
+  });
+
+  it("keeps its issue input and output report from ranking themselves", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-artifact-ranking-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    const issuePath = join(root, "task.md");
+    const outputPath = join(root, "plan.json");
+    await writeFile(join(root, "src", "reset.ts"), "export function artifactShieldSignal() { return true; }\n");
+    await writeFile(issuePath, "artifactShieldSignal fails during password reset\n");
+    await writeFile(outputPath, JSON.stringify({ repeated: "artifactShieldSignal ".repeat(20) }));
+    const writes: string[] = [];
+    const io = capture();
+
+    expect(await runCli([
+      "plan", "--issue-file", issuePath, "--repo", root, "--format", "json", "--output", outputPath
+    ], {
+      ...io.dependencies,
+      writeReport: async (_path, contents) => { writes.push(contents); }
+    })).toBe(0);
+
+    const rendered = JSON.parse(writes[0]!) as FixMapReport;
+    expect(rendered.contextFiles.map((file) => file.path)).toContain("src/reset.ts");
+    expect(rendered.contextFiles.map((file) => file.path)).not.toContain("task.md");
+    expect(rendered.contextFiles.map((file) => file.path)).not.toContain("plan.json");
+    expect(rendered.diagnostics.map((entry) => entry.code)).not.toContain("paths-excluded");
+  });
+
+  it("passes every in-repository workflow artifact as an internal exclusion", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-artifact-inputs-"));
+    const issuePath = join(root, "task.md");
+    const baselinePath = join(root, "baseline.json");
+    const outputPath = join(root, "comparison.json");
+    await writeFile(issuePath, "reset fails\n");
+    await writeFile(baselinePath, JSON.stringify(report));
+    const buildReport = vi.fn(async () => report);
+    const io = capture();
+
+    expect(await runCli([
+      "plan", "--issue-file", issuePath, "--repo", root,
+      "--compare", baselinePath, "--format", "json", "--output", outputPath
+    ], {
+      ...io.dependencies,
+      buildReport,
+      writeReport: vi.fn(async () => undefined)
+    })).toBe(0);
+
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({
+      internalExclude: expect.arrayContaining([issuePath, baselinePath, outputPath])
+    }));
+  });
+
+  it("writes an explanation to --output instead of silently printing it", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-explain-output-"));
+    const outputPath = join(root, "explanation.json");
+    await writeFile(join(root, "reset.ts"), "export function sendPasswordReset() { return true; }\n");
+    const writeReport = vi.fn(async () => undefined);
+    const io = capture();
+
+    expect(await runCli([
+      "plan", "--issue", "password reset fails", "--repo", root,
+      "--explain", "reset.ts", "--format", "json", "--output", outputPath
+    ], { ...io.dependencies, writeReport })).toBe(0);
+
+    expect(io.stdout).toEqual([]);
+    expect(writeReport).toHaveBeenCalledWith(outputPath, expect.stringContaining('"status": "ranked"'));
   });
 
   it.each([

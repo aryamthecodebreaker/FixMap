@@ -3,6 +3,7 @@ import { createRequire as __fixmapCreateRequire } from 'module'; const require =
 // packages/action/src/runner.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
+import { resolve as resolve3 } from "node:path";
 
 // packages/core/dist/plan.js
 import { readFile as readFile2 } from "node:fs/promises";
@@ -1902,7 +1903,7 @@ import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, extname, join, relative, resolve, sep } from "node:path";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 var WALK_IGNORED_DIRS = /* @__PURE__ */ new Set([...ALWAYS_IGNORED_DIRS, ...GENERATED_DIRS]);
 var SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
@@ -1965,7 +1966,10 @@ async function scanRepo(input) {
     };
   }
   const diagnostics = [];
-  const cacheDecision = input.useCache === true ? await buildScanCacheLocation(repoRoot) : void 0;
+  const internalPaths = await resolveInternalPaths(repoRoot, input.internalExclude ?? []);
+  const cacheRoot = configuredScanCacheRoot();
+  const internalCacheRoot = sameFilesystemPath(cacheRoot, repoRoot) || containedPath(repoRoot, cacheRoot) !== void 0 ? cacheRoot : void 0;
+  const cacheDecision = input.useCache === true ? await buildScanCacheLocation(repoRoot, cacheRoot, internalPaths) : void 0;
   const cacheLocation = cacheDecision?.location;
   if (input.useCache === false) {
     diagnostics.push({
@@ -1996,8 +2000,8 @@ async function scanRepo(input) {
       message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files, ${describeCacheAge(cached.createdAt)}). Pass --no-cache to rescan.`
     });
   } else {
-    files = await listFiles(repoRoot, diagnostics);
-    trackedFiles = await listTrackedPaths(repoRoot);
+    files = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths);
+    trackedFiles = await listTrackedPaths(repoRoot, internalPaths);
     packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
     packageManager = detectPackageManager(files);
     if (cacheLocation) {
@@ -2014,7 +2018,7 @@ async function scanRepo(input) {
     }
   }
   const diffSpec = resolveDiffSpec(input);
-  const diff = input.workingTree ? await readWorkingTree(repoRoot, input.includeUntracked === true, diagnostics) : await readDiff(repoRoot, diffSpec, diagnostics);
+  const diff = input.workingTree ? await readWorkingTree(repoRoot, input.includeUntracked === true, diagnostics, internalPaths) : await readDiff(repoRoot, diffSpec, diagnostics, internalPaths);
   return {
     root: repoRoot,
     files,
@@ -2026,11 +2030,44 @@ async function scanRepo(input) {
     diagnostics
   };
 }
-async function buildScanCacheLocation(root) {
+function configuredScanCacheRoot() {
+  return resolve(process.env.FIXMAP_CACHE_DIR ?? join(process.env.LOCALAPPDATA ?? process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"), "fixmap", "scans"));
+}
+function containedPath(root, candidate) {
+  const distance = relative(root, candidate);
+  return distance === "" || distance === ".." || distance.startsWith(`..${sep}`) || isAbsolute(distance) ? void 0 : normalizePath(distance);
+}
+async function resolveInternalPaths(root, paths) {
+  const requested = paths.flatMap((path) => {
+    const relativePath = containedPath(root, resolve(path));
+    return relativePath ? [relativePath] : [];
+  });
+  if (requested.length === 0 || process.platform !== "win32")
+    return new Set(requested);
+  try {
+    const { stdout } = await exec("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER });
+    const repositoryPaths = stdout.split("\0").filter(Boolean).map(normalizePath);
+    return new Set(requested.map((path) => repositoryPaths.find((candidate) => sameFilesystemPath(candidate, path)) ?? path));
+  } catch {
+    return new Set(requested);
+  }
+}
+function hasInternalPath(paths, path) {
+  return [...paths].some((candidate) => sameFilesystemPath(candidate, path));
+}
+function gitPathspec(internalPaths) {
+  return ["--", ".", ...[...internalPaths].sort((a, b) => a.localeCompare(b)).map((path) => `:(exclude,literal)${path}`)];
+}
+async function buildScanCacheLocation(root, cacheRoot, internalPaths) {
+  if (sameFilesystemPath(cacheRoot, root) || containedPath(root, cacheRoot) !== void 0) {
+    return {
+      skipReason: "Repository scan caching was skipped because FIXMAP_CACHE_DIR is inside the scanned repository. Move the cache outside the repository to enable exact-state reuse."
+    };
+  }
   try {
     const [{ stdout: head }, { stdout: status }] = await Promise.all([
       exec("git", ["rev-parse", "HEAD"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "."], {
+      exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all", ...gitPathspec(internalPaths)], {
         cwd: root,
         maxBuffer: GIT_MAX_BUFFER
       })
@@ -2040,7 +2077,7 @@ async function buildScanCacheLocation(root) {
         skipReason: "Repository scan caching was skipped because untracked files are scanner inputs and can change without a stable git diff."
       };
     }
-    const dirtyDiff = status.length > 0 ? (await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", "--", "."], {
+    const dirtyDiff = status.length > 0 ? (await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", ...gitPathspec(internalPaths)], {
       cwd: root,
       maxBuffer: GIT_MAX_BUFFER
     })).stdout : "";
@@ -2049,9 +2086,9 @@ async function buildScanCacheLocation(root) {
       resolve(root),
       head.trim(),
       status,
-      dirtyDiff
+      dirtyDiff,
+      ...[...internalPaths].sort((a, b) => a.localeCompare(b))
     ].join("\0"));
-    const cacheRoot = process.env.FIXMAP_CACHE_DIR ?? join(process.env.LOCALAPPDATA ?? process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"), "fixmap", "scans");
     return { location: {
       path: join(cacheRoot, `${hashText(resolve(root))}-${stateKey}.json`),
       stateKey
@@ -2120,10 +2157,10 @@ function describeCacheAge(createdAt) {
 function hashText(value) {
   return createHash("sha256").update(value).digest("hex").slice(0, 24);
 }
-async function listTrackedPaths(root) {
+async function listTrackedPaths(root, internalPaths) {
   try {
     const { stdout } = await exec("git", ["ls-files", "--cached", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER });
-    return stdout.split("\0").filter(Boolean).map(normalizePath);
+    return stdout.split("\0").filter(Boolean).map(normalizePath).filter((path) => !hasInternalPath(internalPaths, path));
   } catch {
     return [];
   }
@@ -2131,12 +2168,24 @@ async function listTrackedPaths(root) {
 function resolveDiffSpec(input) {
   return input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : void 0);
 }
-async function listFiles(root, diagnostics) {
+async function listFiles(root, diagnostics, internalCacheRoot, internalPaths) {
   const gitPaths = await listGitPaths(root);
-  const files = gitPaths ? await buildFilesFromPaths(root, gitPaths.paths, diagnostics, gitPaths.gitLinks) : (await walkFiles(root, root, diagnostics, { count: 0, limitReported: false })).sort((a, b) => a.path.localeCompare(b.path));
+  const visiblePaths = gitPaths?.paths.filter((path) => !hasInternalPath(internalPaths, normalizePath(path)) && !isInternalCachePath(root, path, internalCacheRoot));
+  const files = gitPaths ? await buildFilesFromPaths(root, visiblePaths ?? [], diagnostics, gitPaths.gitLinks) : (await walkFiles(root, root, diagnostics, { count: 0, limitReported: false }, internalCacheRoot, internalPaths)).sort((a, b) => a.path.localeCompare(b.path));
   reportUnreadContent(diagnostics, files);
   reportGeneratedDominance(diagnostics, files);
   return files;
+}
+function isInternalCachePath(root, path, internalCacheRoot) {
+  if (!internalCacheRoot)
+    return false;
+  const relativeCacheRoot = containedPath(root, internalCacheRoot);
+  if (relativeCacheRoot) {
+    const candidate = process.platform === "win32" ? path.toLowerCase() : path;
+    const cachePath = process.platform === "win32" ? relativeCacheRoot.toLowerCase() : relativeCacheRoot;
+    return candidate === cachePath || candidate.startsWith(`${cachePath}/`);
+  }
+  return sameFilesystemPath(internalCacheRoot, root) && (SCAN_CACHE_FILE.test(path) || /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i.test(path));
 }
 async function listGitPaths(root) {
   try {
@@ -2278,7 +2327,7 @@ function reportLinkedDuplicates(diagnostics, linked) {
     message: `${linked.length.toLocaleString()} tracked path${linked.length === 1 ? "" : "s"} resolved to a file already scanned under another name and ${linked.length === 1 ? "was" : "were"} ranked once: ${sample}${linked.length > 3 ? ", \u2026" : ""}.`
   });
 }
-async function walkFiles(root, current, diagnostics, state) {
+async function walkFiles(root, current, diagnostics, state, internalCacheRoot, internalPaths) {
   let entries;
   try {
     entries = await readdir(current, { withFileTypes: true });
@@ -2298,14 +2347,20 @@ async function walkFiles(root, current, diagnostics, state) {
       if (WALK_IGNORED_DIRS.has(entry.name)) {
         continue;
       }
-      results.push(...await walkFiles(root, join(current, entry.name), diagnostics, state));
+      const directory = join(current, entry.name);
+      if (internalCacheRoot && sameFilesystemPath(directory, internalCacheRoot))
+        continue;
+      results.push(...await walkFiles(root, directory, diagnostics, state, internalCacheRoot, internalPaths));
       continue;
     }
     if (!entry.isFile()) {
       continue;
     }
     const absolutePath = join(current, entry.name);
-    const scanned = await toRepoFile(absolutePath, normalizePath(relative(root, absolutePath)));
+    const relativePath = normalizePath(relative(root, absolutePath));
+    if (hasInternalPath(internalPaths, relativePath) || isInternalCachePath(root, relativePath, internalCacheRoot))
+      continue;
+    const scanned = await toRepoFile(absolutePath, relativePath);
     if (scanned.status === "ok") {
       results.push(scanned.file);
       state.count += 1;
@@ -2437,17 +2492,17 @@ function decodeManifest(bytes) {
   }
   return { text: bytes.toString("utf8"), encoding: "utf8" };
 }
-async function readDiff(repoRoot, diffSpec, diagnostics) {
+async function readDiff(repoRoot, diffSpec, diagnostics, internalPaths) {
   if (!diffSpec) {
     return { changedFiles: [], diffText: "" };
   }
   try {
     const [{ stdout: names }, { stdout: diffText }] = await Promise.all([
-      exec("git", ["diff", "--relative", "--name-only", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["diff", "--relative", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
+      exec("git", ["diff", "--relative", "--name-only", diffSpec, ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", "--relative", diffSpec, ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
     ]);
     const tracked = names.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath);
-    const untracked = diffSpec.includes("..") ? [] : await listUntrackedPaths(repoRoot);
+    const untracked = diffSpec.includes("..") ? [] : await listUntrackedPaths(repoRoot, internalPaths);
     const changedFiles = [.../* @__PURE__ */ new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
     diagnostics.push({
       code: "diff-resolved",
@@ -2470,14 +2525,14 @@ async function readDiff(repoRoot, diffSpec, diagnostics) {
     return { changedFiles: [], diffText: "" };
   }
 }
-async function readWorkingTree(repoRoot, includeUntracked, diagnostics) {
+async function readWorkingTree(repoRoot, includeUntracked, diagnostics, internalPaths) {
   try {
     const [{ stdout: names }, { stdout: diffText }] = await Promise.all([
-      exec("git", ["diff", "--relative", "--name-only", "HEAD"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["diff", "--relative", "HEAD"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
+      exec("git", ["diff", "--relative", "--name-only", "HEAD", ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", "--relative", "HEAD", ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
     ]);
     const tracked = names.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath);
-    const untracked = includeUntracked ? await listUntrackedPaths(repoRoot) : [];
+    const untracked = includeUntracked ? await listUntrackedPaths(repoRoot, internalPaths) : [];
     const changedFiles = [.../* @__PURE__ */ new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
     diagnostics.push({
       code: "working-tree-diff",
@@ -2558,10 +2613,10 @@ async function readTextSample(path, sizeBytes) {
     return { text: "", complete: false, skipReason: "unreadable" };
   }
 }
-async function listUntrackedPaths(repoRoot) {
+async function listUntrackedPaths(repoRoot, internalPaths = /* @__PURE__ */ new Set()) {
   try {
     const { stdout } = await exec("git", ["ls-files", "--others", "--exclude-standard", "-z"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER });
-    return stdout.split("\0").filter(Boolean).map(normalizePath);
+    return stdout.split("\0").filter(Boolean).map(normalizePath).filter((path) => !hasInternalPath(internalPaths, path));
   } catch {
     return [];
   }
@@ -2580,15 +2635,17 @@ function normalizePath(path) {
 // packages/core/dist/plan.js
 async function buildFixMapReport(input) {
   const repo = await scanRepo(input);
-  const exclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
+  const requestedExclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
+  const internalExclude = buildPathExcluder((input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern)));
+  const exclude = combineExclusions(requestedExclude, internalExclude);
   const report = buildReportFromRepo(repo, {
     issueText: input.issueText,
     limit: input.limit,
     exclude
   });
-  if (exclude.patterns.length > 0) {
-    const excludedPaths = repo.files.filter((file) => exclude.excludes(file.path)).map((file) => file.path);
-    const unmatchedPatterns = exclude.patterns.filter((pattern) => !pattern.startsWith("!") && !exclude.matchedPatterns.has(pattern));
+  if (requestedExclude.patterns.length > 0) {
+    const excludedPaths = repo.files.filter((file) => requestedExclude.excludes(file.path)).map((file) => file.path);
+    const unmatchedPatterns = requestedExclude.patterns.filter((pattern) => !pattern.startsWith("!") && !requestedExclude.matchedPatterns.has(pattern));
     if (unmatchedPatterns.length > 0) {
       const sample = unmatchedPatterns.slice(0, 5).join(", ");
       report.diagnostics.push({
@@ -2601,11 +2658,23 @@ async function buildFixMapReport(input) {
       report.diagnostics.push({
         code: "paths-excluded",
         severity: report.contextFiles.length === 0 ? "warning" : "info",
-        message: `${exclude.patterns.length} exclusion ${exclude.patterns.length === 1 ? "pattern" : "patterns"} removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${exclude.patterns.join(", ")}. Run --explain on a file you expected to see if this is why it is absent.`
+        message: `${requestedExclude.patterns.length} exclusion ${requestedExclude.patterns.length === 1 ? "pattern" : "patterns"} removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${requestedExclude.patterns.join(", ")}. Run --explain on a file you expected to see if this is why it is absent.`
       });
     }
   }
   return report;
+}
+function combineExclusions(primary, internal) {
+  if (internal.patterns.length === 0)
+    return primary;
+  if (primary.patterns.length === 0)
+    return internal;
+  return {
+    excludes: (path) => primary.excludes(path) || internal.excludes(path),
+    reasonFor: (path) => primary.reasonFor(path) ?? internal.reasonFor(path),
+    patterns: [...primary.patterns, ...internal.patterns],
+    matchedPatterns: /* @__PURE__ */ new Set([...primary.matchedPatterns, ...internal.matchedPatterns])
+  };
 }
 async function resolveExclusions(repoRoot, patterns) {
   const combined = [...await readIgnoreFile(repoRoot), ...patterns].map((pattern) => normalizeAbsolutePattern(repoRoot, pattern));
@@ -2786,12 +2855,6 @@ function validateFixMapReport(candidate, label) {
       message: `${label} uses unsupported reportVersion ${JSON.stringify(record.reportVersion)}; this FixMap release supports reportVersion 1.`
     };
   }
-  if (contextFiles.length === 0 && !(typeof record.summary === "string" && Array.isArray(record.testRoutes) && Array.isArray(record.risks) && Array.isArray(record.changedFiles) && Array.isArray(record.diagnostics))) {
-    return {
-      success: false,
-      message: `${label} has no context files and is missing the complete FixMap report envelope (summary, testRoutes, risks, changedFiles, and diagnostics).`
-    };
-  }
   const invalid = contextFiles.findIndex((file) => {
     if (typeof file !== "object" || file === null)
       return true;
@@ -2811,6 +2874,58 @@ function validateFixMapReport(candidate, label) {
       success: false,
       message: `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", and optional rank, score, and confidence fields must use their documented types.`
     };
+  }
+  const invalidEnvelopeFields = [
+    typeof record.summary === "string" ? void 0 : "summary (string)",
+    Array.isArray(record.testRoutes) ? void 0 : "testRoutes (array)",
+    Array.isArray(record.risks) ? void 0 : "risks (array)",
+    Array.isArray(record.changedFiles) ? void 0 : "changedFiles (array)",
+    Array.isArray(record.diagnostics) ? void 0 : "diagnostics (array)"
+  ].filter((field) => field !== void 0);
+  if (invalidEnvelopeFields.length > 0) {
+    return {
+      success: false,
+      message: `${label} is missing or has invalid fields in the complete FixMap report envelope: ${invalidEnvelopeFields.join(", ")}.`
+    };
+  }
+  const testRoutes = record.testRoutes;
+  const invalidRoute = testRoutes.findIndex((route) => {
+    if (typeof route !== "object" || route === null || Array.isArray(route))
+      return true;
+    const entry = route;
+    return typeof entry.command !== "string" || !Array.isArray(entry.relatedFiles) || !entry.relatedFiles.every((path) => typeof path === "string");
+  });
+  if (invalidRoute !== -1) {
+    return {
+      success: false,
+      message: `${label} has an invalid testRoutes entry at index ${invalidRoute}; each route needs a string "command" and a string array named relatedFiles.`
+    };
+  }
+  const risks = record.risks;
+  const invalidRisk = risks.findIndex((risk) => {
+    if (typeof risk !== "object" || risk === null || Array.isArray(risk))
+      return true;
+    return typeof risk.area !== "string";
+  });
+  if (invalidRisk !== -1) {
+    return {
+      success: false,
+      message: `${label} has an invalid risks entry at index ${invalidRisk}; each risk needs a string "area".`
+    };
+  }
+  if (!record.changedFiles.every((path) => typeof path === "string")) {
+    return { success: false, message: `${label} has invalid changedFiles; every entry must be a string path.` };
+  }
+  if (record.analysis !== void 0) {
+    const analysis = record.analysis;
+    const grounding = typeof analysis === "object" && analysis !== null && !Array.isArray(analysis) ? analysis.grounding : void 0;
+    const specificity = typeof grounding === "object" && grounding !== null && !Array.isArray(grounding) ? grounding.specificity : void 0;
+    if (specificity !== "anchored" && specificity !== "descriptive" && specificity !== "vague") {
+      return {
+        success: false,
+        message: `${label} has invalid analysis.grounding.specificity; expected anchored, descriptive, or vague.`
+      };
+    }
   }
   return { success: true, report: candidate };
 }
@@ -3149,14 +3264,16 @@ async function runVerifyMode(context) {
   const loaded = validateFixMapReport(report, `"${reportPath}"`);
   if (!loaded.success) throw new Error(loaded.message);
   report = loaded.report;
+  const repoRoot = (context.dependencies.cwd ?? process.cwd)();
   const repo = await (context.dependencies.scanRepo ?? scanRepo)({
-    repoRoot: (context.dependencies.cwd ?? process.cwd)(),
+    repoRoot,
     diffSpec: context.diffSpec,
     baseRef: context.baseRef,
     headRef: context.headRef,
     workingTree: context.workingTree,
     includeUntracked: context.includeUntracked,
-    useCache: true
+    useCache: true,
+    internalExclude: [resolve3(repoRoot, reportPath)]
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
   if (diffFailure) {

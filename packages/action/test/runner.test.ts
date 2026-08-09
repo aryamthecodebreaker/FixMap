@@ -151,16 +151,34 @@ describe("GitHub Action runner", () => {
 
   it("accepts a verify report saved by a Windows editor with a byte-order mark", async () => {
     const stdout = vi.fn();
+    const scanRepo = vi.fn(async () => scannedRepo(["src/auth.ts"]));
     await expect(runAction({
       INPUT_MODE: "verify",
       INPUT_REPORT_PATH: "plan.json",
       INPUT_DIFF: "main...HEAD"
     }, {
       readFile: () => `\uFEFF${JSON.stringify(report)}`,
-      scanRepo: async () => scannedRepo(["src/auth.ts"]),
+      scanRepo,
       stdout
     })).resolves.toBeUndefined();
     expect(stdout.mock.calls[0]?.[0]).toContain("# FixMap Verification");
+    expect(scanRepo).toHaveBeenCalledWith(expect.objectContaining({
+      internalExclude: [expect.stringMatching(/plan\.json$/)]
+    }));
+  });
+
+  it("rejects a truncated non-empty report before scanning or dereferencing missing fields", async () => {
+    const scanRepo = vi.fn(async () => scannedRepo(["src/auth.ts"]));
+    await expect(runAction({
+      INPUT_MODE: "verify",
+      INPUT_REPORT_PATH: "plan.json",
+      INPUT_DIFF: "main...HEAD"
+    }, {
+      readFile: () => JSON.stringify({ reportVersion: 1, contextFiles: [{ path: "src/auth.ts" }] }),
+      scanRepo,
+      stdout: vi.fn()
+    })).rejects.toThrow("complete FixMap report envelope");
+    expect(scanRepo).not.toHaveBeenCalled();
   });
 
   it("says what verify mode needs when report-path is missing", async () => {

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -61,6 +61,7 @@ type PlanArgumentsValidation =
 
 type VerifyArguments = {
   report: FixMapReport;
+  reportPath?: string;
   diff?: string;
   base?: string;
   head?: string;
@@ -293,7 +294,8 @@ export function createFixMapMcpServer(
           headRef: args.head,
           workingTree: args.workingTree,
           includeUntracked: args.includeUntracked,
-          useCache: true
+          useCache: true,
+          internalExclude: args.reportPath ? [resolve(args.reportPath)] : undefined
         });
         const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
         if (diffFailure) {
@@ -604,6 +606,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
     success: true,
     value: {
       report,
+      ...(loaded.sourcePath ? { reportPath: loaded.sourcePath } : {}),
       ...(typeof record.diff === "string" ? { diff: record.diff.trim() } : {}),
       ...(typeof record.base === "string" ? { base: record.base.trim() } : {}),
       ...(typeof record.head === "string" ? { head: record.head.trim() } : {}),
@@ -623,7 +626,7 @@ function normalizeFormat(candidate: unknown): { success: true; value: "markdown"
 }
 
 type LoadedReport =
-  | { success: true; report: FixMapReport }
+  | { success: true; report: FixMapReport; sourcePath?: string }
   | { success: false; message: string };
 
 /**
@@ -656,7 +659,8 @@ function loadReportInput(input: unknown, label: string): LoadedReport {
         message: `${label} pointed at ${path}, which is not valid JSON: ${error instanceof Error ? error.message : String(error)}.`
       };
     }
-    return asFixMapReport(parsed, `the JSON in ${path}`);
+    const loaded = asFixMapReport(parsed, `the JSON in ${path}`);
+    return loaded.success ? { ...loaded, sourcePath: resolve(path) } : loaded;
   }
   return asFixMapReport(input, label);
 }

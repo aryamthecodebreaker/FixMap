@@ -26,24 +26,6 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
       message: `${label} uses unsupported reportVersion ${JSON.stringify(record.reportVersion)}; this FixMap release supports reportVersion 1.`
     };
   }
-  if (
-    contextFiles.length === 0 &&
-    !(
-      typeof record.summary === "string" &&
-      Array.isArray(record.testRoutes) &&
-      Array.isArray(record.risks) &&
-      Array.isArray(record.changedFiles) &&
-      Array.isArray(record.diagnostics)
-    )
-  ) {
-    return {
-      success: false,
-      message:
-        `${label} has no context files and is missing the complete FixMap report envelope ` +
-        "(summary, testRoutes, risks, changedFiles, and diagnostics)."
-    };
-  }
-
   const invalid = contextFiles.findIndex((file) => {
     if (typeof file !== "object" || file === null) return true;
     const ranked = file as unknown as Record<string, unknown>;
@@ -63,6 +45,71 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
         `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", ` +
         "and optional rank, score, and confidence fields must use their documented types."
     };
+  }
+
+  const invalidEnvelopeFields = [
+    typeof record.summary === "string" ? undefined : "summary (string)",
+    Array.isArray(record.testRoutes) ? undefined : "testRoutes (array)",
+    Array.isArray(record.risks) ? undefined : "risks (array)",
+    Array.isArray(record.changedFiles) ? undefined : "changedFiles (array)",
+    Array.isArray(record.diagnostics) ? undefined : "diagnostics (array)"
+  ].filter((field): field is string => field !== undefined);
+  if (invalidEnvelopeFields.length > 0) {
+    return {
+      success: false,
+      message:
+        `${label} is missing or has invalid fields in the complete FixMap report envelope: ` +
+        `${invalidEnvelopeFields.join(", ")}.`
+    };
+  }
+
+  const testRoutes = record.testRoutes as unknown[];
+  const invalidRoute = testRoutes.findIndex((route) => {
+    if (typeof route !== "object" || route === null || Array.isArray(route)) return true;
+    const entry = route as Record<string, unknown>;
+    return typeof entry.command !== "string" ||
+      !Array.isArray(entry.relatedFiles) ||
+      !entry.relatedFiles.every((path) => typeof path === "string");
+  });
+  if (invalidRoute !== -1) {
+    return {
+      success: false,
+      message:
+        `${label} has an invalid testRoutes entry at index ${invalidRoute}; each route needs a string "command" ` +
+        "and a string array named relatedFiles."
+    };
+  }
+
+  const risks = record.risks as unknown[];
+  const invalidRisk = risks.findIndex((risk) => {
+    if (typeof risk !== "object" || risk === null || Array.isArray(risk)) return true;
+    return typeof (risk as Record<string, unknown>).area !== "string";
+  });
+  if (invalidRisk !== -1) {
+    return {
+      success: false,
+      message: `${label} has an invalid risks entry at index ${invalidRisk}; each risk needs a string "area".`
+    };
+  }
+
+  if (!(record.changedFiles as unknown[]).every((path) => typeof path === "string")) {
+    return { success: false, message: `${label} has invalid changedFiles; every entry must be a string path.` };
+  }
+
+  if (record.analysis !== undefined) {
+    const analysis = record.analysis;
+    const grounding = typeof analysis === "object" && analysis !== null && !Array.isArray(analysis)
+      ? (analysis as Record<string, unknown>).grounding
+      : undefined;
+    const specificity = typeof grounding === "object" && grounding !== null && !Array.isArray(grounding)
+      ? (grounding as Record<string, unknown>).specificity
+      : undefined;
+    if (specificity !== "anchored" && specificity !== "descriptive" && specificity !== "vague") {
+      return {
+        success: false,
+        message: `${label} has invalid analysis.grounding.specificity; expected anchored, descriptive, or vague.`
+      };
+    }
   }
 
   return { success: true, report: candidate as FixMapReport };

@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, extname, join, relative, resolve, sep } from "node:path";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS, isGeneratedPath } from "./paths.js";
 import { DIAGNOSTIC_SPEC_LIMIT, truncateForDiagnostic } from "./text.js";
@@ -74,7 +74,7 @@ export async function scanRepo(
   input: Pick<
     FixMapInput,
     "repoRoot" | "baseRef" | "headRef" | "diffSpec" | "workingTree" | "includeUntracked" | "useCache"
-  >
+  > & { internalExclude?: string[] | undefined }
 ): Promise<RepoMap> {
   const repoRoot = resolve(input.repoRoot);
   if (!(await isDirectory(repoRoot))) {
@@ -94,7 +94,14 @@ export async function scanRepo(
   }
 
   const diagnostics: RepoMap["diagnostics"] = [];
-  const cacheDecision = input.useCache === true ? await buildScanCacheLocation(repoRoot) : undefined;
+  const internalPaths = await resolveInternalPaths(repoRoot, input.internalExclude ?? []);
+  const cacheRoot = configuredScanCacheRoot();
+  const internalCacheRoot = sameFilesystemPath(cacheRoot, repoRoot) || containedPath(repoRoot, cacheRoot) !== undefined
+    ? cacheRoot
+    : undefined;
+  const cacheDecision = input.useCache === true
+    ? await buildScanCacheLocation(repoRoot, cacheRoot, internalPaths)
+    : undefined;
   const cacheLocation = cacheDecision?.location;
   if (input.useCache === false) {
     diagnostics.push({
@@ -125,8 +132,8 @@ export async function scanRepo(
       message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files, ${describeCacheAge(cached.createdAt)}). Pass --no-cache to rescan.`
     });
   } else {
-    files = await listFiles(repoRoot, diagnostics);
-    trackedFiles = await listTrackedPaths(repoRoot);
+    files = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths);
+    trackedFiles = await listTrackedPaths(repoRoot, internalPaths);
     packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
     packageManager = detectPackageManager(files);
     if (cacheLocation) {
@@ -144,8 +151,8 @@ export async function scanRepo(
   }
   const diffSpec = resolveDiffSpec(input);
   const diff = input.workingTree
-    ? await readWorkingTree(repoRoot, input.includeUntracked === true, diagnostics)
-    : await readDiff(repoRoot, diffSpec, diagnostics);
+    ? await readWorkingTree(repoRoot, input.includeUntracked === true, diagnostics, internalPaths)
+    : await readDiff(repoRoot, diffSpec, diagnostics, internalPaths);
 
   return {
     root: repoRoot,
@@ -162,11 +169,72 @@ export async function scanRepo(
 type ScanCacheLocation = { path: string; stateKey: string };
 type ScanCacheDecision = { location?: ScanCacheLocation; skipReason?: string };
 
-async function buildScanCacheLocation(root: string): Promise<ScanCacheDecision> {
+function configuredScanCacheRoot(): string {
+  return resolve(process.env.FIXMAP_CACHE_DIR ?? join(
+    process.env.LOCALAPPDATA ?? process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"),
+    "fixmap",
+    "scans"
+  ));
+}
+
+function containedPath(root: string, candidate: string): string | undefined {
+  const distance = relative(root, candidate);
+  return distance === "" || distance === ".." || distance.startsWith(`..${sep}`) || isAbsolute(distance)
+    ? undefined
+    : normalizePath(distance);
+}
+
+async function resolveInternalPaths(root: string, paths: string[]): Promise<Set<string>> {
+  const requested = paths.flatMap((path) => {
+    const relativePath = containedPath(root, resolve(path));
+    return relativePath ? [relativePath] : [];
+  });
+  if (requested.length === 0 || process.platform !== "win32") return new Set(requested);
+
+  // Git pathspecs remain case-sensitive even on a case-insensitive Windows worktree. A
+  // caller can open PLAN.JSON when the directory entry is plan.json, so recover Git's
+  // canonical spelling before using exact exclusions in status and diff commands.
+  try {
+    const { stdout } = await exec(
+      "git",
+      ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+      { cwd: root, maxBuffer: GIT_MAX_BUFFER }
+    );
+    const repositoryPaths = stdout.split("\0").filter(Boolean).map(normalizePath);
+    return new Set(requested.map((path) =>
+      repositoryPaths.find((candidate) => sameFilesystemPath(candidate, path)) ?? path
+    ));
+  } catch {
+    return new Set(requested);
+  }
+}
+
+function hasInternalPath(paths: ReadonlySet<string>, path: string): boolean {
+  return [...paths].some((candidate) => sameFilesystemPath(candidate, path));
+}
+
+function gitPathspec(internalPaths: ReadonlySet<string>): string[] {
+  return ["--", ".", ...[...internalPaths]
+    .sort((a, b) => a.localeCompare(b))
+    .map((path) => `:(exclude,literal)${path}`)];
+}
+
+async function buildScanCacheLocation(
+  root: string,
+  cacheRoot: string,
+  internalPaths: ReadonlySet<string>
+): Promise<ScanCacheDecision> {
+  if (sameFilesystemPath(cacheRoot, root) || containedPath(root, cacheRoot) !== undefined) {
+    return {
+      skipReason:
+        "Repository scan caching was skipped because FIXMAP_CACHE_DIR is inside the scanned repository. " +
+        "Move the cache outside the repository to enable exact-state reuse."
+    };
+  }
   try {
     const [{ stdout: head }, { stdout: status }] = await Promise.all([
       exec("git", ["rev-parse", "HEAD"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "."], {
+      exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all", ...gitPathspec(internalPaths)], {
         cwd: root,
         maxBuffer: GIT_MAX_BUFFER
       })
@@ -179,7 +247,7 @@ async function buildScanCacheLocation(root: string): Promise<ScanCacheDecision> 
       };
     }
     const dirtyDiff = status.length > 0
-      ? (await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", "--", "."], {
+      ? (await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", ...gitPathspec(internalPaths)], {
           cwd: root,
           maxBuffer: GIT_MAX_BUFFER
         })).stdout
@@ -189,13 +257,9 @@ async function buildScanCacheLocation(root: string): Promise<ScanCacheDecision> 
       resolve(root),
       head.trim(),
       status,
-      dirtyDiff
+      dirtyDiff,
+      ...[...internalPaths].sort((a, b) => a.localeCompare(b))
     ].join("\0"));
-    const cacheRoot = process.env.FIXMAP_CACHE_DIR ?? join(
-      process.env.LOCALAPPDATA ?? process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"),
-      "fixmap",
-      "scans"
-    );
     return { location: {
       path: join(cacheRoot, `${hashText(resolve(root))}-${stateKey}.json`),
       stateKey
@@ -282,14 +346,15 @@ function hashText(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 24);
 }
 
-async function listTrackedPaths(root: string): Promise<string[]> {
+async function listTrackedPaths(root: string, internalPaths: ReadonlySet<string>): Promise<string[]> {
   try {
     const { stdout } = await exec(
       "git",
       ["ls-files", "--cached", "-z"],
       { cwd: root, maxBuffer: GIT_MAX_BUFFER }
     );
-    return stdout.split("\0").filter(Boolean).map(normalizePath);
+    return stdout.split("\0").filter(Boolean).map(normalizePath)
+      .filter((path) => !hasInternalPath(internalPaths, path));
   } catch {
     return [];
   }
@@ -299,11 +364,19 @@ function resolveDiffSpec(input: Pick<FixMapInput, "baseRef" | "headRef" | "diffS
   return input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : undefined);
 }
 
-async function listFiles(root: string, diagnostics: RepoMap["diagnostics"]): Promise<RepoFile[]> {
+async function listFiles(
+  root: string,
+  diagnostics: RepoMap["diagnostics"],
+  internalCacheRoot: string | undefined,
+  internalPaths: ReadonlySet<string>
+): Promise<RepoFile[]> {
   const gitPaths = await listGitPaths(root);
+  const visiblePaths = gitPaths?.paths.filter((path) =>
+    !hasInternalPath(internalPaths, normalizePath(path)) && !isInternalCachePath(root, path, internalCacheRoot)
+  );
   const files = gitPaths
-    ? await buildFilesFromPaths(root, gitPaths.paths, diagnostics, gitPaths.gitLinks)
-    : (await walkFiles(root, root, diagnostics, { count: 0, limitReported: false }))
+    ? await buildFilesFromPaths(root, visiblePaths ?? [], diagnostics, gitPaths.gitLinks)
+    : (await walkFiles(root, root, diagnostics, { count: 0, limitReported: false }, internalCacheRoot, internalPaths))
       .sort((a, b) => a.path.localeCompare(b.path));
 
   // These are properties of the scanned files, not of git. Keeping them here makes an
@@ -311,6 +384,22 @@ async function listFiles(root: string, diagnostics: RepoMap["diagnostics"]): Pro
   reportUnreadContent(diagnostics, files);
   reportGeneratedDominance(diagnostics, files);
   return files;
+}
+
+function isInternalCachePath(root: string, path: string, internalCacheRoot?: string): boolean {
+  if (!internalCacheRoot) return false;
+  const relativeCacheRoot = containedPath(root, internalCacheRoot);
+  if (relativeCacheRoot) {
+    const candidate = process.platform === "win32" ? path.toLowerCase() : path;
+    const cachePath = process.platform === "win32" ? relativeCacheRoot.toLowerCase() : relativeCacheRoot;
+    return candidate === cachePath || candidate.startsWith(`${cachePath}/`);
+  }
+  // If someone points FIXMAP_CACHE_DIR at the repository root itself, do not hide the
+  // repository. Hide only filenames owned by FixMap's cache format.
+  return sameFilesystemPath(internalCacheRoot, root) && (
+    SCAN_CACHE_FILE.test(path) ||
+    /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i.test(path)
+  );
 }
 
 async function listGitPaths(root: string): Promise<{ paths: string[]; gitLinks: Set<string> } | undefined> {
@@ -548,7 +637,9 @@ async function walkFiles(
   root: string,
   current: string,
   diagnostics: RepoMap["diagnostics"],
-  state: ScanState
+  state: ScanState,
+  internalCacheRoot: string | undefined,
+  internalPaths: ReadonlySet<string>
 ): Promise<RepoFile[]> {
   let entries;
   try {
@@ -570,7 +661,9 @@ async function walkFiles(
       if (WALK_IGNORED_DIRS.has(entry.name)) {
         continue;
       }
-      results.push(...await walkFiles(root, join(current, entry.name), diagnostics, state));
+      const directory = join(current, entry.name);
+      if (internalCacheRoot && sameFilesystemPath(directory, internalCacheRoot)) continue;
+      results.push(...await walkFiles(root, directory, diagnostics, state, internalCacheRoot, internalPaths));
       continue;
     }
 
@@ -579,7 +672,9 @@ async function walkFiles(
     }
 
     const absolutePath = join(current, entry.name);
-    const scanned = await toRepoFile(absolutePath, normalizePath(relative(root, absolutePath)));
+    const relativePath = normalizePath(relative(root, absolutePath));
+    if (hasInternalPath(internalPaths, relativePath) || isInternalCachePath(root, relativePath, internalCacheRoot)) continue;
+    const scanned = await toRepoFile(absolutePath, relativePath);
     if (scanned.status === "ok") {
       results.push(scanned.file);
       state.count += 1;
@@ -769,7 +864,8 @@ function decodeManifest(bytes: Buffer): { text: string; encoding: string } {
 async function readDiff(
   repoRoot: string,
   diffSpec: string | undefined,
-  diagnostics: RepoMap["diagnostics"]
+  diagnostics: RepoMap["diagnostics"],
+  internalPaths: ReadonlySet<string>
 ): Promise<{ changedFiles: string[]; diffText: string }> {
   if (!diffSpec) {
     return { changedFiles: [], diffText: "" };
@@ -777,15 +873,15 @@ async function readDiff(
 
   try {
     const [{ stdout: names }, { stdout: diffText }] = await Promise.all([
-      exec("git", ["diff", "--relative", "--name-only", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["diff", "--relative", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
+      exec("git", ["diff", "--relative", "--name-only", diffSpec, ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", "--relative", diffSpec, ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
     ]);
     const tracked = names
       .split(/\r?\n/)
       .map((path) => path.trim())
       .filter(Boolean)
       .map(normalizePath);
-    const untracked = diffSpec.includes("..") ? [] : await listUntrackedPaths(repoRoot);
+    const untracked = diffSpec.includes("..") ? [] : await listUntrackedPaths(repoRoot, internalPaths);
     const changedFiles = [...new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
     diagnostics.push({
       code: "diff-resolved",
@@ -827,19 +923,20 @@ async function readDiff(
 async function readWorkingTree(
   repoRoot: string,
   includeUntracked: boolean,
-  diagnostics: RepoMap["diagnostics"]
+  diagnostics: RepoMap["diagnostics"],
+  internalPaths: ReadonlySet<string>
 ): Promise<{ changedFiles: string[]; diffText: string }> {
   try {
     const [{ stdout: names }, { stdout: diffText }] = await Promise.all([
-      exec("git", ["diff", "--relative", "--name-only", "HEAD"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["diff", "--relative", "HEAD"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
+      exec("git", ["diff", "--relative", "--name-only", "HEAD", ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", "--relative", "HEAD", ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
     ]);
     const tracked = names
       .split(/\r?\n/)
       .map((path) => path.trim())
       .filter(Boolean)
       .map(normalizePath);
-    const untracked = includeUntracked ? await listUntrackedPaths(repoRoot) : [];
+    const untracked = includeUntracked ? await listUntrackedPaths(repoRoot, internalPaths) : [];
     const changedFiles = [...new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
 
     diagnostics.push({
@@ -960,14 +1057,18 @@ async function readTextSample(
   }
 }
 
-async function listUntrackedPaths(repoRoot: string): Promise<string[]> {
+async function listUntrackedPaths(
+  repoRoot: string,
+  internalPaths: ReadonlySet<string> = new Set<string>()
+): Promise<string[]> {
   try {
     const { stdout } = await exec(
       "git",
       ["ls-files", "--others", "--exclude-standard", "-z"],
       { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }
     );
-    return stdout.split("\0").filter(Boolean).map(normalizePath);
+    return stdout.split("\0").filter(Boolean).map(normalizePath)
+      .filter((path) => !hasInternalPath(internalPaths, path));
   } catch {
     return [];
   }

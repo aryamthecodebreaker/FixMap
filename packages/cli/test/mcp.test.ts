@@ -317,8 +317,25 @@ describe("fixmap mcp server", () => {
 
     expect(result.isError).toBeFalsy();
     const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
-    expect((JSON.parse(text) as { changedFiles: string[] }).changedFiles)
-      .toContain("src/auth/reset-password.ts");
+    const changedFiles = (JSON.parse(text) as { changedFiles: string[] }).changedFiles;
+    expect(changedFiles).toContain("src/auth/reset-password.ts");
+    expect(changedFiles).not.toContain("plan.json");
+  });
+
+  it("rejects a truncated non-empty verify report with a structural error", async () => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_verify",
+      arguments: {
+        report: { reportVersion: 1, contextFiles: [{ path: "src/auth/reset-password.ts" }] },
+        diff: "HEAD"
+      }
+    });
+
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ text: string }>)[0]?.text ?? "";
+    expect(text).toContain("complete FixMap report envelope");
+    expect(text).not.toContain("Cannot read properties");
   });
 
   it("says why a report path did not work instead of only naming the object shape", async () => {

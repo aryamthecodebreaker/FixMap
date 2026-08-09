@@ -10,10 +10,19 @@ export async function buildFixMapReport(
   input: Pick<
     FixMapInput,
     "repoRoot" | "issueText" | "diffSpec" | "baseRef" | "headRef" | "workingTree" | "includeUntracked" | "useCache"
-  > & { limit?: number | undefined; exclude?: string[] | undefined }
+  > & {
+    limit?: number | undefined;
+    exclude?: string[] | undefined;
+    /** Known command artifacts that must not compete with repository files in ranking. */
+    internalExclude?: string[] | undefined;
+  }
 ): Promise<FixMapReport> {
   const repo = await scanRepo(input);
-  const exclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
+  const requestedExclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
+  const internalExclude = buildPathExcluder(
+    (input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern))
+  );
+  const exclude = combineExclusions(requestedExclude, internalExclude);
 
   const report = buildReportFromRepo(repo, {
     issueText: input.issueText,
@@ -21,10 +30,10 @@ export async function buildFixMapReport(
     exclude
   });
 
-  if (exclude.patterns.length > 0) {
-    const excludedPaths = repo.files.filter((file) => exclude.excludes(file.path)).map((file) => file.path);
-    const unmatchedPatterns = exclude.patterns.filter((pattern) =>
-      !pattern.startsWith("!") && !exclude.matchedPatterns.has(pattern)
+  if (requestedExclude.patterns.length > 0) {
+    const excludedPaths = repo.files.filter((file) => requestedExclude.excludes(file.path)).map((file) => file.path);
+    const unmatchedPatterns = requestedExclude.patterns.filter((pattern) =>
+      !pattern.startsWith("!") && !requestedExclude.matchedPatterns.has(pattern)
     );
     if (unmatchedPatterns.length > 0) {
       const sample = unmatchedPatterns.slice(0, 5).join(", ");
@@ -41,14 +50,25 @@ export async function buildFixMapReport(
         code: "paths-excluded",
         severity: report.contextFiles.length === 0 ? "warning" : "info",
         message:
-          `${exclude.patterns.length} exclusion ${exclude.patterns.length === 1 ? "pattern" : "patterns"} ` +
-          `removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${exclude.patterns.join(", ")}. ` +
+          `${requestedExclude.patterns.length} exclusion ${requestedExclude.patterns.length === 1 ? "pattern" : "patterns"} ` +
+          `removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${requestedExclude.patterns.join(", ")}. ` +
           "Run --explain on a file you expected to see if this is why it is absent."
       });
     }
   }
 
   return report;
+}
+
+function combineExclusions(primary: PathExcluder, internal: PathExcluder): PathExcluder {
+  if (internal.patterns.length === 0) return primary;
+  if (primary.patterns.length === 0) return internal;
+  return {
+    excludes: (path) => primary.excludes(path) || internal.excludes(path),
+    reasonFor: (path) => primary.reasonFor(path) ?? internal.reasonFor(path),
+    patterns: [...primary.patterns, ...internal.patterns],
+    matchedPatterns: new Set([...primary.matchedPatterns, ...internal.matchedPatterns])
+  };
 }
 
 /**
