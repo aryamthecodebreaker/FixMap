@@ -7,10 +7,14 @@
 export { explainFile } from "./explain.js";
 export { buildPathExcluder, NO_EXCLUSIONS, parseIgnoreFile } from "./exclude.js";
 export { compareReports, renderComparisonMarkdown } from "./compare.js";
+export { quoteCliValue } from "./cli-quote.js";
+export type { CliShell } from "./cli-quote.js";
 export { rankContextFiles } from "./rank.js";
-export { buildReportFromRepo, buildRiskNotes, buildTestRoutes, renderMarkdownReport } from "./report.js";
+export { buildReportFromRepo, buildRiskNotes, buildTestRoutes, renderJsonReport, renderMarkdownReport } from "./report.js";
 export { tokenizePath, tokenizeText } from "./signals.js";
 export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
+export { validateFixMapReport } from "./validate.js";
+export type { ValidatedFixMapReport } from "./validate.js";
 export type { FileExplanation } from "./explain.js";
 export type { PathExcluder } from "./exclude.js";
 export type { ReportComparison } from "./compare.js";

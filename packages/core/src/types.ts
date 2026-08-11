@@ -58,16 +58,21 @@ export type ScanDiagnostic = {
     | "flat-ranking"
     | "no-test-route"
     | "no-related-tests"
-    | "content-unread"
+    | "content-not-utf8"
+    | "content-unreadable"
+    | "content-too-large"
     | "generated-paths-dominant"
+    | "import-graph-truncated"
     | "paths-excluded"
     | "exclusion-no-match"
     | "working-tree-diff"
     | "diff-resolved"
+    | "diff-text-truncated"
     | "cache-hit"
     | "cache-bypass"
     | "cache-skip"
-    | "task-checklist-filtered";
+    | "task-checklist-filtered"
+    | "package-manager-conflict";
   message: string;
   severity: "info" | "warning" | "error";
   /**
@@ -167,6 +172,8 @@ export type VerifyFinding = {
     | "leading-file-untouched"
     | "no-test-changed"
     | "new-risk-area"
+    | "plan-partially-stale"
+    | "planned-file-deleted"
     | "plan-repository-mismatch";
   severity: "info" | "warning" | "error";
   paths: string[];

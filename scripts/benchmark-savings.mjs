@@ -76,9 +76,9 @@ for (const benchmark of dataset.cases) {
     scannedFiles: repo.files.length,
     medianRuntimeMs: round(median(timings)),
     expected: benchmark.expected,
-    top5: paths,
-    top1: benchmark.expected.includes(paths[0]),
-    top3: benchmark.expected.some((path) => paths.slice(0, 3).includes(path)),
+    top5Paths: paths,
+    top1Hit: benchmark.expected.includes(paths[0]),
+    top3Hit: benchmark.expected.some((path) => paths.slice(0, 3).includes(path)),
     top5Hit: benchmark.expected.some((path) => paths.includes(path)),
     sourceBytes,
     rankedBytes,
@@ -104,8 +104,8 @@ const summary = {
   },
   cases: results.length,
   accuracy: {
-    top1HitRate: hitRate("top1"),
-    top3HitRate: hitRate("top3"),
+    top1HitRate: hitRate("top1Hit"),
+    top3HitRate: hitRate("top3Hit"),
     top5HitRate: hitRate("top5Hit")
   },
   performance: {

@@ -90,9 +90,13 @@ describe("scanRepo", () => {
     expect(dockerfile?.textSample).toContain("FROM node:24");
   });
 
-  it("recognizes Go, Python, and TypeScript declaration test naming conventions", async () => {
+  it("recognizes Go, Python, Ruby, Java, C#, PHP, and TypeScript test naming conventions", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-test-patterns-"));
-    for (const path of ["handler_test.go", "test_reset.py", "reset_test.py", "types.test-d.ts"]) {
+    await mkdir(join(root, "spec"), { recursive: true });
+    for (const path of [
+      "handler_test.go", "test_reset.py", "reset_test.py", "types.test-d.ts",
+      "account_spec.rb", "spec/session.rb", "AccountTest.java", "AccountTests.cs", "AccountTest.php"
+    ]) {
       await writeFile(join(root, path), "test reset handler\n");
     }
 
@@ -100,10 +104,26 @@ describe("scanRepo", () => {
 
     expect(repo.files.filter((file) => file.isTest).map((file) => file.path).sort()).toEqual([
       "handler_test.go",
+      "AccountTest.java",
+      "AccountTest.php",
+      "AccountTests.cs",
+      "account_spec.rb",
       "reset_test.py",
+      "spec/session.rb",
       "test_reset.py",
       "types.test-d.ts"
-    ]);
+    ].sort());
+  });
+
+  it("normalizes uppercase extensions before source classification", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-uppercase-extension-"));
+    await writeFile(join(root, "B.TS"), "export const uppercaseSource = true;\n");
+    await writeFile(join(root, "README.MD"), "Uppercase documentation\n");
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.find((file) => file.path === "B.TS")).toMatchObject({ extension: ".ts", isSource: true, kind: "code" });
+    expect(repo.files.find((file) => file.path === "README.MD")).toMatchObject({ extension: ".md", isSource: true, kind: "documentation" });
   });
 
   it("discovers workspace scripts and the package manager", async () => {
@@ -243,6 +263,34 @@ describe("scanRepo", () => {
     expect(repo.diffText).toContain("login = () => false");
   });
 
+  it("samples complete added lines from every file when a diff exceeds the signal budget", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-large-diff-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    for (const name of ["alpha.ts", "middle.ts", "omega.ts"]) {
+      await writeFile(join(root, "src", name), "export const original = true;\n");
+    }
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+    for (const name of ["alpha.ts", "middle.ts", "omega.ts"]) {
+      const marker = name.replace(".ts", "Signal");
+      const body = [`export const ${marker} = true;`, ...Array.from({ length: 5_000 }, (_, index) => `export const ${marker}${index} = ${index};`)].join("\n");
+      await writeFile(join(root, "src", name), `${body}\n`);
+    }
+
+    const repo = await scanRepo({ repoRoot: root, diffSpec: "HEAD" });
+
+    expect(repo.diagnostics).toContainEqual(expect.objectContaining({ code: "diff-text-truncated", severity: "warning" }));
+    expect(repo.diffText.length).toBeLessThanOrEqual(200_000);
+    expect(repo.diffText).toContain("alphaSignal");
+    expect(repo.diffText).toContain("middleSignal");
+    expect(repo.diffText).toContain("omegaSignal");
+    expect(repo.diffText.split("\n").every((line) => line.startsWith("+"))).toBe(true);
+  });
+
   it("uses the scanned subdirectory as the path base for diff results", { timeout: 30_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-subdirectory-diff-"));
     const packageRoot = join(root, "packages", "core");
@@ -375,7 +423,7 @@ describe("scanRepo", () => {
     expect(weird?.textSample).toBe("");
     expect(weird?.textSampleComplete).toBe(false);
     expect(weird?.textSampleSkipReason).toBe("not-text");
-    const diagnostic = repo.diagnostics.find((entry) => entry.code === "content-unread");
+    const diagnostic = repo.diagnostics.find((entry) => entry.code === "content-not-utf8");
     expect(diagnostic?.message).toContain("not UTF-8 text");
     expect(diagnostic?.message).not.toContain("Files over");
     expect(diagnostic?.paths).toContain("src/weird.ts");
@@ -386,7 +434,7 @@ describe("scanRepo", () => {
     await writeFile(join(root, "history.ts"), "x".repeat(64_001));
 
     const repo = await scanRepo({ repoRoot: root });
-    const diagnostic = repo.diagnostics.find((entry) => entry.code === "content-unread");
+    const diagnostic = repo.diagnostics.find((entry) => entry.code === "content-too-large");
 
     expect(diagnostic?.message).toContain("history.ts (65 kB)");
     expect(diagnostic?.message).toContain("Files over 64 kB");

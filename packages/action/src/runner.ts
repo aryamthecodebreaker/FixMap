@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   buildFixMapReport,
@@ -28,7 +28,10 @@ import {
 
 const STEP_SUMMARY_LIMIT_BYTES = 1024 * 1024;
 const TRUNCATION_FOOTER =
-  "\n\n> FixMap report truncated to fit GitHub's 1 MiB step-summary limit. The complete report remains available through the `report` output.\n";
+  "\n\n> FixMap report truncated to fit GitHub's 1 MiB step-summary limit. Run FixMap locally with `--output` to retain a complete report.\n";
+const ACTION_OUTPUT_REPORT_LIMIT_BYTES = 900 * 1024;
+const OUTPUT_TRUNCATION_FOOTER =
+  "\n\n[FixMap report truncated to fit the GitHub Actions output limit. Run FixMap locally with --output for a complete report.]\n";
 
 export type ActionDependencies = {
   appendFile?: (path: string, contents: string) => void;
@@ -36,6 +39,7 @@ export type ActionDependencies = {
   createClient?: typeof createGitHubClient;
   cwd?: () => string;
   readFile?: (path: string) => string;
+  fileSize?: (path: string) => number;
   stdout?: (text: string) => void;
   uuid?: () => string;
   fetchIssue?: (source: ActionIssueSource) => Promise<ActionIssue>;
@@ -59,6 +63,7 @@ export async function runAction(
   const headRef = readInput("head", env) || (!workingTree && env.GITHUB_HEAD_REF ? "HEAD" : undefined);
   const format = parseFormat(readInput("format", env));
   const mode = parseMode(readInput("mode", env));
+  const failOn = parseFailOn(readInput("fail-on", env));
   const exclude = splitExcludeInput(readInput("exclude", env) ?? "");
   const limit = parseLimit(readInput("limit", env));
   if (includeUntracked && !workingTree) throw new Error("include-untracked requires working-tree.");
@@ -82,8 +87,9 @@ export async function runAction(
         "Remove them, or set mode: plan."
       );
     }
-    return runVerifyMode({ env, dependencies, readFile, appendFile, stdout, format, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache });
+    return runVerifyMode({ env, dependencies, readFile, appendFile, stdout, format, failOn, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache });
   }
+  if (failOn === "warning") throw new Error("fail-on: warning is a verify-mode input; remove it or set mode: verify.");
 
   const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : undefined;
   if (issueSource && env.GITHUB_REPOSITORY &&
@@ -134,7 +140,7 @@ export async function runAction(
     // A json workflow got a markdown-only summary, so the tab an operator actually opens
     // never showed the shape their pipeline consumes. The readable report still leads; the
     // JSON follows in a collapsed block so the summary stays scannable.
-    appendFile(env.GITHUB_STEP_SUMMARY, fitStepSummary(format === "json" ? withJsonDetails(markdown, output) : markdown));
+    appendBoundedStepSummary(env.GITHUB_STEP_SUMMARY, format === "json" ? withJsonDetails(markdown, output) : markdown, dependencies, appendFile, stdout);
   }
 
   if (env.GITHUB_OUTPUT) {
@@ -153,7 +159,7 @@ export async function runAction(
       }
       const detail = error instanceof Error ? error.message : String(error);
       stdout(
-        `::warning::FixMap could not comment on the pull request, which is expected when the token is read-only (for example on forked pull requests). The full report is in the step summary and the report output. ${detail}\n`
+        `::warning::FixMap could not comment on the pull request, which is expected when the token is read-only (for example on forked pull requests). The bounded report remains in the step summary and report output; run FixMap locally with --output if either surface reports truncation. ${detail}\n`
       );
     }
   }
@@ -177,6 +183,7 @@ type VerifyModeContext = {
   appendFile: (path: string, contents: string) => void;
   stdout: (text: string) => void;
   format: "markdown" | "json";
+  failOn: "error" | "warning";
   diffSpec: string | undefined;
   baseRef: string | undefined;
   headRef: string | undefined;
@@ -232,7 +239,7 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
   context.stdout(output);
 
   if (context.env.GITHUB_STEP_SUMMARY) {
-    context.appendFile(context.env.GITHUB_STEP_SUMMARY, fitStepSummary(markdown));
+    appendBoundedStepSummary(context.env.GITHUB_STEP_SUMMARY, markdown, context.dependencies, context.appendFile, context.stdout);
   }
   if (context.env.GITHUB_OUTPUT) {
     context.appendFile(
@@ -243,9 +250,13 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
 
   // A generated-location edit is discarded by the next build, so it fails the step rather
   // than being reported and scrolled past. Everything else stays advisory.
-  if (result.findings.some((finding) => finding.severity === "error")) {
+  if (result.findings.some((finding) =>
+    finding.severity === "error" || (context.failOn === "warning" && finding.severity === "warning")
+  )) {
     throw new Error(
-      "FixMap verification found an edit in a generated or retired location, which the next build discards."
+      context.failOn === "warning"
+        ? "FixMap verification found findings at or above the configured warning threshold."
+        : "FixMap verification found an edit in a generated or retired location, which the next build discards."
     );
   }
 }
@@ -256,7 +267,8 @@ export function renderVerifyOutputs(
   uuid: () => string = randomUUID
 ): string {
   const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;
-  const terminated = reportText.endsWith("\n") ? reportText : `${reportText}\n`;
+  const fittedReport = fitOutputReport(reportText);
+  const terminated = fittedReport.endsWith("\n") ? fittedReport : `${fittedReport}\n`;
   return [
     `report<<${delimiter}\n`,
     terminated,
@@ -279,9 +291,16 @@ function parseFormat(value: string | undefined): "markdown" | "json" {
 
 function parseLimit(value: string | undefined): number | undefined {
   if (!value) return undefined;
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 20) throw new Error("limit must be a whole number from 1 to 20.");
+  const normalized = value.trim();
+  const parsed = Number(normalized);
+  if (!/^\d+$/.test(normalized) || !Number.isSafeInteger(parsed) || parsed < 1 || parsed > 20) throw new Error("limit must be a whole number from 1 to 20.");
   return parsed;
+}
+
+function parseFailOn(value: string | undefined): "error" | "warning" {
+  const normalized = value?.trim().toLowerCase() ?? "error";
+  if (normalized === "error" || normalized === "warning") return normalized;
+  throw new Error("fail-on must be error or warning.");
 }
 
 function parseBooleanInput(name: string, value: string | undefined): boolean {
@@ -297,7 +316,8 @@ export function renderActionOutputs(
   uuid: () => string = randomUUID
 ): string {
   const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;
-  const terminatedReport = reportText.endsWith("\n") ? reportText : `${reportText}\n`;
+  const fittedReport = fitOutputReport(reportText);
+  const terminatedReport = fittedReport.endsWith("\n") ? fittedReport : `${fittedReport}\n`;
   return [
     `report<<${delimiter}\n`,
     terminatedReport,
@@ -305,6 +325,15 @@ export function renderActionOutputs(
     `context-count=${report.contextFiles.length}\n`,
     `test-route-count=${report.testRoutes.length}\n`
   ].join("");
+}
+
+function fitOutputReport(reportText: string): string {
+  const bytes = Buffer.from(reportText);
+  if (bytes.length <= ACTION_OUTPUT_REPORT_LIMIT_BYTES) return reportText;
+  const footer = Buffer.from(OUTPUT_TRUNCATION_FOOTER);
+  let end = ACTION_OUTPUT_REPORT_LIMIT_BYTES - footer.length;
+  while (end > 0 && (bytes[end]! & 0xc0) === 0x80) end -= 1;
+  return `${bytes.subarray(0, end).toString("utf8")}${OUTPUT_TRUNCATION_FOOTER}`;
 }
 
 /**
@@ -368,6 +397,24 @@ export function fitStepSummary(markdown: string, limitBytes = STEP_SUMMARY_LIMIT
     end -= 1;
   }
   return `${trimToBoundary(bytes.subarray(0, end).toString("utf8"))}${TRUNCATION_FOOTER}`;
+}
+
+function appendBoundedStepSummary(
+  path: string,
+  markdown: string,
+  dependencies: ActionDependencies,
+  appendFile: (path: string, contents: string) => void,
+  stdout: (text: string) => void
+): void {
+  const fileSize = dependencies.fileSize ?? ((summaryPath: string) => {
+    try { return statSync(summaryPath).size; } catch { return 0; }
+  });
+  const remaining = Math.max(0, STEP_SUMMARY_LIMIT_BYTES - fileSize(path));
+  if (remaining <= Buffer.byteLength(TRUNCATION_FOOTER)) {
+    stdout("::warning::FixMap skipped its step summary because earlier steps already consumed GitHub's 1 MiB summary budget. The bounded report remains available through the report output.\n");
+    return;
+  }
+  appendFile(path, fitStepSummary(markdown, remaining));
 }
 
 function readInput(name: string, env: NodeJS.ProcessEnv): string | undefined {

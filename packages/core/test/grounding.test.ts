@@ -100,6 +100,17 @@ describe("task grounding", () => {
     expect(grounding.specificity).not.toBe("vague");
   });
 
+  it.each([
+    "please fix CSV export failures",
+    "fix performance regression in cache state transitions",
+    "repair reliability errors in the retry scheduler",
+    "refactor broke cache state transitions"
+  ])("keeps an ordinary concrete bug report descriptive: %s", (issueText) => {
+    const grounding = analyzeTaskGrounding(createRepo(), { issueText });
+
+    expect(grounding.specificity).toBe("descriptive");
+  });
+
   it("leaves a specific symptom descriptive when it carries no improvement language", () => {
     const grounding = analyzeTaskGrounding(createRepo(), {
       issueText:

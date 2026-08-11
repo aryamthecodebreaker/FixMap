@@ -28,9 +28,9 @@ const results = cases.map((benchmark) => {
     issue: benchmark.issue ?? null,
     task: benchmark.task,
     expected: benchmark.expected,
-    top5: paths,
-    top1: benchmark.expected.includes(paths[0]),
-    top3: benchmark.expected.some((expected) => paths.slice(0, 3).includes(expected)),
+    top5Paths: paths,
+    top1Hit: benchmark.expected.includes(paths[0]),
+    top3Hit: benchmark.expected.some((expected) => paths.slice(0, 3).includes(expected)),
     top5Hit: benchmark.expected.some((expected) => paths.includes(expected))
   };
 });
@@ -50,18 +50,18 @@ function scoreCohort(cohort, floors) {
   };
   return {
     cases: cohort.length,
-    top1: score("top1"),
-    top3: score("top3"),
+    top1: score("top1Hit"),
+    top3: score("top3Hit"),
     top5: score("top5Hit"),
     floors
   };
 }
 
-const legacyFloors = { top1: 0.5, top3: 0.8, top5: 0.8 };
+const legacyFloors = { top1: 0.625, top3: 0.875, top5: 0.875 };
 // These 23 title-only, path-unmentioned cases are a distinct single-repository
 // regression cohort. Their v0.8.7 measurement was much harder than the original
 // eight cases, so report and gate them separately instead of pooling the rates.
-const fixMapIssueFloors = { top1: 0.3, top3: 0.75, top5: 0.85 };
+const fixMapIssueFloors = { top1: 0.34, top3: 0.75, top5: 0.86 };
 const baseline = scoreCohort(results.filter((result) => result.issue === null), legacyFloors);
 const fixMapIssues = scoreCohort(results.filter((result) => result.issue !== null), fixMapIssueFloors);
 const summary = {
@@ -72,9 +72,9 @@ const summary = {
 
 process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
 const failedCohorts = Object.entries(summary.cohorts).filter(([, cohort]) =>
-  cohort.top1.rate < cohort.floors.top1 ||
-  cohort.top3.rate < cohort.floors.top3 ||
-  cohort.top5.rate < cohort.floors.top5
+  cohort.top1.hits / cohort.top1.of < cohort.floors.top1 ||
+  cohort.top3.hits / cohort.top3.of < cohort.floors.top3 ||
+  cohort.top5.hits / cohort.top5.of < cohort.floors.top5
 );
 if (failedCohorts.length > 0) {
   process.stderr.write(

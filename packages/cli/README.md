@@ -57,7 +57,7 @@ For long task text, use `--issue-file task.md` or pipe text to `--issue -`. A le
 - **Plan** — rank context files, related tests, test commands, risks, changed files, diagnostics, grounding, confidence, and a next action from task text, a task file, stdin, a public GitHub issue or pull request, a branch diff, or the working tree.
 - **Explain** — use `--explain <path>` to distinguish ranked, below-cutoff, tie-truncated, excluded, and not-scanned paths.
 - **Compare** — use `--compare <report.json>` to measure how a refined task changed ranks, scores, confidence, and grounding.
-- **Verify** — compare a saved plan with the completed diff or working tree; FixMap reports drift but does not pretend to run tests or prove correctness.
+- **Verify** — compare a saved plan with the completed diff or working tree; errors fail by default and `--fail-on warning` provides an opt-in strict CI gate without pretending FixMap ran tests or proved correctness.
 - **Validate** — run `fixmap validate <report.json>` to check report compatibility without writing custom JavaScript.
 - **Focus controls** — cap output with `--limit`, repeat `--exclude`, or use ordered `.fixmapignore` patterns with negation. Pasted absolute paths inside the repository are normalized, and unmatched patterns produce a warning.
 - **Live changes** — `--working-tree` maps staged and unstaged tracked edits; `--include-untracked` opts new files into the changed-file set.
@@ -104,7 +104,7 @@ fixmap setup           Install /fixmap discovery for supported coding agents
 fixmap mcp             Run FixMap as an MCP server over stdio
 
 --issue <text|url>     Issue text, task description, or public GitHub issue or pull request URL
---issue-file <file>    Read task text from a UTF-8 or UTF-16 file, or - for stdin
+--issue-file <file>    Read UTF-8/UTF-16 task text (including BOM-less UTF-16), or - for stdin
 --diff <spec>          Git diff spec, such as main...HEAD
 --base <ref>           Base ref for diffing when --diff is not given
 --head <ref>           Head ref for diffing (defaults to HEAD)
@@ -118,6 +118,7 @@ fixmap mcp             Run FixMap as an MCP server over stdio
 --repo <source>        Local path, file:// URL, or public GitHub HTTPS/SSH URL
 --format <fmt>         Output format: markdown (default) or json
 --output <file>        Write the report to a file instead of stdout
+--fail-on <level>      Verify exit policy: error (default) or warning
 ```
 
 ## Example output

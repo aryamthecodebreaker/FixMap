@@ -1,14 +1,14 @@
 import {
   analyzeTaskGrounding,
-  buildNextAction,
-  buildRankingShape
+  buildNextAction
 } from "./grounding.js";
 import type { RankingShape, TaskGrounding } from "./grounding.js";
 import type { PathExcluder } from "./exclude.js";
 import { detectPrimaryLanguage, manifestTestCommand, suggestedRunner } from "./languages.js";
-import { DEFAULT_CONTEXT_FILE_LIMIT, rankContextFiles } from "./rank.js";
+import { DEFAULT_CONTEXT_FILE_LIMIT, rankContextFiles, rankContextFilesDetailed } from "./rank.js";
 import { extractTaskSignals, tokenizePath } from "./signals.js";
 import { findGatedTestDiagnostics } from "./test-gates.js";
+import { markdownCode } from "./markdown.js";
 import { DIAGNOSTIC_TERM_LIMIT, truncateForDiagnostic } from "./text.js";
 import type { FixMapReport, PackageScript, RankedFile, RepoFile, RepoMap, RiskNote, ScanDiagnostic, TestRoute } from "./types.js";
 
@@ -30,18 +30,17 @@ export function buildReportFromRepo(
     issueText: input.issueText,
     diffText: repo.diffText
   });
-  const contextFiles = grounding.specificity === "vague"
-    ? []
-    : rankContextFiles(
-      repo,
-      {
-        issueText: input.issueText,
-        diffText: repo.diffText,
-        exclude: input.exclude
-      },
-      input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT
-    );
-  const ranking = buildRankingShape(contextFiles);
+  const ranked = rankContextFilesDetailed(
+    repo,
+    {
+      issueText: input.issueText,
+      diffText: repo.diffText,
+      exclude: input.exclude
+    },
+    input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT
+  );
+  const contextFiles = ranked.contextFiles;
+  const ranking = ranked.ranking;
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
@@ -59,9 +58,7 @@ export function buildReportFromRepo(
       ...findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes),
       ...findTaskDiagnostics(repo, grounding, ranking),
       ...findTaskPreprocessingDiagnostics(input.issueText ?? ""),
-      ...(grounding.specificity === "vague"
-        ? []
-        : findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude))
+      ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude)
     ],
     analysis: {
       grounding,
@@ -311,10 +308,7 @@ function configuredJsRunner(files: RepoFile[]): string | undefined {
   return undefined;
 }
 
-type ScriptKind = { category: "test" | "validation"; exact: boolean };
-
-const SCRIPT_PRIORITY: Record<ScriptKind["category"], number> = { test: 0, validation: 10 };
-const VALIDATION_SCRIPTS = new Set(["typecheck", "check", "lint"]);
+type ScriptKind = { category: "test"; exact: boolean };
 
 /**
  * `test:unit` and `test:ci` are test scripts by every convention that matters, and matching
@@ -326,7 +320,6 @@ function classifyScript(name: string): ScriptKind | undefined {
   const lower = name.toLowerCase();
   if (lower === "test" || lower === "tests") return { category: "test", exact: true };
   if (/^tests?:[a-z0-9:_-]+$/.test(lower)) return { category: "test", exact: false };
-  if (VALIDATION_SCRIPTS.has(lower)) return { category: "validation", exact: true };
   return undefined;
 }
 
@@ -344,35 +337,22 @@ export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRout
       script,
       kind,
       proximity: packageProximity(script.packageDir, codeContextPaths),
-      priority: SCRIPT_PRIORITY[kind.category] + (kind.exact ? 0 : 1)
+      priority: kind.exact ? 0 : 1
     }))
     .filter((candidate) => candidate.proximity >= 0)
     .sort((a, b) => b.proximity - a.proximity || a.priority - b.priority || a.script.packageDir.localeCompare(b.script.packageDir));
 
-  // A `lint` command under a heading that says "Test Routes" invites an agent to run it as
-  // the validation step for a logic bug. With a cap of three, a monorepo could also fill the
-  // list with checks and leave no room for the command that actually runs the tests. Tests
-  // are therefore taken first, and validation only fills what is left over.
-  const ordered = [
-    ...candidates.filter((candidate) => candidate.kind.category === "test"),
-    ...candidates.filter((candidate) => candidate.kind.category !== "test")
-  ];
-
   const commands = new Set<string>();
   const routes: TestRoute[] = [];
-  for (const { script, kind } of ordered) {
+  for (const { script } of candidates) {
     const command = formatScriptCommand(repo.packageManager, script.packageDir, script.name, script.packageName);
     if (commands.has(command)) continue;
     commands.add(command);
-    const isTest = kind.category === "test";
     routes.push({
       command,
-      kind: isTest ? "test" : "validation",
+      kind: "test",
       reason: `${script.packageDir ? `nearest package (${script.packageDir})` : "repository root"} script named ${script.name}`,
-      // A lint route's related paths are the implementation it would check, never tests, so
-      // labeling them the same way let `no-test-changed` cite an implementation file as the
-      // test the plan had routed.
-      relatedFiles: scopeToPackage(isTest ? relatedTests : codeContextPaths, script.packageDir)
+      relatedFiles: scopeToPackage(relatedTests, script.packageDir)
     });
     if (routes.length === 3) break;
   }
@@ -430,13 +410,13 @@ function nearestManifestDir(repo: RepoMap, contextPaths: string[], manifest: str
     .sort((a, b) => b.split("/").length - a.split("/").length || a.localeCompare(b))[0] ?? "";
 }
 
-const RISK_RULES: { area: string; severity: RiskNote["severity"]; tokens: string[]; reason: string }[] = [
-  { area: "authentication", severity: "high", tokens: ["auth", "login", "password"], reason: "authentication-related files are affected" },
-  { area: "billing", severity: "high", tokens: ["billing", "payment", "invoice"], reason: "billing or payment-related files are affected" },
-  { area: "automation", severity: "medium", tokens: ["config", "workflow", "action"], reason: "configuration or CI automation files may affect developer workflows" },
-  { area: "data", severity: "high", tokens: ["migration", "schema", "database", "sql"], reason: "database or schema-related files may affect stored data" },
-  { area: "public-api", severity: "medium", tokens: ["api", "route", "public"], reason: "public interfaces or request handling may change" },
-  { area: "dependencies", severity: "medium", tokens: ["dependency", "lock", "package"], reason: "dependency changes can affect build and supply-chain behavior" }
+export const RISK_RULES: { area: string; severity: RiskNote["severity"]; terms: string[]; reason: string }[] = [
+  { area: "authentication", severity: "high", terms: ["auth", "login", "password"], reason: "authentication-related files are affected" },
+  { area: "billing", severity: "high", terms: ["billing", "payment", "invoice"], reason: "billing or payment-related files are affected" },
+  { area: "automation", severity: "medium", terms: ["config", "workflow", "action", "ci"], reason: "configuration or CI automation files may affect developer workflows" },
+  { area: "data", severity: "high", terms: ["migration", "schema", "database", "sql"], reason: "database or schema-related files may affect stored data" },
+  { area: "public-api", severity: "medium", terms: ["api", "route", "public"], reason: "public interfaces or request handling may change" },
+  { area: "dependencies", severity: "medium", terms: ["dependency", "lock", "package"], reason: "dependency changes can affect build and supply-chain behavior" }
 ];
 
 // Demo code names sensitive areas without touching them. Express ships examples/auth/,
@@ -464,15 +444,16 @@ function carriesRiskEvidence(path: string): boolean {
 
 export function buildRiskNotes(contextPaths: string[], changedFiles: string[] = []): RiskNote[] {
   const contextTokens = new Set(
-    contextPaths.filter(carriesRiskEvidence).flatMap((path) => [...tokenizePath(path)])
+    contextPaths.filter(carriesRiskEvidence).flatMap((path) => [...riskTokens(path)])
   );
-  const changedTokens = new Set(changedFiles.flatMap((path) => [...tokenizePath(path)]));
+  const changedTokens = new Set(changedFiles.flatMap((path) => [...riskTokens(path)]));
   const diffPresent = changedFiles.length > 0;
   const risks: RiskNote[] = [];
 
   for (const rule of RISK_RULES) {
-    const inChanged = rule.tokens.some((token) => changedTokens.has(token));
-    const inContext = rule.tokens.some((token) => contextTokens.has(token));
+    const terms = rule.terms.flatMap((term) => [...riskTokens(term)]);
+    const inChanged = terms.some((token) => changedTokens.has(token));
+    const inContext = terms.some((token) => contextTokens.has(token));
     if (!inChanged && !inContext) {
       continue;
     }
@@ -499,9 +480,16 @@ export function pathsForRiskArea(area: string, paths: string[]): string[] {
   const rule = RISK_RULES.find((candidate) => candidate.area === area);
   if (!rule) return [];
   return paths.filter((path) => {
-    const tokens = tokenizePath(path);
-    return rule.tokens.some((token) => tokens.has(token));
+    const tokens = riskTokens(path);
+    return rule.terms.flatMap((term) => [...riskTokens(term)]).some((token) => tokens.has(token));
   });
+}
+
+function riskTokens(value: string): Set<string> {
+  return new Set([
+    ...tokenizePath(value),
+    ...value.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+  ]);
 }
 
 function packageProximity(packageDir: string, contextPaths: string[]): number {
@@ -566,13 +554,13 @@ export function renderMarkdownReport(report: FixMapReport): string {
     "",
     "## Context Files",
     "",
-    ...listOrEmpty(report.contextFiles.map((file) => `- \`${file.path}\` (${file.confidence} confidence, score ${file.score}): ${file.reasons.join("; ")}`)),
+    ...listOrEmpty(report.contextFiles.map((file) => `- ${markdownCode(file.path)} (${file.confidence} confidence, score ${file.score}): ${file.reasons.join("; ")}`)),
     "",
     "## Test Routes",
     "",
     ...listOrEmpty(report.testRoutes.map((route) => {
-      const related = route.relatedFiles.length > 0 ? ` Related: ${route.relatedFiles.map((path) => `\`${path}\``).join(", ")}.` : "";
-      return `- \`${route.command}\`: ${route.reason}.${related}`;
+      const related = route.relatedFiles.length > 0 ? ` Related: ${route.relatedFiles.map(markdownCode).join(", ")}.` : "";
+      return `- ${markdownCode(route.command)}: ${route.reason}.${related}`;
     })),
     "",
     "## Risk Map",
@@ -581,7 +569,7 @@ export function renderMarkdownReport(report: FixMapReport): string {
     "",
     "## Changed Files",
     "",
-    ...listOrEmpty(report.changedFiles.map((path) => `- \`${path}\``)),
+    ...listOrEmpty(report.changedFiles.map((path) => `- ${markdownCode(path)}`)),
     ...(report.analysis ? [
       "",
       "## Analysis",
@@ -596,7 +584,7 @@ export function renderMarkdownReport(report: FixMapReport): string {
     "",
     ...listOrEmpty(report.diagnostics.flatMap((diagnostic) => [
       `- **${diagnostic.severity}** ${diagnostic.message}`,
-      ...(diagnostic.paths ?? []).slice(0, 8).map((path) => `  - \`${path}\``)
+      ...(diagnostic.paths ?? []).slice(0, 8).map((path) => `  - ${markdownCode(path)}`)
     ]))
   ];
 

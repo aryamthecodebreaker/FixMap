@@ -1,20 +1,20 @@
 {
   "cases": 12,
-  "top1HitRate": 0.583,
+  "top1HitRate": 0.5,
   "top3HitRate": 0.667,
-  "top5HitRate": 0.75,
+  "top5HitRate": 0.667,
   "intervals95": {
     "top1": [
-      0.32,
-      0.807
+      0.254,
+      0.746
     ],
     "top3": [
       0.391,
       0.862
     ],
     "top5": [
-      0.468,
-      0.911
+      0.391,
+      0.862
     ]
   },
   "misleadingTopResult": {
@@ -22,8 +22,8 @@
     "of": 12,
     "rate": 0.167,
     "slugs": [
-      "jestjs/jest",
-      "mochajs/mocha"
+      "immerjs/immer",
+      "socketio/socket.io"
     ]
   },
   "calibration": [
@@ -40,11 +40,11 @@
     {
       "confidence": "medium",
       "cases": 7,
-      "top1Correct": 4,
-      "top1Accuracy": 0.571,
+      "top1Correct": 3,
+      "top1Accuracy": 0.429,
       "interval95": [
-        0.25,
-        0.842
+        0.158,
+        0.75
       ]
     },
     {
@@ -61,21 +61,21 @@
   "cohorts": {
     "all": {
       "cases": 12,
-      "top1HitRate": 0.583,
+      "top1HitRate": 0.5,
       "top3HitRate": 0.667,
-      "top5HitRate": 0.75,
+      "top5HitRate": 0.667,
       "intervals95": {
         "top1": [
-          0.32,
-          0.807
+          0.254,
+          0.746
         ],
         "top3": [
           0.391,
           0.862
         ],
         "top5": [
-          0.468,
-          0.911
+          0.391,
+          0.862
         ]
       },
       "slugs": [
@@ -95,21 +95,21 @@
     },
     "unmentioned": {
       "cases": 9,
-      "top1HitRate": 0.444,
+      "top1HitRate": 0.333,
       "top3HitRate": 0.556,
-      "top5HitRate": 0.667,
+      "top5HitRate": 0.556,
       "intervals95": {
         "top1": [
-          0.189,
-          0.733
+          0.121,
+          0.646
         ],
         "top3": [
           0.267,
           0.811
         ],
         "top5": [
-          0.354,
-          0.879
+          0.267,
+          0.811
         ]
       },
       "slugs": [
@@ -151,9 +151,16 @@
     }
   },
   "floors": {
-    "top1": 0.3,
-    "top3": 0.5,
-    "top5": 0.5
+    "all": {
+      "top1": 0.5,
+      "top3": 0.583,
+      "top5": 0.667
+    },
+    "unmentioned": {
+      "top1": 0.333,
+      "top3": 0.444,
+      "top5": 0.556
+    }
   },
   "results": [
     {
@@ -162,16 +169,16 @@
       "expected": [
         "lib/document.js"
       ],
-      "top5": [
+      "top5Paths": [
         "lib/document.js",
         "lib/helpers/setDefaultsOnInsert.js",
         "lib/helpers/update/modifiedPaths.js",
-        "lib/helpers/common.js",
-        "lib/helpers/update/updatedPathsByArrayFilter.js"
+        "lib/types/array/methods/index.js",
+        "lib/types/subdocument.js"
       ],
       "topConfidence": "medium",
-      "top1": true,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
       "mentionsExpectedPath": true,
       "mentionTier": "full-path",
@@ -190,16 +197,16 @@
       "expected": [
         "src/types/types-external.ts"
       ],
-      "top5": [
-        "src/types/types-external.ts",
+      "top5Paths": [
         "src/immer.ts",
+        "src/types/types-external.ts",
         "src/plugins/patches.ts",
         "src/core/immerClass.ts",
         "src/core/proxy.ts"
       ],
       "topConfidence": "medium",
-      "top1": true,
-      "top3": true,
+      "top1Hit": false,
+      "top3Hit": true,
       "top5Hit": true,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -211,17 +218,17 @@
       "expected": [
         "packages/jest-mock/src/index.ts"
       ],
-      "top5": [
-        "packages/jest-config/src/readConfigFileAndSetRootDir.ts",
-        "packages/jest-config/src/resolveConfigPath.ts",
+      "top5Paths": [
         "packages/jest-core/src/TestScheduler.ts",
-        "packages/jest-mock/src/index.ts",
-        "packages/jest-resolve/src/resolver.ts"
+        "packages/jest-runner/src/runTest.ts",
+        "packages/jest-test-sequencer/src/index.ts",
+        "packages/jest-worker/src/workers/processChild.ts",
+        "packages/jest-worker/src/workers/threadChild.ts"
       ],
       "topConfidence": "medium",
-      "top1": false,
-      "top3": false,
-      "top5Hit": true,
+      "top1Hit": false,
+      "top3Hit": false,
+      "top5Hit": false,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
       "mentionEvidence": []
@@ -232,17 +239,17 @@
       "expected": [
         "lib/dialects/postgres/query/pg-querycompiler.js"
       ],
-      "top5": [
-        "lib/dialects/postgres/query/pg-querycompiler.js",
-        "lib/dialects/mysql/query/mysql-querycompiler.js",
-        "lib/dialects/mysql/schema/mysql-tablecompiler.js",
-        "lib/schema/compiler.js",
-        "lib/dialects/postgres/schema/pg-columncompiler.js"
+      "top5Paths": [
+        "lib/dialects/postgres/index.js",
+        "lib/knex-builder/make-knex.js",
+        "lib/dialects/oracledb/index.js",
+        "lib/knex-builder/Knex.js",
+        "bin/cli.js"
       ],
       "topConfidence": "medium",
-      "top1": true,
-      "top3": true,
-      "top5Hit": true,
+      "top1Hit": false,
+      "top3Hit": false,
+      "top5Hit": false,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
       "mentionEvidence": []
@@ -253,16 +260,16 @@
       "expected": [
         "lib/reporters/xunit.js"
       ],
-      "top5": [
-        "lib/errors.js",
+      "top5Paths": [
         "lib/reporters/xunit.js",
         "lib/mocha.cjs",
+        "lib/reporters/html.js",
         "lib/reporters/base.js",
-        "lib/reporters/html.js"
+        "lib/errors.js"
       ],
       "topConfidence": "medium",
-      "top1": false,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -274,16 +281,16 @@
       "expected": [
         "src/logic/createFormControl.ts"
       ],
-      "top5": [
+      "top5Paths": [
         "src/logic/createFormControl.ts",
-        "src/types/form.ts",
         "src/useController.ts",
-        "src/useFormState.ts",
-        "src/useForm.ts"
+        "src/types/form.ts",
+        "app/src/useFormState.tsx",
+        "src/useFormState.ts"
       ],
       "topConfidence": "medium",
-      "top1": true,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -295,17 +302,17 @@
       "expected": [
         "packages/engine.io-client/lib/socket.ts"
       ],
-      "top5": [
+      "top5Paths": [
         "packages/engine.io-client/lib/transports/polling-xhr.ts",
-        "packages/engine.io-client/lib/transports/websocket.ts",
-        "packages/engine.io-client/lib/transports/polling-xhr.node.ts",
+        "packages/engine.io-client/lib/socket.ts",
+        "packages/engine.io-client/lib/transport.ts",
         "packages/engine.io-client/lib/transports/polling.ts",
-        "packages/socket.io-client/lib/url.ts"
+        "packages/engine.io-client/lib/transports/websocket.ts"
       ],
       "topConfidence": "medium",
-      "top1": false,
-      "top3": false,
-      "top5Hit": false,
+      "top1Hit": false,
+      "top3Hit": true,
+      "top5Hit": true,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
       "mentionEvidence": []
@@ -316,16 +323,16 @@
       "expected": [
         "packages/svelte/src/internal/client/dom/blocks/boundary.js"
       ],
-      "top5": [
+      "top5Paths": [
         "packages/svelte/src/internal/client/dom/blocks/boundary.js",
+        "packages/svelte/scripts/check-treeshakeability.js",
         "packages/svelte/src/internal/client/dom/operations.js",
         "packages/svelte/src/internal/client/errors.js",
-        "packages/svelte/src/internal/client/warnings.js",
-        "packages/svelte/src/internal/client/dom/hydration.js"
+        "packages/svelte/src/internal/client/render.js"
       ],
       "topConfidence": "high",
-      "top1": true,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
       "mentionsExpectedPath": true,
       "mentionTier": "full-path",
@@ -344,16 +351,16 @@
       "expected": [
         "packages/vite/src/node/server/bundledDev.ts"
       ],
-      "top5": [
-        "packages/vite/src/types/commonjs.d.ts",
-        ".github/ISSUE_TEMPLATE/bug_report.yml",
+      "top5Paths": [
+        "packages/create-vite/template-vue-ts/src/App.vue",
+        "packages/create-vite/template-vue/src/App.vue",
+        "packages/vite/types/metadata.d.ts",
         "packages/vite/src/node/optimizer/rolldownDepPlugin.ts",
-        "packages/vite/src/node/plugins/worker.ts",
         "packages/vite/src/node/plugins/workerImportMetaUrl.ts"
       ],
-      "topConfidence": "low",
-      "top1": false,
-      "top3": false,
+      "topConfidence": "high",
+      "top1Hit": false,
+      "top3Hit": false,
       "top5Hit": false,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -365,16 +372,16 @@
       "expected": [
         "packages/runtime-dom/src/index.ts"
       ],
-      "top5": [
+      "top5Paths": [
         "tsconfig.json",
-        "packages-private/dts-built-test/tsconfig.json",
         "packages-private/tsconfig.json",
+        "packages-private/dts-built-test/tsconfig.json",
         "packages-private/vite-debug/tsconfig.json",
         "packages/reactivity/src/ref.ts"
       ],
-      "topConfidence": "high",
-      "top1": false,
-      "top3": false,
+      "topConfidence": "low",
+      "top1Hit": false,
+      "top3Hit": false,
       "top5Hit": false,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -386,16 +393,16 @@
       "expected": [
         "lib/winston/transports/file.js"
       ],
-      "top5": [
+      "top5Paths": [
         "lib/winston/transports/file.js",
+        "lib/winston/transports/http.js",
         "lib/winston/tail-file.js",
         "lib/winston/transports/console.js",
-        "lib/winston/transports/http.js",
-        "lib/winston.js"
+        "lib/winston/logger.js"
       ],
       "topConfidence": "low",
-      "top1": true,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
@@ -407,16 +414,16 @@
       "expected": [
         "lib/utils/apply-extends.ts"
       ],
-      "top5": [
+      "top5Paths": [
         "lib/utils/apply-extends.ts",
         "lib/command.ts",
         "lib/completion.ts",
-        "lib/typings/yargs-parser-types.ts",
-        "lib/usage.ts"
+        "lib/validation.ts",
+        "helpers/helpers.mjs"
       ],
       "topConfidence": "high",
-      "top1": true,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
       "mentionsExpectedPath": true,
       "mentionTier": "full-path",

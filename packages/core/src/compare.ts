@@ -7,6 +7,7 @@
 // comparison can be run long after the plans were made.
 
 import type { FixMapReport, RankedFile } from "./types.js";
+import { markdownCode } from "./markdown.js";
 
 export type RankDelta = {
   path: string;
@@ -33,6 +34,8 @@ export type ReportComparison = {
 };
 
 export function compareReports(previous: FixMapReport, current: FixMapReport): ReportComparison {
+  assertUniquePaths(previous.contextFiles, "Previous report");
+  assertUniquePaths(current.contextFiles, "Current report");
   const previousByPath = indexByPath(previous.contextFiles);
   const currentByPath = indexByPath(current.contextFiles);
 
@@ -91,18 +94,41 @@ export function compareReports(previous: FixMapReport, current: FixMapReport): R
 
   const previousGrounding = previous.analysis?.grounding.specificity;
   const currentGrounding = current.analysis?.grounding.specificity;
+  const groundingComparable = previousGrounding !== undefined && currentGrounding !== undefined;
+  const groundingChanged = groundingComparable && previousGrounding !== currentGrounding;
 
   return {
-    summary: buildSummary(entered, left, moved, confidenceChanged, previous.contextFiles[0], current.contextFiles[0]),
+    summary: buildSummary(
+      entered,
+      left,
+      moved,
+      confidenceChanged,
+      previous.contextFiles[0],
+      current.contextFiles[0],
+      groundingChanged,
+      previousGrounding,
+      currentGrounding,
+      groundingComparable
+    ),
     entered,
     left,
     moved,
     confidenceChanged,
     unchanged,
-    groundingChanged: previousGrounding !== currentGrounding,
+    groundingChanged,
     ...(previousGrounding ? { previousGrounding } : {}),
     ...(currentGrounding ? { currentGrounding } : {})
   };
+}
+
+function assertUniquePaths(files: RankedFile[], label: string): void {
+  const seen = new Set<string>();
+  for (const file of files) {
+    if (seen.has(file.path)) {
+      throw new Error(`${label} has a duplicate contextFiles path: ${file.path}`);
+    }
+    seen.add(file.path);
+  }
 }
 
 function indexByPath(files: RankedFile[]): Map<string, { rank: number; file: RankedFile }> {
@@ -118,9 +144,19 @@ function buildSummary(
   moved: RankDelta[],
   confidenceChanged: RankDelta[],
   previousLeader: RankedFile | undefined,
-  currentLeader: RankedFile | undefined
+  currentLeader: RankedFile | undefined,
+  groundingChanged: boolean,
+  previousGrounding: string | undefined,
+  currentGrounding: string | undefined,
+  groundingComparable: boolean
 ): string {
   if (entered.length === 0 && left.length === 0 && moved.length === 0 && confidenceChanged.length === 0) {
+    if (groundingChanged) {
+      return `The ranking is unchanged, but task grounding changed from ${previousGrounding} to ${currentGrounding}.`;
+    }
+    if (!groundingComparable && previousGrounding !== currentGrounding) {
+      return "Both plans rank the same files in the same order. One plan predates grounding analysis, so that dimension was not compared.";
+    }
     return "Both plans rank the same files in the same order. Refining the task changed nothing.";
   }
 
@@ -151,13 +187,13 @@ export function renderComparisonMarkdown(comparison: ReportComparison): string {
   }
 
   appendSection(lines, "Entered", comparison.entered, (delta) =>
-    `\`${delta.path}\` at rank ${delta.currentRank}${formatMetrics(delta.currentConfidence, delta.currentScore)}`);
+    `${markdownCode(delta.path)} at rank ${delta.currentRank}${formatMetrics(delta.currentConfidence, delta.currentScore)}`);
   appendSection(lines, "Left", comparison.left, (delta) =>
-    `\`${delta.path}\` was rank ${delta.previousRank}${formatMetrics(delta.previousConfidence, delta.previousScore)}`);
+    `${markdownCode(delta.path)} was rank ${delta.previousRank}${formatMetrics(delta.previousConfidence, delta.previousScore)}`);
   appendSection(lines, "Moved", comparison.moved, (delta) =>
-    `\`${delta.path}\` ${describeMove(delta)}`);
+    `${markdownCode(delta.path)} ${describeMove(delta)}`);
   appendSection(lines, "Confidence changed", comparison.confidenceChanged, (delta) =>
-    `\`${delta.path}\` stayed at rank ${delta.currentRank}` +
+    `${markdownCode(delta.path)} stayed at rank ${delta.currentRank}` +
     `${delta.currentScore === undefined ? "" : ` and score ${delta.currentScore}`}; confidence changed from ` +
     `${delta.previousConfidence ?? "unknown"} to ${delta.currentConfidence ?? "unknown"}`);
 

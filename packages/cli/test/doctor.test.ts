@@ -8,6 +8,7 @@ function dependencies(runningVersion: string, requestedPackage: string | undefin
     requestedPackage: () => requestedPackage,
     resolveBinary: async () => undefined,
     globalVersion: async () => undefined,
+    projectVersion: async () => undefined,
     nodeVersion: () => "24.13.0",
     modulePath: () => "C:/clean-prefix/node_modules/@aryam/fixmap/dist/doctor.js"
   };
@@ -43,5 +44,43 @@ describe("runDoctorChecks", () => {
 
     expect(report.healthy).toBe(true);
     expect(report.findings.some((finding) => finding.label === "Requested package")).toBe(false);
+  });
+
+  it("always reports the PATH state when no fixmap binary is installed", async () => {
+    const report = await runDoctorChecks(dependencies("0.8.8", undefined));
+
+    expect(report.findings).toContainEqual(expect.objectContaining({
+      label: "fixmap on PATH",
+      value: "not on PATH",
+      ok: true
+    }));
+  });
+
+  it("reports every PATH binary so duplicate installs cannot hide", async () => {
+    const report = await runDoctorChecks({
+      ...dependencies("0.8.8", undefined),
+      resolveBinaries: async () => ["C:/npm/fixmap.cmd", "D:/tools/fixmap.cmd"]
+    });
+
+    expect(report.healthy).toBe(false);
+    expect(report.findings).toContainEqual(expect.objectContaining({
+      label: "fixmap on PATH",
+      value: "C:/npm/fixmap.cmd; D:/tools/fixmap.cmd",
+      ok: false
+    }));
+  });
+
+  it("flags a stale project-local package that can shadow the running version", async () => {
+    const report = await runDoctorChecks({
+      ...dependencies("0.8.8", undefined),
+      projectVersion: async () => ({ version: "0.8.7", path: "C:/repo/node_modules/@aryam/fixmap/package.json" })
+    });
+
+    expect(report.healthy).toBe(false);
+    expect(report.findings).toContainEqual(expect.objectContaining({
+      label: "Project install",
+      value: expect.stringContaining("0.8.7"),
+      ok: false
+    }));
   });
 });

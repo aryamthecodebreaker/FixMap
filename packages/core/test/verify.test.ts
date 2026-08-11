@@ -90,6 +90,40 @@ describe("verifyPlan", () => {
     expect(result.summary).toContain("plan and repository do not match");
   });
 
+  it("treats a changed missing path as a planned deletion, not a wrong repository", () => {
+    const repo = repoWith(["src/auth/reset-password.ts"]);
+    repo.files = files.filter((file) => file.path !== "src/auth/reset-password.ts");
+
+    const result = verifyPlan(planFor("src/auth/reset-password.ts"), repo);
+
+    expect(result.findings).toContainEqual(expect.objectContaining({
+      code: "planned-file-deleted",
+      severity: "info",
+      paths: ["src/auth/reset-password.ts"]
+    }));
+    expect(result.findings.map((finding) => finding.code)).not.toContain("plan-repository-mismatch");
+  });
+
+  it("warns when only part of a plan is stale after a rebase or rename", () => {
+    const plan = planFor("src/auth/reset-password.ts");
+    plan.contextFiles.push({
+      rank: 2,
+      path: "src/auth/renamed-away.ts",
+      score: 10,
+      confidence: "medium",
+      reasons: []
+    });
+
+    const result = verifyPlan(plan, repoWith(["src/auth/reset-password.ts"]));
+
+    expect(result.findings).toContainEqual(expect.objectContaining({
+      code: "plan-partially-stale",
+      severity: "warning",
+      paths: ["src/auth/renamed-away.ts"]
+    }));
+    expect(result.findings.map((finding) => finding.code)).not.toContain("plan-repository-mismatch");
+  });
+
   it("names files the change needed that the plan never ranked", () => {
     const result = verifyPlan(
       planFor("src/auth/reset-password.ts"),
@@ -181,6 +215,15 @@ describe("verifyPlan", () => {
     expect(markdown).toContain("# FixMap Verification");
     expect(markdown).toContain("**error**");
     expect(markdown).toContain("`dist/auth/reset-password.js`");
+  });
+
+  it("uses a longer code fence for paths containing backticks", () => {
+    const result = verifyPlan(planFor("src/auth/reset-password.ts"), repoWith(["src/odd`name.ts"]));
+    const markdown = renderVerifyMarkdown(result);
+
+    expect(markdown).toContain("``src/odd`name.ts``");
+    expect(markdown.split("\n")).not.toContain("- `src/odd`name.ts`");
+    expect(markdown.split("\n")).not.toContain("  - `src/odd`name.ts`");
   });
 
   it("explains an empty diff instead of rendering empty sections", () => {

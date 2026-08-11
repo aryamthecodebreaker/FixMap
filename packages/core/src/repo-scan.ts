@@ -4,41 +4,24 @@ import { mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } f
 import { homedir } from "node:os";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
-import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS, isGeneratedPath } from "./paths.js";
+import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS, SOURCE_FILE_EXTENSIONS, isGeneratedPath } from "./paths.js";
 import { DIAGNOSTIC_SPEC_LIMIT, truncateForDiagnostic } from "./text.js";
 import type { FixMapInput, PackageScript, RepoFile, RepoMap } from "./types.js";
 
-const WALK_IGNORED_DIRS = new Set([...ALWAYS_IGNORED_DIRS, ...GENERATED_DIRS]);
-const SOURCE_EXTENSIONS = new Set([
-  ".cjs",
-  ".cs",
-  ".css",
-  ".cts",
-  ".go",
-  ".java",
-  ".js",
-  ".json",
-  ".jsx",
-  ".md",
-  ".mjs",
-  ".mts",
-  ".php",
-  ".py",
-  ".rb",
-  ".rs",
-  ".svelte",
-  ".ts",
-  ".tsx",
-  ".vue",
-  ".yaml",
-  ".yml"
+// Vendored source is intentionally scannable and receives a ranking penalty. Git mode has
+// always kept tracked vendor/ files; walk mode must not silently use a smaller corpus.
+const WALK_IGNORED_DIRS = new Set([
+  ...ALWAYS_IGNORED_DIRS,
+  ...[...GENERATED_DIRS].filter((directory) => directory !== "vendor")
 ]);
+const SOURCE_EXTENSIONS = SOURCE_FILE_EXTENSIONS;
 const CONVENTIONAL_DOCUMENT_NAMES = new Set([
   "authors", "changelog", "code_of_conduct", "contributing", "license", "notice", "readme", "security"
 ]);
 const CONVENTIONAL_CONFIG_NAMES = new Set([
   ".dockerignore", ".editorconfig", ".gitattributes", ".gitignore", ".npmignore",
-  "codeowners", "dockerfile", "gemfile", "jenkinsfile", "makefile", "procfile", "rakefile", "vagrantfile"
+  "codeowners", "dockerfile", "gemfile", "jenkinsfile", "makefile", "procfile", "rakefile", "vagrantfile",
+  "pom.xml", "build.gradle", "settings.gradle"
 ]);
 
 /**
@@ -53,6 +36,9 @@ const TEST_PATTERNS = [
   /\.spec\./,
   /(^|\/|\\)__tests__(\/|\\)/,
   /(^|\/|\\)tests?(\/|\\)/,
+  /(^|\/|\\)spec(\/|\\)/,
+  /_spec\.rb$/i,
+  /(?:Test\.java|Tests?\.cs|Test\.php)$/i,
   /_test\.go$/,
   /(^|\/|\\)(?:test_[^/\\]+|[^/\\]+_test)\.py$/
 ];
@@ -62,7 +48,7 @@ const MAX_SCANNED_FILES = 25_000;
 const GIT_MAX_BUFFER = 10 * 1024 * 1024;
 const exec = promisify(execFile);
 type ScanState = { count: number; limitReported: boolean };
-const SCAN_CACHE_VERSION = 2;
+const SCAN_CACHE_VERSION = 3;
 const SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 const SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
@@ -144,7 +130,7 @@ export async function scanRepo(
     files = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths);
     trackedFiles = await listTrackedPaths(repoRoot, internalPaths);
     packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
-    packageManager = detectPackageManager(files);
+    packageManager = detectPackageManager(files, diagnostics);
     if (cacheLocation) {
       await writeScanCache(cacheLocation, {
         version: SCAN_CACHE_VERSION,
@@ -607,7 +593,7 @@ function reportUnreadContent(diagnostics: RepoMap["diagnostics"], files: RepoFil
     const sample = affected.slice(0, 3).map((file) => file.path).join(", ");
     const prefix = `${affected.length.toLocaleString()} source file${affected.length === 1 ? "" : "s"}`;
     diagnostics.push({
-      code: "content-unread",
+      code: reason === "not-text" ? "content-not-utf8" : "content-unreadable",
       severity: "warning",
       message: reason === "not-text"
         ? `${prefix} ${affected.length === 1 ? "is" : "are"} not UTF-8 text (for example UTF-16 or binary) and ` +
@@ -632,7 +618,7 @@ function reportUnreadContent(diagnostics: RepoMap["diagnostics"], files: RepoFil
     .join(", ");
 
   diagnostics.push({
-    code: "content-unread",
+    code: "content-too-large",
     severity: "warning",
     message:
       `${unread.length.toLocaleString()} source file${unread.length === 1 ? "" : "s"} could not be read as text and ` +
@@ -769,7 +755,7 @@ async function toRepoFile(absolutePath: string, relativePath: string): Promise<S
     return { status: "not-a-file" };
   }
 
-  const extension = extname(relativePath);
+  const extension = extname(relativePath).toLowerCase();
   const conventionalKind = classifyConventionalTextFile(relativePath);
   const isSource = SOURCE_EXTENSIONS.has(extension) || conventionalKind !== undefined;
   const sample = isSource
@@ -960,10 +946,7 @@ async function readDiff(
         : `Diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}" resolved ${changedFiles.length} changed ${changedFiles.length === 1 ? "path" : "paths"}.`,
       paths: changedFiles.slice(0, 8)
     });
-    return {
-      changedFiles,
-      diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS)
-    };
+    return { changedFiles, diffText: sampleDiffText(diffText, diagnostics) };
   } catch (error) {
     const checkoutState = isMissingGit(error) ? undefined : await describeGitCheckout(repoRoot);
     const detail = truncateForDiagnostic(gitErrorDetail(error), DIAGNOSTIC_SPEC_LIMIT * 2);
@@ -979,6 +962,70 @@ async function readDiff(
     });
     return { changedFiles: [], diffText: "" };
   }
+}
+
+/**
+ * Large diffs used to be cut at an arbitrary UTF-16 offset. That could split a line and,
+ * because git orders files, erase every content signal from files later in the diff. For an
+ * oversized diff the ranker only needs added lines, so sample complete added lines from every
+ * file in round-robin order and say exactly what was omitted.
+ */
+function sampleDiffText(diffText: string, diagnostics: RepoMap["diagnostics"]): string {
+  if (diffText.length <= MAX_DIFF_TEXT_CHARS) return diffText;
+
+  const groups: string[][] = [];
+  let current: string[] | undefined;
+  for (const line of diffText.split(/\r?\n/)) {
+    if (line.startsWith("diff --git ")) {
+      current = [];
+      groups.push(current);
+      continue;
+    }
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      if (!current) {
+        current = [];
+        groups.push(current);
+      }
+      current.push(line);
+    }
+  }
+
+  const queues = groups.filter((group) => group.length > 0);
+  const selected: string[] = [];
+  let selectedChars = 0;
+  let selectedLines = 0;
+  const totalLines = queues.reduce((total, group) => total + group.length, 0);
+  let cursor = 0;
+  let madeProgress = true;
+
+  while (madeProgress && selectedChars < MAX_DIFF_TEXT_CHARS) {
+    madeProgress = false;
+    for (const group of queues) {
+      const line = group[cursor];
+      if (line === undefined) continue;
+      madeProgress = true;
+      const separator = selected.length === 0 ? 0 : 1;
+      if (selectedChars + separator + line.length <= MAX_DIFF_TEXT_CHARS) {
+        selected.push(line);
+        selectedChars += separator + line.length;
+        selectedLines += 1;
+      }
+    }
+    cursor += 1;
+  }
+
+  diagnostics.push({
+    code: "diff-text-truncated",
+    severity: "warning",
+    message:
+      `The git diff was ${diffText.length.toLocaleString()} characters, above FixMap's ` +
+      `${MAX_DIFF_TEXT_CHARS.toLocaleString()}-character signal budget. FixMap sampled ` +
+      `${selectedLines.toLocaleString()} of ${totalLines.toLocaleString()} complete added lines ` +
+      `across ${queues.length.toLocaleString()} changed ${queues.length === 1 ? "file" : "files"}; ` +
+      "changed-file paths remain complete, but omitted diff content could reduce ranking precision."
+  });
+
+  return selected.join("\n");
 }
 
 /**
@@ -1020,7 +1067,7 @@ async function readWorkingTree(
       paths: changedFiles.slice(0, 8)
     });
 
-    return { changedFiles, diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS) };
+    return { changedFiles, diffText: sampleDiffText(diffText, diagnostics) };
   } catch (error) {
     const checkoutState = isMissingGit(error) ? undefined : await describeGitCheckout(repoRoot);
     diagnostics.push({
@@ -1082,12 +1129,39 @@ function isMissingGit(error: unknown): boolean {
   return (error as { code?: unknown })?.code === "ENOENT";
 }
 
-function detectPackageManager(files: RepoFile[]): RepoMap["packageManager"] {
-  const paths = new Set(files.map((file) => file.path));
-  if (paths.has("pnpm-lock.yaml") || paths.has("pnpm-workspace.yaml")) return "pnpm";
-  if (paths.has("yarn.lock") || paths.has(".yarnrc.yml")) return "yarn";
-  if (paths.has("bun.lock") || paths.has("bun.lockb")) return "bun";
+function detectPackageManager(files: RepoFile[], diagnostics: RepoMap["diagnostics"]): RepoMap["packageManager"] {
+  const rootManagers = packageManagersForPaths(files.map((file) => file.path).filter((path) => !path.includes("/")));
+  if (rootManagers.length > 1) {
+    diagnostics.push({
+      code: "package-manager-conflict",
+      severity: "warning",
+      message: `Conflicting root package-manager files were found (${rootManagers.join(", ")}); using ${rootManagers[0]} deterministically. Remove the stale lockfile so routed commands are unambiguous.`
+    });
+  }
+  if (rootManagers[0]) return rootManagers[0];
+
+  // Archives and workspace extracts do not always carry a root lockfile. When every nested
+  // declaration agrees, use that manager rather than printing npm commands that cannot run.
+  const nestedManagers = packageManagersForPaths(files.map((file) => file.path));
+  if (nestedManagers.length === 1) return nestedManagers[0]!;
+  if (nestedManagers.length > 1) {
+    diagnostics.push({
+      code: "package-manager-conflict",
+      severity: "warning",
+      message: `Nested package-manager files disagree (${nestedManagers.join(", ")}); defaulting to npm for root routes. Point --repo at one workspace to get an unambiguous command.`
+    });
+  }
   return "npm";
+}
+
+function packageManagersForPaths(paths: string[]): RepoMap["packageManager"][] {
+  const names = new Set(paths.map((path) => path.split("/").at(-1) ?? path));
+  const managers: RepoMap["packageManager"][] = [];
+  if (names.has("pnpm-lock.yaml") || names.has("pnpm-workspace.yaml")) managers.push("pnpm");
+  if (names.has("yarn.lock") || names.has(".yarnrc.yml")) managers.push("yarn");
+  if (names.has("bun.lock") || names.has("bun.lockb")) managers.push("bun");
+  if (names.has("package-lock.json") || names.has("npm-shrinkwrap.json")) managers.push("npm");
+  return managers;
 }
 
 function classifyFile(path: string, extension: string): RepoFile["kind"] {
@@ -1098,7 +1172,7 @@ function classifyFile(path: string, extension: string): RepoFile["kind"] {
   if (
     lower.startsWith(".github/") ||
     [".json", ".yaml", ".yml"].includes(extension) ||
-    /(^|\/)([^/]+\.)?(config|rc)\.[^/]+$/.test(lower)
+    /(^|\/)(?:[^/]+\.config|\.[^/]*rc)\.[^/]+$/.test(lower)
   ) return "config";
   if (SOURCE_EXTENSIONS.has(extension)) return "code";
   return "other";
@@ -1108,6 +1182,7 @@ function classifyConventionalTextFile(path: string): "documentation" | "config" 
   const name = path.replace(/\\/g, "/").split("/").at(-1)?.toLowerCase() ?? "";
   if (CONVENTIONAL_DOCUMENT_NAMES.has(name)) return "documentation";
   if (CONVENTIONAL_CONFIG_NAMES.has(name)) return "config";
+  if (/\.(?:csproj|fsproj|vbproj)$/.test(name)) return "config";
   return undefined;
 }
 

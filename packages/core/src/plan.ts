@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { buildPathExcluder, parseIgnoreFile, NO_EXCLUSIONS } from "./exclude.js";
+import { markdownCode } from "./markdown.js";
 import type { PathExcluder } from "./exclude.js";
 import { buildReportFromRepo } from "./report.js";
 import { scanRepo } from "./repo-scan.js";
@@ -36,7 +37,7 @@ export async function buildFixMapReport(
       !pattern.startsWith("!") && !requestedExclude.matchedPatterns.has(pattern)
     );
     if (unmatchedPatterns.length > 0) {
-      const sample = unmatchedPatterns.slice(0, 5).join(", ");
+      const sample = unmatchedPatterns.slice(0, 5).map(markdownCode).join(", ");
       report.diagnostics.push({
         code: "exclusion-no-match",
         severity: "warning",
@@ -51,8 +52,9 @@ export async function buildFixMapReport(
         severity: report.contextFiles.length === 0 ? "warning" : "info",
         message:
           `${requestedExclude.patterns.length} exclusion ${requestedExclude.patterns.length === 1 ? "pattern" : "patterns"} ` +
-          `removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${requestedExclude.patterns.join(", ")}. ` +
-          "Run --explain on a file you expected to see if this is why it is absent."
+          `removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${requestedExclude.patterns.map(markdownCode).join(", ")}. ` +
+          "Run --explain on a file you expected to see if this is why it is absent.",
+        paths: excludedPaths.slice(0, 8)
       });
     }
   }

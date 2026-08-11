@@ -42,6 +42,40 @@ describe("buildImportGraph", () => {
 
     expect(graph.imports.get("src/a.ts")).toBeUndefined();
   });
+
+  it("resolves imports through workspace package names", () => {
+    const files = [
+      codeFile("apps/web/page.ts", 'import { reset } from "@demo/auth";'),
+      codeFile("packages/auth/package.json", JSON.stringify({ name: "@demo/auth", source: "src/index.ts" })),
+      codeFile("packages/auth/src/index.ts", "export const reset = true;")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("apps/web/page.ts") ?? [])]).toEqual(["packages/auth/src/index.ts"]);
+  });
+
+  it("resolves strict-JSON tsconfig path aliases", () => {
+    const files = [
+      codeFile("apps/web/page.ts", 'import { reset } from "@auth/reset";'),
+      codeFile("tsconfig.json", JSON.stringify({ compilerOptions: { baseUrl: ".", paths: { "@auth/*": ["packages/auth/src/*"] } } })),
+      codeFile("packages/auth/src/reset.ts", "export const reset = true;")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("apps/web/page.ts") ?? [])]).toEqual(["packages/auth/src/reset.ts"]);
+  });
+
+  it("reports when the graph file budget truncates parseable modules", () => {
+    const files = Array.from({ length: 5_001 }, (_, index) =>
+      codeFile(`src/module-${index}.ts`, `export const module${index} = ${index};`)
+    );
+
+    const graph = buildImportGraph(files);
+
+    expect(graph.truncatedFiles).toBe(1);
+  });
 });
 
 describe("findImportProximity", () => {

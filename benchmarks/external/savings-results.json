@@ -1,5 +1,5 @@
 {
-  "measuredAt": "2026-07-26T05:40:14.104Z",
+  "measuredAt": "2026-08-11T05:31:21.470Z",
   "environment": {
     "node": "v24.13.0",
     "platform": "win32 10.0.26200",
@@ -7,377 +7,400 @@
     "runsPerRepository": 3,
     "repositoryCache": "warm after pinned checkout materialization"
   },
-  "cases": 15,
+  "cases": 16,
   "accuracy": {
-    "top1HitRate": 0.6,
-    "top3HitRate": 1,
-    "top5HitRate": 1
+    "top1HitRate": 0.688,
+    "top3HitRate": 0.938,
+    "top5HitRate": 0.938
   },
   "performance": {
-    "medianScanAndRankMs": 1747.7
+    "medianScanAndRankMs": 1300
   },
   "contextProxy": {
     "baseline": "Assumed: every scanned text-bearing file in FixMap's supported extension set is sent as context.",
     "comparison": "Estimated: only FixMap's top-five ranked files are sent as context.",
     "tokenEstimator": "UTF-8 file bytes divided by 4; this is not tokenizer output.",
-    "assumedAllSourceTokens": 22058578,
-    "estimatedTop5Tokens": 318546,
-    "estimatedTokenReduction": 0.9856
+    "assumedAllSourceTokens": 22440777,
+    "estimatedTop5Tokens": 330646,
+    "estimatedTokenReduction": 0.9853
   },
   "timeComparison": {
     "baseline": "Assumed manual repository triage: 15 minutes per task.",
     "warning": "The manual baseline was not measured in a controlled with/without agent experiment.",
     "assumedManualMinutes": 15,
-    "measuredFixMapMinutes": 0.0291,
-    "impliedMinutesSaved": 14.97,
-    "impliedTimeReduction": 0.9981
+    "measuredFixMapMinutes": 0.0217,
+    "impliedMinutesSaved": 14.98,
+    "impliedTimeReduction": 0.9986
   },
   "results": [
     {
       "slug": "expressjs/express",
       "issue": 7365,
       "scannedFiles": 213,
-      "medianRuntimeMs": 734.3,
+      "medianRuntimeMs": 510.8,
       "expected": [
         "lib/request.js"
       ],
-      "top5": [
+      "top5Paths": [
         "lib/request.js",
         "lib/response.js",
-        "package.json",
-        "examples/error-pages/index.js",
-        "examples/route-middleware/index.js"
+        "examples/auth/index.js",
+        "examples/route-middleware/index.js",
+        "examples/web-service/index.js"
       ],
-      "top1": true,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 727851,
-      "rankedBytes": 47062,
-      "assumedAllSourceTokens": 181963,
-      "estimatedTop5Tokens": 11766
+      "sourceBytes": 729592,
+      "rankedBytes": 48329,
+      "assumedAllSourceTokens": 182398,
+      "estimatedTop5Tokens": 12083
     },
     {
       "slug": "axios/axios",
       "issue": 6721,
       "scannedFiles": 454,
-      "medianRuntimeMs": 5941.7,
+      "medianRuntimeMs": 1231.1,
       "expected": [
         "lib/core/AxiosError.js"
       ],
-      "top5": [
+      "top5Paths": [
         "lib/core/AxiosError.js",
         "lib/adapters/http.js",
         "lib/helpers/HttpStatusCode.js",
-        "index.d.ts",
-        "lib/adapters/xhr.js"
+        "lib/core/Axios.js",
+        "lib/core/AxiosHeaders.js"
       ],
-      "top1": true,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 3056385,
-      "rankedBytes": 90899,
-      "assumedAllSourceTokens": 764097,
-      "estimatedTop5Tokens": 22725
+      "sourceBytes": 3097580,
+      "rankedBytes": 79905,
+      "assumedAllSourceTokens": 774395,
+      "estimatedTop5Tokens": 19977
     },
     {
       "slug": "debug-js/debug",
       "issue": 746,
       "scannedFiles": 14,
-      "medianRuntimeMs": 241.6,
+      "medianRuntimeMs": 172.3,
       "expected": [
         "src/node.js"
       ],
-      "top5": [
-        "src/browser.js",
-        "src/node.js",
+      "top5Paths": [
         "src/common.js",
+        "test.js",
+        "src/node.js",
         "README.md",
-        "test.js"
+        "src/browser.js"
       ],
-      "top1": false,
-      "top3": true,
+      "top1Hit": false,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 50170,
+      "sourceBytes": 52209,
       "rankedBytes": 44787,
-      "assumedAllSourceTokens": 12543,
+      "assumedAllSourceTokens": 13053,
       "estimatedTop5Tokens": 11197
     },
     {
       "slug": "sindresorhus/ky",
       "issue": 857,
       "scannedFiles": 67,
-      "medianRuntimeMs": 442.2,
+      "medianRuntimeMs": 346.1,
       "expected": [
         "source/core/Ky.ts"
       ],
-      "top5": [
+      "top5Paths": [
         "source/core/Ky.ts",
-        "source/types/hooks.ts",
         "source/errors/HTTPError.ts",
+        "source/types/hooks.ts",
         "source/types/options.ts",
-        "source/errors/SchemaValidationError.ts"
+        "source/core/constants.ts"
       ],
-      "top1": true,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 515493,
-      "rankedBytes": 66339,
-      "assumedAllSourceTokens": 128874,
-      "estimatedTop5Tokens": 16585
+      "sourceBytes": 516872,
+      "rankedBytes": 73509,
+      "assumedAllSourceTokens": 129218,
+      "estimatedTop5Tokens": 18378
     },
     {
       "slug": "colinhacks/zod",
       "issue": 5944,
       "scannedFiles": 582,
-      "medianRuntimeMs": 3161.2,
+      "medianRuntimeMs": 1553.9,
       "expected": [
         "packages/zod/src/v4/core/regexes.ts"
       ],
-      "top5": [
-        "packages/zod/src/v4/core/regexes.ts",
-        "packages/zod/src/v4/classic/from-json-schema.ts",
+      "top5Paths": [
         "packages/zod/src/v4/core/json-schema-processors.ts",
-        "packages/zod/src/v4/core/to-json-schema.ts",
-        "packages/zod/src/v4/mini/schemas.ts"
+        "packages/zod/src/v4/core/regexes.ts",
+        "packages/zod/src/v4/mini/schemas.ts",
+        "packages/zod/src/v4/classic/from-json-schema.ts",
+        "packages/zod/src/v4/core/checks.ts"
       ],
-      "top1": true,
-      "top3": true,
+      "top1Hit": false,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 3503802,
-      "rankedBytes": 141032,
-      "assumedAllSourceTokens": 875951,
-      "estimatedTop5Tokens": 35258
+      "sourceBytes": 3512790,
+      "rankedBytes": 158879,
+      "assumedAllSourceTokens": 878198,
+      "estimatedTop5Tokens": 39720
     },
     {
       "slug": "pinojs/pino",
       "issue": 1996,
       "scannedFiles": 200,
-      "medianRuntimeMs": 1205.2,
+      "medianRuntimeMs": 498.6,
       "expected": [
         "lib/transport.js",
         "lib/worker.js"
       ],
-      "top5": [
+      "top5Paths": [
+        "lib/worker.js",
+        "benchmarks/basic.bench.js",
+        "examples/transport.js",
         "pino.d.ts",
-        "lib/multistream.js",
-        "lib/transport.js",
-        "pino.js",
-        "examples/transport.js"
+        "browser.js"
       ],
-      "top1": false,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 686991,
-      "rankedBytes": 60825,
-      "assumedAllSourceTokens": 171748,
-      "estimatedTop5Tokens": 15207
+      "sourceBytes": 692500,
+      "rankedBytes": 69383,
+      "assumedAllSourceTokens": 173125,
+      "estimatedTop5Tokens": 17346
     },
     {
       "slug": "fastify/fastify",
       "issue": 6671,
       "scannedFiles": 393,
-      "medianRuntimeMs": 2057.2,
+      "medianRuntimeMs": 840.5,
       "expected": [
         "lib/request.js"
       ],
-      "top5": [
-        "fastify.js",
-        "lib/server.js",
+      "top5Paths": [
         "lib/request.js",
-        "docs/Reference/TypeScript.md",
-        "types/request.d.ts"
+        "fastify.js",
+        "types/request.d.ts",
+        "lib/server.js",
+        "lib/route.js"
       ],
-      "top1": false,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 2898149,
-      "rankedBytes": 127634,
-      "assumedAllSourceTokens": 724538,
-      "estimatedTop5Tokens": 31909
+      "sourceBytes": 2902587,
+      "rankedBytes": 87514,
+      "assumedAllSourceTokens": 725647,
+      "estimatedTop5Tokens": 21879
     },
     {
       "slug": "chalk/chalk",
       "issue": 624,
       "scannedFiles": 33,
-      "medianRuntimeMs": 585.2,
+      "medianRuntimeMs": 204.8,
       "expected": [
         "source/vendor/supports-color/index.js"
       ],
-      "top5": [
+      "top5Paths": [
         "source/vendor/supports-color/index.js",
         "source/vendor/supports-color/browser.js",
         "source/vendor/supports-color/index.d.ts",
         "source/index.d.ts",
-        "source/index.js"
+        "package.json"
       ],
-      "top1": true,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 61363,
-      "rankedBytes": 19494,
-      "assumedAllSourceTokens": 15341,
-      "estimatedTop5Tokens": 4874
+      "sourceBytes": 62718,
+      "rankedBytes": 14587,
+      "assumedAllSourceTokens": 15680,
+      "estimatedTop5Tokens": 3647
     },
     {
       "slug": "vitest-dev/vitest",
       "issue": 7375,
       "scannedFiles": 3050,
-      "medianRuntimeMs": 7201.2,
+      "medianRuntimeMs": 6341,
       "expected": [
         "packages/browser/src/client/tester/dialog.ts"
       ],
-      "top5": [
+      "top5Paths": [
         "packages/vitest/src/integrations/env/jsdom-keys.ts",
-        "packages/vitest/src/node/printError.ts",
         "packages/browser/src/client/tester/dialog.ts",
-        "packages/vitest/src/node/reporters/base.ts",
-        "packages/vitest/src/runtime/moduleRunner/moduleEvaluator.ts"
+        "packages/vitest/src/runtime/runners/test.ts",
+        "packages/browser/src/client/tester/runner.ts",
+        "packages/vitest/src/create/browser/creator.ts"
       ],
-      "top1": false,
-      "top3": true,
+      "top1Hit": false,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 8007670,
-      "rankedBytes": 74225,
-      "assumedAllSourceTokens": 2001918,
-      "estimatedTop5Tokens": 18557
+      "sourceBytes": 8185503,
+      "rankedBytes": 44635,
+      "assumedAllSourceTokens": 2046376,
+      "estimatedTop5Tokens": 11159
     },
     {
       "slug": "eslint/eslint",
       "issue": 478,
       "scannedFiles": 2297,
-      "medianRuntimeMs": 3244.5,
+      "medianRuntimeMs": 3750.9,
       "expected": [
         "lib/types/config-api.d.ts"
       ],
-      "top5": [
+      "top5Paths": [
         "lib/types/config-api.d.ts",
+        "lib/config/config.js",
         "lib/types/index.d.ts",
         "package.json",
-        "docs/src/use/configure/migration-guide.md",
-        "lib/config-api.js"
+        "lib/rules/space-before-function-paren.js"
       ],
-      "top1": true,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 17155140,
-      "rankedBytes": 75779,
-      "assumedAllSourceTokens": 4288785,
-      "estimatedTop5Tokens": 18945
+      "sourceBytes": 17229912,
+      "rankedBytes": 78785,
+      "assumedAllSourceTokens": 4307478,
+      "estimatedTop5Tokens": 19697
     },
     {
       "slug": "webpack/webpack",
       "issue": 15371,
       "scannedFiles": 13454,
-      "medianRuntimeMs": 16661.6,
+      "medianRuntimeMs": 20994.1,
       "expected": [
         "lib/DefinePlugin.js"
       ],
-      "top5": [
+      "top5Paths": [
+        "lib/DefinePlugin.js",
         "lib/dependencies/ImportMetaPlugin.js",
         "lib/WebpackOptionsApply.js",
-        "lib/DefinePlugin.js",
-        "lib/dependencies/CreateRequireParserPlugin.js",
-        "lib/dependencies/LoaderPlugin.js"
+        "lib/EnvironmentPlugin.js",
+        "lib/url/URLParserPlugin.js"
       ],
-      "top1": false,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 26898376,
-      "rankedBytes": 126489,
-      "assumedAllSourceTokens": 6724594,
-      "estimatedTop5Tokens": 31623
+      "sourceBytes": 26903341,
+      "rankedBytes": 118506,
+      "assumedAllSourceTokens": 6725836,
+      "estimatedTop5Tokens": 29627
     },
     {
       "slug": "nodejs/undici",
       "issue": 5566,
       "scannedFiles": 786,
-      "medianRuntimeMs": 1225.5,
+      "medianRuntimeMs": 2199.2,
       "expected": [
         "lib/dispatcher/client-h2.js"
       ],
-      "top5": [
-        "lib/dispatcher/client-h2.js",
-        "lib/web/fetch/body.js",
+      "top5Paths": [
         "lib/web/fetch/request.js",
-        "lib/web/fetch/response.js",
-        "lib/api/api-request.js"
+        "lib/core/request.js",
+        "lib/dispatcher/client-h1.js",
+        "lib/dispatcher/client.js",
+        "lib/web/fetch/body.js"
       ],
-      "top1": true,
-      "top3": true,
-      "top5Hit": true,
-      "sourceBytes": 6873700,
-      "rankedBytes": 128985,
-      "assumedAllSourceTokens": 1718425,
-      "estimatedTop5Tokens": 32247
+      "top1Hit": false,
+      "top3Hit": false,
+      "top5Hit": false,
+      "sourceBytes": 6880537,
+      "rankedBytes": 141399,
+      "assumedAllSourceTokens": 1720135,
+      "estimatedTop5Tokens": 35350
     },
     {
       "slug": "reduxjs/redux-toolkit",
       "issue": 5156,
       "scannedFiles": 1152,
-      "medianRuntimeMs": 1747.7,
+      "medianRuntimeMs": 2834.1,
       "expected": [
         "packages/toolkit/src/query/react/buildHooks.ts"
       ],
-      "top5": [
+      "top5Paths": [
         "packages/toolkit/src/query/react/buildHooks.ts",
         "packages/toolkit/src/query/core/apiState.ts",
         "packages/toolkit/src/query/core/buildThunks.ts",
-        "packages/toolkit/src/query/react/module.ts",
-        "packages/toolkit/src/query/core/buildInitiate.ts"
+        "packages/toolkit/src/query/core/buildMiddleware/types.ts",
+        "packages/toolkit/src/createAsyncThunk.ts"
       ],
-      "top1": true,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 6277414,
-      "rankedBytes": 147148,
-      "assumedAllSourceTokens": 1569354,
-      "estimatedTop5Tokens": 36787
+      "sourceBytes": 6315820,
+      "rankedBytes": 149008,
+      "assumedAllSourceTokens": 1578955,
+      "estimatedTop5Tokens": 37252
     },
     {
       "slug": "prettier/prettier",
       "issue": 5738,
       "scannedFiles": 9319,
-      "medianRuntimeMs": 10195.7,
+      "medianRuntimeMs": 12715.8,
       "expected": [
         "src/language-css/print/comma-separated-value-group.js"
       ],
-      "top5": [
-        "src/cli/format.js",
-        "src/language-css/print/comma-separated-value-group.js",
-        "src/language-js/print/member-chain.js",
+      "top5Paths": [
         "scripts/build/builders/javascript-module.js",
-        "scripts/build/packages/prettier.js"
+        "src/language-css/print/comma-separated-value-group.js",
+        "website/playground/Playground.jsx",
+        "src/language-css/parser-postcss.js",
+        "src/language-css/utilities/index.js"
       ],
-      "top1": false,
-      "top3": true,
+      "top1Hit": false,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 8832175,
-      "rankedBytes": 81223,
-      "assumedAllSourceTokens": 2208044,
-      "estimatedTop5Tokens": 20306
+      "sourceBytes": 8875617,
+      "rankedBytes": 68738,
+      "assumedAllSourceTokens": 2218905,
+      "estimatedTop5Tokens": 17185
     },
     {
       "slug": "honojs/hono",
       "issue": 3281,
       "scannedFiles": 482,
-      "medianRuntimeMs": 701.9,
+      "medianRuntimeMs": 1368.9,
       "expected": [
         "src/adapter/aws-lambda/types.ts"
       ],
-      "top5": [
+      "top5Paths": [
         "src/adapter/aws-lambda/types.ts",
         "src/adapter/aws-lambda/handler.ts",
         "src/adapter/aws-lambda/conninfo.ts",
-        "src/adapter/lambda-edge/handler.ts",
-        "src/jsx/context.ts"
+        "src/middleware/basic-auth/index.ts",
+        "src/middleware/bearer-auth/index.ts"
       ],
-      "top1": true,
-      "top3": true,
+      "top1Hit": true,
+      "top3Hit": true,
       "top5Hit": true,
-      "sourceBytes": 2689631,
-      "rankedBytes": 42261,
-      "assumedAllSourceTokens": 672408,
-      "estimatedTop5Tokens": 10566
+      "sourceBytes": 2718972,
+      "rankedBytes": 40898,
+      "assumedAllSourceTokens": 679743,
+      "estimatedTop5Tokens": 10225
+    },
+    {
+      "slug": "sindresorhus/got",
+      "issue": 2459,
+      "scannedFiles": 120,
+      "medianRuntimeMs": 540.7,
+      "expected": [
+        "source/core/index.ts"
+      ],
+      "top5Paths": [
+        "source/core/index.ts",
+        "source/as-promise/index.ts",
+        "source/core/errors.ts",
+        "source/core/response.ts",
+        "source/core/diagnostics-channel.ts"
+      ],
+      "top1Hit": true,
+      "top3Hit": true,
+      "top5Hit": true,
+      "sourceBytes": 1086555,
+      "rankedBytes": 103719,
+      "assumedAllSourceTokens": 271639,
+      "estimatedTop5Tokens": 25930
     }
   ]
 }

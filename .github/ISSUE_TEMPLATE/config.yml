@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Question or workflow idea
+    url: https://github.com/aryamthecodebreaker/FixMap/discussions
+    about: Ask usage questions, share examples, or discuss workflow ideas.
   - name: Security vulnerability
     url: https://github.com/aryamthecodebreaker/FixMap/security/advisories/new
     about: Report security-sensitive issues privately.

@@ -44,9 +44,46 @@ type Release = {
 
 const releases: Release[] = [
   {
+    version: "0.8.9",
+    date: "August 11, 2026",
+    label: "Latest release",
+    summary: "A complete reliability sweep across ranking, verification, agent discovery, workflows, evidence, and the public product surface.",
+    groups: [
+      {
+        label: "Added",
+        items: [
+          "Install /fixmap for supported coding agents and open the complete feature catalog without supplying a task.",
+          "Validate saved reports from the CLI and opt into warning-level Verify failures in the CLI or GitHub Action.",
+          "Control fresh scans consistently across CLI, MCP, and Action interfaces with visible cache diagnostics."
+        ]
+      },
+      {
+        label: "Fixed",
+        items: [
+          "Ranking, grounding, definitions, file mentions, diffs, Unicode text, workspace routing, exclusions, caching, and cross-language test detection now cover the full reviewed issue set.",
+          "Explain, Compare, Verify, Doctor, MCP, remote repositories, and the Action reject malformed or ambiguous state with actionable diagnostics.",
+          "GitHub output limits, permissions, API failures, credentials, temporary repositories, and generated metadata are handled defensively."
+        ]
+      },
+      {
+        label: "Improved",
+        items: [
+          "The website now uses a calmer editorial design, clearer product navigation, reliable copy feedback, visibility-safe motion, and complete metadata.",
+          "README, npm documentation, slash-command setup, release notes, and the post-release checklist cover every supported workflow."
+        ]
+      },
+      {
+        label: "Evidence",
+        items: [
+          "The release ledger maps 126 GitHub issues plus the complete attached 30-finding review to fixes and verification.",
+          "External, held-out, adversarial, baseline, savings, package, generated-output, and 1,000-file scan gates are recorded and reproducible."
+        ]
+      }
+    ]
+  },
+  {
     version: "0.8.8",
     date: "August 8, 2026",
-    label: "Latest release",
     summary: "Forty-six issues closed across scan correctness, workflow honesty, the Action, documentation, accessibility, and release proof.",
     groups: [
       {

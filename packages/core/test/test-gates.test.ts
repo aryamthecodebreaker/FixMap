@@ -48,6 +48,19 @@ describe("findGatedTestDiagnostics", () => {
     expect(findGatedTestDiagnostics([plain], ["tests/auth.test.ts"])).toEqual([]);
     expect(findGatedTestDiagnostics([gatedButUnrouted], ["tests/auth.test.ts"])).toEqual([]);
   });
+
+  it.each([
+    ["it.skip('disabled', () => {})", "JavaScript it.skip"],
+    ["xdescribe('disabled', () => {})", "JavaScript xdescribe"],
+    ["@pytest.mark.skip\ndef test_disabled(): pass", "pytest marker"],
+    ["func TestX(t *testing.T) { t.Skip() }", "Go t.Skip"],
+    ["#[ignore]\nfn disabled() {}", "Rust ignore"]
+  ])("reports unconditional %s gates (%s)", (textSample) => {
+    const gated = testFile("tests/disabled.test.ts", textSample);
+    const diagnostics = findGatedTestDiagnostics([gated], [gated.path]);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]?.message).toContain("skipped or ignored tests");
+  });
 });
 
 describe("script classification and route ordering", () => {

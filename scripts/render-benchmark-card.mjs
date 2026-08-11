@@ -30,14 +30,14 @@ const runtimeLabel = runtime >= 1000
   : `${Math.round(runtime)}ms`;
 
 const unmentioned = heldout.results.filter((result) => !result.mentionsExpectedPath);
-const fixmapTop1 = unmentioned.filter((result) => result.top1).length;
-const fixmapTop3 = unmentioned.filter((result) => result.top3).length;
+const fixmapTop1 = unmentioned.filter((result) => result.top1Hit).length;
+const fixmapTop3 = unmentioned.filter((result) => result.top3Hit).length;
 const fixmapTop5 = unmentioned.filter((result) => result.top5Hit).length;
 const bm25Policy = baseline.configuration.bestPolicyPerFamily.bm25;
 const bm25Arm = `bm25:${bm25Policy}`;
 const baselineUnmentioned = baseline.results.filter((result) => !result.mentionsExpectedPath);
-const bm25Top1 = baselineUnmentioned.filter((result) => result.arms[bm25Arm].top1).length;
-const bm25Top3 = baselineUnmentioned.filter((result) => result.arms[bm25Arm].top3).length;
+const bm25Top1 = baselineUnmentioned.filter((result) => result.arms[bm25Arm].top1Hit).length;
+const bm25Top3 = baselineUnmentioned.filter((result) => result.arms[bm25Arm].top3Hit).length;
 const bm25Top5 = baselineUnmentioned.filter((result) => result.arms[bm25Arm].top5Hit).length;
 const cohortSize = unmentioned.length;
 const namedCases = heldout.results.length - cohortSize;

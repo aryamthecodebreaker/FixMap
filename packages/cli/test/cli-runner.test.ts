@@ -1,10 +1,14 @@
+import { execFile } from "node:child_process";
 import { link, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import { parseArgs, runCli } from "../src/cli-runner.js";
 import { installAgentCommands } from "../src/agent-setup.js";
 import type { FixMapReport } from "@aryam/fixmap-core";
+
+const exec = promisify(execFile);
 
 const report: FixMapReport = {
   summary: "Found one context file.",
@@ -29,6 +33,22 @@ function capture() {
 }
 
 describe("CLI argument handling", () => {
+  it("passes mcp --repo through as the server's default local checkout", async () => {
+    const runMcpServer = vi.fn(async () => undefined);
+
+    await expect(runCli(["mcp", "--repo", " C:/repo "], { runMcpServer })).resolves.toBe(0);
+
+    expect(runMcpServer).toHaveBeenCalledWith("C:/repo");
+  });
+
+  it("rejects unsupported and remote mcp server arguments", async () => {
+    const stderr = vi.fn();
+    const runMcpServer = vi.fn(async () => undefined);
+
+    expect(await runCli(["mcp", "--repo", "https://github.com/o/r"], { stderr, runMcpServer })).toBe(1);
+    expect(await runCli(["mcp", "--surprise"], { stderr, runMcpServer })).toBe(1);
+    expect(runMcpServer).not.toHaveBeenCalled();
+  });
   it.each(["--help", "-h"])("shows command help for plan %s", async (flag) => {
     const io = capture();
     const exitCode = await runCli(["plan", flag], io.dependencies);
@@ -59,6 +79,13 @@ describe("CLI argument handling", () => {
     }));
   });
 
+  it("treats all-numeric issue-like shorthand as local task text", async () => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+    expect(await runCli(["123/456#7"], { ...io.dependencies, buildReport })).toBe(0);
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({ issueText: "123/456#7" }));
+  });
+
   it("accepts a canonical GitHub issue URL without plan --issue", async () => {
     const io = capture();
     const buildReport = vi.fn(async () => report);
@@ -82,6 +109,17 @@ describe("CLI argument handling", () => {
     expect(exitCode).toBe(0);
     expect(io.stdout.join("")).toBe("9.9.9\n");
     expect(io.stderr).toEqual([]);
+  });
+
+  it("#524 reports an incomplete installation instead of throwing from --version", async () => {
+    const io = capture();
+
+    expect(await runCli(["--version"], {
+      ...io.dependencies,
+      readVersion: () => { throw new Error("package.json is missing"); }
+    })).toBe(1);
+    expect(io.stdout).toEqual([]);
+    expect(io.stderr.join("")).toContain("package.json is missing");
   });
 
   it("lists the complete feature catalog for slash-command discovery", async () => {
@@ -367,6 +405,23 @@ describe("CLI argument handling", () => {
     expect(parseArgs(["plan", "--issue", "x", "--format", " JSON\n"]).format).toBe("json");
   });
 
+  it("#522 trims accidental whitespace around an output path", () => {
+    expect(parseArgs(["plan", "--issue", "x", "--output", "  plan.json  "]).output).toBe("plan.json");
+  });
+
+  it.each(["-5 offset is wrong", "--verbose has no effect"])(
+    "#520 accepts task text beginning with a hyphen: %j",
+    (issue) => expect(parseArgs(["plan", "--issue", issue]).issueText).toBe(issue)
+  );
+
+  it("#521 does not mistake --help for the missing value of --issue", async () => {
+    const io = capture();
+
+    expect(await runCli(["plan", "--issue", "--help"], io.dependencies)).toBe(1);
+    expect(io.stdout).toEqual([]);
+    expect(io.stderr.join("")).toContain("--issue requires non-empty text");
+  });
+
   it.each(["--working-tree", "--include-untracked", "--no-cache"])(
     "rejects an inline value on boolean flag %s instead of silently treating false as true",
     (flag) => {
@@ -427,6 +482,26 @@ describe("CLI argument handling", () => {
     }));
   });
 
+  it("agent report #9 reads stdin before starting a no-cache scan", async () => {
+    const io = capture();
+    const events: string[] = [];
+    const buildReport = vi.fn(async (options: { issueText?: string; useCache?: boolean }) => {
+      events.push("scan");
+      expect(options).toMatchObject({ issueText: "password reset from stdin", useCache: false });
+      return report;
+    });
+
+    expect(await runCli(["plan", "--issue-file", "-", "--no-cache"], {
+      ...io.dependencies,
+      readIssueFile: () => {
+        events.push("stdin");
+        return "password reset from stdin";
+      },
+      buildReport
+    })).toBe(0);
+    expect(events).toEqual(["stdin", "scan"]);
+  });
+
   it("treats a leading @ as literal issue text unless --issue-file is explicit", async () => {
     const io = capture();
     const buildReport = vi.fn(async () => report);
@@ -446,7 +521,9 @@ describe("CLI argument handling", () => {
   it.each([
     ["UTF-8 BOM", Buffer.from([0xef, 0xbb, 0xbf, ...Buffer.from("password reset")])],
     ["UTF-16 LE", Buffer.from([0xff, 0xfe, ...Buffer.from("password reset", "utf16le")])],
-    ["UTF-16 BE", Buffer.from([0xfe, 0xff, 0x00, 0x70, 0x00, 0x61, 0x00, 0x73, 0x00, 0x73])]
+    ["UTF-16 BE", Buffer.from([0xfe, 0xff, 0x00, 0x70, 0x00, 0x61, 0x00, 0x73, 0x00, 0x73])],
+    ["BOM-less UTF-16 LE", Buffer.from("password reset", "utf16le")],
+    ["BOM-less UTF-16 BE", Buffer.from(Buffer.from("password reset", "utf16le")).swap16()]
   ])("decodes %s issue files", async (_label, contents) => {
     const io = capture();
     const buildReport = vi.fn(async () => report);
@@ -622,7 +699,7 @@ describe("CLI argument handling", () => {
     expect(io.stderr.join("")).toContain("same file as --compare");
   });
 
-  it("writes an explanation to --output instead of silently printing it", async () => {
+  it("#518 writes an explanation to --output instead of silently printing it", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-explain-output-"));
     const outputPath = join(root, "explanation.json");
     await writeFile(join(root, "reset.ts"), "export function sendPasswordReset() { return true; }\n");
@@ -636,6 +713,29 @@ describe("CLI argument handling", () => {
 
     expect(io.stdout).toEqual([]);
     expect(writeReport).toHaveBeenCalledWith(outputPath, expect.stringContaining('"status": "ranked"'));
+  });
+
+  it("#519 fails --explain when its requested diff cannot be resolved", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-explain-diff-failure-"));
+    await writeFile(join(root, "reset.ts"), "export function sendPasswordReset() { return true; }\n");
+    const io = capture();
+
+    expect(await runCli([
+      "plan", "--issue", "password reset fails", "--repo", root,
+      "--explain", "reset.ts", "--diff", "missing...HEAD"
+    ], io.dependencies)).toBe(1);
+    expect(io.stdout).toEqual([]);
+    expect(io.stderr.join("")).toContain("Explanation needs a resolvable diff");
+  });
+
+  it("#523 reports the working-tree/head mode conflict before suggesting --base", async () => {
+    const io = capture();
+
+    expect(await runCli([
+      "plan", "--issue", "x", "--working-tree", "--head", "HEAD~1"
+    ], io.dependencies)).toBe(1);
+    expect(io.stderr.join("")).toContain("Use either --working-tree or --diff/--base");
+    expect(io.stderr.join("")).not.toContain("--head requires --base");
   });
 
   it.each([
@@ -659,11 +759,17 @@ describe("CLI argument handling", () => {
     const io = capture();
     const writeReport = vi.fn(async () => undefined);
     const directory = await mkdtemp(join(tmpdir(), "fixmap-verify-"));
+    await writeFile(join(directory, "README.md"), "first\n");
+    await exec("git", ["init", "-b", "main"], { cwd: directory });
+    await exec("git", ["-c", "user.name=FixMap Test", "-c", "user.email=fixmap@example.test", "add", "README.md"], { cwd: directory });
+    await exec("git", ["-c", "user.name=FixMap Test", "-c", "user.email=fixmap@example.test", "commit", "-m", "first"], { cwd: directory });
+    await writeFile(join(directory, "README.md"), "second\n");
+    await exec("git", ["-c", "user.name=FixMap Test", "-c", "user.email=fixmap@example.test", "commit", "-am", "second"], { cwd: directory });
     const planPath = join(directory, "plan.json");
     await writeFile(planPath, JSON.stringify(report), "utf8");
 
     const exitCode = await runCli(
-      ["verify", "--report", planPath, "--diff", "HEAD~1...HEAD", "--output", "verify.json"],
+      ["verify", "--report", planPath, "--repo", directory, "--diff", "HEAD~1...HEAD", "--output", "verify.json"],
       { ...io.dependencies, writeReport }
     );
 
@@ -689,6 +795,18 @@ describe("CLI argument handling", () => {
     expect(hint).not.toContain("<base>");
     expect(hint).toContain("fixmap verify --report report.json");
     expect(hint).toContain("Add --diff");
+  });
+
+  it("#525 quotes shell-sensitive report paths in the copy-paste verification hint", async () => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+    const writeReport = vi.fn(async () => undefined);
+
+    expect(await runCli([
+      "plan", "--issue", "reset fails", "--format", "json", "--output", "my report(1).json"
+    ], { ...io.dependencies, buildReport, writeReport })).toBe(0);
+
+    expect(io.stderr.join("")).toContain("fixmap verify --report 'my report(1).json'");
   });
 
   it("names the real diff in the verify hint when the plan had one", async () => {
@@ -746,9 +864,21 @@ describe("CLI argument handling", () => {
   it.each([
     ["--limit", ["plan", "--issue", "x", "--limit", "0"]],
     ["--limit", ["plan", "--issue", "x", "--limit", "21"]],
-    ["--limit", ["plan", "--issue", "x", "--limit", "three"]]
+    ["--limit", ["plan", "--issue", "x", "--limit", "three"]],
+    ["--limit", ["plan", "--issue", "x", "--limit", "0xA"]],
+    ["--limit", ["plan", "--issue", "x", "--limit", "0b101"]],
+    ["--limit", ["plan", "--issue", "x", "--limit", "1e1"]],
+    ["--limit", ["plan", "--issue", "x", "--limit", "+5"]],
+    ["--limit", ["plan", "--issue", "x", "--limit", "5.0"]]
   ])("rejects an out-of-range %s", (_flag, args) => {
     expect(parseArgs(args).invalidValues.join(" ")).toContain("--limit received");
+  });
+
+  it("parses the opt-in verify warning threshold and rejects it in plan mode", async () => {
+    expect(parseArgs(["verify", "--report", "plan.json", "--fail-on", "warning"]).failOn).toBe("warning");
+    const io = capture();
+    expect(await runCli(["plan", "--issue", "x", "--fail-on", "warning"], io.dependencies)).toBe(1);
+    expect(io.stderr.join("")).toContain("--fail-on is a verify option");
   });
 
   it("accumulates --exclude rather than rejecting the second one", () => {

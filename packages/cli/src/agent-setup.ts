@@ -9,13 +9,21 @@ export const FIXMAP_FEATURES = [
   { name: "Plan", command: "fixmap plan", detail: "Rank context files, test routes, risks, changed files, and uncertainty from a task, issue URL, diff, or working tree." },
   { name: "Explain", command: "fixmap plan --explain <path>", detail: "Show whether a path ranked, tied below the limit, was excluded, or was never scanned." },
   { name: "Compare", command: "fixmap plan --compare <report.json>", detail: "Compare a refined task and current plan with an earlier JSON report." },
-  { name: "Verify", command: "fixmap verify --report <report.json>", detail: "Compare the completed diff or working tree with the saved plan." },
+  { name: "Verify", command: "fixmap verify --report <report.json>", detail: "Compare the completed diff or working tree with the saved plan; add --fail-on warning for a strict CI gate." },
   { name: "Validate", command: "fixmap validate <report.json>", detail: "Check a saved report against FixMap's structural compatibility contract." },
   { name: "Doctor", command: "fixmap doctor", detail: "Diagnose stale local, global, PATH, and npx install shadows." },
   { name: "MCP", command: "fixmap mcp", detail: "Expose Plan, Explain, Compare, Verify, and Doctor over local stdio." },
+  { name: "Public tasks", command: "fixmap owner/repository#123", detail: "Fetch public GitHub issue or pull-request text anonymously and scan its repository in an isolated checkout." },
+  { name: "Repository sources", command: "--repo <path|url> --ref <branch|tag>", detail: "Map a local checkout, file URL, directory archive, or a named branch or tag from a public GitHub repository." },
+  { name: "Task files", command: "--issue-file <file|->", detail: "Read long task text from UTF-8, UTF-16, or stdin, including BOM-less UTF-16 from common Windows tools." },
   { name: "Focus", command: "--limit, --exclude, .fixmapignore", detail: "Narrow ranking without changing the repository." },
   { name: "Live changes", command: "--working-tree --include-untracked", detail: "Map staged, unstaged, and optionally untracked work against HEAD." },
-  { name: "Fresh scan", command: "--no-cache", detail: "Bypass the exact git-state cache with CLI --no-cache, MCP noCache: true, or Action no-cache: true, and report that a fresh scan was used." }
+  { name: "Fresh scan", command: "--no-cache", detail: "Bypass the exact git-state cache with CLI --no-cache, MCP noCache: true, or Action no-cache: true, and report that a fresh scan was used." },
+  { name: "Machine output", command: "--format json --output <file>", detail: "Emit a versioned JSON contract or readable Markdown without executing repository code." },
+  { name: "Test routing", command: "fixmap plan", detail: "Detect package, workspace, and language test commands, related tests, and skipped or gated suites." },
+  { name: "Risk and diagnostics", command: "fixmap plan", detail: "Report bounded risk areas, grounding quality, unread content, scan limits, package-manager conflicts, and unresolved diffs." },
+  { name: "GitHub Action", command: "uses: aryamthecodebreaker/FixMap@<version>", detail: "Plan or verify pull requests with bounded summaries, outputs, and one updated comment." },
+  { name: "Agent setup", command: "fixmap setup", detail: "Install the discoverable /fixmap command for Claude Code, Cursor, GitHub Copilot, or Agent Skills." }
 ] as const;
 
 export function renderFeatureCatalog(format: "markdown" | "json" = "markdown"): string {

@@ -2,7 +2,7 @@ import { createRequire as __fixmapCreateRequire } from 'module'; const require =
 
 // packages/action/src/runner.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { resolve as resolve3 } from "node:path";
 
 // packages/core/dist/plan.js
@@ -92,8 +92,131 @@ function globToRegExp(glob) {
   return source;
 }
 
+// packages/core/dist/markdown.js
+function markdownCode(value) {
+  const longestRun = Math.max(0, ...[...value.matchAll(/`+/g)].map((match) => match[0].length));
+  const fence = "`".repeat(longestRun + 1);
+  const needsPadding = value.startsWith("`") || value.endsWith("`") || value.startsWith(" ") || value.endsWith(" ");
+  return `${fence}${needsPadding ? " " : ""}${value}${needsPadding ? " " : ""}${fence}`;
+}
+
+// packages/core/dist/paths.js
+var ALWAYS_IGNORED_DIRS = /* @__PURE__ */ new Set([".cache", ".git", ".venv", "node_modules"]);
+var LOCKFILE_NAMES = /* @__PURE__ */ new Set([
+  "package-lock.json",
+  "npm-shrinkwrap.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lock",
+  "bun.lockb"
+]);
+var GENERATED_DIRS = /* @__PURE__ */ new Set([
+  ".idea",
+  ".netlify",
+  ".next",
+  ".nuxt",
+  ".output",
+  ".turbo",
+  ".vercel",
+  ".vscode",
+  "build",
+  "coverage",
+  "dist",
+  "target",
+  "vendor"
+]);
+var SOURCE_FILE_EXTENSIONS = /* @__PURE__ */ new Set([
+  ".cjs",
+  ".cs",
+  ".css",
+  ".cts",
+  ".go",
+  ".gradle",
+  ".java",
+  ".js",
+  ".json",
+  ".jsx",
+  ".md",
+  ".mjs",
+  ".mts",
+  ".php",
+  ".py",
+  ".rb",
+  ".rs",
+  ".svelte",
+  ".ts",
+  ".tsx",
+  ".vue",
+  ".yaml",
+  ".yml"
+]);
+var BACKUP_SEGMENT_WORDS = /* @__PURE__ */ new Set([
+  "archive",
+  "archived",
+  "archives",
+  "backup",
+  "backups",
+  "bak",
+  "deprecated",
+  "legacy",
+  "old",
+  "quarantine"
+]);
+var BACKUP_FILE_PATTERNS = [
+  /\.(?:bak|orig|rej|old|save|swp)$/i,
+  /~$/,
+  /\bconflicted copy\b/i,
+  /\bconflict(?:ed)?[-_ ]copy\b/i,
+  // A bare `-copy`/`_copy` is an ordinary module name (`deep-copy.ts`). Sync clients use
+  // a space before "copy", or add a numbered suffix to the hyphen/underscore form.
+  /(?: copy|[-_]copy\s*\(\d+\))\.[^.]+$/i,
+  /\s\(\d+\)\.[^.]+$/
+];
+function segmentWords(segment) {
+  return segment.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+function directorySegments(path) {
+  return path.split("/").slice(0, -1);
+}
+function isGeneratedPath(path) {
+  return directorySegments(path).some((segment) => GENERATED_DIRS.has(segment.toLowerCase())) || isRecordedEvaluationOutput(path);
+}
+function isRecordedEvaluationOutput(path) {
+  return /^benchmarks\/[^/]+\/(?:results|savings-results)\.json$/i.test(path);
+}
+var SOURCE_ROOT_DIRS = /* @__PURE__ */ new Set(["lib", "source", "src"]);
+function moduleStem(path) {
+  const segments = path.replace(/\.[^./]+$/, "").split("/");
+  const rootIndex = segments.findIndex((segment) => {
+    const normalized = segment.toLowerCase();
+    return GENERATED_DIRS.has(normalized) || SOURCE_ROOT_DIRS.has(normalized);
+  });
+  if (rootIndex !== -1)
+    segments.splice(rootIndex, 1);
+  return segments.join("/");
+}
+function pathMatchesMention(path, mention) {
+  const normalizedPath = path.replace(/\\/g, "/").toLowerCase();
+  const normalizedMention = mention.replace(/\\/g, "/").toLowerCase();
+  if (normalizedPath === normalizedMention || normalizedPath.endsWith(`/${normalizedMention}`) || normalizedPath.includes("/") && normalizedMention.endsWith(`/${normalizedPath}`))
+    return true;
+  if (!normalizedMention.includes("/") && !normalizedMention.includes(".")) {
+    const fileName = normalizedPath.split("/").at(-1) ?? "";
+    return fileName.replace(/\.[^.]+$/, "") === normalizedMention;
+  }
+  return false;
+}
+function isBackupPath(path) {
+  const inBackupDirectory = directorySegments(path).some((segment) => segmentWords(segment).some((word) => BACKUP_SEGMENT_WORDS.has(word)));
+  if (inBackupDirectory) {
+    return true;
+  }
+  const fileName = path.split("/").pop() ?? "";
+  return BACKUP_FILE_PATTERNS.some((pattern) => pattern.test(fileName));
+}
+
 // packages/core/dist/signals.js
-var TOKEN_SPLIT = /[^a-zA-Z0-9]+/g;
+var TOKEN_SPLIT = /[^\p{L}\p{N}]+/gu;
 var STOP_WORDS = /* @__PURE__ */ new Set([
   "add",
   "all",
@@ -110,7 +233,6 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "but",
   "can",
   "cannot",
-  "case",
   "catch",
   "class",
   "const",
@@ -118,8 +240,6 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "codebase",
   "could",
   "debugger",
-  "default",
-  "delete",
   "did",
   "doe",
   "does",
@@ -135,7 +255,6 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "for",
   "from",
   "function",
-  "get",
   "github",
   "got",
   "had",
@@ -162,7 +281,6 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "more",
   "most",
   "must",
-  "name",
   "namespace",
   "new",
   "node",
@@ -175,15 +293,12 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "our",
   "out",
   "over",
-  "package",
   "packages",
   "private",
   "quality",
   "protected",
-  "public",
   "readonly",
   "return",
-  "run",
   "same",
   "she",
   "should",
@@ -209,7 +324,6 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "throw",
   "true",
   "try",
-  "type",
   "typeof",
   "under",
   "undefined",
@@ -234,9 +348,10 @@ var STOP_WORDS = /* @__PURE__ */ new Set([
   "your"
 ]);
 var MAX_FILE_MENTION_LENGTH = 200;
-var FILE_MENTION_PATTERN = new RegExp(`[A-Za-z0-9_@$][A-Za-z0-9_.$/\\\\-]{0,${MAX_FILE_MENTION_LENGTH}}\\.(?:[cm]?[jt]sx?|json|ya?ml|mdx?|css|scss|less|html|py|rb|rs|go|java|kt|c|cc|cpp|h|hpp|d\\.ts)\\b`, "g");
+var FILE_MENTION_EXTENSIONS = [...SOURCE_FILE_EXTENSIONS].map((extension) => extension.slice(1).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).sort((left, right) => right.length - left.length).join("|");
+var FILE_MENTION_PATTERN = new RegExp(`(?:[A-Za-z]:[\\\\/]|[\\\\/])?[A-Za-z0-9_@$][A-Za-z0-9_.$/\\\\-]{0,${MAX_FILE_MENTION_LENGTH}}\\.(?:${FILE_MENTION_EXTENSIONS}|d\\.ts)\\b`, "g");
 var CONVENTIONAL_FILE_MENTION_PATTERN = /\b(?:AUTHORS|CHANGELOG|CODE_OF_CONDUCT|CONTRIBUTING|LICENSE|NOTICE|README|SECURITY|CODEOWNERS|Dockerfile|Gemfile|Jenkinsfile|Makefile|Procfile|Rakefile|Vagrantfile)\b/gi;
-var MEMBER_MENTION_PATTERN = /\b(?:window|globalThis|process|request|response|req|res|this)\.([$A-Za-z_][$A-Za-z0-9_$]*)\b/g;
+var MEMBER_MENTION_PATTERN = /(?<![\p{L}\p{N}_$])[\p{L}_$][\p{L}\p{N}_$]*\.([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
 var FILE_EXTENSIONS = /* @__PURE__ */ new Set([
   "c",
   "cc",
@@ -265,39 +380,22 @@ var FILE_EXTENSIONS = /* @__PURE__ */ new Set([
   "yaml",
   "yml"
 ]);
-var IDENTIFIER_PATTERN = /[A-Za-z_$][A-Za-z0-9_$]{4,}/g;
+var IDENTIFIER_PATTERN = /[\p{L}_$][\p{L}\p{N}_$]{4,}/gu;
 var MAX_EXACT_FRAGMENTS = 8;
 var MAX_IDENTIFIERS = 24;
-var TRAILING_E_VERB_STEMS = /* @__PURE__ */ new Set([
-  "bas",
-  "cach",
-  "chang",
-  "cod",
-  "contribut",
-  "creat",
-  "dat",
-  "fil",
-  "improv",
-  "invoic",
-  "mak",
-  "pars",
-  "remov",
-  "resolv",
-  "rout",
-  "siz",
-  "tim",
-  "updat"
-]);
 function extractTaskSignals(input) {
-  const prepared = prepareChecklistText(input.issueText ?? "");
+  const prepared = prepareChecklistText(redactSensitiveTaskText(input.issueText ?? ""));
   const issueText = prepared.text;
-  const taskText = [issueText, extractDiffContentLines(input.diffText ?? "")].join("\n");
+  const visibleIssueText = stripHtmlComments(issueText);
+  const issueSignalText = stripHttpUrls(visibleIssueText);
+  const diffSignalText = stripHttpUrls(redactSensitiveTaskText(extractDiffContentLines(input.diffText ?? "")));
+  const taskText = [issueSignalText, diffSignalText].join("\n");
   const tokens = tokenizeText(taskText);
   return {
     tokens,
     changedFiles: new Set(input.changedFiles ?? []),
-    fileMentions: extractFileMentions(issueText),
-    memberMentions: extractMemberMentions(issueText),
+    fileMentions: extractFileMentions(visibleIssueText),
+    memberMentions: extractMemberMentions(issueSignalText),
     exactFragments: extractExactFragments(taskText),
     identifiers: extractIdentifiers(taskText),
     uncheckedChecklistLinesRemoved: prepared.removed,
@@ -343,15 +441,19 @@ function extractIdentifiers(text) {
       continue;
     }
     const fragment = quoted.value.trim();
-    if (!/^[$A-Za-z_][$A-Za-z0-9_]*$/.test(fragment.trim())) {
+    if (!/^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(fragment.trim())) {
       continue;
     }
-    if (!isDistinctiveIdentifier(fragment) && fragment.length < 8) {
+    if (!isDistinctiveIdentifier(fragment) && fragment.length < 6) {
       continue;
     }
     for (const match of fragment.matchAll(IDENTIFIER_PATTERN)) {
       addIdentifier(identifiers, match[0]);
     }
+  }
+  for (const match of text.matchAll(/(?<![\p{L}\p{N}_$])([\p{L}_$][\p{L}\p{N}_$]{2,})\(/gu)) {
+    if (match[1])
+      addIdentifier(identifiers, match[1]);
   }
   return identifiers;
 }
@@ -362,14 +464,26 @@ function addIdentifier(identifiers, identifier) {
   identifiers.add(identifier);
 }
 function isDistinctiveIdentifier(identifier) {
-  return /[0-9_$]/.test(identifier) || /[a-z][A-Z]/.test(identifier);
+  return /[0-9_$]/.test(identifier) || /[\p{Ll}][\p{Lu}]/u.test(identifier) || !/^[\x00-\x7F]+$/.test(identifier);
 }
 function isDistinctiveFragment(fragment) {
-  if (fragment.length < 6 || fragment.length > 96 || /\s/.test(fragment)) {
+  if (fragment.length < 6 || fragment.length > 160) {
     return false;
   }
-  const punctuationCount = [...fragment].filter((character) => /[^A-Za-z0-9_$]/.test(character)).length;
-  return punctuationCount >= 2 && /[A-Za-z0-9]/.test(fragment);
+  if (/\s/.test(fragment)) {
+    return fragment.trim().split(/\s+/).length >= 2 && /[\p{L}\p{N}]/u.test(fragment);
+  }
+  const punctuationCount = [...fragment].filter((character) => /[^\p{L}\p{N}$]/u.test(character)).length;
+  return punctuationCount >= 1 && /[\p{L}\p{N}]/u.test(fragment);
+}
+function redactSensitiveTaskText(text) {
+  return text.replace(/(https?:\/\/)[^/\s@]+@/gi, "$1").replace(/\b(?:ghp|gho|ghu|ghs|github_pat)_[A-Za-z0-9_]{8,}\b/g, "[redacted]").replace(/\bAKIA[0-9A-Z]{16}\b/g, "[redacted]").replace(/\bsk-[A-Za-z0-9_-]{16,}\b/g, "[redacted]");
+}
+function stripHttpUrls(text) {
+  return text.includes("://") ? text.replace(/https?:\/\/[^\s<>()\[\]{}]+/gi, " [url] ") : text;
+}
+function stripHtmlComments(text) {
+  return text.includes("<!--") ? text.replace(/<!--[\s\S]*?-->/g, " ") : text;
 }
 function scanQuotedFragments(text) {
   const fragments = [];
@@ -377,19 +491,30 @@ function scanQuotedFragments(text) {
     let cursor = 0;
     while (cursor < line.length) {
       const delimiter = line[cursor];
-      if (delimiter !== '"' && delimiter !== "'" && delimiter !== "`") {
+      const closingDelimiter = delimiter === "\u201C" || delimiter === "\u201E" ? "\u201D" : delimiter === "\u2018" ? "\u2019" : delimiter === "\xAB" ? "\xBB" : delimiter;
+      if (!['"', "'", "`", "\u201C", "\u201E", "\u2018", "\xAB"].includes(delimiter ?? "")) {
+        cursor += 1;
+        continue;
+      }
+      if (delimiter === "'" && cursor > 0 && /[A-Za-z0-9]/.test(line[cursor - 1] ?? "")) {
         cursor += 1;
         continue;
       }
       let end = cursor + 1;
       while (end < line.length) {
-        if (line[end] === delimiter && !isEscaped(line, end)) {
+        if (line[end] === closingDelimiter && !isEscaped(line, end)) {
           break;
         }
         end += 1;
       }
-      fragments.push({ delimiter, value: line.slice(cursor + 1, end) });
-      cursor = end < line.length ? end + 1 : line.length;
+      if (end < line.length) {
+        fragments.push({ delimiter, value: line.slice(cursor + 1, end) });
+        cursor = end + 1;
+      } else {
+        if (delimiter !== "'")
+          fragments.push({ delimiter, value: line.slice(cursor + 1) });
+        cursor += 1;
+      }
     }
   }
   return fragments;
@@ -442,37 +567,75 @@ function extractDiffContentLines(diffText) {
   if (!diffText) {
     return "";
   }
-  return diffText.split(/\r?\n/).filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")).join("\n");
+  return diffText.split(/\r?\n/).filter((line) => line.startsWith("+") && !line.startsWith("+++")).join("\n");
 }
 function tokenizeText(text) {
   return new Set(text.replace(/\bhttp\s*\/\s*([123])\b/gi, "http h$1").replace(/https?:\/\/[^\s<>()\[\]{}]+/gi, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token) => token.trim()).filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token)).map((token) => normalizeToken(token)).filter((token) => isSearchableToken(token) && !STOP_WORDS.has(token)));
 }
+function tokenizeIdentifier(identifier) {
+  return new Set(identifier.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(TOKEN_SPLIT).map((token) => normalizeToken(token.trim())).filter((token) => isSearchableToken(token)));
+}
 var MAX_SEARCHABLE_TOKEN_LENGTH = 64;
+var SHORT_SEARCHABLE_TOKENS = /* @__PURE__ */ new Set(["ci", "ui"]);
 function isSearchableToken(token) {
   if (token.length > MAX_SEARCHABLE_TOKEN_LENGTH) {
     return false;
   }
-  return token.length >= 3 || /^[a-z]\d$/i.test(token);
+  return token.length >= 3 || SHORT_SEARCHABLE_TOKENS.has(token.toLowerCase()) || /^[a-z]\d$/i.test(token);
 }
 function normalizeToken(token) {
+  if (token === "kubernetes")
+    return token;
+  if (token === "scss" || token === "sass" || token === "less")
+    return "css";
   if (token === "contributor" || token === "contributors")
     return "contribute";
   if (token.length > 5 && token.endsWith("ies"))
     return `${token.slice(0, -3)}y`;
+  if (token.length > 4 && token.endsWith("ied"))
+    return `${token.slice(0, -3)}y`;
   if (token.length > 5 && token.endsWith("ing"))
     return normalizeVerbStem(token.slice(0, -3));
-  if (token.length > 4 && token.endsWith("ed"))
+  if (token.length > 3 && token.endsWith("ed"))
     return normalizeVerbStem(token.slice(0, -2));
-  if (token.length > 4 && /(?:sses|shes|ches|xes|zes)$/.test(token))
+  if (token.length > 4 && /(?:sses|shes|ches|xes|zes)$/.test(token)) {
     return token.slice(0, -2);
+  }
   if (token.length > 3 && token.endsWith("s") && !/(?:ss|us|is)$/.test(token)) {
     return token.slice(0, -1);
   }
   return token;
 }
 function normalizeVerbStem(stem) {
-  const deduplicated = /([a-z])\1$/.test(stem) && !stem.endsWith("ss") ? stem.slice(0, -1) : stem;
-  return TRAILING_E_VERB_STEMS.has(deduplicated) ? `${deduplicated}e` : deduplicated;
+  const wasDoubled = /([a-z])\1$/.test(stem) && !stem.endsWith("ss");
+  if (wasDoubled) {
+    return stem.slice(0, -1);
+  }
+  const silentEStem = /(?:at|bl|iz|ap|ud|ac|ut|ov|et|dl|rg|ng|ic|out|rs|ch|lv)$/;
+  return silentEStem.test(stem) || stemMeasure(stem) === 1 && endsConsonantVowelConsonant(stem) ? `${stem}e` : stem;
+}
+function stemMeasure(word) {
+  let measure = 0;
+  let previousWasVowel = false;
+  for (let index = 0; index < word.length; index += 1) {
+    const vowel = isStemVowel(word, index);
+    if (previousWasVowel && !vowel)
+      measure += 1;
+    previousWasVowel = vowel;
+  }
+  return measure;
+}
+function endsConsonantVowelConsonant(word) {
+  if (word.length < 3)
+    return false;
+  const last = word.length - 1;
+  return !isStemVowel(word, last - 2) && isStemVowel(word, last - 1) && !isStemVowel(word, last) && !/[wxy]/.test(word[last] ?? "");
+}
+function isStemVowel(word, index) {
+  const character = word[index] ?? "";
+  if (/[aeiou]/.test(character))
+    return true;
+  return character === "y" && index > 0 && !isStemVowel(word, index - 1);
 }
 function tokenizePath(path) {
   return tokenizeText(path);
@@ -480,8 +643,9 @@ function tokenizePath(path) {
 
 // packages/core/dist/grounding.js
 var MAX_IDENTIFIER_MATCHED_FILES = 5;
-var VAGUE_TASK_PATTERN = /\b(?:improve|better|clean\s+up|cleanup|refactor|developer\s+experience|dx|general|overall|errors?|reliability|performance|codebase|quality|make|things?|please)\b/i;
-var VAGUE_TASK_TERMS = new RegExp(VAGUE_TASK_PATTERN.source, "gi");
+var VAGUE_TASK_PATTERN = /^\s*(?:please\s+)?(?:improve|make|clean(?:\s+(?:this|it|things?))?\s+up|cleanup|refactor)\b/i;
+var VAGUE_TASK_TERMS = /\b(?:please|improve|better|clean(?:\s+(?:this|it|things?))?\s+up|cleanup|refactor|developer\s+experience|dx|general|overall|codebase|quality|make|things?)\b/gi;
+var CLUSTERED_RANKING_MARGIN = 2;
 function analyzeTaskGrounding(repo, input) {
   const issueText = input.issueText ?? "";
   const signals = extractTaskSignals({
@@ -496,14 +660,14 @@ function analyzeTaskGrounding(repo, input) {
   const unverifiedIdentifiers = identifiers.filter((entry) => entry.status === "unverified").map((entry) => entry.identifier);
   const resolvedIdentifierCount = identifiers.filter((entry) => entry.status === "exact-definition" || entry.status === "exact-text").length;
   const hasMatchedFileMention = [...signals.fileMentions].some((mention) => repo.files.some((file) => pathMatchesMention(file.path, mention)));
-  const hasDirectAnchor = repo.changedFiles.length > 0 || hasMatchedFileMention || resolvedIdentifierCount > 0 || partiallyResolvedIdentifiers.length > 0;
+  const hasDirectAnchor = hasMatchedFileMention || resolvedIdentifierCount > 0 || partiallyResolvedIdentifiers.length > 0;
   const issueTokens = tokenizeText(issueText);
   const singleTokenHasRepoMatch = issueTokens.size === 1 && repo.files.some((file) => {
     const token = [...issueTokens][0];
     return tokenizeText(file.path).has(token) || tokenizeText(file.textSample).has(token);
   });
   const singleUnmatchedToken = issueTokens.size === 1 && !singleTokenHasRepoMatch;
-  const vague = !hasDirectAnchor && (isVagueTask(issueText) || singleUnmatchedToken);
+  const vague = !hasDirectAnchor && (isVagueTaskText(issueText) || singleUnmatchedToken);
   return {
     specificity: hasDirectAnchor ? "anchored" : vague ? "vague" : "descriptive",
     identifiers,
@@ -539,7 +703,7 @@ function buildRankingShape(contextFiles) {
   const runnerUpScore = sortedScores[1] ?? null;
   const topGap = topScore === null || runnerUpScore === null ? null : topScore - runnerUpScore;
   const thirdScore = sortedScores[2];
-  const clustered = topScore !== null && thirdScore !== void 0 && topScore - thirdScore <= 2;
+  const clustered = topScore !== null && thirdScore !== void 0 && topScore - thirdScore <= CLUSTERED_RANKING_MARGIN;
   return { topScore, runnerUpScore, topGap, clustered };
 }
 function buildNextAction(grounding, ranking, contextFiles, hasRoutedTests = true) {
@@ -547,7 +711,7 @@ function buildNextAction(grounding, ranking, contextFiles, hasRoutedTests = true
     return "Verify or correct the unresolved identifiers before editing ranked files.";
   }
   if (grounding.unverifiedIdentifiers.length > 0) {
-    return "Inspect the content-unread diagnostics and make those source files readable before trusting identifier-based recommendations.";
+    return "Inspect the content diagnostics and make those source files readable before trusting identifier-based recommendations.";
   }
   if (grounding.partiallyResolvedIdentifiers.length > 0) {
     return "Verify the partially matched symbol name in the leading file before editing.";
@@ -568,8 +732,8 @@ function buildNextAction(grounding, ranking, contextFiles, hasRoutedTests = true
   return "Add a concrete repository anchor and rerun FixMap.";
 }
 function groundIdentifier(repo, identifier) {
-  const definitionPattern = new RegExp(`\\b(?:export\\s+)?(?:async\\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\\s+${escapeRegExp(identifier)}\\b`);
-  const exactPattern = new RegExp(`(^|[^$A-Za-z0-9_])${escapeRegExp(identifier)}(?=$|[^$A-Za-z0-9_])`);
+  const definitionPattern = new RegExp(`(?<![\\p{L}\\p{N}_$])(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\\s+)${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`, "u");
+  const exactPattern = new RegExp(`(?<![\\p{L}\\p{N}_$])${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`, "u");
   const definitionFiles = repo.files.filter((file) => definitionPattern.test(file.textSample)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
   if (definitionFiles.length > 0) {
     return {
@@ -582,7 +746,7 @@ function groundIdentifier(repo, identifier) {
   return textFiles.length > 0 ? { identifier, status: "exact-text", matchedFiles: textFiles } : groundPartialOrUnverifiedIdentifier(repo, identifier);
 }
 function groundPartialOrUnverifiedIdentifier(repo, identifier) {
-  const identifierParts = tokenizeText(identifier);
+  const identifierParts = tokenizeIdentifier(identifier);
   const partialFiles = repo.files.filter((file) => hasDefinitionContainingTokens(file.textSample, identifierParts)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
   if (identifierParts.size >= 2 && partialFiles.length > 0) {
     return {
@@ -600,13 +764,13 @@ function hasDefinitionContainingTokens(text, expectedTokens) {
   if (expectedTokens.size < 2) {
     return false;
   }
-  const definitionPattern = /\b(?:export\s+)?(?:async\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\s+([$A-Za-z_][$A-Za-z0-9_]*)\b/g;
+  const definitionPattern = /(?<![\p{L}\p{N}_$])(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\s+)([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
   for (const match of text.matchAll(definitionPattern)) {
     const name = match[1];
     if (!name) {
       continue;
     }
-    const candidateTokens = tokenizeText(name);
+    const candidateTokens = tokenizeIdentifier(name);
     if ([...expectedTokens].every((token) => candidateTokens.has(token))) {
       return true;
     }
@@ -620,14 +784,20 @@ function isAnchorIdentifier(identifier, issueText) {
   if (/[_$0-9]/.test(identifier)) {
     return true;
   }
+  if (!/^[\x00-\x7F]+$/.test(identifier)) {
+    return true;
+  }
   if (/^[a-z][A-Za-z0-9_$]*[A-Z]/.test(identifier)) {
     return true;
   }
   return [...identifier].filter((character) => /[A-Z]/.test(character)).length >= 3;
 }
 var MAX_RESIDUAL_TOKENS_FOR_VAGUE = 3;
-function isVagueTask(issueText) {
+function isVagueTaskText(issueText) {
   if (issueText.trim().length === 0 || !VAGUE_TASK_PATTERN.test(issueText)) {
+    return false;
+  }
+  if (/^\s*(?:please\s+)?(?:refactor|cleanup|clean\s+up)\s+(?:broke|breaks?|caused|causes|deleted?|deletes?|fails?|failed)\b/i.test(issueText)) {
     return false;
   }
   const residual = tokenizeText(issueText.replace(VAGUE_TASK_TERMS, " "));
@@ -635,9 +805,6 @@ function isVagueTask(issueText) {
 }
 function removeIdentifiers(text, identifiers) {
   return identifiers.reduce((current, identifier) => current.replace(new RegExp(escapeRegExp(identifier), "g"), " "), text);
-}
-function pathMatchesMention(path, mention) {
-  return path === mention || path.endsWith(`/${mention}`) || mention.endsWith(`/${path}`);
 }
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -655,7 +822,12 @@ var ROOT_MANIFESTS = {
   // reads as a guess when the root was in fact explicit.
   "requirements.txt": "python",
   "pipfile": "python",
-  "package.json": "node"
+  "package.json": "node",
+  "gemfile": "ruby",
+  "composer.json": "php",
+  "pom.xml": "java",
+  "build.gradle": "java",
+  "build.gradle.kts": "java"
 };
 var EXTENSION_LANGUAGES = {
   ".py": "python",
@@ -666,7 +838,11 @@ var EXTENSION_LANGUAGES = {
   ".js": "node",
   ".jsx": "node",
   ".mjs": "node",
-  ".cjs": "node"
+  ".cjs": "node",
+  ".rb": "ruby",
+  ".php": "php",
+  ".java": "java",
+  ".cs": "dotnet"
 };
 function detectPrimaryLanguage(repo) {
   const manifests = rootManifestLanguages(repo.files);
@@ -699,7 +875,7 @@ function rootManifestLanguages(files) {
     if (file.path.includes("/")) {
       continue;
     }
-    const language = ROOT_MANIFESTS[file.path.toLowerCase()];
+    const language = languageForManifest(file.path.toLowerCase());
     if (language && !found.has(language)) {
       found.set(language, file.path);
     }
@@ -709,7 +885,7 @@ function rootManifestLanguages(files) {
 function nearestManifest(files, language) {
   const candidates = files.filter((file) => {
     const name = file.path.split("/").pop()?.toLowerCase() ?? "";
-    return ROOT_MANIFESTS[name] === language;
+    return languageForManifest(name) === language;
   }).sort((a, b) => a.path.split("/").length - b.path.split("/").length || a.path.localeCompare(b.path));
   const nearest = candidates[0];
   if (!nearest)
@@ -733,33 +909,48 @@ function countCodeFiles(files) {
 }
 function manifestTestCommand(language, packageDir, files = []) {
   if (language === "go") {
-    const manifest = nearestManifest(files, "go");
-    if (!manifest) {
+    const manifest2 = nearestManifest(files, "go");
+    if (!manifest2) {
       return { command: "go test ./...", reason: "Go source files; no go.mod was found" };
     }
-    if (manifest.packageDir) {
+    if (manifest2.packageDir) {
       return {
-        command: `go test -C ${manifest.packageDir} ./...`,
-        reason: `nearest module (${manifest.packageDir}) declared by ${manifest.path}`
+        command: `go test -C ${manifest2.packageDir} ./...`,
+        reason: `nearest module (${manifest2.packageDir}) declared by ${manifest2.path}`
       };
     }
     return { command: "go test ./...", reason: "go.mod at the repository root" };
   }
   if (language === "rust") {
-    return packageDir ? {
-      command: `cargo test --manifest-path ${packageDir}/Cargo.toml`,
-      reason: `nearest crate (${packageDir}) declared by Cargo.toml`
-    } : { command: "cargo test", reason: "Cargo.toml at the repository root" };
+    const requestedManifest = packageDir ? files.find((file) => file.path.toLowerCase() === `${packageDir}/cargo.toml`.toLowerCase()) : void 0;
+    const manifest2 = requestedManifest ? { path: requestedManifest.path, packageDir } : nearestManifest(files, "rust");
+    if (!manifest2)
+      return { command: "cargo test", reason: "Rust source files; no Cargo.toml was found" };
+    return manifest2.packageDir ? { command: `cargo test --manifest-path ${manifest2.path}`, reason: `nearest crate (${manifest2.packageDir}) declared by ${manifest2.path}` } : { command: "cargo test", reason: "Cargo.toml at the repository root" };
+  }
+  const manifest = nearestManifest(files, language);
+  if (language === "ruby" && manifest) {
+    return { command: "bundle exec rspec", reason: `${manifest.path} declares the Ruby bundle` };
+  }
+  if (language === "php" && manifest) {
+    return { command: "composer test", reason: `${manifest.path} declares Composer scripts` };
+  }
+  if (language === "java" && manifest) {
+    return manifest.path.toLowerCase().endsWith("pom.xml") ? { command: "mvn test", reason: `${manifest.path} declares a Maven project` } : { command: "./gradlew test", reason: `${manifest.path} declares a Gradle project` };
+  }
+  if (language === "dotnet") {
+    return manifest ? { command: `dotnet test${manifest.packageDir ? ` ${manifest.path}` : ""}`, reason: `${manifest.path} declares a .NET project` } : { command: "dotnet test", reason: ".NET source files; no project file was found" };
   }
   return void 0;
 }
 function suggestedRunner(language, files) {
   if (language === "python") {
-    const names = new Set(files.map((file) => file.path.split("/").pop()?.toLowerCase() ?? ""));
-    if (names.has("tox.ini")) {
+    const configs = files.filter((file) => ["tox.ini", "pytest.ini", "pyproject.toml", "setup.cfg"].includes(file.path.split("/").pop()?.toLowerCase() ?? "")).sort((a, b) => a.path.split("/").length - b.path.split("/").length || Number((b.path.split("/").pop()?.toLowerCase() ?? "") === "tox.ini") - Number((a.path.split("/").pop()?.toLowerCase() ?? "") === "tox.ini") || a.path.localeCompare(b.path));
+    const nearest = configs[0]?.path.split("/").pop()?.toLowerCase();
+    if (nearest === "tox.ini") {
       return "tox";
     }
-    if (names.has("pytest.ini") || names.has("pyproject.toml") || names.has("setup.cfg")) {
+    if (nearest) {
       return "pytest";
     }
     return "pytest or unittest";
@@ -770,7 +961,19 @@ function suggestedRunner(language, files) {
   if (language === "rust") {
     return "cargo test";
   }
+  if (language === "ruby")
+    return "bundle exec rspec";
+  if (language === "php")
+    return "composer test or vendor/bin/phpunit";
+  if (language === "java")
+    return "mvn test or ./gradlew test";
+  if (language === "dotnet")
+    return "dotnet test";
   return void 0;
+}
+function languageForManifest(path) {
+  const name = path.split("/").pop()?.toLowerCase() ?? path.toLowerCase();
+  return ROOT_MANIFESTS[name] ?? (/\.(?:csproj|fsproj|vbproj)$/.test(name) ? "dotnet" : void 0);
 }
 
 // packages/core/dist/import-graph.js
@@ -791,17 +994,22 @@ var SPECIFIER_PATTERNS = [
 var MAX_GRAPH_FILES = 5e3;
 var MAX_EDGES_PER_FILE = 200;
 function buildImportGraph(files) {
-  const parseable = files.filter((file) => JS_EXTENSIONS.has(file.extension) && file.textSample.length > 0).slice(0, MAX_GRAPH_FILES);
+  const allParseable = files.filter((file) => JS_EXTENSIONS.has(file.extension) && file.textSample.length > 0);
+  const parseable = allParseable.slice(0, MAX_GRAPH_FILES);
   const repoPaths = new Set(files.map((file) => file.path));
+  const aliases = buildAliases(files);
+  const workspacePackages = buildWorkspacePackages(files);
   const imports = /* @__PURE__ */ new Map();
   const importedBy = /* @__PURE__ */ new Map();
+  let truncatedEdges = 0;
   for (const file of parseable) {
     let edges = 0;
     for (const specifier of extractSpecifiers(file.textSample)) {
       if (edges >= MAX_EDGES_PER_FILE) {
+        truncatedEdges += 1;
         break;
       }
-      const target = resolveSpecifier(file.path, specifier, repoPaths);
+      const target = resolveSpecifier(file.path, specifier, repoPaths, aliases, workspacePackages);
       if (!target || target === file.path) {
         continue;
       }
@@ -810,7 +1018,12 @@ function buildImportGraph(files) {
       edges += 1;
     }
   }
-  return { imports, importedBy };
+  return {
+    imports,
+    importedBy,
+    truncatedFiles: Math.max(0, allParseable.length - parseable.length),
+    truncatedEdges
+  };
 }
 function findImportProximity(graph, seedPaths) {
   const seeds = new Set(seedPaths);
@@ -849,19 +1062,37 @@ function extractSpecifiers(textSample) {
   for (const pattern of SPECIFIER_PATTERNS) {
     for (const match of textSample.matchAll(pattern)) {
       const specifier = match[1];
-      if (specifier && specifier.startsWith(".")) {
+      if (specifier) {
         specifiers.add(specifier);
       }
     }
   }
   return specifiers;
 }
-function resolveSpecifier(fromPath, specifier, repoPaths) {
+function resolveSpecifier(fromPath, specifier, repoPaths, aliases, workspacePackages) {
   const baseDir = fromPath.split("/").slice(0, -1).join("/");
-  const joined = normalizeSegments(baseDir ? `${baseDir}/${specifier}` : specifier);
-  if (joined === void 0 || joined === "") {
-    return void 0;
+  const roots = [];
+  if (specifier.startsWith(".")) {
+    const joined = normalizeSegments(baseDir ? `${baseDir}/${specifier}` : specifier);
+    if (joined)
+      roots.push(joined);
+  } else {
+    roots.push(...workspacePackages.get(specifier) ?? []);
+    for (const alias of aliases) {
+      if (!specifier.startsWith(alias.prefix) || !specifier.endsWith(alias.suffix))
+        continue;
+      const middle = specifier.slice(alias.prefix.length, specifier.length - alias.suffix.length || void 0);
+      roots.push(...alias.targets.map((target) => target.replace("*", middle)));
+    }
   }
+  for (const root of roots) {
+    const resolved = resolveCandidate(root, repoPaths);
+    if (resolved)
+      return resolved;
+  }
+  return void 0;
+}
+function resolveCandidate(joined, repoPaths) {
   const candidates = [joined];
   const lastSegment = joined.split("/").pop() ?? "";
   const dot = lastSegment.lastIndexOf(".");
@@ -878,6 +1109,50 @@ function resolveSpecifier(fromPath, specifier, repoPaths) {
     candidates.push(`${joined}/index${resolveExtension}`);
   }
   return candidates.find((candidate) => repoPaths.has(candidate));
+}
+function buildWorkspacePackages(files) {
+  const packages = /* @__PURE__ */ new Map();
+  for (const file of files.filter((entry) => entry.path === "package.json" || entry.path.endsWith("/package.json"))) {
+    try {
+      const manifest = JSON.parse(file.textSample);
+      if (typeof manifest.name !== "string" || !manifest.name.trim())
+        continue;
+      const dir = file.path.split("/").slice(0, -1).join("/");
+      const declared = [manifest.source, manifest.module, manifest.main, manifest.types].filter((entry) => typeof entry === "string").map((entry) => normalizeSegments(dir ? `${dir}/${entry}` : entry)).filter((entry) => Boolean(entry));
+      packages.set(manifest.name, [
+        ...declared,
+        ...dir ? [`${dir}/src/index`, `${dir}/index`] : ["src/index", "index"]
+      ]);
+    } catch {
+    }
+  }
+  return packages;
+}
+function buildAliases(files) {
+  const aliases = [];
+  for (const file of files.filter((entry) => /(^|\/)(?:tsconfig|jsconfig)(?:\.[^/]*)?\.json$/i.test(entry.path))) {
+    try {
+      const config = JSON.parse(file.textSample);
+      const paths = config.compilerOptions?.paths;
+      if (!paths || typeof paths !== "object" || Array.isArray(paths))
+        continue;
+      const dir = file.path.split("/").slice(0, -1).join("/");
+      const baseUrl = typeof config.compilerOptions?.baseUrl === "string" ? config.compilerOptions.baseUrl : ".";
+      const base = normalizeSegments(dir ? `${dir}/${baseUrl}` : baseUrl) ?? "";
+      for (const [pattern, rawTargets] of Object.entries(paths)) {
+        if (!Array.isArray(rawTargets) || !rawTargets.every((entry) => typeof entry === "string"))
+          continue;
+        const star = pattern.indexOf("*");
+        aliases.push({
+          prefix: star === -1 ? pattern : pattern.slice(0, star),
+          suffix: star === -1 ? "" : pattern.slice(star + 1),
+          targets: rawTargets.map((target) => normalizeSegments(base ? `${base}/${target}` : target)).filter((target) => Boolean(target))
+        });
+      }
+    } catch {
+    }
+  }
+  return aliases;
 }
 function normalizeSegments(path) {
   const segments = [];
@@ -905,71 +1180,6 @@ function addEdge(edges, from, to) {
   }
 }
 
-// packages/core/dist/paths.js
-var ALWAYS_IGNORED_DIRS = /* @__PURE__ */ new Set([".cache", ".git", ".venv", "node_modules"]);
-var GENERATED_DIRS = /* @__PURE__ */ new Set([
-  ".idea",
-  ".netlify",
-  ".next",
-  ".nuxt",
-  ".output",
-  ".turbo",
-  ".vercel",
-  ".vscode",
-  "build",
-  "coverage",
-  "dist",
-  "target",
-  "vendor"
-]);
-var BACKUP_SEGMENT_WORDS = /* @__PURE__ */ new Set([
-  "archive",
-  "archived",
-  "archives",
-  "backup",
-  "backups",
-  "bak",
-  "deprecated",
-  "legacy",
-  "old",
-  "quarantine"
-]);
-var BACKUP_FILE_PATTERNS = [
-  /\.(?:bak|orig|rej|old|save|swp)$/i,
-  /~$/,
-  /\bconflicted copy\b/i,
-  /\bconflict(?:ed)?[-_ ]copy\b/i,
-  /[-_ ]copy(?:\s*\(\d+\))?\.[^.]+$/i,
-  /\s\(\d+\)\.[^.]+$/
-];
-function segmentWords(segment) {
-  return segment.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-}
-function directorySegments(path) {
-  return path.split("/").slice(0, -1);
-}
-function isGeneratedPath(path) {
-  return directorySegments(path).some((segment) => GENERATED_DIRS.has(segment.toLowerCase())) || isRecordedEvaluationOutput(path);
-}
-function isRecordedEvaluationOutput(path) {
-  return /^benchmarks\/[^/]+\/(?:results|savings-results)\.json$/i.test(path);
-}
-var SOURCE_ROOT_DIRS = /* @__PURE__ */ new Set(["lib", "source", "src"]);
-function moduleStem(path) {
-  return path.replace(/\.[^./]+$/, "").split("/").filter((segment) => {
-    const normalized = segment.toLowerCase();
-    return !GENERATED_DIRS.has(normalized) && !SOURCE_ROOT_DIRS.has(normalized);
-  }).join("/");
-}
-function isBackupPath(path) {
-  const inBackupDirectory = directorySegments(path).some((segment) => segmentWords(segment).some((word) => BACKUP_SEGMENT_WORDS.has(word)));
-  if (inBackupDirectory) {
-    return true;
-  }
-  const fileName = path.split("/").pop() ?? "";
-  return BACKUP_FILE_PATTERNS.some((pattern) => pattern.test(fileName));
-}
-
 // packages/core/dist/rank.js
 var DEPLOYMENT_TERMS = [
   "deploy",
@@ -982,7 +1192,23 @@ var DEPLOYMENT_TERMS = [
   "serverless",
   "production"
 ];
-var LOCKFILES = /* @__PURE__ */ new Set(["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"]);
+var CONFIGURATION_TERMS = ["config", "configuration", "workflow", "action", "ci", "yaml"];
+var PRESENTATION_TERMS = [
+  "browser",
+  "button",
+  "client",
+  "display",
+  "form",
+  "frontend",
+  "layout",
+  "page",
+  "screen",
+  "ui",
+  "visitor",
+  "web",
+  "website"
+];
+var RANKING_SIGNAL_TERMS = [...DEPLOYMENT_TERMS, ...CONFIGURATION_TERMS, ...PRESENTATION_TERMS];
 var AUXILIARY_CODE_DIRS = /* @__PURE__ */ new Set(["demo", "demos", "example", "examples", "sample", "samples"]);
 var COMPILED_TO_SOURCE_MENTION_EXTENSIONS = {
   ".js": [".ts", ".tsx"],
@@ -994,10 +1220,13 @@ var MAX_FILES_PER_MENTION = 5;
 var MAX_PROXIMITY_SEEDS = 5;
 var IMPORT_PROXIMITY_BOOSTS = { 1: 4, 2: 2 };
 var EXAMPLE_CODE_PENALTY = 8;
+var AUXILIARY_REPRODUCTION_PENALTY = 20;
 var PRESENTATION_CODE_PENALTY = 8;
+var INTERACTIVE_PRESENTATION_BOOST = 4;
 var TYPE_DECLARATION_PENALTY = 4;
+var TYPE_DECLARATION_DIRECT_PENALTY = 8;
 var BACKUP_COPY_PENALTY = 10;
-var BUNDLED_OUTPUT_PENALTY = 12;
+var BUNDLED_OUTPUT_PENALTY = 16;
 var GENERATED_TWIN_PENALTY = 21;
 var GENERATED_TWIN_REASON = "generated build artifact; maintained source counterpart exists";
 var BUNDLED_LINE_LENGTH = 400;
@@ -1012,7 +1241,7 @@ var BUNDLE_MARKERS = [
   /\b__defProp\s*=/,
   /\/\/# sourceMappingURL=/
 ];
-var EXPLICIT_PATH_BOOST = 40;
+var EXPLICIT_PATH_BOOST = 60;
 var EXACT_LITERAL_BOOST = 8;
 var MEMBER_MENTION_BOOST = 8;
 var WIDESPREAD_TOKEN_SHARE = 0.85;
@@ -1020,10 +1249,13 @@ var DEFINITION_IDENTIFIER_BOOST = 24;
 var DEFINITION_LITERAL_BOOST = 8;
 var MAX_DEFINITION_IDENTIFIERS = 2;
 var TASK_MATCHED_DEFINITION_BOOST = 4;
-var HIGH_CONFIDENCE_MARGIN = 2;
+var HIGH_CONFIDENCE_MARGIN = CLUSTERED_RANKING_MARGIN;
 var REPORT_SCORE_CUTOFF = 4;
 var DEFAULT_CONTEXT_FILE_LIMIT = 8;
 function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minScore = REPORT_SCORE_CUTOFF) {
+  return rankContextFilesDetailed(repo, input, limit, minScore).contextFiles;
+}
+function rankContextFilesDetailed(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minScore = REPORT_SCORE_CUTOFF) {
   const exclude = input.exclude ?? NO_EXCLUSIONS;
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
@@ -1036,37 +1268,31 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
     diffText: input.diffText ?? "",
     changedFiles: repo.changedFiles
   });
-  const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path));
-  const taskTargetsEvaluation = hasAny(taskTokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
-  const scannable = repo.files.filter((file) => !exclude.excludes(file.path) && (mentionedPaths.has(file.path) || file.isSource && !file.isTest && !LOCKFILES.has(file.path.split("/").pop() ?? "") && (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation)));
+  const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path), repo.root);
+  const scannable = repo.files.filter((file) => !exclude.excludes(file.path) && (mentionedPaths.has(file.path) || file.isSource && !file.isTest && !LOCKFILE_NAMES.has(file.path.split("/").pop() ?? "")));
   const maintainedStems = new Set(scannable.filter((file) => !isGeneratedPath(file.path) && !isBackupPath(file.path)).map((file) => moduleStem(file.path)));
-  const candidates = scannable.filter((file) => !isRecordedEvaluationOutput(file.path) && (mentionedPaths.has(file.path) || signals.changedFiles.has(file.path) || !isGeneratedPath(file.path) || !maintainedStems.has(moduleStem(file.path))));
-  const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeFileContent(file.textSample)]));
+  const candidateFiles = scannable.filter((file) => !isRecordedEvaluationOutput(file.path) && (mentionedPaths.has(file.path) || signals.changedFiles.has(file.path) || !isGeneratedPath(file.path) || !maintainedStems.has(moduleStem(file.path))));
+  const regexTokensByPath = new Map(candidateFiles.map((file) => [file.path, extractRegexTokens(file.textSample)]));
+  const contentTokensByPath = new Map(candidateFiles.map((file) => [
+    file.path,
+    tokenizeFileContent(file.textSample, regexTokensByPath.get(file.path) ?? /* @__PURE__ */ new Set())
+  ]));
   const commonTokens = findCommonTokens(contentTokensByPath);
   const allTaskTermsAreWidespread = taskTokens.size > 0 && [...taskTokens].every((token) => commonTokens.has(token));
   const definitionSignals = buildDefinitionSignals(signals.identifiers);
+  const memberSignals = [...signals.memberMentions].map((member) => ({
+    member,
+    pattern: exactIdentifierPattern(member)
+  }));
   const taskText = [input.issueText ?? "", input.diffText ?? ""].join("\n");
+  const exactFragmentOccurrences = new Map(signals.exactFragments.map((fragment) => [fragment, countOccurrences(taskText, fragment)]));
   const taskTargetsDocumentation = targetsDocumentation(taskText);
-  const taskTargetsConfiguration = hasAny(taskTokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
-  const taskTargetsDeployment = hasAny(taskTokens, DEPLOYMENT_TERMS);
+  const taskTargetsConfiguration = hasAnyNormalized(taskTokens, taskText, CONFIGURATION_TERMS);
+  const taskTargetsDeployment = hasAnyNormalized(taskTokens, taskText, DEPLOYMENT_TERMS);
   const taskTargetsExamples = /\b(?:demos?|examples?|samples?)\b/i.test(taskText.replace(/\bfor example\b/gi, ""));
-  const taskTargetsPresentation = hasAny(taskTokens, [
-    "browser",
-    "button",
-    "client",
-    "display",
-    "form",
-    "frontend",
-    "layout",
-    "page",
-    "screen",
-    "ui",
-    "visitor",
-    "web",
-    "website"
-  ]);
+  const taskTargetsPresentation = hasAnyNormalized(taskTokens, taskText, PRESENTATION_TERMS);
   const taskTargetsTypeDeclarations = /\b(?:typescript|types?|type definitions?|declarations?|typings?|\.d\.(?:ts|mts|cts))\b/i.test(taskText);
-  const scored = candidates.map((file) => {
+  const scored = candidateFiles.map((file) => {
     const reasons = [];
     let score = 0;
     const isChanged = signals.changedFiles.has(file.path);
@@ -1088,6 +1314,16 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
     if (pathOverlap.length > 0) {
       score += pathOverlap.length * 3;
       reasons.push(`path matches task terms: ${pathOverlap.join(", ")}`);
+      if (pathOverlap.length >= 2) {
+        score += 4;
+        reasons.push("multiple task terms converge in the file path");
+        const fileName = file.path.split("/").at(-1)?.replace(/\.[^.]+$/, "") ?? "";
+        const fileNameTokens = tokenizeText(fileName);
+        if (fileNameTokens.size === 1 && [...fileNameTokens].some((token) => taskTokens.has(token))) {
+          score += 5;
+          reasons.push("file module name exactly matches a task term");
+        }
+      }
     }
     const contentTokens = contentTokensByPath.get(file.path) ?? /* @__PURE__ */ new Set();
     const contentOverlap = [...contentTokens].filter((token) => taskTokens.has(token) && (allTaskTermsAreWidespread || !commonTokens.has(token)));
@@ -1095,27 +1331,31 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
       score += Math.min(contentOverlap.length, 8) * 2;
       reasons.push(`content matches task terms: ${contentOverlap.slice(0, 8).join(", ")}`);
     }
-    const regexTokenOverlap = findRegexTokenOverlap(file.textSample, taskTokens);
+    const regexTokenOverlap = [...regexTokensByPath.get(file.path) ?? []].filter((token) => taskTokens.has(token)).slice(0, 2);
     if (regexTokenOverlap.length > 0) {
       score += Math.min(regexTokenOverlap.length, 2) * 12;
       reasons.push(`regex literal matches task tokens: ${regexTokenOverlap.join(", ")}`);
     }
-    const matchedMembers = [...signals.memberMentions].filter((member) => hasExactIdentifier(file.textSample, member)).slice(0, 3);
+    const matchedMembers = memberSignals.filter((signal) => signal.pattern.test(file.textSample)).map((signal) => signal.member).slice(0, 3);
     if (matchedMembers.length > 0) {
       score += matchedMembers.length * MEMBER_MENTION_BOOST;
       reasons.push(`contains task member names: ${matchedMembers.join(", ")}`);
     }
-    const exactLiteral = signals.exactFragments.filter((fragment) => file.textSample.includes(fragment)).sort((a, b) => countOccurrences(taskText, b) - countOccurrences(taskText, a) || b.length - a.length)[0];
+    const exactLiteral = signals.exactFragments.filter((fragment) => file.textSample.includes(fragment)).sort((a, b) => (exactFragmentOccurrences.get(b) ?? 0) - (exactFragmentOccurrences.get(a) ?? 0) || b.length - a.length)[0];
     if (exactLiteral) {
-      score += EXACT_LITERAL_BOOST * Math.min(3, countOccurrences(taskText, exactLiteral));
+      score += EXACT_LITERAL_BOOST * Math.min(3, exactFragmentOccurrences.get(exactLiteral) ?? 0);
       reasons.push(`contains exact task literal: ${previewFragment(exactLiteral)}`);
     }
     const definedIdentifiers = (file.kind === "documentation" ? [] : findDefinedIdentifiers(file.textSample, definitionSignals)).slice(0, MAX_DEFINITION_IDENTIFIERS);
     if (definedIdentifiers.length > 0) {
       score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
       reasons.push(`defines task identifiers: ${definedIdentifiers.join(", ")}`);
+      if (file.kind === "code" && !file.isTest && !isAuxiliaryCodePath(file.path) && !isTypeDeclarationPath(file.path) && !file.path.toLowerCase().startsWith("benchmarks/")) {
+        score += 4;
+        reasons.push("task identifier is defined in maintained implementation source");
+      }
     }
-    const taskMatchedDefinitions = signals.exactFragments.length === 0 && !taskTargetsDocumentation && !taskTargetsPresentation ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file.textSample, taskTokens)).filter((identifier) => !definedIdentifiers.includes(identifier)).slice(0, MAX_DEFINITION_IDENTIFIERS) : [];
+    const taskMatchedDefinitions = signals.exactFragments.length === 0 && !taskTargetsDocumentation ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file.textSample, taskTokens)).filter((identifier) => !definedIdentifiers.includes(identifier)).slice(0, MAX_DEFINITION_IDENTIFIERS) : [];
     if (taskMatchedDefinitions.length > 0) {
       score += taskMatchedDefinitions.length * TASK_MATCHED_DEFINITION_BOOST;
       reasons.push(`defines symbols matching task terms: ${taskMatchedDefinitions.join(", ")}`);
@@ -1143,7 +1383,7 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
     } else if (file.kind === "config" && !isChanged) {
       score -= 4;
     }
-    const isDeploymentConfig = file.path === "package.json" || DEPLOYMENT_TERMS.some((term) => pathTokens.has(term));
+    const isDeploymentConfig = file.path === "package.json" || DEPLOYMENT_TERMS.some((term) => [...tokenizeText(term)].some((token) => pathTokens.has(token)));
     if (taskTargetsDeployment && file.kind === "config" && !file.path.includes("/") && isDeploymentConfig) {
       score += 5;
       reasons.push("root configuration for a deployment-related task");
@@ -1151,14 +1391,31 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
     if (file.kind === "code" && isAuxiliaryCodePath(file.path) && !taskTargetsExamples && !taskTargetsPresentation && !isChanged && !mentionedPaths.has(file.path)) {
       score -= EXAMPLE_CODE_PENALTY;
       reasons.push("example or demo code deprioritized for an implementation task");
+      if (exactLiteral && definedIdentifiers.length > 0) {
+        score -= AUXILIARY_REPRODUCTION_PENALTY;
+        reasons.push("task reproduction evidence is weaker in auxiliary example code");
+      }
     }
-    if (isPresentationSurfacePath(file.path) && !taskTargetsPresentation && !taskTargetsExamples && !isChanged && !mentionedPaths.has(file.path)) {
-      score -= PRESENTATION_CODE_PENALTY;
-      reasons.push("presentation or demo surface deprioritized for a non-UI implementation task");
+    if (isPresentationSurfacePath(file.path)) {
+      if (taskTargetsPresentation) {
+        score += PRESENTATION_CODE_PENALTY;
+        reasons.push("presentation surface matches a UI-focused task");
+        if (isInteractivePresentation(file.textSample)) {
+          score += INTERACTIVE_PRESENTATION_BOOST;
+          reasons.push("interactive presentation surface matches the requested user flow");
+        }
+      } else if (!taskTargetsExamples && !isChanged && !mentionedPaths.has(file.path)) {
+        score -= PRESENTATION_CODE_PENALTY;
+        reasons.push("presentation or demo surface deprioritized for a non-UI implementation task");
+      }
     }
     if (isTypeDeclarationPath(file.path) && !taskTargetsTypeDeclarations && !isChanged && !mentionedPaths.has(file.path)) {
       score -= TYPE_DECLARATION_PENALTY;
       reasons.push("type declaration deprioritized for a runtime task");
+      if (definedIdentifiers.length > 0) {
+        score -= TYPE_DECLARATION_DIRECT_PENALTY;
+        reasons.push("runtime implementation preferred over a matching declaration");
+      }
     } else if (isTypeDeclarationPath(file.path) && taskTargetsTypeDeclarations && !isChanged) {
       score += TYPE_DECLARATION_PENALTY;
       reasons.push("type declaration matches a type-focused task");
@@ -1180,20 +1437,24 @@ function rankContextFiles(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minSc
     return { path: file.path, score, isChanged, reasons };
   });
   applyImportProximity(scored, repo);
-  const ranked = scored.filter((file) => file.score >= minScore).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, limit);
-  const clustered = isClusteredRanking(ranked);
-  const leadIsContested = hasContestedLead(ranked);
-  return ranked.map((entry, position) => ({
+  const candidates = scored.filter((file) => file.score >= minScore).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
+  const ranking = buildRankingShape(candidates);
+  const clustered = ranking.clustered;
+  const leadIsContested = hasContestedLead(candidates);
+  const ranked = candidates.slice(0, limit);
+  const contextFiles = ranked.map((entry, position) => ({
     rank: position + 1,
     path: entry.path,
     score: entry.score,
     confidence: confidenceForEntry(entry, grounding, clustered, {
       position,
-      topScore: ranked[0]?.score ?? entry.score,
-      leadIsContested
+      topScore: candidates[0]?.score ?? entry.score,
+      leadIsContested,
+      issueIsVague: isVagueTaskText(input.issueText ?? "")
     }),
     reasons: entry.reasons.length > 0 ? entry.reasons : ["source file baseline"]
   }));
+  return { contextFiles, ranking };
 }
 function hasContestedLead(ranked) {
   const leader = ranked[0];
@@ -1206,13 +1467,22 @@ function hasDefinitionEvidence(entry) {
   return entry.reasons.some((reason) => reason.startsWith("defines task identifiers:") || reason.startsWith("exact task literal at definition:"));
 }
 function applyImportProximity(scored, repo) {
-  const seedEntries = scored.filter((entry) => entry.score >= 8 && hasDirectEvidence(entry)).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, MAX_PROXIMITY_SEEDS);
+  const directSeeds = scored.filter((entry) => entry.score >= 8 && hasDirectEvidence(entry)).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, MAX_PROXIMITY_SEEDS);
+  const seedEntries = directSeeds.length > 0 ? directSeeds : scored.filter((entry) => entry.score >= 8).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, 2);
   if (seedEntries.length === 0) {
     return;
   }
   const seeds = seedEntries.map((entry) => entry.path);
   const seedScores = new Map(seedEntries.map((entry) => [entry.path, entry.score]));
-  const proximity = findImportProximity(buildImportGraph(repo.files), seeds);
+  const graph = buildImportGraph(repo.files);
+  if ((graph.truncatedFiles > 0 || graph.truncatedEdges > 0) && !repo.diagnostics.some((entry) => entry.code === "import-graph-truncated")) {
+    repo.diagnostics.push({
+      code: "import-graph-truncated",
+      severity: "info",
+      message: `Import proximity was bounded: ${graph.truncatedFiles.toLocaleString()} parseable files and ${graph.truncatedEdges.toLocaleString()} high-fanout files were not fully traversed. Ranking still uses path and content evidence.`
+    });
+  }
+  const proximity = findImportProximity(graph, seeds);
   for (const entry of scored) {
     const hit = proximity.get(entry.path);
     if (hit) {
@@ -1234,9 +1504,6 @@ function proximityReason(hit) {
   return hit.direction === "imported-by" ? `imported by ranked file ${hit.seed}` : `imports ranked file ${hit.seed}`;
 }
 function confidenceForEntry(entry, grounding, clustered, shape) {
-  if (entry.isChanged) {
-    return "high";
-  }
   const hasMaintainedSourceTwin = entry.reasons.includes(GENERATED_TWIN_REASON);
   if (entry.reasons.includes("explicitly named in the task") && shape.position === 0 && !shape.leadIsContested && !hasMaintainedSourceTwin) {
     return "high";
@@ -1250,6 +1517,9 @@ function confidenceForEntry(entry, grounding, clustered, shape) {
     confidence = capConfidence(confidence, "medium");
   }
   if (hasMaintainedSourceTwin) {
+    confidence = capConfidence(confidence, "medium");
+  }
+  if (!hasDirectEvidence(entry)) {
     confidence = capConfidence(confidence, "medium");
   }
   const supportedIdentifierCount = grounding.identifiers.filter((identifier) => identifier.status === "exact-definition" || identifier.status === "exact-text" || identifier.status === "partial-definition").length;
@@ -1268,7 +1538,7 @@ function confidenceForEntry(entry, grounding, clustered, shape) {
   if (grounding.partiallyResolvedIdentifiers.length > 0) {
     confidence = capConfidence(confidence, "medium");
   }
-  if (grounding.specificity === "vague") {
+  if (grounding.specificity === "vague" || shape.issueIsVague) {
     return "low";
   }
   if (!grounding.scanComplete) {
@@ -1286,18 +1556,21 @@ function capConfidence(confidence, maximum) {
 function hasDirectEvidence(entry) {
   return entry.isChanged || entry.reasons.some((reason) => reason === "explicitly named in the task" || reason.startsWith("defines task identifiers:") || reason.startsWith("exact task literal at definition:"));
 }
-function isClusteredRanking(entries) {
-  const top = entries[0]?.score;
-  const third = entries[2]?.score;
-  return top !== void 0 && third !== void 0 && top - third <= 2;
+function hasAnyNormalized(tokens, rawText, values) {
+  return values.some((value) => {
+    const normalized = tokenizeText(value);
+    if (normalized.size > 0 && [...normalized].every((token) => tokens.has(token)))
+      return true;
+    return new RegExp(`(^|[^\\p{L}\\p{N}_])${escapeRegExp2(value)}(?=$|[^\\p{L}\\p{N}_])`, "iu").test(rawText);
+  });
 }
-function hasAny(tokens, values) {
-  return values.some((value) => tokens.has(value));
-}
-function matchMentionedPaths(mentions, repoPaths) {
+function matchMentionedPaths(mentions, repoPaths, repoRoot) {
   const matched = /* @__PURE__ */ new Set();
-  for (const mention of mentions) {
-    const exactMatches = repoPaths.filter((path) => pathMatchesMention2(path, mention));
+  for (const rawMention of mentions) {
+    const mention = repositoryRelativeMention(rawMention, repoRoot);
+    if (!mention)
+      continue;
+    const exactMatches = repoPaths.filter((path) => pathMatchesMention(path, mention));
     if (exactMatches.length > 0) {
       if (exactMatches.length <= MAX_FILES_PER_MENTION) {
         for (const path of exactMatches) {
@@ -1307,7 +1580,7 @@ function matchMentionedPaths(mentions, repoPaths) {
       continue;
     }
     const fallbackVariants = compiledSourcePathVariants(mention);
-    const fallbackMatches = repoPaths.filter((path) => fallbackVariants.some((variant) => pathMatchesMention2(path, variant)));
+    const fallbackMatches = repoPaths.filter((path) => fallbackVariants.some((variant) => pathMatchesMention(path, variant)));
     if (fallbackMatches.length > 0 && fallbackMatches.length <= MAX_FILES_PER_MENTION) {
       for (const path of fallbackMatches) {
         matched.add(path);
@@ -1316,17 +1589,13 @@ function matchMentionedPaths(mentions, repoPaths) {
   }
   return matched;
 }
-function pathMatchesMention2(path, mention) {
-  const normalizedPath = path.toLowerCase();
-  const normalizedMention = mention.toLowerCase();
-  if (normalizedPath === normalizedMention || normalizedPath.endsWith(`/${normalizedMention}`) || normalizedMention.endsWith(`/${normalizedPath}`)) {
-    return true;
-  }
-  if (!normalizedMention.includes("/") && !normalizedMention.includes(".")) {
-    const fileName = normalizedPath.split("/").at(-1) ?? "";
-    return fileName.replace(/\.[^.]+$/, "") === normalizedMention;
-  }
-  return false;
+function repositoryRelativeMention(mention, repoRoot) {
+  const normalizedMention = mention.replace(/\\/g, "/");
+  if (!/^(?:[A-Za-z]:\/|\/)/.test(normalizedMention))
+    return normalizedMention;
+  const normalizedRoot = repoRoot.replace(/\\/g, "/").replace(/\/$/, "");
+  const prefix = `${normalizedRoot}/`;
+  return normalizedMention.toLowerCase().startsWith(prefix.toLowerCase()) ? normalizedMention.slice(prefix.length) : void 0;
 }
 function compiledSourcePathVariants(path) {
   const lowerPath = path.toLowerCase();
@@ -1342,14 +1611,24 @@ function compiledSourcePathVariants(path) {
 function isAuxiliaryCodePath(path) {
   const parts = path.split("/");
   const stem = (parts.at(-1) ?? "").replace(/\.[^.]+$/, "").toLowerCase();
-  return parts.slice(0, -1).some((segment) => AUXILIARY_CODE_DIRS.has(segment.toLowerCase())) || /^(?:demo|example|sample)(?:[-_.]|$)/.test(stem);
+  const parentSegments = parts.slice(0, -1).map((segment) => segment.toLowerCase());
+  return parentSegments.some((segment) => AUXILIARY_CODE_DIRS.has(segment)) || stem === "sample-repo" && parentSegments.some((segment) => segment === "web" || segment === "website");
 }
 function isPresentationSurfacePath(path) {
   const name = path.split("/").at(-1)?.toLowerCase() ?? "";
-  return /^(?:page|layout|demo|sample-repo)\.[cm]?[jt]sx?$/.test(name) || /\.(?:css|less|sass|scss)$/.test(name);
+  return /^(?:page|layout|demo)\.[cm]?[jt]sx?$/.test(name) || /\.(?:css|less|sass|scss)$/.test(name);
 }
-function tokenizeFileContent(text) {
+function isInteractivePresentation(text) {
+  return /<(?:button|form|input|select|textarea)\b|\bon(?:Change|Click|Input|Submit)\s*=|\buseState\s*\(/.test(text);
+}
+function tokenizeFileContent(text, regexTokens) {
   const tokens = tokenizeText(text);
+  for (const token of regexTokens)
+    tokens.add(token);
+  return tokens;
+}
+function extractRegexTokens(text) {
+  const tokens = /* @__PURE__ */ new Set();
   for (const match of text.matchAll(/\b([A-Za-z])\{(\d+),(\d+)\}/g)) {
     const character = match[1]?.toLowerCase();
     const minimum = Number(match[2]);
@@ -1362,24 +1641,6 @@ function tokenizeFileContent(text) {
     }
   }
   return tokens;
-}
-function findRegexTokenOverlap(text, taskTokens) {
-  const overlap = /* @__PURE__ */ new Set();
-  for (const match of text.matchAll(/\b([A-Za-z])\{(\d+),(\d+)\}/g)) {
-    const character = match[1]?.toLowerCase();
-    const minimum = Number(match[2]);
-    const maximum = Math.min(Number(match[3]), 8);
-    if (!character || !Number.isSafeInteger(minimum) || !Number.isSafeInteger(maximum)) {
-      continue;
-    }
-    for (let length = Math.max(3, minimum); length <= maximum; length += 1) {
-      const token = character.repeat(length);
-      if (taskTokens.has(token)) {
-        overlap.add(token);
-      }
-    }
-  }
-  return [...overlap].slice(0, 2);
 }
 function isBundledOutput(textSample, path) {
   if (textSample.length < MIN_BUNDLE_SAMPLE_BYTES) {
@@ -1399,33 +1660,33 @@ function isTypeDeclarationPath(path) {
   return /\.d\.(?:ts|mts|cts)$/i.test(path);
 }
 function targetsDocumentation(taskText) {
-  const documentation = "(?:docs?|documentation|readme|guide|copy)";
+  const documentation = "(?:docs?|documentation|readme|guide)";
   const action = "(?:add|change|correct|document|edit|fix|improve|remove|revise|rewrite|update|write)";
   const defect = "(?:typos?|spelling|grammar|wording|broken links?)";
-  return new RegExp(`\\b${action}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) || new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${action}\\b`, "i").test(taskText) || new RegExp(`\\b${defect}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) || new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${defect}\\b`, "i").test(taskText);
+  return new RegExp(`\\b${action}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) || new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${action}\\b`, "i").test(taskText) || new RegExp(`\\b${defect}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) || new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${defect}\\b`, "i").test(taskText) || /\b(?:marketing|landing|website|page|button|label|headline|cta)\s+copy\b/i.test(taskText);
 }
 function buildDefinitionSignals(identifiers) {
   return [...identifiers].sort((a, b) => a.localeCompare(b)).map((identifier) => ({
     identifier,
-    pattern: new RegExp(`\\b(?:export\\s+)?(?:async\\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\\s+${escapeRegExp2(identifier)}\\b`)
+    pattern: new RegExp(`(?<![\\p{L}\\p{N}_$])(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\\s+)${escapeRegExp2(identifier)}(?![\\p{L}\\p{N}_$])`, "u")
   }));
 }
 function findDefinedIdentifiers(text, signals) {
   return signals.filter((signal) => signal.pattern.test(text)).map((signal) => signal.identifier);
 }
-function hasExactIdentifier(text, identifier) {
-  return new RegExp(`(^|[^$A-Za-z0-9_])${escapeRegExp2(identifier)}(?=$|[^$A-Za-z0-9_])`).test(text);
+function exactIdentifierPattern(identifier) {
+  return new RegExp(`(?<![\\p{L}\\p{N}_$])${escapeRegExp2(identifier)}(?![\\p{L}\\p{N}_$])`, "u");
 }
 function findTaskMatchedDefinitions(text, taskTokens) {
   const definitions = /* @__PURE__ */ new Set();
-  const pattern = /\b(?:export\s+)?(?:async\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\s+([$A-Za-z_][$A-Za-z0-9_]*)\b/g;
+  const pattern = /(?<![\p{L}\p{N}_$])(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\s+)([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
   for (const match of text.matchAll(pattern)) {
     const identifier = match[1];
     if (!identifier) {
       continue;
     }
     const overlap = [...tokenizeText(identifier)].filter((token) => taskTokens.has(token));
-    if (overlap.length >= 2) {
+    if (overlap.length >= 2 || overlap.length === 1 && identifier.length >= 6) {
       definitions.add(identifier);
     }
   }
@@ -1479,19 +1740,29 @@ function isNearbyChangedFile(path, changedFiles) {
 }
 
 // packages/core/dist/test-gates.js
-var GATE_PATTERN = /\.(skipIf|runIf)\s*\(/;
+var CONDITIONAL_GATE_PATTERN = /\.(?:skipIf|runIf)\s*\(/;
+var UNCONDITIONAL_GATE_PATTERNS = [
+  /\b(?:it|test|describe|context)\.(?:skip|todo)\s*\(/,
+  /\b(?:xit|xtest|xdescribe|xcontext)\s*\(/,
+  /\bthis\.skip\s*\(/,
+  /@(?:pytest\.mark\.(?:skip|skipif)|unittest\.skip(?:If|Unless)?)\b/,
+  /\bt\.Skip(?:f|Now)?\s*\(/,
+  /#\[ignore(?:\s*=|\s*\])/
+];
 var ENV_NAME_PATTERNS = [/process\.env\.([A-Z][A-Z0-9_]*)/g, /process\.env\[["']([A-Z][A-Z0-9_]*)["']\]/g];
 function findGatedTestDiagnostics(files, routedTestPaths) {
   const routed = new Set(routedTestPaths);
   const diagnostics = [];
   for (const file of files) {
-    if (!file.isTest || !routed.has(file.path) || !GATE_PATTERN.test(file.textSample)) {
+    const conditional = CONDITIONAL_GATE_PATTERN.test(file.textSample);
+    const unconditional = UNCONDITIONAL_GATE_PATTERNS.some((pattern) => pattern.test(file.textSample));
+    if (!file.isTest || !routed.has(file.path) || !conditional && !unconditional) {
       continue;
     }
     diagnostics.push({
       code: "gated-test-skipped",
       severity: "warning",
-      message: gateMessage(file.path, extractEnvNames(file.textSample))
+      message: unconditional ? `${file.path} contains skipped or ignored tests; the suggested test command will not exercise them until the skip is removed.` : gateMessage(file.path, extractEnvNames(file.textSample))
     });
   }
   return diagnostics;
@@ -1531,12 +1802,13 @@ function buildReportFromRepo(repo, input) {
     issueText: input.issueText,
     diffText: repo.diffText
   });
-  const contextFiles = grounding.specificity === "vague" ? [] : rankContextFiles(repo, {
+  const ranked = rankContextFilesDetailed(repo, {
     issueText: input.issueText,
     diffText: repo.diffText,
     exclude: input.exclude
   }, input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT);
-  const ranking = buildRankingShape(contextFiles);
+  const contextFiles = ranked.contextFiles;
+  const ranking = ranked.ranking;
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
@@ -1553,7 +1825,7 @@ function buildReportFromRepo(repo, input) {
       ...findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes),
       ...findTaskDiagnostics(repo, grounding, ranking),
       ...findTaskPreprocessingDiagnostics(input.issueText ?? ""),
-      ...grounding.specificity === "vague" ? [] : findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude)
+      ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude)
     ],
     analysis: {
       grounding,
@@ -1706,16 +1978,12 @@ function configuredJsRunner(files) {
   }
   return void 0;
 }
-var SCRIPT_PRIORITY = { test: 0, validation: 10 };
-var VALIDATION_SCRIPTS = /* @__PURE__ */ new Set(["typecheck", "check", "lint"]);
 function classifyScript(name) {
   const lower = name.toLowerCase();
   if (lower === "test" || lower === "tests")
     return { category: "test", exact: true };
   if (/^tests?:[a-z0-9:_-]+$/.test(lower))
     return { category: "test", exact: false };
-  if (VALIDATION_SCRIPTS.has(lower))
-    return { category: "validation", exact: true };
   return void 0;
 }
 function buildTestRoutes(repo, contextPaths) {
@@ -1728,28 +1996,20 @@ function buildTestRoutes(repo, contextPaths) {
     script,
     kind,
     proximity: packageProximity(script.packageDir, codeContextPaths),
-    priority: SCRIPT_PRIORITY[kind.category] + (kind.exact ? 0 : 1)
+    priority: kind.exact ? 0 : 1
   })).filter((candidate) => candidate.proximity >= 0).sort((a, b) => b.proximity - a.proximity || a.priority - b.priority || a.script.packageDir.localeCompare(b.script.packageDir));
-  const ordered = [
-    ...candidates.filter((candidate) => candidate.kind.category === "test"),
-    ...candidates.filter((candidate) => candidate.kind.category !== "test")
-  ];
   const commands = /* @__PURE__ */ new Set();
   const routes = [];
-  for (const { script, kind } of ordered) {
+  for (const { script } of candidates) {
     const command = formatScriptCommand(repo.packageManager, script.packageDir, script.name, script.packageName);
     if (commands.has(command))
       continue;
     commands.add(command);
-    const isTest = kind.category === "test";
     routes.push({
       command,
-      kind: isTest ? "test" : "validation",
+      kind: "test",
       reason: `${script.packageDir ? `nearest package (${script.packageDir})` : "repository root"} script named ${script.name}`,
-      // A lint route's related paths are the implementation it would check, never tests, so
-      // labeling them the same way let `no-test-changed` cite an implementation file as the
-      // test the plan had routed.
-      relatedFiles: scopeToPackage(isTest ? relatedTests : codeContextPaths, script.packageDir)
+      relatedFiles: scopeToPackage(relatedTests, script.packageDir)
     });
     if (routes.length === 3)
       break;
@@ -1783,25 +2043,26 @@ function nearestManifestDir(repo, contextPaths, manifest) {
   return manifestDirs.filter((dir) => contextPaths.some((path) => path.startsWith(`${dir}/`))).sort((a, b) => b.split("/").length - a.split("/").length || a.localeCompare(b))[0] ?? "";
 }
 var RISK_RULES = [
-  { area: "authentication", severity: "high", tokens: ["auth", "login", "password"], reason: "authentication-related files are affected" },
-  { area: "billing", severity: "high", tokens: ["billing", "payment", "invoice"], reason: "billing or payment-related files are affected" },
-  { area: "automation", severity: "medium", tokens: ["config", "workflow", "action"], reason: "configuration or CI automation files may affect developer workflows" },
-  { area: "data", severity: "high", tokens: ["migration", "schema", "database", "sql"], reason: "database or schema-related files may affect stored data" },
-  { area: "public-api", severity: "medium", tokens: ["api", "route", "public"], reason: "public interfaces or request handling may change" },
-  { area: "dependencies", severity: "medium", tokens: ["dependency", "lock", "package"], reason: "dependency changes can affect build and supply-chain behavior" }
+  { area: "authentication", severity: "high", terms: ["auth", "login", "password"], reason: "authentication-related files are affected" },
+  { area: "billing", severity: "high", terms: ["billing", "payment", "invoice"], reason: "billing or payment-related files are affected" },
+  { area: "automation", severity: "medium", terms: ["config", "workflow", "action", "ci"], reason: "configuration or CI automation files may affect developer workflows" },
+  { area: "data", severity: "high", terms: ["migration", "schema", "database", "sql"], reason: "database or schema-related files may affect stored data" },
+  { area: "public-api", severity: "medium", terms: ["api", "route", "public"], reason: "public interfaces or request handling may change" },
+  { area: "dependencies", severity: "medium", terms: ["dependency", "lock", "package"], reason: "dependency changes can affect build and supply-chain behavior" }
 ];
 var AUXILIARY_RISK_DIRS = /* @__PURE__ */ new Set(["demo", "demos", "example", "examples", "sample", "samples", "fixture", "fixtures"]);
 function carriesRiskEvidence(path) {
   return !path.split("/").slice(0, -1).some((segment) => AUXILIARY_RISK_DIRS.has(segment.toLowerCase()));
 }
 function buildRiskNotes(contextPaths, changedFiles = []) {
-  const contextTokens = new Set(contextPaths.filter(carriesRiskEvidence).flatMap((path) => [...tokenizePath(path)]));
-  const changedTokens = new Set(changedFiles.flatMap((path) => [...tokenizePath(path)]));
+  const contextTokens = new Set(contextPaths.filter(carriesRiskEvidence).flatMap((path) => [...riskTokens(path)]));
+  const changedTokens = new Set(changedFiles.flatMap((path) => [...riskTokens(path)]));
   const diffPresent = changedFiles.length > 0;
   const risks = [];
   for (const rule of RISK_RULES) {
-    const inChanged = rule.tokens.some((token) => changedTokens.has(token));
-    const inContext = rule.tokens.some((token) => contextTokens.has(token));
+    const terms = rule.terms.flatMap((term) => [...riskTokens(term)]);
+    const inChanged = terms.some((token) => changedTokens.has(token));
+    const inContext = terms.some((token) => contextTokens.has(token));
     if (!inChanged && !inContext) {
       continue;
     }
@@ -1822,9 +2083,15 @@ function pathsForRiskArea(area, paths) {
   if (!rule)
     return [];
   return paths.filter((path) => {
-    const tokens = tokenizePath(path);
-    return rule.tokens.some((token) => tokens.has(token));
+    const tokens = riskTokens(path);
+    return rule.terms.flatMap((term) => [...riskTokens(term)]).some((token) => tokens.has(token));
   });
+}
+function riskTokens(value) {
+  return /* @__PURE__ */ new Set([
+    ...tokenizePath(value),
+    ...value.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+  ]);
 }
 function packageProximity(packageDir, contextPaths) {
   if (!packageDir)
@@ -1869,13 +2136,13 @@ function renderMarkdownReport(report) {
     "",
     "## Context Files",
     "",
-    ...listOrEmpty(report.contextFiles.map((file) => `- \`${file.path}\` (${file.confidence} confidence, score ${file.score}): ${file.reasons.join("; ")}`)),
+    ...listOrEmpty(report.contextFiles.map((file) => `- ${markdownCode(file.path)} (${file.confidence} confidence, score ${file.score}): ${file.reasons.join("; ")}`)),
     "",
     "## Test Routes",
     "",
     ...listOrEmpty(report.testRoutes.map((route) => {
-      const related = route.relatedFiles.length > 0 ? ` Related: ${route.relatedFiles.map((path) => `\`${path}\``).join(", ")}.` : "";
-      return `- \`${route.command}\`: ${route.reason}.${related}`;
+      const related = route.relatedFiles.length > 0 ? ` Related: ${route.relatedFiles.map(markdownCode).join(", ")}.` : "";
+      return `- ${markdownCode(route.command)}: ${route.reason}.${related}`;
     })),
     "",
     "## Risk Map",
@@ -1884,7 +2151,7 @@ function renderMarkdownReport(report) {
     "",
     "## Changed Files",
     "",
-    ...listOrEmpty(report.changedFiles.map((path) => `- \`${path}\``)),
+    ...listOrEmpty(report.changedFiles.map((path) => `- ${markdownCode(path)}`)),
     ...report.analysis ? [
       "",
       "## Analysis",
@@ -1899,7 +2166,7 @@ function renderMarkdownReport(report) {
     "",
     ...listOrEmpty(report.diagnostics.flatMap((diagnostic) => [
       `- **${diagnostic.severity}** ${diagnostic.message}`,
-      ...(diagnostic.paths ?? []).slice(0, 8).map((path) => `  - \`${path}\``)
+      ...(diagnostic.paths ?? []).slice(0, 8).map((path) => `  - ${markdownCode(path)}`)
     ]))
   ];
   return `${lines.join("\n")}
@@ -1920,31 +2187,11 @@ import { mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } f
 import { homedir } from "node:os";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
-var WALK_IGNORED_DIRS = /* @__PURE__ */ new Set([...ALWAYS_IGNORED_DIRS, ...GENERATED_DIRS]);
-var SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
-  ".cjs",
-  ".cs",
-  ".css",
-  ".cts",
-  ".go",
-  ".java",
-  ".js",
-  ".json",
-  ".jsx",
-  ".md",
-  ".mjs",
-  ".mts",
-  ".php",
-  ".py",
-  ".rb",
-  ".rs",
-  ".svelte",
-  ".ts",
-  ".tsx",
-  ".vue",
-  ".yaml",
-  ".yml"
+var WALK_IGNORED_DIRS = /* @__PURE__ */ new Set([
+  ...ALWAYS_IGNORED_DIRS,
+  ...[...GENERATED_DIRS].filter((directory) => directory !== "vendor")
 ]);
+var SOURCE_EXTENSIONS = SOURCE_FILE_EXTENSIONS;
 var CONVENTIONAL_DOCUMENT_NAMES = /* @__PURE__ */ new Set([
   "authors",
   "changelog",
@@ -1968,7 +2215,10 @@ var CONVENTIONAL_CONFIG_NAMES = /* @__PURE__ */ new Set([
   "makefile",
   "procfile",
   "rakefile",
-  "vagrantfile"
+  "vagrantfile",
+  "pom.xml",
+  "build.gradle",
+  "settings.gradle"
 ]);
 var SFC_EXTENSIONS = /* @__PURE__ */ new Set([".vue", ".svelte"]);
 var SFC_SCRIPT_BLOCK = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
@@ -1977,6 +2227,9 @@ var TEST_PATTERNS = [
   /\.spec\./,
   /(^|\/|\\)__tests__(\/|\\)/,
   /(^|\/|\\)tests?(\/|\\)/,
+  /(^|\/|\\)spec(\/|\\)/,
+  /_spec\.rb$/i,
+  /(?:Test\.java|Tests?\.cs|Test\.php)$/i,
   /_test\.go$/,
   /(^|\/|\\)(?:test_[^/\\]+|[^/\\]+_test)\.py$/
 ];
@@ -1985,7 +2238,7 @@ var MAX_DIFF_TEXT_CHARS = 2e5;
 var MAX_SCANNED_FILES = 25e3;
 var GIT_MAX_BUFFER = 10 * 1024 * 1024;
 var exec = promisify(execFile);
-var SCAN_CACHE_VERSION = 2;
+var SCAN_CACHE_VERSION = 3;
 var SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
 var SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1e3;
 var SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
@@ -2045,7 +2298,7 @@ async function scanRepo(input) {
     files = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths);
     trackedFiles = await listTrackedPaths(repoRoot, internalPaths);
     packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
-    packageManager = detectPackageManager(files);
+    packageManager = detectPackageManager(files, diagnostics);
     if (cacheLocation) {
       await writeScanCache(cacheLocation, {
         version: SCAN_CACHE_VERSION,
@@ -2344,7 +2597,7 @@ function reportUnreadContent(diagnostics, files) {
     const sample2 = affected.slice(0, 3).map((file) => file.path).join(", ");
     const prefix = `${affected.length.toLocaleString()} source file${affected.length === 1 ? "" : "s"}`;
     diagnostics.push({
-      code: "content-unread",
+      code: reason === "not-text" ? "content-not-utf8" : "content-unreadable",
       severity: "warning",
       message: reason === "not-text" ? `${prefix} ${affected.length === 1 ? "is" : "are"} not UTF-8 text (for example UTF-16 or binary) and rank${affected.length === 1 ? "s" : ""} on path alone: ${sample2}${affected.length > 3 ? ", ..." : ""}. Re-save source as UTF-8 to rank its contents.` : `${prefix} could not be read and rank${affected.length === 1 ? "s" : ""} on path alone: ${sample2}${affected.length > 3 ? ", ..." : ""}. Check file permissions and retry.`,
       paths: affected.slice(0, 8).map((file) => file.path)
@@ -2355,7 +2608,7 @@ function reportUnreadContent(diagnostics, files) {
     return;
   const sample = unread.slice().sort((a, b) => b.sizeBytes - a.sizeBytes).slice(0, 3).map((file) => `${file.path} (${Math.ceil(file.sizeBytes / 1e3).toLocaleString()} kB)`).join(", ");
   diagnostics.push({
-    code: "content-unread",
+    code: "content-too-large",
     severity: "warning",
     message: `${unread.length.toLocaleString()} source file${unread.length === 1 ? "" : "s"} could not be read as text and rank${unread.length === 1 ? "s" : ""} on path alone \u2014 largest: ${sample}${unread.length > 3 ? ", \u2026" : ""}. Files over ${(MAX_TEXT_SAMPLE_BYTES / 1e3).toLocaleString()} kB are not sampled.`,
     paths: unread.slice(0, 8).map((file) => file.path)
@@ -2447,7 +2700,7 @@ async function toRepoFile(absolutePath, relativePath) {
   if (!fileStat.isFile()) {
     return { status: "not-a-file" };
   }
-  const extension = extname(relativePath);
+  const extension = extname(relativePath).toLowerCase();
   const conventionalKind = classifyConventionalTextFile(relativePath);
   const isSource = SOURCE_EXTENSIONS.has(extension) || conventionalKind !== void 0;
   const sample = isSource ? await readTextSample(absolutePath, fileStat.size) : { text: "", complete: true };
@@ -2580,10 +2833,7 @@ async function readDiff(repoRoot, diffSpec, diagnostics, internalPaths) {
       message: changedFiles.length === 0 ? `The diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}" resolved to zero changed files, so results use the task text only. Paths are relative to the working directory; run from the repository root to include changes outside it.` : `Diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}" resolved ${changedFiles.length} changed ${changedFiles.length === 1 ? "path" : "paths"}.`,
       paths: changedFiles.slice(0, 8)
     });
-    return {
-      changedFiles,
-      diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS)
-    };
+    return { changedFiles, diffText: sampleDiffText(diffText, diagnostics) };
   } catch (error) {
     const checkoutState = isMissingGit(error) ? void 0 : await describeGitCheckout(repoRoot);
     const detail = truncateForDiagnostic(gitErrorDetail(error), DIAGNOSTIC_SPEC_LIMIT * 2);
@@ -2594,6 +2844,55 @@ async function readDiff(repoRoot, diffSpec, diagnostics, internalPaths) {
     });
     return { changedFiles: [], diffText: "" };
   }
+}
+function sampleDiffText(diffText, diagnostics) {
+  if (diffText.length <= MAX_DIFF_TEXT_CHARS)
+    return diffText;
+  const groups = [];
+  let current;
+  for (const line of diffText.split(/\r?\n/)) {
+    if (line.startsWith("diff --git ")) {
+      current = [];
+      groups.push(current);
+      continue;
+    }
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      if (!current) {
+        current = [];
+        groups.push(current);
+      }
+      current.push(line);
+    }
+  }
+  const queues = groups.filter((group) => group.length > 0);
+  const selected = [];
+  let selectedChars = 0;
+  let selectedLines = 0;
+  const totalLines = queues.reduce((total, group) => total + group.length, 0);
+  let cursor = 0;
+  let madeProgress = true;
+  while (madeProgress && selectedChars < MAX_DIFF_TEXT_CHARS) {
+    madeProgress = false;
+    for (const group of queues) {
+      const line = group[cursor];
+      if (line === void 0)
+        continue;
+      madeProgress = true;
+      const separator = selected.length === 0 ? 0 : 1;
+      if (selectedChars + separator + line.length <= MAX_DIFF_TEXT_CHARS) {
+        selected.push(line);
+        selectedChars += separator + line.length;
+        selectedLines += 1;
+      }
+    }
+    cursor += 1;
+  }
+  diagnostics.push({
+    code: "diff-text-truncated",
+    severity: "warning",
+    message: `The git diff was ${diffText.length.toLocaleString()} characters, above FixMap's ${MAX_DIFF_TEXT_CHARS.toLocaleString()}-character signal budget. FixMap sampled ${selectedLines.toLocaleString()} of ${totalLines.toLocaleString()} complete added lines across ${queues.length.toLocaleString()} changed ${queues.length === 1 ? "file" : "files"}; changed-file paths remain complete, but omitted diff content could reduce ranking precision.`
+  });
+  return selected.join("\n");
 }
 async function readWorkingTree(repoRoot, includeUntracked, diagnostics, internalPaths) {
   try {
@@ -2610,7 +2909,7 @@ async function readWorkingTree(repoRoot, includeUntracked, diagnostics, internal
       message: changedFiles.length === 0 ? "Working-tree mode found no changes against HEAD; results use the task text only." : `Working-tree mode used ${changedFiles.length} changed ${changedFiles.length === 1 ? "path" : "paths"} against HEAD${includeUntracked ? ", including untracked files" : " (untracked files are not counted as changed, though they still rank; pass --include-untracked to count them)"}.`,
       paths: changedFiles.slice(0, 8)
     });
-    return { changedFiles, diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS) };
+    return { changedFiles, diffText: sampleDiffText(diffText, diagnostics) };
   } catch (error) {
     const checkoutState = isMissingGit(error) ? void 0 : await describeGitCheckout(repoRoot);
     diagnostics.push({
@@ -2649,15 +2948,41 @@ function gitErrorDetail(error) {
 function isMissingGit(error) {
   return error?.code === "ENOENT";
 }
-function detectPackageManager(files) {
-  const paths = new Set(files.map((file) => file.path));
-  if (paths.has("pnpm-lock.yaml") || paths.has("pnpm-workspace.yaml"))
-    return "pnpm";
-  if (paths.has("yarn.lock") || paths.has(".yarnrc.yml"))
-    return "yarn";
-  if (paths.has("bun.lock") || paths.has("bun.lockb"))
-    return "bun";
+function detectPackageManager(files, diagnostics) {
+  const rootManagers = packageManagersForPaths(files.map((file) => file.path).filter((path) => !path.includes("/")));
+  if (rootManagers.length > 1) {
+    diagnostics.push({
+      code: "package-manager-conflict",
+      severity: "warning",
+      message: `Conflicting root package-manager files were found (${rootManagers.join(", ")}); using ${rootManagers[0]} deterministically. Remove the stale lockfile so routed commands are unambiguous.`
+    });
+  }
+  if (rootManagers[0])
+    return rootManagers[0];
+  const nestedManagers = packageManagersForPaths(files.map((file) => file.path));
+  if (nestedManagers.length === 1)
+    return nestedManagers[0];
+  if (nestedManagers.length > 1) {
+    diagnostics.push({
+      code: "package-manager-conflict",
+      severity: "warning",
+      message: `Nested package-manager files disagree (${nestedManagers.join(", ")}); defaulting to npm for root routes. Point --repo at one workspace to get an unambiguous command.`
+    });
+  }
   return "npm";
+}
+function packageManagersForPaths(paths) {
+  const names = new Set(paths.map((path) => path.split("/").at(-1) ?? path));
+  const managers = [];
+  if (names.has("pnpm-lock.yaml") || names.has("pnpm-workspace.yaml"))
+    managers.push("pnpm");
+  if (names.has("yarn.lock") || names.has(".yarnrc.yml"))
+    managers.push("yarn");
+  if (names.has("bun.lock") || names.has("bun.lockb"))
+    managers.push("bun");
+  if (names.has("package-lock.json") || names.has("npm-shrinkwrap.json"))
+    managers.push("npm");
+  return managers;
 }
 function classifyFile(path, extension) {
   const lower = path.toLowerCase();
@@ -2666,7 +2991,7 @@ function classifyFile(path, extension) {
     return conventionalKind;
   if (extension === ".md" || lower.startsWith("docs/"))
     return "documentation";
-  if (lower.startsWith(".github/") || [".json", ".yaml", ".yml"].includes(extension) || /(^|\/)([^/]+\.)?(config|rc)\.[^/]+$/.test(lower))
+  if (lower.startsWith(".github/") || [".json", ".yaml", ".yml"].includes(extension) || /(^|\/)(?:[^/]+\.config|\.[^/]*rc)\.[^/]+$/.test(lower))
     return "config";
   if (SOURCE_EXTENSIONS.has(extension))
     return "code";
@@ -2677,6 +3002,8 @@ function classifyConventionalTextFile(path) {
   if (CONVENTIONAL_DOCUMENT_NAMES.has(name))
     return "documentation";
   if (CONVENTIONAL_CONFIG_NAMES.has(name))
+    return "config";
+  if (/\.(?:csproj|fsproj|vbproj)$/.test(name))
     return "config";
   return void 0;
 }
@@ -2728,7 +3055,7 @@ async function buildFixMapReport(input) {
     const excludedPaths = repo.files.filter((file) => requestedExclude.excludes(file.path)).map((file) => file.path);
     const unmatchedPatterns = requestedExclude.patterns.filter((pattern) => !pattern.startsWith("!") && !requestedExclude.matchedPatterns.has(pattern));
     if (unmatchedPatterns.length > 0) {
-      const sample = unmatchedPatterns.slice(0, 5).join(", ");
+      const sample = unmatchedPatterns.slice(0, 5).map(markdownCode).join(", ");
       report.diagnostics.push({
         code: "exclusion-no-match",
         severity: "warning",
@@ -2739,7 +3066,8 @@ async function buildFixMapReport(input) {
       report.diagnostics.push({
         code: "paths-excluded",
         severity: report.contextFiles.length === 0 ? "warning" : "info",
-        message: `${requestedExclude.patterns.length} exclusion ${requestedExclude.patterns.length === 1 ? "pattern" : "patterns"} removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${requestedExclude.patterns.join(", ")}. Run --explain on a file you expected to see if this is why it is absent.`
+        message: `${requestedExclude.patterns.length} exclusion ${requestedExclude.patterns.length === 1 ? "pattern" : "patterns"} removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${requestedExclude.patterns.map(markdownCode).join(", ")}. Run --explain on a file you expected to see if this is why it is absent.`,
+        paths: excludedPaths.slice(0, 8)
       });
     }
   }
@@ -2787,7 +3115,10 @@ function verifyPlan(report, repo) {
   const findings = [];
   const fileByPath = new Map(repo.files.map((file) => [file.path, file]));
   const plannedPaths = report.contextFiles.map((file) => file.path);
-  if (plannedPaths.length > 0 && !plannedPaths.some((path) => fileByPath.has(path))) {
+  const missingPlanned = plannedPaths.filter((path) => !fileByPath.has(path));
+  const changedMissingPlanned = missingPlanned.filter((path) => changed.includes(path));
+  const unexplainedMissingPlanned = missingPlanned.filter((path) => !changed.includes(path));
+  if (plannedPaths.length > 0 && unexplainedMissingPlanned.length === plannedPaths.length) {
     const mismatch = {
       code: "plan-repository-mismatch",
       severity: "error",
@@ -2800,6 +3131,22 @@ function verifyPlan(report, repo) {
       findings: [mismatch],
       diagnostics: repo.diagnostics
     };
+  }
+  if (unexplainedMissingPlanned.length > 0) {
+    findings.push({
+      code: "plan-partially-stale",
+      severity: "warning",
+      paths: unexplainedMissingPlanned.slice(0, 8),
+      message: `${unexplainedMissingPlanned.length} of ${plannedPaths.length} planned paths no longer exist and are not explained by this diff. The plan may predate a rebase or rename; regenerate it before relying on the missing entries.`
+    });
+  }
+  if (changedMissingPlanned.length > 0) {
+    findings.push({
+      code: "planned-file-deleted",
+      severity: "info",
+      paths: changedMissingPlanned.slice(0, 8),
+      message: `${changedMissingPlanned.length === 1 ? "A planned file was" : `${changedMissingPlanned.length} planned files were`} removed by this diff. The deletion accounts for the missing path, so verification continued.`
+    });
   }
   if (changed.length === 0) {
     return {
@@ -2910,12 +3257,12 @@ function renderVerifyMarkdown(result) {
     for (const finding of result.findings) {
       lines.push(`- **${finding.severity}** ${finding.message}`);
       for (const path of finding.paths.slice(0, 8)) {
-        lines.push(`  - \`${path}\``);
+        lines.push(`  - ${markdownCode(path)}`);
       }
     }
   }
   lines.push("", "## Changed Files", "");
-  lines.push(...result.changedFiles.length > 0 ? result.changedFiles.map((path) => `- \`${path}\``) : ["- None found"]);
+  lines.push(...result.changedFiles.length > 0 ? result.changedFiles.map((path) => `- ${markdownCode(path)}`) : ["- None found"]);
   return `${lines.join("\n")}
 `;
 }
@@ -3079,7 +3426,7 @@ function isIdentifierStatus(candidate) {
 // packages/action/src/github.ts
 var FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
 var MAX_COMMENT_BODY_CHARS = 65536;
-var COMMENT_TRUNCATION_FOOTER = "\n\n> Report truncated to fit GitHub's comment size limit. The complete report is in the step summary and the `report` output.\n";
+var COMMENT_TRUNCATION_FOOTER = "\n\n> Report truncated to fit GitHub's comment size limit. Run FixMap locally with `--output` to retain a complete report.\n";
 function fitCommentBody(body, limit = MAX_COMMENT_BODY_CHARS) {
   if (body.length <= limit) return body;
   const keep = Math.max(0, limit - COMMENT_TRUNCATION_FOOTER.length - "\n```".length);
@@ -3135,10 +3482,11 @@ ${input.markdown}`);
 }
 async function findExistingComment(fetchImpl, commentsUrl, headers, commentAuthor) {
   const maxPages = 50;
+  let latest;
   for (let page = 1; page <= maxPages; page += 1) {
     const comments = await requestJson(
       fetchImpl,
-      `${commentsUrl}?per_page=100&page=${page}&sort=created&direction=desc`,
+      `${commentsUrl}?per_page=100&page=${page}`,
       { headers },
       "list pull request comments"
     );
@@ -3148,22 +3496,43 @@ async function findExistingComment(fetchImpl, commentsUrl, headers, commentAutho
       // second comment beside the one it meant to update.
       (!commentAuthor || comment.user?.login?.toLowerCase() === commentAuthor.toLowerCase())
     ).sort((left, right) => right.id - left.id)[0];
-    if (match) return match;
+    if (match && (!latest || match.id > latest.id)) latest = match;
     if (comments.length < 100) {
-      return void 0;
+      return latest;
     }
   }
-  return void 0;
+  if (latest) return latest;
+  throw new Error(
+    "FixMap stopped after searching 5,000 pull request comments without finding its marker; it refused to create a duplicate comment. Remove old comments or set comment-author to narrow the search."
+  );
 }
 function isPermissionDeniedError(error) {
-  return error instanceof Error && /GitHub returned (401|403|404)\b/.test(error.message);
+  return error instanceof GitHubRequestError && (error.status === 401 || error.status === 404 || error.status === 403 && !error.rateLimited && /resource not accessible|insufficient permission|forbidden|write access/i.test(error.detail));
 }
+var GitHubRequestError = class extends Error {
+  constructor(message, status, detail, rateLimited) {
+    super(message);
+    this.status = status;
+    this.detail = detail;
+    this.rateLimited = rateLimited;
+    this.name = "GitHubRequestError";
+  }
+  status;
+  detail;
+  rateLimited;
+};
 async function requestJson(fetchImpl, url, init, action) {
   const response = await fetchImpl(url, init);
   if (!response.ok) {
     const detail = (await response.text()).replace(/\s+/g, " ").slice(0, 500);
     const suffix = detail ? `: ${detail}` : "";
-    throw new Error(`FixMap could not ${action}; GitHub returned ${response.status} ${response.statusText}${suffix}`);
+    const rateLimited = response.status === 429 || response.headers.get("x-ratelimit-remaining") === "0" || /secondary rate limit|rate limit exceeded/i.test(detail);
+    throw new GitHubRequestError(
+      `FixMap could not ${action}; GitHub returned ${response.status} ${response.statusText}${suffix}`,
+      response.status,
+      detail,
+      rateLimited
+    );
   }
   return response.json();
 }
@@ -3173,7 +3542,7 @@ var MAX_API_RESPONSE_CHARS = 1e6;
 var MAX_ISSUE_BODY_CHARS = 2e4;
 function parseActionIssueSource(input) {
   let trimmed = input.trim();
-  if (/^https?:\/\/[^/\s]*@(?:www\.|api\.)?github\.com\//i.test(trimmed)) {
+  if (/^https?:\/\/[^/\s@]+@/i.test(trimmed)) {
     throw new Error(
       "The issue URL contains credentials. Remove the user:token@ prefix and pass the public https://github.com/owner/repository/issues/123 URL; the Action reads public issues anonymously."
     );
@@ -3287,7 +3656,9 @@ async function fetchActionIssue(source) {
 
 // packages/action/src/runner.ts
 var STEP_SUMMARY_LIMIT_BYTES = 1024 * 1024;
-var TRUNCATION_FOOTER = "\n\n> FixMap report truncated to fit GitHub's 1 MiB step-summary limit. The complete report remains available through the `report` output.\n";
+var TRUNCATION_FOOTER = "\n\n> FixMap report truncated to fit GitHub's 1 MiB step-summary limit. Run FixMap locally with `--output` to retain a complete report.\n";
+var ACTION_OUTPUT_REPORT_LIMIT_BYTES = 900 * 1024;
+var OUTPUT_TRUNCATION_FOOTER = "\n\n[FixMap report truncated to fit the GitHub Actions output limit. Run FixMap locally with --output for a complete report.]\n";
 async function runAction(env = process.env, dependencies = {}) {
   const appendFile = dependencies.appendFile ?? ((path, contents) => appendFileSync(path, contents));
   const readFile3 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
@@ -3302,6 +3673,7 @@ async function runAction(env = process.env, dependencies = {}) {
   const headRef = readInput("head", env) || (!workingTree && env.GITHUB_HEAD_REF ? "HEAD" : void 0);
   const format = parseFormat(readInput("format", env));
   const mode = parseMode(readInput("mode", env));
+  const failOn = parseFailOn(readInput("fail-on", env));
   const exclude = splitExcludeInput(readInput("exclude", env) ?? "");
   const limit = parseLimit(readInput("limit", env));
   if (includeUntracked && !workingTree) throw new Error("include-untracked requires working-tree.");
@@ -3318,8 +3690,9 @@ async function runAction(env = process.env, dependencies = {}) {
         `FixMap verify mode does not use plan-only input${planOnly.length === 1 ? "" : "s"}: ${planOnly.join(", ")}. Remove them, or set mode: plan.`
       );
     }
-    return runVerifyMode({ env, dependencies, readFile: readFile3, appendFile, stdout, format, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache });
+    return runVerifyMode({ env, dependencies, readFile: readFile3, appendFile, stdout, format, failOn, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache });
   }
+  if (failOn === "warning") throw new Error("fail-on: warning is a verify-mode input; remove it or set mode: verify.");
   const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : void 0;
   if (issueSource && env.GITHUB_REPOSITORY && env.GITHUB_REPOSITORY.toLowerCase() !== `${issueSource.owner}/${issueSource.repository}`.toLowerCase()) {
     throw new Error(
@@ -3354,7 +3727,7 @@ async function runAction(env = process.env, dependencies = {}) {
   const output = format === "json" ? renderJsonReport(report) : markdown;
   stdout(output);
   if (env.GITHUB_STEP_SUMMARY) {
-    appendFile(env.GITHUB_STEP_SUMMARY, fitStepSummary(format === "json" ? withJsonDetails(markdown, output) : markdown));
+    appendBoundedStepSummary(env.GITHUB_STEP_SUMMARY, format === "json" ? withJsonDetails(markdown, output) : markdown, dependencies, appendFile, stdout);
   }
   if (env.GITHUB_OUTPUT) {
     appendFile(env.GITHUB_OUTPUT, renderActionOutputs(output, report, dependencies.uuid ?? randomUUID2));
@@ -3374,7 +3747,7 @@ ${output.trimEnd()}
       }
       const detail = error instanceof Error ? error.message : String(error);
       stdout(
-        `::warning::FixMap could not comment on the pull request, which is expected when the token is read-only (for example on forked pull requests). The full report is in the step summary and the report output. ${detail}
+        `::warning::FixMap could not comment on the pull request, which is expected when the token is read-only (for example on forked pull requests). The bounded report remains in the step summary and report output; run FixMap locally with --output if either surface reports truncation. ${detail}
 `
       );
     }
@@ -3432,7 +3805,7 @@ async function runVerifyMode(context) {
 ` : markdown;
   context.stdout(output);
   if (context.env.GITHUB_STEP_SUMMARY) {
-    context.appendFile(context.env.GITHUB_STEP_SUMMARY, fitStepSummary(markdown));
+    appendBoundedStepSummary(context.env.GITHUB_STEP_SUMMARY, markdown, context.dependencies, context.appendFile, context.stdout);
   }
   if (context.env.GITHUB_OUTPUT) {
     context.appendFile(
@@ -3440,15 +3813,18 @@ async function runVerifyMode(context) {
       renderVerifyOutputs(output, result, context.dependencies.uuid ?? randomUUID2)
     );
   }
-  if (result.findings.some((finding) => finding.severity === "error")) {
+  if (result.findings.some(
+    (finding) => finding.severity === "error" || context.failOn === "warning" && finding.severity === "warning"
+  )) {
     throw new Error(
-      "FixMap verification found an edit in a generated or retired location, which the next build discards."
+      context.failOn === "warning" ? "FixMap verification found findings at or above the configured warning threshold." : "FixMap verification found an edit in a generated or retired location, which the next build discards."
     );
   }
 }
 function renderVerifyOutputs(reportText, result, uuid = randomUUID2) {
   const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;
-  const terminated = reportText.endsWith("\n") ? reportText : `${reportText}
+  const fittedReport = fitOutputReport(reportText);
+  const terminated = fittedReport.endsWith("\n") ? fittedReport : `${fittedReport}
 `;
   return [
     `report<<${delimiter}
@@ -3474,9 +3850,15 @@ function parseFormat(value) {
 }
 function parseLimit(value) {
   if (!value) return void 0;
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 20) throw new Error("limit must be a whole number from 1 to 20.");
+  const normalized = value.trim();
+  const parsed = Number(normalized);
+  if (!/^\d+$/.test(normalized) || !Number.isSafeInteger(parsed) || parsed < 1 || parsed > 20) throw new Error("limit must be a whole number from 1 to 20.");
   return parsed;
+}
+function parseFailOn(value) {
+  const normalized = value?.trim().toLowerCase() ?? "error";
+  if (normalized === "error" || normalized === "warning") return normalized;
+  throw new Error("fail-on must be error or warning.");
 }
 function parseBooleanInput(name, value) {
   if (!value) return false;
@@ -3486,7 +3868,8 @@ function parseBooleanInput(name, value) {
 }
 function renderActionOutputs(reportText, report, uuid = randomUUID2) {
   const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;
-  const terminatedReport = reportText.endsWith("\n") ? reportText : `${reportText}
+  const fittedReport = fitOutputReport(reportText);
+  const terminatedReport = fittedReport.endsWith("\n") ? fittedReport : `${fittedReport}
 `;
   return [
     `report<<${delimiter}
@@ -3499,6 +3882,14 @@ function renderActionOutputs(reportText, report, uuid = randomUUID2) {
     `test-route-count=${report.testRoutes.length}
 `
   ].join("");
+}
+function fitOutputReport(reportText) {
+  const bytes = Buffer.from(reportText);
+  if (bytes.length <= ACTION_OUTPUT_REPORT_LIMIT_BYTES) return reportText;
+  const footer = Buffer.from(OUTPUT_TRUNCATION_FOOTER);
+  let end = ACTION_OUTPUT_REPORT_LIMIT_BYTES - footer.length;
+  while (end > 0 && (bytes[end] & 192) === 128) end -= 1;
+  return `${bytes.subarray(0, end).toString("utf8")}${OUTPUT_TRUNCATION_FOOTER}`;
 }
 function withJsonDetails(markdown, json) {
   return `${markdown}
@@ -3551,6 +3942,21 @@ function fitStepSummary(markdown, limitBytes = STEP_SUMMARY_LIMIT_BYTES) {
     end -= 1;
   }
   return `${trimToBoundary(bytes.subarray(0, end).toString("utf8"))}${TRUNCATION_FOOTER}`;
+}
+function appendBoundedStepSummary(path, markdown, dependencies, appendFile, stdout) {
+  const fileSize = dependencies.fileSize ?? ((summaryPath) => {
+    try {
+      return statSync(summaryPath).size;
+    } catch {
+      return 0;
+    }
+  });
+  const remaining = Math.max(0, STEP_SUMMARY_LIMIT_BYTES - fileSize(path));
+  if (remaining <= Buffer.byteLength(TRUNCATION_FOOTER)) {
+    stdout("::warning::FixMap skipped its step summary because earlier steps already consumed GitHub's 1 MiB summary budget. The bounded report remains available through the report output.\n");
+    return;
+  }
+  appendFile(path, fitStepSummary(markdown, remaining));
 }
 function readInput(name, env) {
   const githubName = `INPUT_${name.replace(/ /g, "_").toUpperCase()}`;

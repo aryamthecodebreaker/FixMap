@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { FixMapReport } from "@aryam/fixmap-core";
-import { fitStepSummary, renderActionOutputs, runAction, splitExcludeInput, trimToBoundary, withJsonDetails } from "../src/runner.js";
+import { fitStepSummary, renderActionOutputs, renderVerifyOutputs, runAction, splitExcludeInput, trimToBoundary, withJsonDetails } from "../src/runner.js";
 import { FIXMAP_REPORT_MARKER, fitCommentBody, MAX_COMMENT_BODY_CHARS } from "../src/github.js";
 
 const report: FixMapReport = {
@@ -27,6 +27,23 @@ describe("GitHub Action runner", () => {
       "context-count=1\n" +
       "test-route-count=0\n"
     );
+  });
+
+  it("bounds both plan and verify report outputs and points to a real complete-artifact path", () => {
+    const oversized = "🙂".repeat(500_000);
+    const planOutput = renderActionOutputs(oversized, report, () => "stable");
+    const verifyOutput = renderVerifyOutputs(oversized, {
+      summary: "",
+      changedFiles: [],
+      findings: [],
+      diagnostics: []
+    }, () => "stable");
+
+    for (const output of [planOutput, verifyOutput]) {
+      expect(output).toContain("Run FixMap locally with --output for a complete report");
+      expect(output).not.toContain("�");
+      expect(Buffer.byteLength(output)).toBeLessThan(925 * 1024);
+    }
   });
 
   it("truncates oversized summaries by bytes and retains an explicit notice", () => {
@@ -64,6 +81,20 @@ describe("GitHub Action runner", () => {
     expect(writes[1]?.contents).toContain("report<<fixmap_stableid\n");
     expect(writes[1]?.contents).toContain("\nfixmap_stableid\ncontext-count=1\n");
     expect(stdout).toHaveBeenCalledOnce();
+  });
+
+  it("fits its appended summary into the bytes earlier steps left available", async () => {
+    const writes: Array<{ path: string; contents: string }> = [];
+    const large = structuredClone(report);
+    large.summary = "x".repeat(20_000);
+    await runAction({ INPUT_ISSUE: "x", GITHUB_STEP_SUMMARY: "summary.md" }, {
+      appendFile: (path, contents) => writes.push({ path, contents }),
+      buildReport: vi.fn(async () => large),
+      fileSize: () => 1024 * 1024 - 500,
+      stdout: vi.fn()
+    });
+    expect(Buffer.byteLength(writes[0]?.contents ?? "")).toBeLessThanOrEqual(500);
+    expect(writes[0]?.contents).toContain("report truncated");
   });
 
   it("accepts case-insensitive format input", async () => {
@@ -240,6 +271,25 @@ describe("GitHub Action runner", () => {
       scanRepo: async () => scannedRepo(["dist/auth.js"]),
       stdout: vi.fn()
     })).rejects.toThrow("generated or retired location");
+  });
+
+  it("opts into failing verify mode on advisory warnings", async () => {
+    const dependencies = {
+      readFile: () => JSON.stringify(report),
+      scanRepo: async () => scannedRepo(["src/auth.ts"]),
+      stdout: vi.fn()
+    };
+    await expect(runAction({
+      INPUT_MODE: "verify", INPUT_REPORT_PATH: "plan.json", INPUT_DIFF: "main...HEAD"
+    }, dependencies)).resolves.toBeUndefined();
+    await expect(runAction({
+      INPUT_MODE: "verify", INPUT_REPORT_PATH: "plan.json", INPUT_DIFF: "main...HEAD", INPUT_FAIL_ON: "warning"
+    }, dependencies)).rejects.toThrow("configured warning threshold");
+  });
+
+  it.each(["0xA", "0b101", "1e1", "+5", "5.0"])("rejects non-decimal limit spelling %s", async (limit) => {
+    await expect(runAction({ INPUT_ISSUE: "x", INPUT_LIMIT: limit }, { stdout: vi.fn() }))
+      .rejects.toThrow("whole number from 1 to 20");
   });
 });
 

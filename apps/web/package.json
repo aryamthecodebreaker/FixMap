@@ -11,11 +11,11 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@aryam/fixmap-core": "0.8.8",
+    "@aryam/fixmap-core": "0.8.9",
     "@phosphor-icons/react": "^2.1.10",
     "next": "16.2.11",
     "react": "19.2.7",

@@ -88,6 +88,15 @@ describe("buildPathExcluder", () => {
     expect(excluder.patterns).toEqual(["apps/web"]);
     expect(excluder.reasonFor("apps/web/app/reset-copy.ts")).toBe("apps/web");
   });
+
+  it("agent report #22 handles a large ignore list without an arbitrary pattern cap", () => {
+    const patterns = Array.from({ length: 1_000 }, (_, index) => `generated/${index}/**`);
+    const excluder = buildPathExcluder(patterns);
+
+    expect(excluder.patterns).toHaveLength(1_000);
+    expect(excluder.excludes("generated/999/result.ts")).toBe(true);
+    expect(excluder.excludes("src/result.ts")).toBe(false);
+  });
 });
 
 describe("exclusions in ranking", () => {

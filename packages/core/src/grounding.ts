@@ -1,4 +1,5 @@
-import { extractTaskSignals, tokenizeText } from "./signals.js";
+import { pathMatchesMention } from "./paths.js";
+import { extractTaskSignals, tokenizeIdentifier, tokenizeText } from "./signals.js";
 import type {
   IdentifierGrounding,
   RankedFile,
@@ -7,14 +8,15 @@ import type {
 } from "./types.js";
 
 const MAX_IDENTIFIER_MATCHED_FILES = 5;
-const VAGUE_TASK_PATTERN =
-  /\b(?:improve|better|clean\s+up|cleanup|refactor|developer\s+experience|dx|general|overall|errors?|reliability|performance|codebase|quality|make|things?|please)\b/i;
+const VAGUE_TASK_PATTERN = /^\s*(?:please\s+)?(?:improve|make|clean(?:\s+(?:this|it|things?))?\s+up|cleanup|refactor)\b/i;
 // Same vocabulary, global, for stripping rather than detecting. A `g` regex carries
 // lastIndex between calls, so detection keeps its own non-global copy.
-const VAGUE_TASK_TERMS = new RegExp(VAGUE_TASK_PATTERN.source, "gi");
+const VAGUE_TASK_TERMS =
+  /\b(?:please|improve|better|clean(?:\s+(?:this|it|things?))?\s+up|cleanup|refactor|developer\s+experience|dx|general|overall|codebase|quality|make|things?)\b/gi;
 
 export type TaskGrounding = TaskAnalysis["grounding"];
 export type RankingShape = TaskAnalysis["ranking"];
+export const CLUSTERED_RANKING_MARGIN = 2;
 
 export function analyzeTaskGrounding(
   repo: RepoMap,
@@ -45,7 +47,6 @@ export function analyzeTaskGrounding(
     repo.files.some((file) => pathMatchesMention(file.path, mention))
   );
   const hasDirectAnchor =
-    repo.changedFiles.length > 0 ||
     hasMatchedFileMention ||
     resolvedIdentifierCount > 0 ||
     partiallyResolvedIdentifiers.length > 0;
@@ -55,7 +56,7 @@ export function analyzeTaskGrounding(
     return tokenizeText(file.path).has(token) || tokenizeText(file.textSample).has(token);
   });
   const singleUnmatchedToken = issueTokens.size === 1 && !singleTokenHasRepoMatch;
-  const vague = !hasDirectAnchor && (isVagueTask(issueText) || singleUnmatchedToken);
+  const vague = !hasDirectAnchor && (isVagueTaskText(issueText) || singleUnmatchedToken);
 
   return {
     specificity: hasDirectAnchor ? "anchored" : vague ? "vague" : "descriptive",
@@ -107,7 +108,7 @@ export function buildGroundedTaskTokens(
   }).tokens;
 }
 
-export function buildRankingShape(contextFiles: RankedFile[]): RankingShape {
+export function buildRankingShape(contextFiles: Array<Pick<RankedFile, "score">>): RankingShape {
   const sortedScores = contextFiles
     .map((file) => file.score)
     .sort((a, b) => b - a);
@@ -121,7 +122,7 @@ export function buildRankingShape(contextFiles: RankedFile[]): RankingShape {
   const clustered =
     topScore !== null &&
     thirdScore !== undefined &&
-    topScore - thirdScore <= 2;
+    topScore - thirdScore <= CLUSTERED_RANKING_MARGIN;
 
   return { topScore, runnerUpScore, topGap, clustered };
 }
@@ -136,7 +137,7 @@ export function buildNextAction(
     return "Verify or correct the unresolved identifiers before editing ranked files.";
   }
   if (grounding.unverifiedIdentifiers.length > 0) {
-    return "Inspect the content-unread diagnostics and make those source files readable before trusting identifier-based recommendations.";
+    return "Inspect the content diagnostics and make those source files readable before trusting identifier-based recommendations.";
   }
   if (grounding.partiallyResolvedIdentifiers.length > 0) {
     return "Verify the partially matched symbol name in the leading file before editing.";
@@ -163,10 +164,12 @@ export function buildNextAction(
 
 function groundIdentifier(repo: RepoMap, identifier: string): IdentifierGrounding {
   const definitionPattern = new RegExp(
-    `\\b(?:export\\s+)?(?:async\\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\\s+${escapeRegExp(identifier)}\\b`
+    `(?<![\\p{L}\\p{N}_$])(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\\s+)${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`,
+    "u"
   );
   const exactPattern = new RegExp(
-    `(^|[^$A-Za-z0-9_])${escapeRegExp(identifier)}(?=$|[^$A-Za-z0-9_])`
+    `(?<![\\p{L}\\p{N}_$])${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`,
+    "u"
   );
   const definitionFiles = repo.files
     .filter((file) => definitionPattern.test(file.textSample))
@@ -195,7 +198,7 @@ function groundPartialOrUnverifiedIdentifier(
   repo: RepoMap,
   identifier: string
 ): IdentifierGrounding {
-  const identifierParts = tokenizeText(identifier);
+  const identifierParts = tokenizeIdentifier(identifier);
   const partialFiles = repo.files
     .filter((file) => hasDefinitionContainingTokens(file.textSample, identifierParts))
     .map((file) => file.path)
@@ -221,14 +224,14 @@ function hasDefinitionContainingTokens(text: string, expectedTokens: Set<string>
     return false;
   }
   const definitionPattern =
-    /\b(?:export\s+)?(?:async\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\s+([$A-Za-z_][$A-Za-z0-9_]*)\b/g;
+    /(?<![\p{L}\p{N}_$])(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\s+)([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
 
   for (const match of text.matchAll(definitionPattern)) {
     const name = match[1];
     if (!name) {
       continue;
     }
-    const candidateTokens = tokenizeText(name);
+    const candidateTokens = tokenizeIdentifier(name);
     if ([...expectedTokens].every((token) => candidateTokens.has(token))) {
       return true;
     }
@@ -241,6 +244,9 @@ function isAnchorIdentifier(identifier: string, issueText: string): boolean {
     return true;
   }
   if (/[_$0-9]/.test(identifier)) {
+    return true;
+  }
+  if (!/^[\x00-\x7F]+$/.test(identifier)) {
     return true;
   }
   if (/^[a-z][A-Za-z0-9_$]*[A-Z]/.test(identifier)) {
@@ -257,8 +263,11 @@ function isAnchorIdentifier(identifier: string, issueText: string): boolean {
 // upstream host" — out of the vague bucket.
 const MAX_RESIDUAL_TOKENS_FOR_VAGUE = 3;
 
-function isVagueTask(issueText: string): boolean {
+export function isVagueTaskText(issueText: string): boolean {
   if (issueText.trim().length === 0 || !VAGUE_TASK_PATTERN.test(issueText)) {
+    return false;
+  }
+  if (/^\s*(?:please\s+)?(?:refactor|cleanup|clean\s+up)\s+(?:broke|breaks?|caused|causes|deleted?|deletes?|fails?|failed)\b/i.test(issueText)) {
     return false;
   }
   const residual = tokenizeText(issueText.replace(VAGUE_TASK_TERMS, " "));
@@ -271,10 +280,6 @@ function removeIdentifiers(text: string, identifiers: string[]): string {
       current.replace(new RegExp(escapeRegExp(identifier), "g"), " "),
     text
   );
-}
-
-function pathMatchesMention(path: string, mention: string): boolean {
-  return path === mention || path.endsWith(`/${mention}`) || mention.endsWith(`/${path}`);
 }
 
 function escapeRegExp(value: string): string {

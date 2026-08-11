@@ -13,6 +13,12 @@ inputs:
       Verify mode only. Path to the JSON plan this change was made from, usually restored
       from an artifact saved by an earlier plan step.
     required: false
+  fail-on:
+    description: >-
+      Verify mode only. error (default) fails only on error findings; warning also fails
+      when verification raises advisory warnings such as no-test-changed.
+    required: false
+    default: error
   issue:
     description: >-
       Issue, prompt, or review context for FixMap. Accepts a public GitHub issue or pull
@@ -64,7 +70,7 @@ inputs:
     required: false
 outputs:
   report:
-    description: The complete FixMap report, or verification, in the selected format.
+    description: The bounded FixMap report, or verification, in the selected format.
   context-count:
     description: Number of context files returned. Plan mode only.
   test-route-count:

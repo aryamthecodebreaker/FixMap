@@ -14,7 +14,7 @@ const MAX_ISSUE_BODY_CHARS = 20_000;
 
 export function parseActionIssueSource(input: string): ActionIssueSource | undefined {
   let trimmed = input.trim();
-  if (/^https?:\/\/[^/\s]*@(?:www\.|api\.)?github\.com\//i.test(trimmed)) {
+  if (/^https?:\/\/[^/\s@]+@/i.test(trimmed)) {
     throw new Error(
       "The issue URL contains credentials. Remove the user:token@ prefix and pass the public " +
       "https://github.com/owner/repository/issues/123 URL; the Action reads public issues anonymously."

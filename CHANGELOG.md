@@ -6,6 +6,47 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://usefixmap.vercel.app/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.8.9 - 2026-08-11
+
+### Added
+
+- `fixmap setup` installs a discoverable `/fixmap` command for Claude Code, Cursor, GitHub Copilot, and Agent Skills; invoking it without a task opens the complete feature catalog. `fixmap features` exposes the same catalog directly.
+- `fixmap validate <report.json>` checks the versioned report contract, while `--fail-on warning` and the Action's `fail-on: warning` provide an opt-in strict Verify gate.
+- Plan, Explain, MCP, and the Action expose a visible fresh-scan path with `--no-cache`/`noCache`, and cache hits now report age with bounded expiry and eviction.
+
+### Fixed
+
+- Ranking, grounding, file mentions, definition detection, import proximity, clustering, confidence, risk vocabulary, diff evidence, exact literals, Unicode text, inflections, typographic quotes, and generated/backup/configuration heuristics were corrected across the complete #500-#627 issue sweep.
+- Repository mapping now handles nested package-manager lockfiles, conflicting roots, Windows and absolute exclusion paths, large ignore lists, tracked dirty cache states, BOM-less UTF-16 task files, oversized diffs, more source extensions, and language/test routing for C#, Java, PHP, Ruby, Go, Rust, Python, and JavaScript ecosystems.
+- Explain, Compare, Verify, Validate, Doctor, remote repository acquisition, CLI parsing/output, MCP schemas, and copy-paste commands now fail clearly and preserve safe paths instead of silently accepting ambiguous or malformed state.
+- GitHub Action comments, outputs, and job summaries stay within platform limits; API errors, pagination, permissions, credentials, Markdown, temporary clones, and generated bundle/metadata drift are handled defensively.
+
+### Security and release engineering
+
+- CI is least-privilege, timeout-bounded, non-duplicating, immutable-action pinned, full-tree audited, non-mutating, and configured for Node 20.11/22 plus Windows and macOS compatibility coverage.
+- The publish workflow scopes write/OIDC permission to the release job and verifies the exact main commit, version metadata, npm packages, clean global install, MCP Registry entry, and GitHub Release before succeeding.
+
+### Website and documentation
+
+- The website uses a restrained editorial product system with clearer navigation, evidence, metadata, copy feedback, visibility-safe motion, and an honest interactive demo instead of synthetic marketing presentation.
+- README and the npm package documentation now contain the full FixMap feature catalog, `/fixmap` setup, exclusion syntax, cache/report compatibility, Action controls, and public evidence boundaries.
+
+### Evidence
+
+- The release ledger maps all 126 open GitHub issues in #500-#627 (excluding already-closed #542 and #599) plus every item in the attached 30-finding review to a resolution and verification source.
+- External, held-out, adversarial, BM25/lexical/path baselines, savings, rendered examples, package smoke tests, and the 1,000-file scan gate were regenerated and checked. The held-out evidence continues to state plainly where BM25 leads FixMap.
+
+### Installation
+
+```bash
+npm install --global @aryam/fixmap@0.8.9
+fixmap doctor
+fixmap setup
+fixmap features
+```
+
+The release is complete only when the exact main commit is tagged `v0.8.9`, npm and MCP Registry serve 0.8.9, the GitHub release and Action tag resolve to that commit, production serves the matching website, and every public smoke check passes.
+
 ## 0.8.8 - 2026-08-08
 
 ### Added

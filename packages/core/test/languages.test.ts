@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectPrimaryLanguage } from "../src/languages.js";
+import { detectPrimaryLanguage, manifestTestCommand } from "../src/languages.js";
 import { buildReportFromRepo, buildTestRoutes } from "../src/report.js";
 import type { RepoFile, RepoMap } from "../src/types.js";
 
@@ -50,7 +50,11 @@ describe("detectPrimaryLanguage", () => {
     ["Cargo.toml", "src/lib.rs", "rust"],
     ["pyproject.toml", "src/app.py", "python"],
     ["setup.py", "src/app.py", "python"],
-    ["package.json", "src/index.ts", "node"]
+    ["package.json", "src/index.ts", "node"],
+    ["Gemfile", "lib/app.rb", "ruby"],
+    ["composer.json", "src/App.php", "php"],
+    ["pom.xml", "src/App.java", "java"],
+    ["App.csproj", "src/App.cs", "dotnet"]
   ])("reads %s as declaring the language", (manifest, source, expected) => {
     const repo = repoOf([file(manifest, { isSource: false, kind: "config" }), file(source)]);
 
@@ -154,6 +158,32 @@ describe("test routing beyond package scripts", () => {
     const report = buildReportFromRepo(repo, { issueText: "app fails to start" });
 
     expect(report.diagnostics.find((entry) => entry.code === "no-test-route")?.message).toContain("tox");
+  });
+
+  it("does not let a nested tox.ini override a shallower Python configuration", () => {
+    const repo = repoOf([
+      file("pyproject.toml", { isSource: false, kind: "config" }),
+      file("tools/legacy/tox.ini", { isSource: false, kind: "config" }),
+      file("src/app.py")
+    ]);
+
+    const report = buildReportFromRepo(repo, { issueText: "app fails to start" });
+
+    expect(report.diagnostics.find((entry) => entry.code === "no-test-route")?.message).toContain("pytest");
+    expect(report.diagnostics.find((entry) => entry.code === "no-test-route")?.message).not.toContain("`tox`");
+  });
+
+  it("recomputes the Rust manifest instead of trusting a stale package directory", () => {
+    const files = [
+      file("Cargo.toml", { isSource: false, kind: "config" }),
+      file("crates/parser/Cargo.toml", { isSource: false, kind: "config" }),
+      file("crates/parser/src/lib.rs")
+    ];
+
+    expect(manifestTestCommand("rust", "crates/missing", files)).toEqual({
+      command: "cargo test",
+      reason: "Cargo.toml at the repository root"
+    });
   });
 
   it("does not call a Rust repository Python in the no-test-route warning", () => {

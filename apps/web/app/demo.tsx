@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { buildPathExcluder, buildReportFromRepo, compareReports, explainFile, verifyPlan } from "@aryam/fixmap-core/browser";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { buildPathExcluder, buildReportFromRepo, compareReports, explainFile, quoteCliValue, verifyPlan } from "@aryam/fixmap-core/browser";
+import type { CliShell } from "@aryam/fixmap-core/browser";
 import { sampleRepo, sampleRepoWithChanges, samplePaths } from "./sample-repo";
 
 type Stage = "plan" | "explain" | "compare" | "verify";
@@ -40,6 +41,18 @@ const scenarios = [
 ];
 
 const explainTargets = samplePaths;
+
+function subscribeToShell(): () => void {
+  return () => undefined;
+}
+
+function browserShell(): CliShell {
+  return /Windows/i.test(navigator.userAgent) ? "powershell" : "posix";
+}
+
+function serverShell(): CliShell {
+  return "posix";
+}
 
 export function Demo() {
   const [task, setTask] = useState(presets[0]!.label);
@@ -99,10 +112,11 @@ export function Demo() {
     `${limit === 8 ? "" : ` --limit ${limit}`}` +
     `${excludeBuild ? ' --exclude "dist/**"' : ""}` +
     `${workingTree ? " --working-tree" : ""}`;
-  const quotedTask = quoteCliValue(task);
+  const shell = useSyncExternalStore(subscribeToShell, browserShell, serverShell);
+  const quotedTask = quoteCliValue(task, shell);
   const command = {
     plan: `fixmap plan --issue ${quotedTask}${scanFlags} --format json --output plan.json`,
-    explain: `fixmap plan --issue ${quotedTask} --explain ${quoteCliValue(explainTarget)}${scanFlags}`,
+    explain: `fixmap plan --issue ${quotedTask} --explain ${quoteCliValue(explainTarget, shell)}${scanFlags}`,
     compare: `fixmap plan --issue ${quotedTask} --compare plan.json${scanFlags}`,
     verify: `fixmap verify --report plan.json ${workingTree ? "--working-tree" : "--diff main...HEAD"}`
   }[stage];
@@ -402,8 +416,4 @@ function VerifyPanel({
       </p>
     </>
   );
-}
-
-function quoteCliValue(value: string): string {
-  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }

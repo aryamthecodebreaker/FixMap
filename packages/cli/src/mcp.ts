@@ -20,8 +20,10 @@ import {
   type FixMapReport
 } from "@aryam/fixmap-core";
 import { renderDoctorReport, runDoctorChecks } from "./doctor.js";
+import { clarifyMissingPath } from "./explain-path.js";
 import {
   buildReportForRepository,
+  isSafeGitRefName,
   tryParseGitHubIssueSource,
   type RepositorySourceDependencies
 } from "./repository-source.js";
@@ -34,6 +36,7 @@ type PlanArguments = {
   base?: string;
   head?: string;
   repo?: string;
+  ref?: string;
   format?: "markdown" | "json";
   limit?: number;
   exclude?: string[];
@@ -110,6 +113,7 @@ const PLAN_TOOL = {
           "Local path or public GitHub HTTPS repository URL, defaults to the server working directory. " +
           "GitHub URLs support issue-only analysis and are removed after scanning."
       },
+      ref: { type: "string", description: "Branch or tag to scan when repo is a remote GitHub URL" },
       format: {
         type: "string",
         description: "Output format: markdown (default) or json, case-insensitive"
@@ -241,7 +245,8 @@ const DOCTOR_TOOL = {
 };
 
 export function createFixMapMcpServer(
-  repositorySourceDependencies: RepositorySourceDependencies = {}
+  repositorySourceDependencies: RepositorySourceDependencies = {},
+  defaultRepo = process.cwd()
 ): Server {
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
@@ -301,7 +306,7 @@ export function createFixMapMcpServer(
       const args = parsed.value;
       try {
         const repo = await scanRepo({
-          repoRoot: args.repo ?? process.cwd(),
+          repoRoot: args.repo ?? defaultRepo,
           diffSpec: args.diff,
           baseRef: args.base,
           headRef: args.head,
@@ -345,7 +350,7 @@ export function createFixMapMcpServer(
         };
       }
       try {
-        const repoRoot = args.repo ?? process.cwd();
+        const repoRoot = args.repo ?? defaultRepo;
         const repo = await scanRepo({
           repoRoot,
           diffSpec: args.diff,
@@ -355,7 +360,7 @@ export function createFixMapMcpServer(
           includeUntracked: args.includeUntracked,
           useCache: !args.noCache
         });
-        const explanation = explainFile(
+        const explanation = await clarifyMissingPath(explainFile(
           repo,
           {
             issueText: args.issue,
@@ -364,7 +369,7 @@ export function createFixMapMcpServer(
             limit: args.limit
           },
           args.path
-        );
+        ), repo, args.path);
         const text = args.format === "json"
           ? `${JSON.stringify(explanation, null, 2)}\n`
           : renderExplanationMarkdown(explanation);
@@ -402,7 +407,8 @@ export function createFixMapMcpServer(
     let report: FixMapReport;
     try {
       report = await buildReportForRepository({
-        repo: args.repo,
+        repo: args.repo ?? (tryParseGitHubIssueSource(args.issue ?? "") ? undefined : defaultRepo),
+        checkoutRef: args.ref,
         issueText: args.issue,
         diffSpec: args.diff,
         baseRef: args.base,
@@ -449,7 +455,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache"]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return {
@@ -458,13 +464,13 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
     };
   }
 
-  for (const name of ["issue", "diff", "base", "head", "repo"] as const) {
+  for (const name of ["issue", "diff", "base", "head", "repo", "ref"] as const) {
     const value = record[name];
     if (value !== undefined && typeof value !== "string") {
       return { success: false, message: `"${name}" must be a string.` };
     }
   }
-  for (const name of ["issue", "diff", "base", "head", "repo"] as const) {
+  for (const name of ["issue", "diff", "base", "head", "repo", "ref"] as const) {
     if (typeof record[name] === "string" && !record[name].trim()) return { success: false, message: `"${name}" must not be blank.` };
   }
   for (const name of ["workingTree", "includeUntracked", "noCache"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
@@ -483,7 +489,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const value: PlanArguments = {};
-  for (const name of ["issue", "diff", "base", "head", "repo"] as const) {
+  for (const name of ["issue", "diff", "base", "head", "repo", "ref"] as const) {
     const candidate = record[name];
     if (typeof candidate === "string" && candidate.trim()) {
       value[name] = candidate.trim();
@@ -499,6 +505,12 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   if (record.workingTree === true) value.workingTree = true;
   if (record.includeUntracked === true) value.includeUntracked = true;
   if (record.noCache === true) value.noCache = true;
+  if (value.ref && !/^https?:\/\//i.test(value.repo ?? "") && !tryParseGitHubIssueSource(value.issue ?? "")) {
+    return { success: false, message: '"ref" requires a remote GitHub "repo" or issue URL.' };
+  }
+  if (value.ref && !isSafeGitRefName(value.ref)) {
+    return { success: false, message: '"ref" must be a safe branch or tag name.' };
+  }
   if (value.issue && /^https?:\/\/\S+$/i.test(value.issue) && !tryParseGitHubIssueSource(value.issue)) return { success: false, message: '"issue" URL must be a canonical public GitHub issue or pull request URL.' };
   return { success: true, value };
 }
@@ -696,8 +708,8 @@ function asFixMapReport(candidate: unknown, label: string): LoadedReport {
   return validateFixMapReport(candidate, label);
 }
 
-export async function runMcpServer(): Promise<void> {
-  await createFixMapMcpServer().connect(new StdioServerTransport());
+export async function runMcpServer(defaultRepo = process.cwd()): Promise<void> {
+  await createFixMapMcpServer({}, defaultRepo).connect(new StdioServerTransport());
 }
 
 function readVersion(): string {

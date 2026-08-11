@@ -141,8 +141,8 @@ h3 { margin-bottom: 10px; font-size: 21px; line-height: 1.25; letter-spacing: -.
 .before-after strong { display: block; margin-bottom: 14px; font-size: 23px; line-height: 1.25; }
 .before-after p { color: #b7c2cc; }
 .path-list { border-top: 1px solid var(--line-strong); }
-.path-list > a { min-height: 128px; display: grid; grid-template-columns: 230px 1fr 28px; align-items: center; gap: 26px; border-bottom: 1px solid var(--line); text-decoration: none; transition: color .18s ease, padding .18s ease; }
-.path-list > a:hover { padding-inline: 16px; color: var(--green); }
+.path-list > a { min-height: 128px; display: grid; grid-template-columns: 230px 1fr 28px; align-items: center; gap: 26px; border-bottom: 1px solid var(--line); text-decoration: none; transition: color .18s ease, transform .18s ease; }
+.path-list > a:hover { color: var(--green); transform: translateX(8px); }
 .path-list span { display: flex; align-items: center; gap: 14px; font-size: 22px; }
 .path-list p { margin: 0; color: var(--ink-soft); }
 .evidence-teaser { display: grid; grid-template-columns: 1.2fr .8fr; gap: 90px; align-items: center; border-top: 1px solid var(--line); }
@@ -594,8 +594,8 @@ h3 { margin-bottom: 10px; font-size: 21px; line-height: 1.25; letter-spacing: -.
 .premium-section-intro h2 { font-size: clamp(50px, 5vw, 76px); }
 .premium-section-intro > p:last-child { max-width: 430px; color: var(--ink-soft); font-size: 18px; }
 .premium-answer-list { border-top: 1px solid var(--line-strong); }
-.premium-answer-list > a { min-height: 180px; padding: 34px 10px 34px 0; display: grid; grid-template-columns: 58px 1fr 30px; gap: 22px; align-items: start; border-bottom: 1px solid var(--line); text-decoration: none; transition: padding .22s ease, background .22s ease; }
-.premium-answer-list > a:hover { padding-left: 18px; background: rgba(255,253,248,.46); }
+.premium-answer-list > a { min-height: 180px; padding: 34px 10px 34px 0; display: grid; grid-template-columns: 58px 1fr 30px; gap: 22px; align-items: start; border-bottom: 1px solid var(--line); text-decoration: none; transition: background .22s ease, transform .22s ease; }
+.premium-answer-list > a:hover { background: rgba(255,253,248,.46); transform: translateX(8px); }
 .premium-answer-list > a > span { padding-top: 6px; color: var(--green); font: 600 12px var(--font-mono), monospace; }
 .premium-answer-list h3 { font-size: 26px; }
 .premium-answer-list p { max-width: 610px; margin: 0; color: var(--ink-soft); font-size: 16px; }
@@ -742,8 +742,8 @@ h3 { margin-bottom: 10px; font-size: 21px; line-height: 1.25; letter-spacing: -.
 .pro-section-heading h2 { font-size: clamp(38px, 4vw, 54px); }
 .pro-section-heading > p:last-child { color: var(--ink-soft); font-size: 17px; }
 .pro-workflow-list { border-top: 1px solid var(--line-strong); }
-.pro-workflow-list > a { min-height: 112px; padding: 23px 10px; display: grid; grid-template-columns: 42px 100px 1fr 24px; align-items: center; gap: 14px; border-bottom: 1px solid var(--line); text-decoration: none; transition: background .18s ease, padding .18s ease; }
-.pro-workflow-list > a:hover { padding-inline: 18px; background: var(--paper-light); }
+.pro-workflow-list > a { min-height: 112px; padding: 23px 10px; display: grid; grid-template-columns: 42px 100px 1fr 24px; align-items: center; gap: 14px; border-bottom: 1px solid var(--line); text-decoration: none; transition: background .18s ease, transform .18s ease; }
+.pro-workflow-list > a:hover { background: var(--paper-light); transform: translateX(8px); }
 .pro-workflow-list > a > span { color: var(--green); font: 600 11px var(--font-mono), monospace; }
 .pro-workflow-list strong { font-size: 18px; }
 .pro-workflow-list p { margin: 0; color: var(--ink-soft); font-size: 14px; }

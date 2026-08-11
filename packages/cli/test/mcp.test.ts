@@ -154,23 +154,39 @@ describe("fixmap mcp server", () => {
 
     const tools = await client.listTools();
 
+    expect(tools.tools.map((tool) => tool.name)).toEqual([
+      "fixmap_plan", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
+    ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
     expect(plan).toBeDefined();
     expect(plan?.description).toContain("test commands");
-    expect(Object.keys(plan?.inputSchema.properties ?? {})).toEqual(
-      expect.arrayContaining(["issue", "diff", "base", "head", "repo", "format", "noCache"])
+    expect(Object.keys(plan?.inputSchema.properties ?? {}).sort()).toEqual(
+      ["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache"].sort()
     );
+    expect(plan?.inputSchema.additionalProperties).toBe(false);
     expect(plan?.inputSchema.properties?.repo?.description).toContain("public GitHub HTTPS");
     expect(plan?.inputSchema.properties?.issue?.description).toContain("GitHub issue URL");
     expect(verify).toBeDefined();
-    expect(Object.keys(verify?.inputSchema.properties ?? {})).toEqual(expect.arrayContaining(["report", "noCache"]));
+    expect(Object.keys(verify?.inputSchema.properties ?? {}).sort()).toEqual(
+      ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache"].sort()
+    );
+    expect(verify?.inputSchema.required).toEqual(["report"]);
+    expect(verify?.inputSchema.additionalProperties).toBe(false);
     const explain = tools.tools.find((tool) => tool.name === "fixmap_explain");
     expect(explain).toBeDefined();
-    expect(Object.keys(explain?.inputSchema.properties ?? {})).toEqual(expect.arrayContaining(["path", "noCache"]));
-    expect(explain?.inputSchema.required).toContain("path");
-    expect(tools.tools.find((tool) => tool.name === "fixmap_compare")).toBeDefined();
-    expect(tools.tools.find((tool) => tool.name === "fixmap_doctor")).toBeDefined();
+    expect(Object.keys(explain?.inputSchema.properties ?? {}).sort()).toEqual(
+      ["path", "issue", "diff", "base", "head", "workingTree", "includeUntracked", "repo", "exclude", "limit", "format", "noCache"].sort()
+    );
+    expect(explain?.inputSchema.required).toEqual(["path"]);
+    expect(explain?.inputSchema.additionalProperties).toBe(false);
+    const compare = tools.tools.find((tool) => tool.name === "fixmap_compare");
+    expect(Object.keys(compare?.inputSchema.properties ?? {}).sort()).toEqual(["previous", "current", "format"].sort());
+    expect(compare?.inputSchema.required).toEqual(["previous", "current"]);
+    expect(compare?.inputSchema.additionalProperties).toBe(false);
+    const doctor = tools.tools.find((tool) => tool.name === "fixmap_doctor");
+    expect(Object.keys(doctor?.inputSchema.properties ?? {})).toEqual(["format"]);
+    expect(doctor?.inputSchema.additionalProperties).toBe(false);
   });
 
   it("compares two reports through MCP", async () => {
@@ -337,7 +353,7 @@ describe("fixmap mcp server", () => {
     const changedFiles = (JSON.parse(text) as { changedFiles: string[] }).changedFiles;
     expect(changedFiles).toContain("src/auth/reset-password.ts");
     expect(changedFiles).not.toContain("plan.json");
-  });
+  }, 15_000);
 
   it("rejects a truncated non-empty verify report with a structural error", async () => {
     const client = await connectClient();
@@ -421,7 +437,8 @@ describe("fixmap mcp server", () => {
 
   it("analyzes a public GitHub URL through an isolated temporary checkout", async () => {
     const client = await connectClient({
-      clonePublicRepository: async (_url, destination) => {
+      clonePublicRepository: async (_url, destination, _hooks, ref) => {
+        expect(ref).toBe("release-2.x");
         await mkdir(join(destination, "src", "auth"), { recursive: true });
         await writeFile(
           join(destination, "package.json"),
@@ -443,6 +460,7 @@ describe("fixmap mcp server", () => {
       arguments: {
         issue: "password reset emails fail",
         repo: "https://github.com/owner/repository",
+        ref: "release-2.x",
         format: "json"
       }
     });
@@ -625,6 +643,17 @@ describe("MCP surface parity", () => {
     expect(parseVerifyArguments({ report, diff: " HEAD ", format: " JSON ", noCache: true })).toEqual({
       success: true,
       value: { report, diff: "HEAD", noCache: true, format: "json" }
+    });
+  });
+
+  it("rejects unsafe remote refs before cloning", () => {
+    expect(parsePlanArguments({ issue: "x", repo: "https://github.com/o/r", ref: "feature//oops" })).toEqual({
+      success: false,
+      message: '"ref" must be a safe branch or tag name.'
+    });
+    expect(parsePlanArguments({ issue: "x", repo: "https://github.com/o/r", ref: "release-2.x" })).toEqual({
+      success: true,
+      value: { issue: "x", repo: "https://github.com/o/r", ref: "release-2.x" }
     });
   });
 

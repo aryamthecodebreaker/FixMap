@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildFixMapReport } from "../src/plan.js";
+import { renderMarkdownReport } from "../src/report.js";
 
 async function createAuthFixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "fixmap-plan-"));
@@ -75,6 +76,20 @@ describe("buildFixMapReport", () => {
     expect(diagnostic?.message).toContain("removed by exclusion patterns");
     expect(diagnostic?.paths).toContain("src/auth/reset-password.ts");
     expect(report.diagnostics.find((entry) => entry.code === "paths-excluded")?.severity).toBe("warning");
+  });
+
+  it("renders exclusion globs as code instead of live markdown", async () => {
+    const root = await createAuthFixture();
+
+    const report = await buildFixMapReport({
+      repoRoot: root,
+      issueText: "password reset emails fail",
+      exclude: ["**/_x_/**"]
+    });
+    const markdown = renderMarkdownReport(report);
+
+    expect(markdown).toContain("`**/_x_/**`");
+    expect(markdown).not.toContain("paths: **/_x_/**");
   });
 
   it("does not let a giant task token become a giant diagnostic", async () => {
@@ -154,7 +169,8 @@ describe("buildFixMapReport", () => {
       issueText: "improve error handling"
     });
 
-    expect(report.contextFiles).toEqual([]);
+    expect(report.contextFiles).toHaveLength(3);
+    expect(report.contextFiles.every((file) => file.confidence === "low")).toBe(true);
     expect(report.diagnostics.map((entry) => entry.code)).toContain("vague-task");
     expect(report.analysis?.nextAction).toContain("Add a concrete");
   });

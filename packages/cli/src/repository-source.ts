@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,6 +26,7 @@ export type RepositoryPlanInput = {
   diffSpec?: string | undefined;
   baseRef?: string | undefined;
   headRef?: string | undefined;
+  checkoutRef?: string | undefined;
   workingTree?: boolean | undefined;
   includeUntracked?: boolean | undefined;
   useCache?: boolean | undefined;
@@ -71,7 +72,8 @@ export type RepositorySourceDependencies = {
   clonePublicRepository?: (
     url: string,
     destination: string,
-    hooksDirectory: string
+    hooksDirectory: string,
+    ref?: string
   ) => Promise<ClonedRepository>;
   fetchPublicIssue?: (source: ParsedGitHubIssueSource) => Promise<PublicGitHubIssue>;
   makeTemporaryDirectory?: (prefix: string) => Promise<string>;
@@ -91,6 +93,14 @@ export type ParsedGitHubIssueSource = {
   /** True for a /pull/N URL. The fetch is identical; only the wording differs. */
   isPullRequest?: boolean;
 };
+
+/** Conservative synchronous validation for a branch or tag passed to `git clone --branch`.
+ * It mirrors Git's forbidden refname forms without invoking a repository or a shell. */
+export function isSafeGitRefName(value: string): boolean {
+  return value.length > 0 && value.length <= 255 &&
+    value !== "@" &&
+    !/^[.-]|[./]$|[\s\u0000-\u001f\u007f~^:?*\[\\]|\.\.|\/\/|@\{|(?:^|\/)\.|(?:^|\/)[^/]*\.lock(?:\/|$)/i.test(value);
+}
 
 export type PublicGitHubIssue = {
   title: string;
@@ -206,7 +216,8 @@ export function parseGitHubIssueSource(input: string): ParsedGitHubIssueSource |
 
   const segments = url.pathname.split("/").filter(Boolean);
   const owner = segments[0] ?? "";
-  const repository = segments[1] ?? "";
+  const rawRepository = segments[1] ?? "";
+  const repository = rawRepository.toLowerCase().endsWith(".git") ? rawRepository.slice(0, -4) : rawRepository;
   const kindSegment = (segments[2] ?? "").toLowerCase();
   const rawNumber = segments[3] ?? "";
   const number = Number(rawNumber);
@@ -559,7 +570,8 @@ export async function buildReportForRepository(
           `The report completed, but FixMap could not remove temporary checkout "${temporaryRoot}": ` +
           `${errorDetail(cleanupError)}. Delete that directory manually when it is no longer locked.`
       });
-    }
+    },
+    input.checkoutRef
   );
 }
 
@@ -584,7 +596,8 @@ export async function withRepositorySource<T>(
   source: ParsedRepositorySource,
   work: (source: ResolvedRepositorySource) => Promise<T>,
   dependencies: RepositorySourceDependencies = {},
-  onCleanupFailure?: (result: T, cleanupError: unknown, temporaryRoot: string) => void
+  onCleanupFailure?: (result: T, cleanupError: unknown, temporaryRoot: string) => void,
+  checkoutRef?: string
 ): Promise<T> {
   if (source.kind === "local") {
     if (!(await isDirectory(source.repoRoot))) {
@@ -599,6 +612,7 @@ export async function withRepositorySource<T>(
   const removeTemporaryDirectory = dependencies.removeTemporaryDirectory ??
     ((path: string) => rm(path, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }));
   const clonePublicRepository = dependencies.clonePublicRepository ?? defaultClonePublicRepository;
+  await sweepStaleTemporaryRepositories();
   const temporaryRoot = await makeTemporaryDirectory(join(tmpdir(), "fixmap-github-"));
   const checkoutRoot = join(temporaryRoot, "repository");
   const hooksDirectory = join(temporaryRoot, "disabled-hooks");
@@ -612,7 +626,7 @@ export async function withRepositorySource<T>(
     let cloned: ClonedRepository;
     try {
       reportProgress(`cloning ${source.displayUrl}`);
-      cloned = await clonePublicRepository(source.cloneUrl, checkoutRoot, hooksDirectory);
+      cloned = await clonePublicRepository(source.cloneUrl, checkoutRoot, hooksDirectory, checkoutRef);
       reportProgress(`cloned ${cloned.ref}@${cloned.revision}`);
     } catch (error) {
       throw new RepositorySourceError(
@@ -669,7 +683,8 @@ function attachCleanupCause(primaryError: Error, cleanupError: unknown): void {
 async function defaultClonePublicRepository(
   url: string,
   destination: string,
-  hooksDirectory: string
+  hooksDirectory: string,
+  checkoutRef?: string
 ): Promise<ClonedRepository> {
   const isolationRoot = dirname(hooksDirectory);
   const homeDirectory = join(isolationRoot, "isolated-home");
@@ -706,6 +721,7 @@ async function defaultClonePublicRepository(
       "--quiet",
       "--depth", "1",
       "--single-branch",
+      ...(checkoutRef ? ["--branch", checkoutRef] : []),
       "--no-tags",
       "--no-recurse-submodules",
       `--template=${templateDirectory}`,
@@ -744,6 +760,27 @@ async function defaultClonePublicRepository(
     ref,
     revision: revisionOutput.trim()
   };
+}
+
+const STALE_TEMPORARY_REPOSITORY_MS = 24 * 60 * 60 * 1000;
+
+async function sweepStaleTemporaryRepositories(): Promise<void> {
+  const temporaryDirectory = resolve(tmpdir());
+  try {
+    const entries = await readdir(temporaryDirectory, { withFileTypes: true });
+    await Promise.all(entries
+      .filter((entry) => entry.isDirectory() && /^fixmap-github-[A-Za-z0-9_-]+$/.test(entry.name))
+      .map(async (entry) => {
+        const target = resolve(temporaryDirectory, entry.name);
+        if (dirname(target) !== temporaryDirectory) return;
+        try {
+          const metadata = await stat(target);
+          if (Date.now() - metadata.mtimeMs > STALE_TEMPORARY_REPOSITORY_MS) {
+            await rm(target, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+          }
+        } catch { /* Cleanup is best effort. */ }
+      }));
+  } catch { /* A locked temp directory must not block a report. */ }
 }
 
 async function isDirectory(path: string): Promise<boolean> {

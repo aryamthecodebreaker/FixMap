@@ -4,17 +4,24 @@ import { buildImportGraph, findImportProximity } from "./import-graph.js";
 import type { ImportProximity } from "./import-graph.js";
 import {
   analyzeTaskGrounding,
-  buildGroundedTaskTokens
+  buildRankingShape,
+  buildGroundedTaskTokens,
+  CLUSTERED_RANKING_MARGIN,
+  isVagueTaskText
 } from "./grounding.js";
 import type { TaskGrounding } from "./grounding.js";
-import { isBackupPath, isGeneratedPath, isRecordedEvaluationOutput, moduleStem } from "./paths.js";
+import { isBackupPath, isGeneratedPath, isRecordedEvaluationOutput, LOCKFILE_NAMES, moduleStem, pathMatchesMention } from "./paths.js";
 import { extractTaskSignals, tokenizePath, tokenizeText } from "./signals.js";
 import type { RankedFile, RepoMap } from "./types.js";
 
 const DEPLOYMENT_TERMS = [
   "deploy", "deployment", "vercel", "netlify", "docker", "kubernetes", "hosting", "serverless", "production"
 ];
-const LOCKFILES = new Set(["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"]);
+const CONFIGURATION_TERMS = ["config", "configuration", "workflow", "action", "ci", "yaml"];
+const PRESENTATION_TERMS = [
+  "browser", "button", "client", "display", "form", "frontend", "layout", "page", "screen", "ui", "visitor", "web", "website"
+];
+export const RANKING_SIGNAL_TERMS = [...DEPLOYMENT_TERMS, ...CONFIGURATION_TERMS, ...PRESENTATION_TERMS];
 const AUXILIARY_CODE_DIRS = new Set(["demo", "demos", "example", "examples", "sample", "samples"]);
 const COMPILED_TO_SOURCE_MENTION_EXTENSIONS: Readonly<Record<string, readonly string[]>> = {
   ".js": [".ts", ".tsx"],
@@ -26,10 +33,13 @@ const MAX_FILES_PER_MENTION = 5;
 const MAX_PROXIMITY_SEEDS = 5;
 const IMPORT_PROXIMITY_BOOSTS: Record<ImportProximity["distance"], number> = { 1: 4, 2: 2 };
 const EXAMPLE_CODE_PENALTY = 8;
+const AUXILIARY_REPRODUCTION_PENALTY = 20;
 const PRESENTATION_CODE_PENALTY = 8;
+const INTERACTIVE_PRESENTATION_BOOST = 4;
 const TYPE_DECLARATION_PENALTY = 4;
+const TYPE_DECLARATION_DIRECT_PENALTY = 8;
 const BACKUP_COPY_PENALTY = 10;
-const BUNDLED_OUTPUT_PENALTY = 12;
+const BUNDLED_OUTPUT_PENALTY = 16;
 const GENERATED_TWIN_PENALTY = 21;
 const GENERATED_TWIN_REASON = "generated build artifact; maintained source counterpart exists";
 // Bundlers strip newlines; people do not. A file averaging hundreds of characters per
@@ -52,7 +62,7 @@ const BUNDLE_MARKERS = [
   /\b__defProp\s*=/,
   /\/\/# sourceMappingURL=/
 ] as const;
-const EXPLICIT_PATH_BOOST = 40;
+const EXPLICIT_PATH_BOOST = 60;
 const EXACT_LITERAL_BOOST = 8;
 const MEMBER_MENTION_BOOST = 8;
 // A term counts as repository-wide boilerplate only when nearly every file carries it.
@@ -66,7 +76,7 @@ const MAX_DEFINITION_IDENTIFIERS = 2;
 const TASK_MATCHED_DEFINITION_BOOST = 4;
 // How close to the leader a file must score to share its "high" label. Two points matches
 // the window `isClusteredRanking` already treats as indistinguishable.
-const HIGH_CONFIDENCE_MARGIN = 2;
+const HIGH_CONFIDENCE_MARGIN = CLUSTERED_RANKING_MARGIN;
 
 type ScoredFile = { path: string; score: number; isChanged: boolean; reasons: string[] };
 type DefinitionSignal = { identifier: string; pattern: RegExp };
@@ -83,10 +93,23 @@ export function rankContextFiles(
     exclude?: PathExcluder | undefined;
   },
   limit = DEFAULT_CONTEXT_FILE_LIMIT,
+  minScore = REPORT_SCORE_CUTOFF
+): RankedFile[] {
+  return rankContextFilesDetailed(repo, input, limit, minScore).contextFiles;
+}
+
+export function rankContextFilesDetailed(
+  repo: RepoMap,
+  input: {
+    issueText?: string | undefined;
+    diffText?: string | undefined;
+    exclude?: PathExcluder | undefined;
+  },
+  limit = DEFAULT_CONTEXT_FILE_LIMIT,
   // `explainFile` lowers this to see what a file scored below the reporting cutoff.
   // Ranking never calls it with anything but the default.
   minScore = REPORT_SCORE_CUTOFF
-): RankedFile[] {
+): { contextFiles: RankedFile[]; ranking: import("./grounding.js").RankingShape } {
   const exclude = input.exclude ?? NO_EXCLUSIONS;
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
@@ -100,8 +123,7 @@ export function rankContextFiles(
     changedFiles: repo.changedFiles
   });
 
-  const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path));
-  const taskTargetsEvaluation = hasAny(taskTokens, ["benchmark", "benchmarks", "evaluation", "evaluate"]);
+  const mentionedPaths = matchMentionedPaths(signals.fileMentions, repo.files.map((file) => file.path), repo.root);
   // Excluded before anything else reads the candidate set. The boilerplate threshold below
   // is a share of that set, so removing files later would leave scoring computed against a
   // population that no longer exists.
@@ -110,8 +132,7 @@ export function rankContextFiles(
     (mentionedPaths.has(file.path) ||
     (file.isSource &&
       !file.isTest &&
-      !LOCKFILES.has(file.path.split("/").pop() ?? "") &&
-      (!file.path.startsWith("benchmarks/") || taskTargetsEvaluation)))
+      !LOCKFILE_NAMES.has(file.path.split("/").pop() ?? "")))
   );
   // Generated output is kept only when the source it came from is absent. chalk's sole
   // color-detection implementation lives in `source/vendor/`, so it stays; a committed
@@ -122,7 +143,7 @@ export function rankContextFiles(
       .filter((file) => !isGeneratedPath(file.path) && !isBackupPath(file.path))
       .map((file) => moduleStem(file.path))
   );
-  const candidates = scannable.filter((file) =>
+  const candidateFiles = scannable.filter((file) =>
     !isRecordedEvaluationOutput(file.path) && (
       mentionedPaths.has(file.path) ||
       signals.changedFiles.has(file.path) ||
@@ -130,25 +151,34 @@ export function rankContextFiles(
       !maintainedStems.has(moduleStem(file.path))
     )
   );
-  const contentTokensByPath = new Map(candidates.map((file) => [file.path, tokenizeFileContent(file.textSample)]));
+  const regexTokensByPath = new Map(candidateFiles.map((file) => [file.path, extractRegexTokens(file.textSample)]));
+  const contentTokensByPath = new Map(candidateFiles.map((file) => [
+    file.path,
+    tokenizeFileContent(file.textSample, regexTokensByPath.get(file.path) ?? new Set<string>())
+  ]));
   const commonTokens = findCommonTokens(contentTokensByPath);
   const allTaskTermsAreWidespread = taskTokens.size > 0 &&
     [...taskTokens].every((token) => commonTokens.has(token));
   const definitionSignals = buildDefinitionSignals(signals.identifiers);
+  const memberSignals = [...signals.memberMentions].map((member) => ({
+    member,
+    pattern: exactIdentifierPattern(member)
+  }));
   const taskText = [input.issueText ?? "", input.diffText ?? ""].join("\n");
+  const exactFragmentOccurrences = new Map(
+    signals.exactFragments.map((fragment) => [fragment, countOccurrences(taskText, fragment)])
+  );
   const taskTargetsDocumentation = targetsDocumentation(taskText);
-  const taskTargetsConfiguration = hasAny(taskTokens, ["config", "configuration", "workflow", "action", "ci", "yaml"]);
-  const taskTargetsDeployment = hasAny(taskTokens, DEPLOYMENT_TERMS);
+  const taskTargetsConfiguration = hasAnyNormalized(taskTokens, taskText, CONFIGURATION_TERMS);
+  const taskTargetsDeployment = hasAnyNormalized(taskTokens, taskText, DEPLOYMENT_TERMS);
   const taskTargetsExamples = /\b(?:demos?|examples?|samples?)\b/i.test(
     taskText.replace(/\bfor example\b/gi, "")
   );
-  const taskTargetsPresentation = hasAny(taskTokens, [
-    "browser", "button", "client", "display", "form", "frontend", "layout", "page", "screen", "ui", "visitor", "web", "website"
-  ]);
+  const taskTargetsPresentation = hasAnyNormalized(taskTokens, taskText, PRESENTATION_TERMS);
   const taskTargetsTypeDeclarations =
     /\b(?:typescript|types?|type definitions?|declarations?|typings?|\.d\.(?:ts|mts|cts))\b/i.test(taskText);
 
-  const scored: ScoredFile[] = candidates
+  const scored: ScoredFile[] = candidateFiles
     .map((file) => {
       const reasons: string[] = [];
       let score = 0;
@@ -175,6 +205,16 @@ export function rankContextFiles(
       if (pathOverlap.length > 0) {
         score += pathOverlap.length * 3;
         reasons.push(`path matches task terms: ${pathOverlap.join(", ")}`);
+        if (pathOverlap.length >= 2) {
+          score += 4;
+          reasons.push("multiple task terms converge in the file path");
+          const fileName = file.path.split("/").at(-1)?.replace(/\.[^.]+$/, "") ?? "";
+          const fileNameTokens = tokenizeText(fileName);
+          if (fileNameTokens.size === 1 && [...fileNameTokens].some((token) => taskTokens.has(token))) {
+            score += 5;
+            reasons.push("file module name exactly matches a task term");
+          }
+        }
       }
 
       const contentTokens = contentTokensByPath.get(file.path) ?? new Set<string>();
@@ -186,14 +226,17 @@ export function rankContextFiles(
         reasons.push(`content matches task terms: ${contentOverlap.slice(0, 8).join(", ")}`);
       }
 
-      const regexTokenOverlap = findRegexTokenOverlap(file.textSample, taskTokens);
+      const regexTokenOverlap = [...(regexTokensByPath.get(file.path) ?? [])]
+        .filter((token) => taskTokens.has(token))
+        .slice(0, 2);
       if (regexTokenOverlap.length > 0) {
         score += Math.min(regexTokenOverlap.length, 2) * 12;
         reasons.push(`regex literal matches task tokens: ${regexTokenOverlap.join(", ")}`);
       }
 
-      const matchedMembers = [...signals.memberMentions]
-        .filter((member) => hasExactIdentifier(file.textSample, member))
+      const matchedMembers = memberSignals
+        .filter((signal) => signal.pattern.test(file.textSample))
+        .map((signal) => signal.member)
         .slice(0, 3);
       if (matchedMembers.length > 0) {
         score += matchedMembers.length * MEMBER_MENTION_BOOST;
@@ -203,11 +246,11 @@ export function rankContextFiles(
       const exactLiteral = signals.exactFragments
         .filter((fragment) => file.textSample.includes(fragment))
         .sort((a, b) =>
-          countOccurrences(taskText, b) - countOccurrences(taskText, a) ||
+          (exactFragmentOccurrences.get(b) ?? 0) - (exactFragmentOccurrences.get(a) ?? 0) ||
           b.length - a.length
         )[0];
       if (exactLiteral) {
-        score += EXACT_LITERAL_BOOST * Math.min(3, countOccurrences(taskText, exactLiteral));
+        score += EXACT_LITERAL_BOOST * Math.min(3, exactFragmentOccurrences.get(exactLiteral) ?? 0);
         reasons.push(`contains exact task literal: ${previewFragment(exactLiteral)}`);
       }
 
@@ -216,11 +259,20 @@ export function rankContextFiles(
       if (definedIdentifiers.length > 0) {
         score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
         reasons.push(`defines task identifiers: ${definedIdentifiers.join(", ")}`);
+        if (
+          file.kind === "code" &&
+          !file.isTest &&
+          !isAuxiliaryCodePath(file.path) &&
+          !isTypeDeclarationPath(file.path) &&
+          !file.path.toLowerCase().startsWith("benchmarks/")
+        ) {
+          score += 4;
+          reasons.push("task identifier is defined in maintained implementation source");
+        }
       }
 
       const taskMatchedDefinitions = signals.exactFragments.length === 0 &&
-        !taskTargetsDocumentation &&
-        !taskTargetsPresentation
+        !taskTargetsDocumentation
         ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file.textSample, taskTokens))
           .filter((identifier) => !definedIdentifiers.includes(identifier))
           .slice(0, MAX_DEFINITION_IDENTIFIERS)
@@ -259,7 +311,9 @@ export function rankContextFiles(
       }
 
       const isDeploymentConfig =
-        file.path === "package.json" || DEPLOYMENT_TERMS.some((term) => pathTokens.has(term));
+        file.path === "package.json" || DEPLOYMENT_TERMS.some((term) =>
+          [...tokenizeText(term)].some((token) => pathTokens.has(token))
+        );
       if (taskTargetsDeployment && file.kind === "config" && !file.path.includes("/") && isDeploymentConfig) {
         score += 5;
         reasons.push("root configuration for a deployment-related task");
@@ -275,17 +329,24 @@ export function rankContextFiles(
       ) {
         score -= EXAMPLE_CODE_PENALTY;
         reasons.push("example or demo code deprioritized for an implementation task");
+        if (exactLiteral && definedIdentifiers.length > 0) {
+          score -= AUXILIARY_REPRODUCTION_PENALTY;
+          reasons.push("task reproduction evidence is weaker in auxiliary example code");
+        }
       }
 
-      if (
-        isPresentationSurfacePath(file.path) &&
-        !taskTargetsPresentation &&
-        !taskTargetsExamples &&
-        !isChanged &&
-        !mentionedPaths.has(file.path)
-      ) {
-        score -= PRESENTATION_CODE_PENALTY;
-        reasons.push("presentation or demo surface deprioritized for a non-UI implementation task");
+      if (isPresentationSurfacePath(file.path)) {
+        if (taskTargetsPresentation) {
+          score += PRESENTATION_CODE_PENALTY;
+          reasons.push("presentation surface matches a UI-focused task");
+          if (isInteractivePresentation(file.textSample)) {
+            score += INTERACTIVE_PRESENTATION_BOOST;
+            reasons.push("interactive presentation surface matches the requested user flow");
+          }
+        } else if (!taskTargetsExamples && !isChanged && !mentionedPaths.has(file.path)) {
+          score -= PRESENTATION_CODE_PENALTY;
+          reasons.push("presentation or demo surface deprioritized for a non-UI implementation task");
+        }
       }
 
       if (
@@ -296,6 +357,10 @@ export function rankContextFiles(
       ) {
         score -= TYPE_DECLARATION_PENALTY;
         reasons.push("type declaration deprioritized for a runtime task");
+        if (definedIdentifiers.length > 0) {
+          score -= TYPE_DECLARATION_DIRECT_PENALTY;
+          reasons.push("runtime implementation preferred over a matching declaration");
+        }
       } else if (
         isTypeDeclarationPath(file.path) &&
         taskTargetsTypeDeclarations &&
@@ -327,25 +392,28 @@ export function rankContextFiles(
 
   applyImportProximity(scored, repo);
 
-  const ranked = scored
+  const candidates = scored
     .filter((file) => file.score >= minScore)
-    .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
-    .slice(0, limit);
-  const clustered = isClusteredRanking(ranked);
-  const leadIsContested = hasContestedLead(ranked);
+    .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
+  const ranking = buildRankingShape(candidates);
+  const clustered = ranking.clustered;
+  const leadIsContested = hasContestedLead(candidates);
+  const ranked = candidates.slice(0, limit);
 
-  return ranked
+  const contextFiles = ranked
     .map((entry, position) => ({
       rank: position + 1,
       path: entry.path,
       score: entry.score,
       confidence: confidenceForEntry(entry, grounding, clustered, {
         position,
-        topScore: ranked[0]?.score ?? entry.score,
-        leadIsContested
+        topScore: candidates[0]?.score ?? entry.score,
+        leadIsContested,
+        issueIsVague: isVagueTaskText(input.issueText ?? "")
       }),
       reasons: entry.reasons.length > 0 ? entry.reasons : ["source file baseline"]
     }));
+  return { contextFiles, ranking };
 }
 
 /**
@@ -378,17 +446,33 @@ function hasDefinitionEvidence(entry: ScoredFile): boolean {
 }
 
 function applyImportProximity(scored: ScoredFile[], repo: RepoMap): void {
-  const seedEntries = scored
+  const directSeeds = scored
     .filter((entry) => entry.score >= 8 && hasDirectEvidence(entry))
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
     .slice(0, MAX_PROXIMITY_SEEDS);
+  const seedEntries = directSeeds.length > 0
+    ? directSeeds
+    : scored
+      .filter((entry) => entry.score >= 8)
+      .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
+      .slice(0, 2);
   if (seedEntries.length === 0) {
     return;
   }
 
   const seeds = seedEntries.map((entry) => entry.path);
   const seedScores = new Map(seedEntries.map((entry) => [entry.path, entry.score]));
-  const proximity = findImportProximity(buildImportGraph(repo.files), seeds);
+  const graph = buildImportGraph(repo.files);
+  if ((graph.truncatedFiles > 0 || graph.truncatedEdges > 0) && !repo.diagnostics.some((entry) => entry.code === "import-graph-truncated")) {
+    repo.diagnostics.push({
+      code: "import-graph-truncated",
+      severity: "info",
+      message:
+        `Import proximity was bounded: ${graph.truncatedFiles.toLocaleString()} parseable files and ` +
+        `${graph.truncatedEdges.toLocaleString()} high-fanout files were not fully traversed. Ranking still uses path and content evidence.`
+    });
+  }
+  const proximity = findImportProximity(graph, seeds);
   for (const entry of scored) {
     const hit = proximity.get(entry.path);
     if (hit) {
@@ -415,11 +499,8 @@ function confidenceForEntry(
   entry: ScoredFile,
   grounding: TaskGrounding,
   clustered: boolean,
-  shape: { position: number; topScore: number; leadIsContested: boolean }
+  shape: { position: number; topScore: number; leadIsContested: boolean; issueIsVague: boolean }
 ): RankedFile["confidence"] {
-  if (entry.isChanged) {
-    return "high";
-  }
   const hasMaintainedSourceTwin = entry.reasons.includes(GENERATED_TWIN_REASON);
   if (
     entry.reasons.includes("explicitly named in the task") &&
@@ -449,6 +530,14 @@ function confidenceForEntry(
   if (hasMaintainedSourceTwin) {
     confidence = capConfidence(confidence, "medium");
   }
+  // A large lexical score and a wide lead can still be a convincing match to an absent
+  // feature (for example, a generic `hasFlag` helper in a repository with no CLI). Reserve
+  // high confidence for a changed file, an explicit path, or an exact identifier/literal
+  // definition. Vocabulary-only leaders remain useful, but are honest medium-confidence
+  // investigation targets.
+  if (!hasDirectEvidence(entry)) {
+    confidence = capConfidence(confidence, "medium");
+  }
   const supportedIdentifierCount = grounding.identifiers.filter((identifier) =>
     identifier.status === "exact-definition" ||
     identifier.status === "exact-text" ||
@@ -470,7 +559,7 @@ function confidenceForEntry(
   if (grounding.partiallyResolvedIdentifiers.length > 0) {
     confidence = capConfidence(confidence, "medium");
   }
-  if (grounding.specificity === "vague") {
+  if (grounding.specificity === "vague" || shape.issueIsVague) {
     return "low";
   }
   if (!grounding.scanComplete) {
@@ -498,20 +587,20 @@ function hasDirectEvidence(entry: ScoredFile): boolean {
   );
 }
 
-function isClusteredRanking(entries: ScoredFile[]): boolean {
-  const top = entries[0]?.score;
-  const third = entries[2]?.score;
-  return top !== undefined && third !== undefined && top - third <= 2;
+function hasAnyNormalized(tokens: Set<string>, rawText: string, values: string[]): boolean {
+  return values.some((value) => {
+    const normalized = tokenizeText(value);
+    if (normalized.size > 0 && [...normalized].every((token) => tokens.has(token))) return true;
+    return new RegExp(`(^|[^\\p{L}\\p{N}_])${escapeRegExp(value)}(?=$|[^\\p{L}\\p{N}_])`, "iu").test(rawText);
+  });
 }
 
-function hasAny(tokens: Set<string>, values: string[]): boolean {
-  return values.some((value) => tokens.has(value));
-}
-
-function matchMentionedPaths(mentions: Set<string>, repoPaths: string[]): Set<string> {
+function matchMentionedPaths(mentions: Set<string>, repoPaths: string[], repoRoot: string): Set<string> {
   const matched = new Set<string>();
 
-  for (const mention of mentions) {
+  for (const rawMention of mentions) {
+    const mention = repositoryRelativeMention(rawMention, repoRoot);
+    if (!mention) continue;
     const exactMatches = repoPaths.filter((path) => pathMatchesMention(path, mention));
     if (exactMatches.length > 0) {
       if (exactMatches.length <= MAX_FILES_PER_MENTION) {
@@ -536,19 +625,15 @@ function matchMentionedPaths(mentions: Set<string>, repoPaths: string[]): Set<st
   return matched;
 }
 
-function pathMatchesMention(path: string, mention: string): boolean {
-  const normalizedPath = path.toLowerCase();
-  const normalizedMention = mention.toLowerCase();
-  if (normalizedPath === normalizedMention ||
-    normalizedPath.endsWith(`/${normalizedMention}`) ||
-    normalizedMention.endsWith(`/${normalizedPath}`)) {
-    return true;
-  }
-  if (!normalizedMention.includes("/") && !normalizedMention.includes(".")) {
-    const fileName = normalizedPath.split("/").at(-1) ?? "";
-    return fileName.replace(/\.[^.]+$/, "") === normalizedMention;
-  }
-  return false;
+function repositoryRelativeMention(mention: string, repoRoot: string): string | undefined {
+  const normalizedMention = mention.replace(/\\/g, "/");
+  if (!/^(?:[A-Za-z]:\/|\/)/.test(normalizedMention)) return normalizedMention;
+
+  const normalizedRoot = repoRoot.replace(/\\/g, "/").replace(/\/$/, "");
+  const prefix = `${normalizedRoot}/`;
+  return normalizedMention.toLowerCase().startsWith(prefix.toLowerCase())
+    ? normalizedMention.slice(prefix.length)
+    : undefined;
 }
 
 function compiledSourcePathVariants(path: string): string[] {
@@ -568,18 +653,29 @@ function compiledSourcePathVariants(path: string): string[] {
 function isAuxiliaryCodePath(path: string): boolean {
   const parts = path.split("/");
   const stem = (parts.at(-1) ?? "").replace(/\.[^.]+$/, "").toLowerCase();
-  return parts.slice(0, -1).some((segment) => AUXILIARY_CODE_DIRS.has(segment.toLowerCase())) ||
-    /^(?:demo|example|sample)(?:[-_.]|$)/.test(stem);
+  const parentSegments = parts.slice(0, -1).map((segment) => segment.toLowerCase());
+  return parentSegments.some((segment) => AUXILIARY_CODE_DIRS.has(segment)) ||
+    (stem === "sample-repo" && parentSegments.some((segment) => segment === "web" || segment === "website"));
 }
 
 function isPresentationSurfacePath(path: string): boolean {
   const name = path.split("/").at(-1)?.toLowerCase() ?? "";
-  return /^(?:page|layout|demo|sample-repo)\.[cm]?[jt]sx?$/.test(name) ||
+  return /^(?:page|layout|demo)\.[cm]?[jt]sx?$/.test(name) ||
     /\.(?:css|less|sass|scss)$/.test(name);
 }
 
-function tokenizeFileContent(text: string): Set<string> {
+function isInteractivePresentation(text: string): boolean {
+  return /<(?:button|form|input|select|textarea)\b|\bon(?:Change|Click|Input|Submit)\s*=|\buseState\s*\(/.test(text);
+}
+
+function tokenizeFileContent(text: string, regexTokens: Set<string>): Set<string> {
   const tokens = tokenizeText(text);
+  for (const token of regexTokens) tokens.add(token);
+  return tokens;
+}
+
+function extractRegexTokens(text: string): Set<string> {
+  const tokens = new Set<string>();
   for (const match of text.matchAll(/\b([A-Za-z])\{(\d+),(\d+)\}/g)) {
     const character = match[1]?.toLowerCase();
     const minimum = Number(match[2]);
@@ -592,25 +688,6 @@ function tokenizeFileContent(text: string): Set<string> {
     }
   }
   return tokens;
-}
-
-function findRegexTokenOverlap(text: string, taskTokens: Set<string>): string[] {
-  const overlap = new Set<string>();
-  for (const match of text.matchAll(/\b([A-Za-z])\{(\d+),(\d+)\}/g)) {
-    const character = match[1]?.toLowerCase();
-    const minimum = Number(match[2]);
-    const maximum = Math.min(Number(match[3]), 8);
-    if (!character || !Number.isSafeInteger(minimum) || !Number.isSafeInteger(maximum)) {
-      continue;
-    }
-    for (let length = Math.max(3, minimum); length <= maximum; length += 1) {
-      const token = character.repeat(length);
-      if (taskTokens.has(token)) {
-        overlap.add(token);
-      }
-    }
-  }
-  return [...overlap].slice(0, 2);
 }
 
 function isBundledOutput(textSample: string, path: string): boolean {
@@ -641,14 +718,15 @@ function isTypeDeclarationPath(path: string): boolean {
 }
 
 function targetsDocumentation(taskText: string): boolean {
-  const documentation = "(?:docs?|documentation|readme|guide|copy)";
+  const documentation = "(?:docs?|documentation|readme|guide)";
   const action = "(?:add|change|correct|document|edit|fix|improve|remove|revise|rewrite|update|write)";
   const defect = "(?:typos?|spelling|grammar|wording|broken links?)";
   return (
     new RegExp(`\\b${action}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) ||
     new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${action}\\b`, "i").test(taskText) ||
     new RegExp(`\\b${defect}\\b[^\\n.]{0,60}\\b${documentation}\\b`, "i").test(taskText) ||
-    new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${defect}\\b`, "i").test(taskText)
+    new RegExp(`\\b${documentation}\\b[^\\n.]{0,60}\\b${defect}\\b`, "i").test(taskText) ||
+    /\b(?:marketing|landing|website|page|button|label|headline|cta)\s+copy\b/i.test(taskText)
   );
 }
 
@@ -658,7 +736,8 @@ function buildDefinitionSignals(identifiers: Set<string>): DefinitionSignal[] {
     .map((identifier) => ({
       identifier,
       pattern: new RegExp(
-        `\\b(?:export\\s+)?(?:async\\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\\s+${escapeRegExp(identifier)}\\b`
+        `(?<![\\p{L}\\p{N}_$])(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\\s+)${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`,
+        "u"
       )
     }));
 }
@@ -667,16 +746,17 @@ function findDefinedIdentifiers(text: string, signals: DefinitionSignal[]): stri
   return signals.filter((signal) => signal.pattern.test(text)).map((signal) => signal.identifier);
 }
 
-function hasExactIdentifier(text: string, identifier: string): boolean {
+function exactIdentifierPattern(identifier: string): RegExp {
   return new RegExp(
-    `(^|[^$A-Za-z0-9_])${escapeRegExp(identifier)}(?=$|[^$A-Za-z0-9_])`
-  ).test(text);
+    `(?<![\\p{L}\\p{N}_$])${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`,
+    "u"
+  );
 }
 
 function findTaskMatchedDefinitions(text: string, taskTokens: Set<string>): string[] {
   const definitions = new Set<string>();
   const pattern =
-    /\b(?:export\s+)?(?:async\s+)?(?:const|let|var|function|class|interface|type|enum|def|fn|struct|trait)\s+([$A-Za-z_][$A-Za-z0-9_]*)\b/g;
+    /(?<![\p{L}\p{N}_$])(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\s+)([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
 
   for (const match of text.matchAll(pattern)) {
     const identifier = match[1];
@@ -684,7 +764,7 @@ function findTaskMatchedDefinitions(text: string, taskTokens: Set<string>): stri
       continue;
     }
     const overlap = [...tokenizeText(identifier)].filter((token) => taskTokens.has(token));
-    if (overlap.length >= 2) {
+    if (overlap.length >= 2 || (overlap.length === 1 && identifier.length >= 6)) {
       definitions.add(identifier);
     }
   }
