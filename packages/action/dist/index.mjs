@@ -2533,6 +2533,7 @@ async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* 
   const gitLinks = [];
   const seenRealPaths = /* @__PURE__ */ new Map();
   const linked = [];
+  const realRoot = await resolveRealPath(root);
   for (const [index, rawPath] of paths.entries()) {
     if (results.length >= MAX_SCANNED_FILES) {
       reportScanLimit(diagnostics, paths.slice(index).map(normalizePath));
@@ -2561,8 +2562,8 @@ async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* 
     const seenIndex = seenRealPaths.get(scanned.realPath);
     if (seenIndex !== void 0) {
       const seenFile = results[seenIndex];
-      const seenIsAlias = !sameFilesystemPath(resolve(root, seenFile.path), scanned.realPath);
-      const currentIsAlias = !sameFilesystemPath(resolve(root, relativePath), scanned.realPath);
+      const seenIsAlias = !sameFilesystemPath(resolve(realRoot, seenFile.path), scanned.realPath);
+      const currentIsAlias = !sameFilesystemPath(resolve(realRoot, relativePath), scanned.realPath);
       if (seenIsAlias && !currentIsAlias) {
         linked.push({ path: seenFile.path, target: relativePath });
         results[seenIndex] = scanned.file;
