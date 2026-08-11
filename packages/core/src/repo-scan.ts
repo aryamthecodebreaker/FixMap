@@ -493,6 +493,10 @@ async function buildFilesFromPaths(
   // git listed first would have made that an alphabetical accident.
   const seenRealPaths = new Map<string, number>();
   const linked: Array<{ path: string; target: string }> = [];
+  // macOS temporary directories commonly enter through /var while realpath returns
+  // /private/var. Resolve the repository root once so that prefix alias does not make
+  // every ordinary file look like a symlink.
+  const realRoot = await resolveRealPath(root);
 
   for (const [index, rawPath] of paths.entries()) {
     if (results.length >= MAX_SCANNED_FILES) {
@@ -530,8 +534,8 @@ async function buildFilesFromPaths(
       const seenFile = results[seenIndex]!;
       // Looking only at the leaf with lstat misses Windows junctions, where the linked
       // object is an ancestor directory. Comparing literal and resolved paths covers both.
-      const seenIsAlias = !sameFilesystemPath(resolve(root, seenFile.path), scanned.realPath);
-      const currentIsAlias = !sameFilesystemPath(resolve(root, relativePath), scanned.realPath);
+      const seenIsAlias = !sameFilesystemPath(resolve(realRoot, seenFile.path), scanned.realPath);
+      const currentIsAlias = !sameFilesystemPath(resolve(realRoot, relativePath), scanned.realPath);
       if (seenIsAlias && !currentIsAlias) {
         linked.push({ path: seenFile.path, target: relativePath });
         results[seenIndex] = scanned.file;
