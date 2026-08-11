@@ -7,9 +7,10 @@ import adversarial from "../../../../benchmarks/adversarial/results.json";
 import cli from "../../../../packages/cli/package.json";
 
 type EvaluationCase = {
-  top1: boolean;
-  top3: boolean;
+  top1Hit: boolean;
+  top3Hit: boolean;
   top5Hit: boolean;
+  top5Paths: string[];
 };
 
 const hits = (results: EvaluationCase[], key: keyof EvaluationCase) =>
@@ -17,6 +18,12 @@ const hits = (results: EvaluationCase[], key: keyof EvaluationCase) =>
 
 const heldoutResults = heldout.results as EvaluationCase[];
 const regressionResults = regression.results as EvaluationCase[];
+const confidenceCalibration = (["high", "medium", "low"] as const).map((confidence) => {
+  const bands = [heldout, regression].flatMap((suite) => suite.calibration.filter((entry) => entry.confidence === confidence));
+  const cases = bands.reduce((total, band) => total + band.cases, 0);
+  const correct = bands.reduce((total, band) => total + band.top1Correct, 0);
+  return { confidence, cases, correct, accuracy: cases === 0 ? null : correct / cases };
+});
 
 export const repoUrl = "https://github.com/aryamthecodebreaker/FixMap";
 export const npmUrl = "https://www.npmjs.com/package/@aryam/fixmap";
@@ -59,10 +66,11 @@ const baselineOf = (suite: BaselineSuite) => ({
 export const siteStats = {
   version: cli.version,
   medianSeconds: (savings.performance.medianScanAndRankMs / 1000).toFixed(2),
+  confidenceCalibration,
   heldout: {
     cases: heldout.cases,
-    top1: hits(heldoutResults, "top1"),
-    top3: hits(heldoutResults, "top3"),
+    top1: hits(heldoutResults, "top1Hit"),
+    top3: hits(heldoutResults, "top3Hit"),
     top5: hits(heldoutResults, "top5Hit"),
     intervals95: heldout.intervals95,
     cohorts: cohortOf(heldout),
@@ -70,8 +78,8 @@ export const siteStats = {
   },
   regression: {
     cases: regression.cases,
-    top1: hits(regressionResults, "top1"),
-    top3: hits(regressionResults, "top3"),
+    top1: hits(regressionResults, "top1Hit"),
+    top3: hits(regressionResults, "top3Hit"),
     top5: hits(regressionResults, "top5Hit"),
     intervals95: regression.intervals95,
     cohorts: cohortOf(regression),
@@ -95,5 +103,8 @@ export const commands = {
   localTask: "fixmap plan --issue \"password reset emails fail\"",
   diff: "fixmap plan --diff main...HEAD",
   verify: "fixmap verify --report plan.json --diff main...HEAD",
+  validate: "fixmap validate plan.json",
+  setup: "fixmap setup",
+  features: "fixmap features",
   mcp: "fixmap mcp"
 };

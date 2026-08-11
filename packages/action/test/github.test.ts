@@ -110,9 +110,43 @@ describe("GitHub Action helpers", () => {
 
     expect(result).toBe("updated");
     expect(calls.some((url) => url.includes("page=11"))).toBe(true);
+    expect(calls.every((url) => !url.includes("sort=") && !url.includes("direction="))).toBe(true);
   });
 
-  it("stops after fifty pages when a proxy repeats full pages", async () => {
+  it("updates the highest-id marked comment found on later pages", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = String(input);
+      calls.push({ url, method: init?.method ?? "GET" });
+      if (url.includes("/comments?")) {
+        const page = Number(new URL(url).searchParams.get("page"));
+        if (page === 1) {
+          return jsonResponse([
+            { id: 10, body: FIXMAP_REPORT_MARKER, user: { login: "github-actions[bot]" } },
+            ...Array.from({ length: 99 }, (_, index) => ({ id: 100 + index, body: "ordinary" }))
+          ]);
+        }
+        return jsonResponse([{ id: 999, body: FIXMAP_REPORT_MARKER, user: { login: "github-actions[bot]" } }]);
+      }
+      return jsonResponse({ id: 999 });
+    };
+
+    const result = await createGitHubClient({ fetchImpl }).upsertPullRequestComment({
+      token: "test-token",
+      owner: "octo",
+      repo: "demo",
+      issueNumber: 42,
+      markdown: "# FixMap Report"
+    });
+
+    expect(result).toBe("updated");
+    expect(calls).toContainEqual({
+      url: "https://api.github.com/repos/octo/demo/issues/comments/999",
+      method: "PATCH"
+    });
+  });
+
+  it("refuses to create a duplicate after fifty full pages", async () => {
     const calls: string[] = [];
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = String(input);
@@ -128,17 +162,16 @@ describe("GitHub Action helpers", () => {
       return jsonResponse({ id: 9001 }, 201);
     };
 
-    const result = await createGitHubClient({ fetchImpl }).upsertPullRequestComment({
+    await expect(createGitHubClient({ fetchImpl }).upsertPullRequestComment({
       token: "test-token",
       owner: "octo",
       repo: "demo",
       issueNumber: 42,
       markdown: "# FixMap Report"
-    });
-
-    expect(result).toBe("created");
+    })).rejects.toThrow("refused to create a duplicate comment");
     expect(calls.filter((url) => url.includes("/comments?")).length).toBe(50);
     expect(calls.some((url) => url.includes("page=51"))).toBe(false);
+    expect(calls.some((url) => !url.includes("/comments?"))).toBe(false);
   });
 
   it("reports a useful error when GitHub rejects comment lookup", async () => {
@@ -164,5 +197,20 @@ describe("GitHub Action helpers", () => {
     expect(isPermissionDeniedError(failure)).toBe(true);
     expect(isPermissionDeniedError(new Error("FixMap could not create the FixMap comment; GitHub returned 500 Server Error"))).toBe(false);
     expect(isPermissionDeniedError(new Error("network down"))).toBe(false);
+  });
+
+  it("does not disguise a rate-limited 403 as a read-only token", async () => {
+    const fetchImpl: typeof fetch = async () => new Response("API rate limit exceeded", {
+      status: 403,
+      statusText: "Forbidden",
+      headers: { "x-ratelimit-remaining": "0" }
+    });
+
+    const failure = await createGitHubClient({ fetchImpl })
+      .upsertPullRequestComment({ token: "t", owner: "octo", repo: "demo", issueNumber: 42, markdown: "# r" })
+      .catch((error: unknown) => error);
+
+    expect(isPermissionDeniedError(failure)).toBe(false);
+    expect(failure).toMatchObject({ status: 403, rateLimited: true });
   });
 });

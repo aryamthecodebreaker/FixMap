@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -75,9 +75,28 @@ describe("scanRepo", () => {
     ]);
   });
 
-  it("recognizes Go, Python, and TypeScript declaration test naming conventions", async () => {
+  it("samples and classifies conventional extensionless documents and build files", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-conventional-text-"));
+    await writeFile(join(root, "README"), "Hello from the project documentation\n");
+    await writeFile(join(root, "Dockerfile"), "FROM node:24\n");
+
+    const repo = await scanRepo({ repoRoot: root });
+    const readme = repo.files.find((file) => file.path === "README");
+    const dockerfile = repo.files.find((file) => file.path === "Dockerfile");
+
+    expect(readme).toMatchObject({ isSource: true, kind: "documentation" });
+    expect(readme?.textSample).toContain("project documentation");
+    expect(dockerfile).toMatchObject({ isSource: true, kind: "config" });
+    expect(dockerfile?.textSample).toContain("FROM node:24");
+  });
+
+  it("recognizes Go, Python, Ruby, Java, C#, PHP, and TypeScript test naming conventions", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-test-patterns-"));
-    for (const path of ["handler_test.go", "test_reset.py", "reset_test.py", "types.test-d.ts"]) {
+    await mkdir(join(root, "spec"), { recursive: true });
+    for (const path of [
+      "handler_test.go", "test_reset.py", "reset_test.py", "types.test-d.ts",
+      "account_spec.rb", "spec/session.rb", "AccountTest.java", "AccountTests.cs", "AccountTest.php"
+    ]) {
       await writeFile(join(root, path), "test reset handler\n");
     }
 
@@ -85,10 +104,26 @@ describe("scanRepo", () => {
 
     expect(repo.files.filter((file) => file.isTest).map((file) => file.path).sort()).toEqual([
       "handler_test.go",
+      "AccountTest.java",
+      "AccountTest.php",
+      "AccountTests.cs",
+      "account_spec.rb",
       "reset_test.py",
+      "spec/session.rb",
       "test_reset.py",
       "types.test-d.ts"
-    ]);
+    ].sort());
+  });
+
+  it("normalizes uppercase extensions before source classification", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-uppercase-extension-"));
+    await writeFile(join(root, "B.TS"), "export const uppercaseSource = true;\n");
+    await writeFile(join(root, "README.MD"), "Uppercase documentation\n");
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.find((file) => file.path === "B.TS")).toMatchObject({ extension: ".ts", isSource: true, kind: "code" });
+    expect(repo.files.find((file) => file.path === "README.MD")).toMatchObject({ extension: ".md", isSource: true, kind: "documentation" });
   });
 
   it("discovers workspace scripts and the package manager", async () => {
@@ -228,6 +263,34 @@ describe("scanRepo", () => {
     expect(repo.diffText).toContain("login = () => false");
   });
 
+  it("samples complete added lines from every file when a diff exceeds the signal budget", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-large-diff-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    for (const name of ["alpha.ts", "middle.ts", "omega.ts"]) {
+      await writeFile(join(root, "src", name), "export const original = true;\n");
+    }
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+    for (const name of ["alpha.ts", "middle.ts", "omega.ts"]) {
+      const marker = name.replace(".ts", "Signal");
+      const body = [`export const ${marker} = true;`, ...Array.from({ length: 5_000 }, (_, index) => `export const ${marker}${index} = ${index};`)].join("\n");
+      await writeFile(join(root, "src", name), `${body}\n`);
+    }
+
+    const repo = await scanRepo({ repoRoot: root, diffSpec: "HEAD" });
+
+    expect(repo.diagnostics).toContainEqual(expect.objectContaining({ code: "diff-text-truncated", severity: "warning" }));
+    expect(repo.diffText.length).toBeLessThanOrEqual(200_000);
+    expect(repo.diffText).toContain("alphaSignal");
+    expect(repo.diffText).toContain("middleSignal");
+    expect(repo.diffText).toContain("omegaSignal");
+    expect(repo.diffText.split("\n").every((line) => line.startsWith("+"))).toBe(true);
+  });
+
   it("uses the scanned subdirectory as the path base for diff results", { timeout: 30_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-subdirectory-diff-"));
     const packageRoot = join(root, "packages", "core");
@@ -360,7 +423,7 @@ describe("scanRepo", () => {
     expect(weird?.textSample).toBe("");
     expect(weird?.textSampleComplete).toBe(false);
     expect(weird?.textSampleSkipReason).toBe("not-text");
-    const diagnostic = repo.diagnostics.find((entry) => entry.code === "content-unread");
+    const diagnostic = repo.diagnostics.find((entry) => entry.code === "content-not-utf8");
     expect(diagnostic?.message).toContain("not UTF-8 text");
     expect(diagnostic?.message).not.toContain("Files over");
     expect(diagnostic?.paths).toContain("src/weird.ts");
@@ -371,7 +434,7 @@ describe("scanRepo", () => {
     await writeFile(join(root, "history.ts"), "x".repeat(64_001));
 
     const repo = await scanRepo({ repoRoot: root });
-    const diagnostic = repo.diagnostics.find((entry) => entry.code === "content-unread");
+    const diagnostic = repo.diagnostics.find((entry) => entry.code === "content-too-large");
 
     expect(diagnostic?.message).toContain("history.ts (65 kB)");
     expect(diagnostic?.message).toContain("Files over 64 kB");
@@ -513,6 +576,12 @@ describe("scanRepo", () => {
       await scanRepo({ repoRoot: root, useCache: true });
       const cleanHit = await scanRepo({ repoRoot: root, useCache: true });
       expect(cleanHit.diagnostics.map((entry) => entry.code)).toContain("cache-hit");
+      expect(cleanHit.diagnostics.find((entry) => entry.code === "cache-hit")?.message)
+        .toContain("scanned just now");
+
+      const bypassed = await scanRepo({ repoRoot: root, useCache: false });
+      expect(bypassed.diagnostics.find((entry) => entry.code === "cache-bypass")?.message)
+        .toContain("fresh scan");
 
       await writeFile(join(root, "index.ts"), "export const value = 'two';\n");
       const firstDirty = await scanRepo({ repoRoot: root, useCache: true });
@@ -525,6 +594,323 @@ describe("scanRepo", () => {
       const secondDirty = await scanRepo({ repoRoot: root, useCache: true });
       expect(secondDirty.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
       expect(secondDirty.files[0]?.textSample).toContain("three");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("never scans a configured cache directory inside the repository", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-inside-repo-"));
+    const cacheRoot = join(root, ".fixmap-cache");
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await mkdir(cacheRoot, { recursive: true });
+      await writeFile(join(root, "index.ts"), "export const passwordReset = true;\n");
+      await writeFile(
+        join(cacheRoot, "aaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbbbbbbbbbb.json"),
+        JSON.stringify({ repeated: "password reset password reset password reset" })
+      );
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "index.ts"], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      const cached = await scanRepo({ repoRoot: root, useCache: true });
+      expect(cached.files.map((file) => file.path)).toEqual(["index.ts"]);
+      expect(cached.diagnostics.find((entry) => entry.code === "cache-skip")?.message)
+        .toContain("FIXMAP_CACHE_DIR is inside");
+
+      const bypassed = await scanRepo({ repoRoot: root, useCache: false });
+      expect(bypassed.files.map((file) => file.path)).toEqual(["index.ts"]);
+      expect(bypassed.diagnostics.map((entry) => entry.code)).toContain("cache-bypass");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps exact workflow artifacts out of files, diffs, and cache invalidation", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-internal-artifacts-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-internal-artifact-cache-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      const sourcePath = join(root, "index.ts");
+      const issuePath = join(root, "task.md");
+      const reportPath = join(root, "plan.json");
+      await writeFile(sourcePath, "export const passwordReset = 'one';\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "index.ts"], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+      await writeFile(issuePath, "password reset password reset\n");
+      await writeFile(reportPath, JSON.stringify({ repeated: "password reset password reset" }));
+
+      const internalExclude = process.platform === "win32"
+        ? [issuePath, reportPath].map((path) => path.toUpperCase())
+        : [issuePath, reportPath];
+      const first = await scanRepo({ repoRoot: root, useCache: true, internalExclude });
+      expect(first.files.map((file) => file.path)).toEqual(["index.ts"]);
+      expect(first.diagnostics.map((entry) => entry.code)).not.toContain("cache-skip");
+      expect((await scanRepo({ repoRoot: root, useCache: true, internalExclude })).diagnostics.map((entry) => entry.code))
+        .toContain("cache-hit");
+
+      await writeFile(sourcePath, "export const passwordReset = 'two';\n");
+      await writeFile(reportPath, JSON.stringify({ repeated: "changed report contents" }));
+      const working = await scanRepo({
+        repoRoot: root,
+        workingTree: true,
+        includeUntracked: true,
+        useCache: true,
+        internalExclude
+      });
+      expect(working.files.map((file) => file.path)).toEqual(["index.ts"]);
+      expect(working.changedFiles).toEqual(["index.ts"]);
+      expect(working.diffText).not.toContain("changed report contents");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not reuse a staged scan after the same edit becomes unstaged", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-stage-state-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-stage-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "index.ts"), "export const value = 'one';\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await writeFile(join(root, "index.ts"), "export const value = 'changed';\n");
+      await exec("git", ["add", "index.ts"], { cwd: root });
+      await scanRepo({ repoRoot: root, useCache: true });
+      expect((await scanRepo({ repoRoot: root, useCache: true })).diagnostics.map((entry) => entry.code))
+        .toContain("cache-hit");
+
+      await exec("git", ["reset", "HEAD", "--", "index.ts"], { cwd: root });
+      const unstaged = await scanRepo({ repoRoot: root, useCache: true });
+      expect(unstaged.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("expires scan-cache entries older than seven days", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-expiry-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-expiry-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await scanRepo({ repoRoot: root, useCache: true });
+      const cachePath = join(cacheRoot, (await readdir(cacheRoot))[0]!);
+      const cached = JSON.parse(await readFile(cachePath, "utf8")) as Record<string, unknown>;
+      cached.createdAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+      await writeFile(cachePath, `${JSON.stringify(cached)}\n`);
+
+      const expired = await scanRepo({ repoRoot: root, useCache: true });
+      expect(expired.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
+      expect((await scanRepo({ repoRoot: root, useCache: true })).diagnostics.map((entry) => entry.code))
+        .toContain("cache-hit");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("prunes abandoned atomic cache writes but preserves recent writers", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-temp-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-temp-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      const prefix = "aaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbbbbbbbbbb.json";
+      const stale = `${prefix}.123-00000000-0000-4000-8000-000000000001.tmp`;
+      const recent = `${prefix}.124-00000000-0000-4000-8000-000000000002.tmp`;
+      await writeFile(join(cacheRoot, stale), "partial");
+      await writeFile(join(cacheRoot, recent), "partial");
+      const old = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+      await utimes(join(cacheRoot, stale), old, old);
+
+      await scanRepo({ repoRoot: root, useCache: true });
+      const entries = await readdir(cacheRoot);
+      expect(entries).not.toContain(stale);
+      expect(entries).toContain(recent);
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("heals a corrupt exact-state cache and never serves partial JSON", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-corrupt-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-corrupt-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await scanRepo({ repoRoot: root, useCache: true });
+      const cachePath = join(cacheRoot, (await readdir(cacheRoot))[0]!);
+      await writeFile(cachePath, "{truncated");
+
+      const repaired = await scanRepo({ repoRoot: root, useCache: true });
+      expect(repaired.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
+      const repairedJson = await readFile(cachePath, "utf8");
+      expect(() => JSON.parse(repairedJson)).not.toThrow();
+      expect((await scanRepo({ repoRoot: root, useCache: true })).diagnostics.map((entry) => entry.code))
+        .toContain("cache-hit");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("heals a parseable cache whose nested scan data is structurally damaged", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-shape-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-shape-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await scanRepo({ repoRoot: root, useCache: true });
+      const cachePath = join(cacheRoot, (await readdir(cacheRoot))[0]!);
+      const cached = JSON.parse(await readFile(cachePath, "utf8")) as Record<string, unknown>;
+      cached.files = [null];
+      await writeFile(cachePath, `${JSON.stringify(cached)}\n`);
+
+      const repaired = await scanRepo({ repoRoot: root, useCache: true });
+      expect(repaired.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
+      expect(repaired.files.map((file) => file.path)).toEqual(["index.ts"]);
+      expect((await scanRepo({ repoRoot: root, useCache: true })).diagnostics.map((entry) => entry.code))
+        .toContain("cache-hit");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rebuilds typed cache data with unsafe paths, impossible sampling state, or a future timestamp", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-integrity-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-integrity-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await scanRepo({ repoRoot: root, useCache: true });
+      const cachePath = join(cacheRoot, (await readdir(cacheRoot))[0]!);
+      type MutableCachedScan = Record<string, unknown> & {
+        createdAt: string;
+        files: Array<{ path: string; textSampleComplete: boolean; textSampleSkipReason?: string }>;
+        trackedFiles: string[];
+      };
+      const mutations: Array<(cached: MutableCachedScan) => void> = [
+        (cached) => { cached.files[0].path = "../outside.ts"; },
+        (cached) => { cached.files[0].path = "..\\outside.ts"; },
+        (cached) => { cached.files[0].path = "\\\\server\\share\\outside.ts"; },
+        (cached) => { cached.trackedFiles = ["C:/outside.ts"]; },
+        (cached) => { cached.trackedFiles = ["C:outside.ts"]; },
+        (cached) => {
+          cached.packageScripts = [{ name: "test", command: "npm test", packageDir: "../outside" }];
+        },
+        (cached) => {
+          cached.diagnostics = [{ code: "content-unread", message: "Unread", severity: "warning", paths: ["../outside.ts"] }];
+        },
+        (cached) => {
+          cached.files[0].textSampleComplete = true;
+          cached.files[0].textSampleSkipReason = "too-large";
+        },
+        (cached) => { cached.createdAt = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString(); }
+      ];
+
+      for (const mutate of mutations) {
+        const cached = JSON.parse(await readFile(cachePath, "utf8")) as MutableCachedScan;
+        mutate(cached);
+        await writeFile(cachePath, `${JSON.stringify(cached)}\n`);
+
+        const repaired = await scanRepo({ repoRoot: root, useCache: true });
+        expect(repaired.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
+        expect(repaired.files.map((file) => file.path)).toEqual(["index.ts"]);
+      }
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the exact-state cache valid across concurrent first scans", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-cache-concurrent-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-concurrent-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "index.ts"), "export const value = 1;\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await Promise.all(Array.from({ length: 4 }, () => scanRepo({ repoRoot: root, useCache: true })));
+      const entries = (await readdir(cacheRoot)).filter((entry) => entry.endsWith(".json"));
+      expect(entries).toHaveLength(1);
+      const concurrentJson = await readFile(join(cacheRoot, entries[0]!), "utf8");
+      expect(() => JSON.parse(concurrentJson)).not.toThrow();
+      expect((await scanRepo({ repoRoot: root, useCache: true })).diagnostics.map((entry) => entry.code))
+        .toContain("cache-hit");
     } finally {
       if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
       else process.env.FIXMAP_CACHE_DIR = previousCache;

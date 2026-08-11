@@ -46,7 +46,7 @@ export function SiteHeader() {
         <div className="header-actions">
           <ThemeToggle />
           <details className="mobile-menu">
-            <summary aria-label="Open navigation"><List size={25} weight="bold" aria-hidden /></summary>
+            <summary><List size={25} weight="bold" aria-hidden /><span className="sr-only">Navigation menu</span></summary>
             <nav aria-label="Mobile navigation"><NavLinks /></nav>
           </details>
         </div>

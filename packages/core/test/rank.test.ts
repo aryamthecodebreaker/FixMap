@@ -1,6 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { rankContextFiles, REPORT_SCORE_CUTOFF } from "../src/rank.js";
 import type { RepoMap } from "../src/types.js";
+
+function codeFile(path: string, textSample: string): RepoMap["files"][number] {
+  const extension = /\.[^.]+$/.exec(path)?.[0] ?? "";
+  return { path, extension, sizeBytes: textSample.length, isSource: true, isTest: false, kind: "code", textSample };
+}
+
+function documentationFile(path: string, textSample: string): RepoMap["files"][number] {
+  const extension = /\.[^.]+$/.exec(path)?.[0] ?? "";
+  return { path, extension, sizeBytes: textSample.length, isSource: true, isTest: false, kind: "documentation", textSample };
+}
+
+function repoWith(files: RepoMap["files"], options: { root?: string; changedFiles?: string[] } = {}): RepoMap {
+  return {
+    root: options.root ?? "/repo",
+    packageScripts: [],
+    changedFiles: options.changedFiles ?? [],
+    diffText: "",
+    packageManager: "npm",
+    diagnostics: [],
+    files
+  };
+}
 
 describe("rankContextFiles", () => {
   it("lets an exact definition site beat vocabulary-dense consumers", () => {
@@ -85,6 +107,17 @@ describe("rankContextFiles", () => {
 
     expect(ranked[0]?.path).toBe("src/report.ts");
     expect(ranked[0]?.reasons).toContain("defines symbols matching task terms: buildTestRoutes");
+  });
+
+  it("prefers a path where multiple task terms converge over a generic sibling", () => {
+    const ranked = rankContextFiles(repoWith([
+      codeFile("lib/reporters/html.js", "export function escape() { return 'reporter escape'; }"),
+      codeFile("lib/reporters/xunit.js", "export function escape() { return 'xunit reporter xml'; }")
+    ]), { issueText: "xunit reporter emits invalid XML" });
+
+    expect(ranked[0]?.path).toBe("lib/reporters/xunit.js");
+    expect(ranked[0]?.reasons).toContain("multiple task terms converge in the file path");
+    expect(ranked[0]?.reasons).toContain("file module name exactly matches a task term");
   });
 
   it("prioritizes files whose paths overlap the issue text and changed files", () => {
@@ -296,6 +329,47 @@ describe("rankContextFiles", () => {
 
     expect(ranked[0]?.path).toBe("src/http/server.ts");
     expect(ranked[0]?.reasons).toContain("explicitly named in the task");
+  });
+
+  it.each(["README", "README.md"])("ranks %s for a terse README typo task", (path) => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        { path, extension: path.endsWith(".md") ? ".md" : "", sizeBytes: 100, isSource: true, isTest: false, kind: "documentation", textSample: "Hello World" },
+        { path: "src/server.ts", extension: ".ts", sizeBytes: 100, isSource: true, isTest: false, kind: "code", textSample: "export const server = true;" }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "README typo" });
+
+    expect(ranked[0]?.path).toBe(path);
+    expect(ranked[0]?.reasons).toContain("explicitly named in the task");
+    expect(ranked[0]?.reasons).toContain("documentation-focused task");
+  });
+
+  it("treats changing README copy as documentation work", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageScripts: [],
+      changedFiles: [],
+      diffText: "",
+      packageManager: "npm",
+      diagnostics: [],
+      files: [
+        { path: "README", extension: "", sizeBytes: 100, isSource: true, isTest: false, kind: "documentation", textSample: "Hello World" }
+      ]
+    };
+
+    const ranked = rankContextFiles(repo, { issueText: "change README.md greeting" });
+
+    expect(ranked[0]?.path).toBe("README");
+    expect(ranked[0]?.reasons).toContain("documentation-focused task");
+    expect(ranked[0]?.reasons).not.toContain("documentation deprioritized for an implementation task");
   });
 
   it("matches a compiled JavaScript path mention to its TypeScript source file", () => {
@@ -618,6 +692,7 @@ describe("rankContextFiles", () => {
     expect(presentationTask[0]?.path).toBe("styles/discount.css");
     expect(presentationTask[0]?.reasons)
       .not.toContain("presentation or demo surface deprioritized for a non-UI implementation task");
+    expect(presentationTask[0]?.reasons).toContain("presentation surface matches a UI-focused task");
   });
 
   it("keeps documentation noise below matching code unless the task targets docs", () => {
@@ -1414,6 +1489,16 @@ describe("rankContextFiles", () => {
     expect(ranked[1]?.confidence).toBe(ranked[0]?.confidence);
   });
 
+  it("caps a vocabulary-only leader at medium even when it has a wide score lead", () => {
+    const ranked = rankContextFiles(repoWith([
+      codeFile("src/flags.ts", "export function hasFlag() { return 'flag release build test flag'; }"),
+      codeFile("src/other.ts", "export function unrelated() { return false; }")
+    ]), { issueText: "add a skip-tests flag for release builds" });
+
+    expect(ranked[0]?.path).toBe("src/flags.ts");
+    expect(ranked[0]?.confidence).toBe("medium");
+  });
+
   it("caps a vocabulary-dense lead that a definition site disputes", () => {
     const repo: RepoMap = {
       root: "/repo",
@@ -1460,5 +1545,206 @@ describe("rankContextFiles", () => {
     expect(ranked[0]?.confidence).not.toBe("high");
     // The definition site keeps its own standing: that evidence is why it is here.
     expect(ranked.find((file) => file.path === "src/constant.js")?.confidence).toBe("high");
+  });
+
+  it.each([
+    ["internal/auth/token.go", "func"],
+    ["Sources/Auth/Token.swift", "func"],
+    ["src/main/kotlin/Token.kt", "fun"]
+  ])("#500 recognizes %s %s declarations as definition sites", (path, keyword) => {
+    const ranked = rankContextFiles(
+      repoWith([codeFile(path, `${keyword} resolveToken(id string) string { return id }`)]),
+      { issueText: "resolveToken returns the wrong value" }
+    );
+
+    expect(ranked[0]?.reasons).toContain("defines task identifiers: resolveToken");
+  });
+
+  it("#501 caps changed-file confidence when the task is vague", () => {
+    const ranked = rankContextFiles(
+      repoWith([codeFile("src/a.ts", "export const value = 1")], { changedFiles: ["src/a.ts"] }),
+      { issueText: "improve the codebase" }
+    );
+
+    expect(ranked[0]?.confidence).toBe("low");
+  });
+
+  it("#502 rejects absolute file mentions from another repository", () => {
+    const ranked = rankContextFiles(
+      repoWith([
+        codeFile("index.js", "export const unrelated = 1"),
+        codeFile("src/real.js", "export function resolveCrash() { return true }")
+      ], { root: "/home/me/current-project" }),
+      { issueText: "resolveCrash fails in /home/other/different-project/index.js" }
+    );
+
+    expect(ranked.find((entry) => entry.path === "index.js")?.reasons ?? [])
+      .not.toContain("explicitly named in the task");
+    expect(ranked[0]?.path).toBe("src/real.js");
+  });
+
+  it("still recognizes an absolute file mention inside the scanned repository", () => {
+    const ranked = rankContextFiles(
+      repoWith([codeFile("src/auth.ts", "export const value = 1")], { root: "/home/me/current-project" }),
+      { issueText: "inspect /home/me/current-project/src/auth.ts" }
+    );
+
+    expect(ranked[0]?.reasons).toContain("explicitly named in the task");
+  });
+
+  it("#503 does not treat a clipboard copy button as documentation work", () => {
+    const ranked = rankContextFiles(repoWith([
+      codeFile("src/copy-command.ts", "export function updateCopyButtonHandler() {}"),
+      documentationFile("README.md", "update the copy button handler")
+    ]), { issueText: "update the copy button handler" });
+
+    expect(ranked.find((entry) => entry.path === "README.md")?.reasons ?? [])
+      .not.toContain("documentation-focused task");
+    expect(ranked[0]?.path).toBe("src/copy-command.ts");
+  });
+
+  it("#504 keeps maintained benchmark source rankable without a benchmark keyword", () => {
+    const ranked = rankContextFiles(
+      repoWith([codeFile("benchmarks/runner.ts", "export function resolveToken() { return true }")]),
+      { issueText: "resolveToken is broken" }
+    );
+
+    expect(ranked[0]?.path).toBe("benchmarks/runner.ts");
+  });
+
+  it("#505 does not penalize a project file merely because it is named sample-repo", () => {
+    const ranked = rankContextFiles(repoWith([
+      codeFile("src/sample-repo.ts", "export function resolveToken() { return true }"),
+      codeFile("src/other-name.ts", "export function resolveToken() { return true }")
+    ]), { issueText: "resolveToken is broken" });
+
+    expect(ranked[0]?.score).toBe(ranked[1]?.score);
+    expect(ranked.find((entry) => entry.path === "src/sample-repo.ts")?.reasons)
+      .not.toContain("presentation or demo surface deprioritized for a non-UI task");
+  });
+
+  it("#506 uses import proximity for a descriptive prose task without a code identifier", () => {
+    const ranked = rankContextFiles(repoWith([
+      codeFile("src/reset.ts", "export const passwordResetEmail = 'delivered';"),
+      codeFile("src/transport.ts", "import './reset'; export const transport = true;")
+    ]), { issueText: "password reset emails are never delivered" });
+
+    expect(ranked.find((entry) => entry.path === "src/transport.ts")?.reasons.some((reason) =>
+      reason.includes("ranked file src/reset.ts")
+    )).toBe(true);
+  });
+
+  it("#507 keeps task-matched definition evidence when the task includes presentation vocabulary", () => {
+    const ranked = rankContextFiles(
+      repoWith([codeFile("src/validation.ts", "export function validateForm() { return true }")]),
+      { issueText: "form validation rejects the right payload" }
+    );
+
+    expect(ranked[0]?.reasons).toContain("defines symbols matching task terms: validateForm");
+  });
+
+  it("#508 counts each exact task literal once instead of once per file and sort comparison", () => {
+    const fragments = ["FIRST_EXACT_FAILURE", "SECOND_EXACT_FAILURE"];
+    const originalSplit = String.prototype.split;
+    let occurrenceScans = 0;
+    const splitSpy = vi.spyOn(String.prototype, "split").mockImplementation(function (
+      this: string,
+      separator: string | RegExp,
+      limit?: number
+    ) {
+      if (typeof separator === "string" && fragments.includes(separator)) occurrenceScans += 1;
+      return originalSplit.call(this, separator, limit);
+    });
+
+    try {
+      rankContextFiles(
+        repoWith(Array.from({ length: 20 }, (_, index) => codeFile(
+          `src/file-${index}.ts`,
+          `export const value${index} = '${fragments[index % fragments.length]}';`
+        ))),
+        { issueText: `failure contains \`${fragments[0]}\` and \`${fragments[1]}\`` }
+      );
+      expect(occurrenceScans).toBe(fragments.length);
+    } finally {
+      splitSpy.mockRestore();
+    }
+  });
+
+  it("#509 precompiles member patterns and expands regex tokens once per candidate file", () => {
+    const NativeRegExp = RegExp;
+    const constructedPatterns: string[] = [];
+    const proxiedRegExp = new Proxy(NativeRegExp, {
+      construct(target, args) {
+        constructedPatterns.push(String(args[0]));
+        return Reflect.construct(target, args);
+      }
+    });
+    const originalMatchAll = String.prototype.matchAll;
+    let regexTokenScans = 0;
+    const matchAllSpy = vi.spyOn(String.prototype, "matchAll").mockImplementation(function (
+      this: string,
+      regexp: RegExp
+    ) {
+      if (regexp.source === "\\b([A-Za-z])\\{(\\d+),(\\d+)\\}") regexTokenScans += 1;
+      return originalMatchAll.call(this, regexp);
+    });
+    vi.stubGlobal("RegExp", proxiedRegExp);
+
+    try {
+      const files = Array.from({ length: 20 }, (_, index) => codeFile(
+        `src/file-${index}.ts`,
+        `export const pattern${index} = /a{3,5}/; config.timeout = user.email;`
+      ));
+      rankContextFiles(repoWith(files), { issueText: "config.timeout and user.email are wrong" });
+
+      expect(constructedPatterns.filter((pattern) => pattern.includes("timeout") || pattern.includes("email")))
+        .toHaveLength(2);
+      expect(regexTokenScans).toBe(files.length);
+    } finally {
+      vi.unstubAllGlobals();
+      matchAllSpy.mockRestore();
+    }
+  });
+
+  it("prefers the interactive surface for a user-flow task over a metadata wrapper", () => {
+    const ranked = rankContextFiles(repoWith([
+      codeFile("app/demo/page.tsx", "export function DemoPage() { return <Demo />; }"),
+      codeFile("app/demo.tsx", "export function Demo() { const [task] = useState(''); return <input onChange={() => task} />; }")
+    ]), { issueText: "the website demo should let visitors enter a task" });
+
+    expect(ranked[0]?.path).toBe("app/demo.tsx");
+    expect(ranked[0]?.reasons).toContain("interactive presentation surface matches the requested user flow");
+  });
+
+  it("#512 boosts a lowercase definition named plainly in the task", () => {
+    const ranked = rankContextFiles(
+      repoWith([codeFile("src/validation.ts", "export function validate() { return true }")]),
+      { issueText: "validate rejects the right payload" }
+    );
+
+    expect(ranked[0]?.reasons).toContain("defines symbols matching task terms: validate");
+  });
+
+  it("uses an exact quoted error message as ranking evidence", () => {
+    const ranked = rankContextFiles(repoWith([
+      codeFile("src/error.ts", "throw new Error('Cannot read properties of undefined')"),
+      codeFile("src/other.ts", "export const login = true")
+    ]), { issueText: 'login throws "Cannot read properties of undefined"' });
+
+    expect(ranked[0]?.path).toBe("src/error.ts");
+    expect(ranked[0]?.reasons.some((reason) => reason.startsWith("contains exact task literal:"))).toBe(true);
+  });
+
+  it("ranks Unicode identifiers and task vocabulary instead of returning an empty map", () => {
+    const ranked = rankContextFiles(
+      repoWith([
+        codeFile("src/login.ts", "export function 修复登录错误() { return true; }"),
+        codeFile("src/other.ts", "export function unrelated() { return false; }")
+      ]),
+      { issueText: "修复登录错误() 失败" }
+    );
+
+    expect(ranked[0]?.path).toBe("src/login.ts");
+    expect(ranked[0]?.reasons).toContain("defines task identifiers: 修复登录错误");
   });
 });

@@ -23,6 +23,8 @@ const MAX_EDGES_PER_FILE = 200;
 export type ImportGraph = {
   imports: Map<string, Set<string>>;
   importedBy: Map<string, Set<string>>;
+  truncatedFiles: number;
+  truncatedEdges: number;
 };
 
 export type ImportProximity = {
@@ -32,20 +34,23 @@ export type ImportProximity = {
 };
 
 export function buildImportGraph(files: RepoFile[]): ImportGraph {
-  const parseable = files
-    .filter((file) => JS_EXTENSIONS.has(file.extension) && file.textSample.length > 0)
-    .slice(0, MAX_GRAPH_FILES);
+  const allParseable = files.filter((file) => JS_EXTENSIONS.has(file.extension) && file.textSample.length > 0);
+  const parseable = allParseable.slice(0, MAX_GRAPH_FILES);
   const repoPaths = new Set(files.map((file) => file.path));
+  const aliases = buildAliases(files);
+  const workspacePackages = buildWorkspacePackages(files);
   const imports = new Map<string, Set<string>>();
   const importedBy = new Map<string, Set<string>>();
+  let truncatedEdges = 0;
 
   for (const file of parseable) {
     let edges = 0;
     for (const specifier of extractSpecifiers(file.textSample)) {
       if (edges >= MAX_EDGES_PER_FILE) {
+        truncatedEdges += 1;
         break;
       }
-      const target = resolveSpecifier(file.path, specifier, repoPaths);
+      const target = resolveSpecifier(file.path, specifier, repoPaths, aliases, workspacePackages);
       if (!target || target === file.path) {
         continue;
       }
@@ -55,7 +60,12 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
     }
   }
 
-  return { imports, importedBy };
+  return {
+    imports,
+    importedBy,
+    truncatedFiles: Math.max(0, allParseable.length - parseable.length),
+    truncatedEdges
+  };
 }
 
 export function findImportProximity(graph: ImportGraph, seedPaths: string[]): Map<string, ImportProximity> {
@@ -100,7 +110,7 @@ function extractSpecifiers(textSample: string): Set<string> {
   for (const pattern of SPECIFIER_PATTERNS) {
     for (const match of textSample.matchAll(pattern)) {
       const specifier = match[1];
-      if (specifier && specifier.startsWith(".")) {
+      if (specifier) {
         specifiers.add(specifier);
       }
     }
@@ -108,12 +118,36 @@ function extractSpecifiers(textSample: string): Set<string> {
   return specifiers;
 }
 
-function resolveSpecifier(fromPath: string, specifier: string, repoPaths: Set<string>): string | undefined {
+type Alias = { prefix: string; suffix: string; targets: string[] };
+
+function resolveSpecifier(
+  fromPath: string,
+  specifier: string,
+  repoPaths: Set<string>,
+  aliases: Alias[],
+  workspacePackages: Map<string, string[]>
+): string | undefined {
   const baseDir = fromPath.split("/").slice(0, -1).join("/");
-  const joined = normalizeSegments(baseDir ? `${baseDir}/${specifier}` : specifier);
-  if (joined === undefined || joined === "") {
-    return undefined;
+  const roots: string[] = [];
+  if (specifier.startsWith(".")) {
+    const joined = normalizeSegments(baseDir ? `${baseDir}/${specifier}` : specifier);
+    if (joined) roots.push(joined);
+  } else {
+    roots.push(...(workspacePackages.get(specifier) ?? []));
+    for (const alias of aliases) {
+      if (!specifier.startsWith(alias.prefix) || !specifier.endsWith(alias.suffix)) continue;
+      const middle = specifier.slice(alias.prefix.length, specifier.length - alias.suffix.length || undefined);
+      roots.push(...alias.targets.map((target) => target.replace("*", middle)));
+    }
   }
+  for (const root of roots) {
+    const resolved = resolveCandidate(root, repoPaths);
+    if (resolved) return resolved;
+  }
+  return undefined;
+}
+
+function resolveCandidate(joined: string, repoPaths: Set<string>): string | undefined {
 
   const candidates = [joined];
   const lastSegment = joined.split("/").pop() ?? "";
@@ -133,6 +167,50 @@ function resolveSpecifier(fromPath: string, specifier: string, repoPaths: Set<st
   }
 
   return candidates.find((candidate) => repoPaths.has(candidate));
+}
+
+function buildWorkspacePackages(files: RepoFile[]): Map<string, string[]> {
+  const packages = new Map<string, string[]>();
+  for (const file of files.filter((entry) => entry.path === "package.json" || entry.path.endsWith("/package.json"))) {
+    try {
+      const manifest = JSON.parse(file.textSample) as { name?: unknown; source?: unknown; module?: unknown; main?: unknown; types?: unknown };
+      if (typeof manifest.name !== "string" || !manifest.name.trim()) continue;
+      const dir = file.path.split("/").slice(0, -1).join("/");
+      const declared = [manifest.source, manifest.module, manifest.main, manifest.types]
+        .filter((entry): entry is string => typeof entry === "string")
+        .map((entry) => normalizeSegments(dir ? `${dir}/${entry}` : entry))
+        .filter((entry): entry is string => Boolean(entry));
+      packages.set(manifest.name, [
+        ...declared,
+        ...(dir ? [`${dir}/src/index`, `${dir}/index`] : ["src/index", "index"])
+      ]);
+    } catch { /* A malformed manifest is reported by the scanner, not the graph. */ }
+  }
+  return packages;
+}
+
+function buildAliases(files: RepoFile[]): Alias[] {
+  const aliases: Alias[] = [];
+  for (const file of files.filter((entry) => /(^|\/)(?:tsconfig|jsconfig)(?:\.[^/]*)?\.json$/i.test(entry.path))) {
+    try {
+      const config = JSON.parse(file.textSample) as { compilerOptions?: { baseUrl?: unknown; paths?: unknown } };
+      const paths = config.compilerOptions?.paths;
+      if (!paths || typeof paths !== "object" || Array.isArray(paths)) continue;
+      const dir = file.path.split("/").slice(0, -1).join("/");
+      const baseUrl = typeof config.compilerOptions?.baseUrl === "string" ? config.compilerOptions.baseUrl : ".";
+      const base = normalizeSegments(dir ? `${dir}/${baseUrl}` : baseUrl) ?? "";
+      for (const [pattern, rawTargets] of Object.entries(paths)) {
+        if (!Array.isArray(rawTargets) || !rawTargets.every((entry) => typeof entry === "string")) continue;
+        const star = pattern.indexOf("*");
+        aliases.push({
+          prefix: star === -1 ? pattern : pattern.slice(0, star),
+          suffix: star === -1 ? "" : pattern.slice(star + 1),
+          targets: rawTargets.map((target) => normalizeSegments(base ? `${base}/${target}` : target)).filter((target): target is string => Boolean(target))
+        });
+      }
+    } catch { /* Ignore configs that are not strict JSON. */ }
+  }
+  return aliases;
 }
 
 function normalizeSegments(path: string): string | undefined {

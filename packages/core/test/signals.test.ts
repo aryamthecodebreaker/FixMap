@@ -2,7 +2,16 @@ import { describe, expect, it } from "vitest";
 import { extractTaskSignals, tokenizeText } from "../src/signals.js";
 
 describe("extractTaskSignals", () => {
-  it("tokenizes only added and removed diff lines, not diff metadata", () => {
+  it.each([
+    ["README typo", "readme"],
+    ["fix dockerfile", "dockerfile"],
+    ["update CODEOWNERS", "codeowners"]
+  ])("recognizes conventional extensionless file mentions in %j", (issueText, expected) => {
+    const signals = extractTaskSignals({ issueText });
+    expect([...signals.fileMentions].map((mention) => mention.toLowerCase())).toContain(expected);
+  });
+
+  it("#515 tokenizes only added diff lines, not removed content or diff metadata", () => {
     const diffText = [
       "diff --git a/src/auth/reset-password.ts b/src/auth/reset-password.ts",
       "index 1234567..89abcde 100644",
@@ -18,6 +27,7 @@ describe("extractTaskSignals", () => {
 
     expect(signals.tokens.has("token")).toBe(true);
     expect(signals.tokens.has("expiry")).toBe(true);
+    expect(signals.tokens.has("old")).toBe(false);
     expect(signals.tokens.has("index")).toBe(false);
     expect(signals.tokens.has("diff")).toBe(false);
     expect(signals.tokens.has("git")).toBe(false);
@@ -32,6 +42,69 @@ describe("extractTaskSignals", () => {
 
     expect(signals.tokens.has("password")).toBe(true);
     expect(signals.tokens.has("email")).toBe(true);
+  });
+
+  it("#514 recognizes member names on arbitrary receivers", () => {
+    const signals = extractTaskSignals({ issueText: "config.timeout and user.email are wrong" });
+
+    expect(signals.memberMentions).toEqual(new Set(["timeout", "email"]));
+  });
+
+  it("#510 keeps exact quoted error messages and screaming-snake error codes", () => {
+    const signals = extractTaskSignals({
+      issueText: 'login throws "Cannot read properties of undefined" and `ERR_INVALID_ARG_TYPE`'
+    });
+
+    expect(signals.exactFragments).toContain("Cannot read properties of undefined");
+    expect(signals.exactFragments).toContain("ERR_INVALID_ARG_TYPE");
+  });
+
+  it("#516 does not let contractions swallow a later quoted fragment", () => {
+    const signals = extractTaskSignals({ issueText: "it isn't reading `reset-token.ts` correctly" });
+
+    expect(signals.exactFragments).toContain("reset-token.ts");
+  });
+
+  it("extracts explicitly called lowercase function names", () => {
+    const signals = extractTaskSignals({ issueText: "validate() rejects the correct payload" });
+
+    expect(signals.identifiers).toContain("validate");
+  });
+
+  it("does not mistake an ordinary prose word before a spaced parenthesis for a function call", () => {
+    const signals = extractTaskSignals({ issueText: "the status code (as logged by the service) is wrong" });
+
+    expect(signals.identifiers).not.toContain("code");
+  });
+
+  it.each(["delete", "get", "run", "default", "name", "type", "case"])(
+    "#513 keeps ordinary task word %j searchable",
+    (word) => expect(tokenizeText(word)).toContain(word)
+  );
+
+  it.each(["ci", "ui", "public", "package", "kubernetes"])(
+    "keeps product and risk vocabulary %j searchable",
+    (word) => expect(tokenizeText(word)).toContain(word)
+  );
+
+  it("normalizes hosting to the same searchable deployment token as hosted", () => {
+    expect(tokenizeText("hosting")).toEqual(tokenizeText("hosted"));
+    expect(tokenizeText("hosting")).toContain("host");
+  });
+
+  it.each(["SCSS", "Sass", "Less"])("normalizes %s tasks to CSS paths", (word) => {
+    expect(tokenizeText(word)).toContain("css");
+  });
+
+  it("tokenizes non-ASCII task text and recognizes a Unicode function name", () => {
+    const signals = extractTaskSignals({
+      issueText: "修复登录错误 обновитьПрофиль() αποτυγχάνει"
+    });
+
+    expect(signals.tokens.size).toBeGreaterThan(0);
+    expect(signals.tokens).toContain("修复登录错误");
+    expect(signals.identifiers).toContain("обновитьПрофиль");
+    expect(signals.tokens).toContain("αποτυγχάνει");
   });
 
   it("normalizes simple plural and verb forms", () => {
@@ -66,7 +139,7 @@ describe("extractTaskSignals", () => {
     ["contributor", "contribute"],
     ["invoices", "invoice"],
     ["resolved", "resolve"]
-  ])("normalizes %s to the same token as %s", (inflected, base) => {
+  ])("#511/#517 normalizes %s to the same token as %s", (inflected, base) => {
     const inflectedSignals = extractTaskSignals({ issueText: inflected });
     const baseSignals = extractTaskSignals({ issueText: base });
 
@@ -97,6 +170,27 @@ describe("extractTaskSignals", () => {
     expect(signals.tokens).not.toContain("pull");
     expect(signals.tokens).toContain("color");
     expect(signals.tokens).toContain("window");
+  });
+
+  it("never extracts URL credentials or path secrets as reportable identifiers", () => {
+    const secret = "superSecretCredentialXYZ";
+    const signals = extractTaskSignals({
+      issueText: `request fails at "https://user:${secret}@api.example.test/${secret}?token=${secret}"`
+    });
+
+    expect([...signals.identifiers].join(" ")).not.toContain(secret);
+    expect(signals.exactFragments.join(" ")).not.toContain(secret);
+    expect([...signals.tokens].join(" ")).not.toContain(secret.toLowerCase());
+  });
+
+  it("ignores issue-template instructions hidden in HTML comments", () => {
+    const signals = extractTaskSignals({
+      issueText: "xunit output is invalid XML\n<!-- Read .github/CODE_OF_CONDUCT.md before filing -->"
+    });
+
+    expect(signals.fileMentions).not.toContain(".github/CODE_OF_CONDUCT.md");
+    expect(signals.tokens).not.toContain("conduct");
+    expect(signals.tokens).toContain("xunit");
   });
 
   it("preserves file paths from immutable GitHub blob permalinks", () => {
@@ -228,6 +322,15 @@ describe("plural and verb stems that are part of the word", () => {
     ["pass", "passed"], ["process", "processed"], ["miss", "missed"],
     ["stop", "stopped"], ["ship", "shipped"], ["drop", "dropped"], ["plan", "planned"]
   ])("converges %j and %j on one stem", (base, inflected) => {
+    expect([...tokenizeText(inflected)]).toEqual([...tokenizeText(base)]);
+  });
+
+  it.each([
+    ["validate", "validated"], ["generate", "generated"], ["migrate", "migrated"],
+    ["escape", "escaped"], ["merge", "merged"], ["include", "included"],
+    ["replace", "replaced"], ["compute", "computed"], ["handle", "handled"],
+    ["store", "stored"], ["close", "closed"], ["query", "queried"]
+  ])("converges silent-e or -ied forms %j and %j", (base, inflected) => {
     expect([...tokenizeText(inflected)]).toEqual([...tokenizeText(base)]);
   });
 });

@@ -2,6 +2,8 @@ export { buildFixMapReport, resolveExclusions } from "./plan.js";
 export { buildPathExcluder, NO_EXCLUSIONS } from "./exclude.js";
 export type { PathExcluder } from "./exclude.js";
 export { compareReports, renderComparisonMarkdown } from "./compare.js";
+export { quoteCliValue } from "./cli-quote.js";
+export type { CliShell } from "./cli-quote.js";
 export type { ReportComparison } from "./compare.js";
 export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
 export { explainFile, renderExplanationMarkdown } from "./explain.js";
@@ -16,11 +18,12 @@ export { buildImportGraph, findImportProximity } from "./import-graph.js";
 export { detectPrimaryLanguage } from "./languages.js";
 export type { LanguageDetection, PrimaryLanguage } from "./languages.js";
 export { rankContextFiles } from "./rank.js";
-export { buildRiskNotes, buildSummary, buildTestRoutes, pathsForRiskArea, renderJsonReport, renderMarkdownReport } from "./report.js";
+export { buildReportFromRepo, buildRiskNotes, buildSummary, buildTestRoutes, pathsForRiskArea, renderJsonReport, renderMarkdownReport } from "./report.js";
 export { scanRepo } from "./repo-scan.js";
 export { validateFixMapReport } from "./validate.js";
 export type { ValidatedFixMapReport } from "./validate.js";
 export { findGatedTestDiagnostics } from "./test-gates.js";
+export { stripByteOrderMark } from "./text.js";
 export type {
   FixMapInput,
   FixMapReport,

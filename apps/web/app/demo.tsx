@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { buildPathExcluder, buildReportFromRepo, compareReports, explainFile, verifyPlan } from "@aryam/fixmap-core/browser";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { buildPathExcluder, buildReportFromRepo, compareReports, explainFile, quoteCliValue, verifyPlan } from "@aryam/fixmap-core/browser";
+import type { CliShell } from "@aryam/fixmap-core/browser";
 import { sampleRepo, sampleRepoWithChanges, samplePaths } from "./sample-repo";
 
 type Stage = "plan" | "explain" | "compare" | "verify";
@@ -40,6 +41,18 @@ const scenarios = [
 ];
 
 const explainTargets = samplePaths;
+
+function subscribeToShell(): () => void {
+  return () => undefined;
+}
+
+function browserShell(): CliShell {
+  return /Windows/i.test(navigator.userAgent) ? "powershell" : "posix";
+}
+
+function serverShell(): CliShell {
+  return "posix";
+}
 
 export function Demo() {
   const [task, setTask] = useState(presets[0]!.label);
@@ -99,10 +112,11 @@ export function Demo() {
     `${limit === 8 ? "" : ` --limit ${limit}`}` +
     `${excludeBuild ? ' --exclude "dist/**"' : ""}` +
     `${workingTree ? " --working-tree" : ""}`;
-  const quotedTask = quoteCliValue(task);
+  const shell = useSyncExternalStore(subscribeToShell, browserShell, serverShell);
+  const quotedTask = quoteCliValue(task, shell);
   const command = {
     plan: `fixmap plan --issue ${quotedTask}${scanFlags} --format json --output plan.json`,
-    explain: `fixmap plan --issue ${quotedTask} --explain ${quoteCliValue(explainTarget)}${scanFlags}`,
+    explain: `fixmap plan --issue ${quotedTask} --explain ${quoteCliValue(explainTarget, shell)}${scanFlags}`,
     compare: `fixmap plan --issue ${quotedTask} --compare plan.json${scanFlags}`,
     verify: `fixmap verify --report plan.json ${workingTree ? "--working-tree" : "--diff main...HEAD"}`
   }[stage];
@@ -135,7 +149,7 @@ export function Demo() {
         <div className="demo-input">
           <label htmlFor="task">The task</label>
           <textarea id="task" value={task} onChange={(event) => setTask(event.target.value)} rows={3} />
-          <div className="preset-list" aria-label="Example tasks">
+          <div className="preset-list" role="group" aria-label="Example tasks">
             {presets.map((preset) => (
               <button
                 key={preset.label}
@@ -160,7 +174,7 @@ export function Demo() {
           </p>
 
           <div className="privacy-note">
-            <span>●</span>
+            <span aria-hidden="true">●</span>
             <p>
               <strong>This is FixMap itself, not a mockup.</strong> The page imports the same
               ranking, explanation, and verification code the CLI runs, and executes it on a
@@ -234,7 +248,7 @@ function PlanPanel({ report }: { report: ReturnType<typeof buildReportFromRepo> 
 
       {report.risks.length > 0 ? (
         <div className="panel-block">
-          <h4>Risk</h4>
+          <p className="panel-heading">Risk</p>
           {report.risks.map((risk) => (
             <p key={risk.area}>
               <span className={`severity ${risk.severity}`}>{risk.severity}</span>
@@ -246,7 +260,7 @@ function PlanPanel({ report }: { report: ReturnType<typeof buildReportFromRepo> 
 
       {report.diagnostics.length > 0 ? (
         <div className="panel-block">
-          <h4>Diagnostics</h4>
+          <p className="panel-heading">Diagnostics</p>
           {report.diagnostics.map((diagnostic, index) => (
             <p key={`${diagnostic.code}-${diagnostic.paths?.[0] ?? index}`}>
               <span className={`severity ${diagnostic.severity}`}>{diagnostic.severity}</span>
@@ -297,7 +311,7 @@ function ExplainPanel({
 
       {explanation.reasons.length > 0 ? (
         <div className="panel-block">
-          <h4>Scored for</h4>
+          <p className="panel-heading">Scored for</p>
           {explanation.reasons.map((reason) => (
             <p key={reason}>{reason}</p>
           ))}
@@ -315,7 +329,14 @@ function ExplainPanel({
 }
 
 function ComparePanel({ comparison }: { comparison: ReturnType<typeof compareReports> }) {
-  const changes = [...comparison.entered, ...comparison.moved, ...comparison.confidenceChanged];
+  // Leaving the plan is a change too. Omitting it made the counter say "0 changed" beside
+  // summaries such as "7 left", and hid the paths that explained the delta.
+  const changes = [
+    ...comparison.entered,
+    ...comparison.left,
+    ...comparison.moved,
+    ...comparison.confidenceChanged
+  ];
   return (
     <>
       <div className="results-head"><span>Earlier plan vs. current task</span><small>{changes.length} changed</small></div>
@@ -379,9 +400,11 @@ function VerifyPanel({
           <span className={`severity ${finding.severity}`}>{finding.severity}</span>
           <div>
             <p>{finding.message}</p>
-            {finding.paths.map((path) => (
-              <code key={path}>{path}</code>
-            ))}
+            <span className="finding-paths">
+              {finding.paths.map((path) => (
+                <code key={path}>{path}</code>
+              ))}
+            </span>
           </div>
         </article>
       ))}
@@ -393,8 +416,4 @@ function VerifyPanel({
       </p>
     </>
   );
-}
-
-function quoteCliValue(value: string): string {
-  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }

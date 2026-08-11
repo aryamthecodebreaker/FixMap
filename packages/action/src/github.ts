@@ -4,14 +4,14 @@ export const FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
  * GitHub rejects an issue comment over 65,536 characters with a 422, and the marker was
  * concatenated onto the report and posted without any check — so on a large monorepo the run
  * completed, ranked everything, and then failed at the final API call, losing the report.
- * Truncating keeps the comment; the complete report is still on the `report` output and in
- * the step summary, which the footer says.
+ * Truncating keeps the comment and points readers to a local `--output` run for the complete
+ * artifact; no bounded GitHub surface is described as complete.
  */
 export const MAX_COMMENT_BODY_CHARS = 65_536;
 
 const COMMENT_TRUNCATION_FOOTER =
   "\n\n> Report truncated to fit GitHub's comment size limit. " +
-  "The complete report is in the step summary and the `report` output.\n";
+  "Run FixMap locally with `--output` to retain a complete report.\n";
 
 export function fitCommentBody(body: string, limit = MAX_COMMENT_BODY_CHARS): string {
   if (body.length <= limit) return body;
@@ -110,10 +110,11 @@ async function findExistingComment(
   commentAuthor: string | undefined
 ): Promise<GitHubComment | undefined> {
   const maxPages = 50;
+  let latest: GitHubComment | undefined;
   for (let page = 1; page <= maxPages; page += 1) {
     const comments = await requestJson<GitHubComment[]>(
       fetchImpl,
-      `${commentsUrl}?per_page=100&page=${page}&sort=created&direction=desc`,
+      `${commentsUrl}?per_page=100&page=${page}`,
       { headers },
       "list pull request comments"
     );
@@ -125,17 +126,37 @@ async function findExistingComment(
         // second comment beside the one it meant to update.
         (!commentAuthor || comment.user?.login?.toLowerCase() === commentAuthor.toLowerCase())
     ).sort((left, right) => right.id - left.id)[0];
-    if (match) return match;
+    if (match && (!latest || match.id > latest.id)) latest = match;
 
     if (comments.length < 100) {
-      return undefined;
+      return latest;
     }
   }
-  return undefined;
+  if (latest) return latest;
+  throw new Error(
+    "FixMap stopped after searching 5,000 pull request comments without finding its marker; " +
+    "it refused to create a duplicate comment. Remove old comments or set comment-author to narrow the search."
+  );
 }
 
 export function isPermissionDeniedError(error: unknown): boolean {
-  return error instanceof Error && /GitHub returned (401|403|404)\b/.test(error.message);
+  return error instanceof GitHubRequestError && (
+    error.status === 401 ||
+    error.status === 404 ||
+    (error.status === 403 && !error.rateLimited && /resource not accessible|insufficient permission|forbidden|write access/i.test(error.detail))
+  );
+}
+
+export class GitHubRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly detail: string,
+    readonly rateLimited: boolean
+  ) {
+    super(message);
+    this.name = "GitHubRequestError";
+  }
 }
 
 async function requestJson<T>(
@@ -148,7 +169,15 @@ async function requestJson<T>(
   if (!response.ok) {
     const detail = (await response.text()).replace(/\s+/g, " ").slice(0, 500);
     const suffix = detail ? `: ${detail}` : "";
-    throw new Error(`FixMap could not ${action}; GitHub returned ${response.status} ${response.statusText}${suffix}`);
+    const rateLimited = response.status === 429 ||
+      response.headers.get("x-ratelimit-remaining") === "0" ||
+      /secondary rate limit|rate limit exceeded/i.test(detail);
+    throw new GitHubRequestError(
+      `FixMap could not ${action}; GitHub returned ${response.status} ${response.statusText}${suffix}`,
+      response.status,
+      detail,
+      rateLimited
+    );
   }
 
   return response.json() as Promise<T>;

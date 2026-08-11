@@ -10,6 +10,11 @@
 export const DIAGNOSTIC_TERM_LIMIT = 48;
 export const DIAGNOSTIC_SPEC_LIMIT = 80;
 
+/** JSON.parse rejects a leading byte-order mark even though Windows editors commonly add one. */
+export function stripByteOrderMark(value: string): string {
+  return value.replace(/^\uFEFF/, "");
+}
+
 export function truncateForDiagnostic(value: string, limit: number): string {
   return value.length <= limit ? value : `${value.slice(0, limit)}…`;
 }

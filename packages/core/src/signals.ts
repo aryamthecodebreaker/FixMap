@@ -1,4 +1,4 @@
-const TOKEN_SPLIT = /[^a-zA-Z0-9]+/g;
+const TOKEN_SPLIT = /[^\p{L}\p{N}]+/gu;
 
 // Path-segment words like src, main, index, package and packages are in here on purpose.
 // They appear in nearly every path, so as task terms they match everything and rank nothing —
@@ -23,7 +23,6 @@ const STOP_WORDS = new Set([
   "but",
   "can",
   "cannot",
-  "case",
   "catch",
   "class",
   "const",
@@ -31,8 +30,6 @@ const STOP_WORDS = new Set([
   "codebase",
   "could",
   "debugger",
-  "default",
-  "delete",
   "did",
   "doe",
   "does",
@@ -48,7 +45,6 @@ const STOP_WORDS = new Set([
   "for",
   "from",
   "function",
-  "get",
   "github",
   "got",
   "had",
@@ -75,7 +71,6 @@ const STOP_WORDS = new Set([
   "more",
   "most",
   "must",
-  "name",
   "namespace",
   "new",
   "node",
@@ -88,15 +83,12 @@ const STOP_WORDS = new Set([
   "our",
   "out",
   "over",
-  "package",
   "packages",
   "private",
   "quality",
   "protected",
-  "public",
   "readonly",
   "return",
-  "run",
   "same",
   "she",
   "should",
@@ -122,7 +114,6 @@ const STOP_WORDS = new Set([
   "throw",
   "true",
   "try",
-  "type",
   "typeof",
   "under",
   "undefined",
@@ -153,27 +144,30 @@ const STOP_WORDS = new Set([
 // A 30,000-character paste took 2.4 seconds here, and the Action feeds this pattern issue
 // text from public pull requests. No real path mention is longer than this bound.
 const MAX_FILE_MENTION_LENGTH = 200;
+import { SOURCE_FILE_EXTENSIONS } from "./paths.js";
+
+const FILE_MENTION_EXTENSIONS = [...SOURCE_FILE_EXTENSIONS]
+  .map((extension) => extension.slice(1).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  .sort((left, right) => right.length - left.length)
+  .join("|");
 const FILE_MENTION_PATTERN =
   new RegExp(
-    `[A-Za-z0-9_@$][A-Za-z0-9_.$/\\\\-]{0,${MAX_FILE_MENTION_LENGTH}}` +
-    "\\.(?:[cm]?[jt]sx?|json|ya?ml|mdx?|css|scss|less|html|py|rb|rs|go|java|kt|c|cc|cpp|h|hpp|d\\.ts)\\b",
+    `(?:[A-Za-z]:[\\\\/]|[\\\\/])?[A-Za-z0-9_@$][A-Za-z0-9_.$/\\\\-]{0,${MAX_FILE_MENTION_LENGTH}}` +
+    `\\.(?:${FILE_MENTION_EXTENSIONS}|d\\.ts)\\b`,
     "g"
   );
+const CONVENTIONAL_FILE_MENTION_PATTERN =
+  /\b(?:AUTHORS|CHANGELOG|CODE_OF_CONDUCT|CONTRIBUTING|LICENSE|NOTICE|README|SECURITY|CODEOWNERS|Dockerfile|Gemfile|Jenkinsfile|Makefile|Procfile|Rakefile|Vagrantfile)\b/gi;
 const MEMBER_MENTION_PATTERN =
-  /\b(?:window|globalThis|process|request|response|req|res|this)\.([$A-Za-z_][$A-Za-z0-9_$]*)\b/g;
+  /(?<![\p{L}\p{N}_$])[\p{L}_$][\p{L}\p{N}_$]*\.([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
 const FILE_EXTENSIONS = new Set([
   "c", "cc", "cjs", "cpp", "css", "go", "h", "hpp", "html", "java", "js", "json",
   "jsx", "kt", "less", "md", "mdx", "mjs", "py", "rb", "rs", "scss", "ts", "tsx",
   "yaml", "yml"
 ]);
-const IDENTIFIER_PATTERN = /[A-Za-z_$][A-Za-z0-9_$]{4,}/g;
+const IDENTIFIER_PATTERN = /[\p{L}_$][\p{L}\p{N}_$]{4,}/gu;
 const MAX_EXACT_FRAGMENTS = 8;
 const MAX_IDENTIFIERS = 24;
-const TRAILING_E_VERB_STEMS = new Set([
-  "bas", "cach", "chang", "cod", "contribut", "creat", "dat", "fil", "improv", "invoic",
-  "mak", "pars", "remov", "resolv", "rout", "siz", "tim", "updat"
-]);
-
 export type TaskSignals = {
   tokens: Set<string>;
   changedFiles: Set<string>;
@@ -190,16 +184,19 @@ export function extractTaskSignals(input: {
   diffText?: string | undefined;
   changedFiles?: string[];
 }): TaskSignals {
-  const prepared = prepareChecklistText(input.issueText ?? "");
+  const prepared = prepareChecklistText(redactSensitiveTaskText(input.issueText ?? ""));
   const issueText = prepared.text;
-  const taskText = [issueText, extractDiffContentLines(input.diffText ?? "")].join("\n");
+  const visibleIssueText = stripHtmlComments(issueText);
+  const issueSignalText = stripHttpUrls(visibleIssueText);
+  const diffSignalText = stripHttpUrls(redactSensitiveTaskText(extractDiffContentLines(input.diffText ?? "")));
+  const taskText = [issueSignalText, diffSignalText].join("\n");
   const tokens = tokenizeText(taskText);
 
   return {
     tokens,
     changedFiles: new Set(input.changedFiles ?? []),
-    fileMentions: extractFileMentions(issueText),
-    memberMentions: extractMemberMentions(issueText),
+    fileMentions: extractFileMentions(visibleIssueText),
+    memberMentions: extractMemberMentions(issueSignalText),
     exactFragments: extractExactFragments(taskText),
     identifiers: extractIdentifiers(taskText),
     uncheckedChecklistLinesRemoved: prepared.removed,
@@ -256,15 +253,19 @@ export function extractIdentifiers(text: string): Set<string> {
       continue;
     }
     const fragment = quoted.value.trim();
-    if (!/^[$A-Za-z_][$A-Za-z0-9_]*$/.test(fragment.trim())) {
+    if (!/^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(fragment.trim())) {
       continue;
     }
-    if (!isDistinctiveIdentifier(fragment) && fragment.length < 8) {
+    if (!isDistinctiveIdentifier(fragment) && fragment.length < 6) {
       continue;
     }
     for (const match of fragment.matchAll(IDENTIFIER_PATTERN)) {
       addIdentifier(identifiers, match[0]);
     }
+  }
+
+  for (const match of text.matchAll(/(?<![\p{L}\p{N}_$])([\p{L}_$][\p{L}\p{N}_$]{2,})\(/gu)) {
+    if (match[1]) addIdentifier(identifiers, match[1]);
   }
 
   return identifiers;
@@ -278,15 +279,37 @@ function addIdentifier(identifiers: Set<string>, identifier: string): void {
 }
 
 function isDistinctiveIdentifier(identifier: string): boolean {
-  return /[0-9_$]/.test(identifier) || /[a-z][A-Z]/.test(identifier);
+  return /[0-9_$]/.test(identifier) || /[\p{Ll}][\p{Lu}]/u.test(identifier) || !/^[\x00-\x7F]+$/.test(identifier);
 }
 
 function isDistinctiveFragment(fragment: string): boolean {
-  if (fragment.length < 6 || fragment.length > 96 || /\s/.test(fragment)) {
+  if (fragment.length < 6 || fragment.length > 160) {
     return false;
   }
-  const punctuationCount = [...fragment].filter((character) => /[^A-Za-z0-9_$]/.test(character)).length;
-  return punctuationCount >= 2 && /[A-Za-z0-9]/.test(fragment);
+  if (/\s/.test(fragment)) {
+    return fragment.trim().split(/\s+/).length >= 2 && /[\p{L}\p{N}]/u.test(fragment);
+  }
+  const punctuationCount = [...fragment].filter((character) => /[^\p{L}\p{N}$]/u.test(character)).length;
+  return punctuationCount >= 1 && /[\p{L}\p{N}]/u.test(fragment);
+}
+
+export function redactSensitiveTaskText(text: string): string {
+  return text
+    .replace(/(https?:\/\/)[^/\s@]+@/gi, "$1")
+    .replace(/\b(?:ghp|gho|ghu|ghs|github_pat)_[A-Za-z0-9_]{8,}\b/g, "[redacted]")
+    .replace(/\bAKIA[0-9A-Z]{16}\b/g, "[redacted]")
+    .replace(/\bsk-[A-Za-z0-9_-]{16,}\b/g, "[redacted]");
+}
+
+/** URLs are never identifier evidence. Removing them before exact-fragment and identifier
+ * extraction also prevents an unfamiliar token shape in a URL from being repeated in a
+ * diagnostic. File mentions from GitHub blob URLs are extracted separately, before this. */
+function stripHttpUrls(text: string): string {
+  return text.includes("://") ? text.replace(/https?:\/\/[^\s<>()\[\]{}]+/gi, " [url] ") : text;
+}
+
+function stripHtmlComments(text: string): string {
+  return text.includes("<!--") ? text.replace(/<!--[\s\S]*?-->/g, " ") : text;
 }
 
 function scanQuotedFragments(text: string): Array<{ delimiter: string; value: string }> {
@@ -295,22 +318,33 @@ function scanQuotedFragments(text: string): Array<{ delimiter: string; value: st
   for (const line of text.split(/\r?\n/)) {
     let cursor = 0;
     while (cursor < line.length) {
-      const delimiter = line[cursor];
-      if (delimiter !== '"' && delimiter !== "'" && delimiter !== "`") {
+      const delimiter = line[cursor]!;
+      const closingDelimiter = delimiter === "“" || delimiter === "„" ? "”" :
+        delimiter === "‘" ? "’" : delimiter === "«" ? "»" : delimiter;
+      if (!["\"", "'", "`", "“", "„", "‘", "«"].includes(delimiter ?? "")) {
+        cursor += 1;
+        continue;
+      }
+      if (delimiter === "'" && cursor > 0 && /[A-Za-z0-9]/.test(line[cursor - 1] ?? "")) {
         cursor += 1;
         continue;
       }
 
       let end = cursor + 1;
       while (end < line.length) {
-        if (line[end] === delimiter && !isEscaped(line, end)) {
+        if (line[end] === closingDelimiter && !isEscaped(line, end)) {
           break;
         }
         end += 1;
       }
 
-      fragments.push({ delimiter, value: line.slice(cursor + 1, end) });
-      cursor = end < line.length ? end + 1 : line.length;
+      if (end < line.length) {
+        fragments.push({ delimiter, value: line.slice(cursor + 1, end) });
+        cursor = end + 1;
+      } else {
+        if (delimiter !== "'") fragments.push({ delimiter, value: line.slice(cursor + 1) });
+        cursor += 1;
+      }
     }
   }
 
@@ -327,6 +361,9 @@ function isEscaped(text: string, index: number): boolean {
 
 export function extractFileMentions(text: string): Set<string> {
   const mentions = new Set<string>();
+  for (const match of text.matchAll(CONVENTIONAL_FILE_MENTION_PATTERN)) {
+    if (match[0]) mentions.add(match[0]);
+  }
   // A blob permalink with an immutable commit is stronger than a prose path mention: it
   // is a deliberate pointer to code. Preserve only its repository-relative path before
   // stripping URLs generally. This avoids turning badges, issue links and external docs
@@ -378,7 +415,7 @@ function extractDiffContentLines(diffText: string): string {
 
   return diffText
     .split(/\r?\n/)
-    .filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---"))
+    .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
     .join("\n");
 }
 
@@ -397,24 +434,44 @@ export function tokenizeText(text: string): Set<string> {
   );
 }
 
+/** Tokenize a symbol name without prose stop-word filtering. `getUser` and `runJob` need
+ * both camel-case segments for partial-definition grounding even though `get` and `run`
+ * are intentionally ignored in ordinary issue prose. */
+export function tokenizeIdentifier(identifier: string): Set<string> {
+  return new Set(
+    identifier
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .toLowerCase()
+      .split(TOKEN_SPLIT)
+      .map((token) => normalizeToken(token.trim()))
+      .filter((token) => isSearchableToken(token))
+  );
+}
+
 // An unbroken alphanumeric run this long is a hash, a base64 blob, or a paste artifact,
 // never a term someone is searching for. Dropping it here rather than at the point of
 // display means it can neither pollute a diagnostic nor score a file for matching noise.
 const MAX_SEARCHABLE_TOKEN_LENGTH = 64;
+const SHORT_SEARCHABLE_TOKENS = new Set(["ci", "ui"]);
 
 function isSearchableToken(token: string): boolean {
   if (token.length > MAX_SEARCHABLE_TOKEN_LENGTH) {
     return false;
   }
-  return token.length >= 3 || /^[a-z]\d$/i.test(token);
+  return token.length >= 3 || SHORT_SEARCHABLE_TOKENS.has(token.toLowerCase()) || /^[a-z]\d$/i.test(token);
 }
 
 function normalizeToken(token: string): string {
+  if (token === "kubernetes") return token;
+  if (token === "scss" || token === "sass" || token === "less") return "css";
   if (token === "contributor" || token === "contributors") return "contribute";
   if (token.length > 5 && token.endsWith("ies")) return `${token.slice(0, -3)}y`;
+  if (token.length > 4 && token.endsWith("ied")) return `${token.slice(0, -3)}y`;
   if (token.length > 5 && token.endsWith("ing")) return normalizeVerbStem(token.slice(0, -3));
-  if (token.length > 4 && token.endsWith("ed")) return normalizeVerbStem(token.slice(0, -2));
-  if (token.length > 4 && /(?:sses|shes|ches|xes|zes)$/.test(token)) return token.slice(0, -2);
+  if (token.length > 3 && token.endsWith("ed")) return normalizeVerbStem(token.slice(0, -2));
+  if (token.length > 4 && /(?:sses|shes|ches|xes|zes)$/.test(token)) {
+    return token.slice(0, -2);
+  }
   // A trailing `s` is a plural only when it is not part of the word itself. `pass`, `class`
   // and `process` end in `ss`; `status` and `bus` in `us`; `analysis` and `basis` in `is`.
   // Stripping it produced `pas`, `clas`, `proces`, `statu` — stems that match nothing, and
@@ -430,8 +487,46 @@ function normalizeVerbStem(stem: string): string {
   // doubles a *single* final consonant to inflect, so a base already ending in `ss` never
   // got there that way: `passed` and `processed` strip to `pass` and `process`, and
   // deduplicating those produced `pas` and `proces` — stems that match nothing at all.
-  const deduplicated = /([a-z])\1$/.test(stem) && !stem.endsWith("ss") ? stem.slice(0, -1) : stem;
-  return TRAILING_E_VERB_STEMS.has(deduplicated) ? `${deduplicated}e` : deduplicated;
+  const wasDoubled = /([a-z])\1$/.test(stem) && !stem.endsWith("ss");
+  if (wasDoubled) {
+    return stem.slice(0, -1);
+  }
+
+  // Porter-style spelling rules handle an open vocabulary. The previous implementation
+  // restored a trailing e from a growing word allowlist, so every unlisted verb repeated
+  // the same bug. These rules make the surface forms take the same path instead:
+  // validate/validated -> validate, file/files/filed -> file, store/stored -> store.
+  const silentEStem = /(?:at|bl|iz|ap|ud|ac|ut|ov|et|dl|rg|ng|ic|out|rs|ch|lv)$/;
+  return silentEStem.test(stem) || (stemMeasure(stem) === 1 && endsConsonantVowelConsonant(stem))
+    ? `${stem}e`
+    : stem;
+}
+
+/** Number of vowel-to-consonant groups in a lowercase ASCII word (Porter's `m`). */
+function stemMeasure(word: string): number {
+  let measure = 0;
+  let previousWasVowel = false;
+  for (let index = 0; index < word.length; index += 1) {
+    const vowel = isStemVowel(word, index);
+    if (previousWasVowel && !vowel) measure += 1;
+    previousWasVowel = vowel;
+  }
+  return measure;
+}
+
+function endsConsonantVowelConsonant(word: string): boolean {
+  if (word.length < 3) return false;
+  const last = word.length - 1;
+  return !isStemVowel(word, last - 2) &&
+    isStemVowel(word, last - 1) &&
+    !isStemVowel(word, last) &&
+    !/[wxy]/.test(word[last] ?? "");
+}
+
+function isStemVowel(word: string, index: number): boolean {
+  const character = word[index] ?? "";
+  if (/[aeiou]/.test(character)) return true;
+  return character === "y" && index > 0 && !isStemVowel(word, index - 1);
 }
 
 export function tokenizePath(path: string): Set<string> {

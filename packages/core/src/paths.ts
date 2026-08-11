@@ -1,6 +1,9 @@
 // Directories that never hold first-party source and can be large enough to exhaust the
 // scan budget on their own. These are skipped in every scan mode.
 export const ALWAYS_IGNORED_DIRS = new Set([".cache", ".git", ".venv", "node_modules"]);
+export const LOCKFILE_NAMES = new Set([
+  "package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"
+]);
 
 // Conventionally generated output. `git ls-files --exclude-standard` already drops these
 // through .gitignore, so a file git still reports from one of them was committed on
@@ -21,6 +24,14 @@ export const GENERATED_DIRS = new Set([
   "dist",
   "target",
   "vendor"
+]);
+
+/** Extensions FixMap reads as source. Shared with task-path extraction so a file cannot
+ * be scannable while remaining impossible to name explicitly in an issue. */
+export const SOURCE_FILE_EXTENSIONS = new Set([
+  ".cjs", ".cs", ".css", ".cts", ".go", ".gradle", ".java", ".js", ".json",
+  ".jsx", ".md", ".mjs", ".mts", ".php", ".py", ".rb", ".rs", ".svelte",
+  ".ts", ".tsx", ".vue", ".yaml", ".yml"
 ]);
 
 // Words that mark a directory as a retired copy rather than maintained source. Matched
@@ -45,7 +56,9 @@ const BACKUP_FILE_PATTERNS = [
   /~$/,
   /\bconflicted copy\b/i,
   /\bconflict(?:ed)?[-_ ]copy\b/i,
-  /[-_ ]copy(?:\s*\(\d+\))?\.[^.]+$/i,
+  // A bare `-copy`/`_copy` is an ordinary module name (`deep-copy.ts`). Sync clients use
+  // a space before "copy", or add a numbered suffix to the hyphen/underscore form.
+  /(?: copy|[-_]copy\s*\(\d+\))\.[^.]+$/i,
   /\s\(\d+\)\.[^.]+$/
 ];
 
@@ -79,14 +92,31 @@ const SOURCE_ROOT_DIRS = new Set(["lib", "source", "src"]);
  * index.js` (stem `supports-color/index`) stays distinct from `source/index.js` (`index`).
  */
 export function moduleStem(path: string): string {
-  return path
-    .replace(/\.[^./]+$/, "")
-    .split("/")
-    .filter((segment) => {
-      const normalized = segment.toLowerCase();
-      return !GENERATED_DIRS.has(normalized) && !SOURCE_ROOT_DIRS.has(normalized);
-    })
-    .join("/");
+  const segments = path.replace(/\.[^./]+$/, "").split("/");
+  const rootIndex = segments.findIndex((segment) => {
+    const normalized = segment.toLowerCase();
+    return GENERATED_DIRS.has(normalized) || SOURCE_ROOT_DIRS.has(normalized);
+  });
+  // Strip exactly one layout root. Removing every `lib`, `src`, or `dist` segment made
+  // `src/foo/lib/index.ts` collide with the unrelated `src/lib/foo/index.ts`.
+  if (rootIndex !== -1) segments.splice(rootIndex, 1);
+  return segments.join("/");
+}
+
+/** Match an explicit task path without letting a nested mention boost a root-level file
+ * that merely shares its basename. A longer mention may omit the repository/package
+ * prefix only when the scanned path itself still contains directory context. */
+export function pathMatchesMention(path: string, mention: string): boolean {
+  const normalizedPath = path.replace(/\\/g, "/").toLowerCase();
+  const normalizedMention = mention.replace(/\\/g, "/").toLowerCase();
+  if (normalizedPath === normalizedMention ||
+    normalizedPath.endsWith(`/${normalizedMention}`) ||
+    (normalizedPath.includes("/") && normalizedMention.endsWith(`/${normalizedPath}`))) return true;
+  if (!normalizedMention.includes("/") && !normalizedMention.includes(".")) {
+    const fileName = normalizedPath.split("/").at(-1) ?? "";
+    return fileName.replace(/\.[^.]+$/, "") === normalizedMention;
+  }
+  return false;
 }
 
 /** True when the path looks like a retired copy: a backup directory, or a tool-left duplicate filename. */

@@ -277,13 +277,13 @@ for (const benchmark of dataset.cases) {
     const row = {
       slug: benchmark.slug,
       mentionsExpectedPath: mention.mentionsExpectedPath,
-      top5: paths,
-      top1: benchmark.expected.includes(paths[0]),
-      top3: benchmark.expected.some((path) => paths.slice(0, 3).includes(path)),
+      top5Paths: paths,
+      top1Hit: benchmark.expected.includes(paths[0]),
+      top3Hit: benchmark.expected.some((path) => paths.slice(0, 3).includes(path)),
       top5Hit: benchmark.expected.some((path) => paths.includes(path))
     };
     perArmResults[arm].push(row);
-    caseRow.arms[arm] = { top5: paths, top1: row.top1, top3: row.top3, top5Hit: row.top5Hit };
+    caseRow.arms[arm] = { top5Paths: paths, top1Hit: row.top1Hit, top3Hit: row.top3Hit, top5Hit: row.top5Hit };
   }
   perCase.push(caseRow);
 }
@@ -294,10 +294,10 @@ function scoreCohort(cohort) {
   const interval = (key) => wilsonInterval(cohort.filter((result) => result[key]).length, cohort.length);
   return {
     cases: cohort.length,
-    top1HitRate: hitRate("top1"),
-    top3HitRate: hitRate("top3"),
+    top1HitRate: hitRate("top1Hit"),
+    top3HitRate: hitRate("top3Hit"),
     top5HitRate: hitRate("top5Hit"),
-    intervals95: { top1: interval("top1"), top3: interval("top3"), top5: interval("top5Hit") }
+    intervals95: { top1: interval("top1Hit"), top3: interval("top3Hit"), top5: interval("top5Hit") }
   };
 }
 
@@ -376,8 +376,8 @@ for (const cohortName of ["all", "unmentioned"]) {
       return [
         arm,
         {
-          top1: mcnemarExact(fixmapRows, pick(arm), "top1"),
-          top3: mcnemarExact(fixmapRows, pick(arm), "top3"),
+          top1: mcnemarExact(fixmapRows, pick(arm), "top1Hit"),
+          top3: mcnemarExact(fixmapRows, pick(arm), "top3Hit"),
           top5: mcnemarExact(fixmapRows, pick(arm), "top5Hit")
         }
       ];

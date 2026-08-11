@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -14,13 +14,16 @@ import {
   renderVerifyMarkdown,
   resolveExclusions,
   scanRepo,
+  stripByteOrderMark,
   validateFixMapReport,
   verifyPlan,
   type FixMapReport
 } from "@aryam/fixmap-core";
 import { renderDoctorReport, runDoctorChecks } from "./doctor.js";
+import { clarifyMissingPath } from "./explain-path.js";
 import {
   buildReportForRepository,
+  isSafeGitRefName,
   tryParseGitHubIssueSource,
   type RepositorySourceDependencies
 } from "./repository-source.js";
@@ -33,11 +36,13 @@ type PlanArguments = {
   base?: string;
   head?: string;
   repo?: string;
+  ref?: string;
   format?: "markdown" | "json";
   limit?: number;
   exclude?: string[];
   workingTree?: boolean;
   includeUntracked?: boolean;
+  noCache?: boolean;
 };
 
 type ExplainArguments = {
@@ -52,6 +57,7 @@ type ExplainArguments = {
   format?: "markdown" | "json";
   workingTree?: boolean;
   includeUntracked?: boolean;
+  noCache?: boolean;
 };
 
 type PlanArgumentsValidation =
@@ -60,6 +66,7 @@ type PlanArgumentsValidation =
 
 type VerifyArguments = {
   report: FixMapReport;
+  reportPath?: string;
   diff?: string;
   base?: string;
   head?: string;
@@ -67,6 +74,7 @@ type VerifyArguments = {
   format?: "markdown" | "json";
   workingTree?: boolean;
   includeUntracked?: boolean;
+  noCache?: boolean;
 };
 
 const PLAN_TOOL = {
@@ -105,6 +113,7 @@ const PLAN_TOOL = {
           "Local path or public GitHub HTTPS repository URL, defaults to the server working directory. " +
           "GitHub URLs support issue-only analysis and are removed after scanning."
       },
+      ref: { type: "string", description: "Branch or tag to scan when repo is a remote GitHub URL" },
       format: {
         type: "string",
         description: "Output format: markdown (default) or json, case-insensitive"
@@ -123,7 +132,8 @@ const PLAN_TOOL = {
           "A .fixmapignore file in the repository is applied as well."
       },
       workingTree: { type: "boolean", description: "Map staged and unstaged tracked changes against HEAD" },
-      includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" }
+      includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" },
+      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" }
     },
     additionalProperties: false
   }
@@ -164,7 +174,8 @@ const EXPLAIN_TOOL = {
         description: "The same exclusion patterns used for the plan"
       },
       limit: { type: "number", description: `Maximum reported context files, 1 to ${MAX_MCP_LIMIT}` },
-      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" },
+      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" }
     },
     required: ["path"],
     additionalProperties: false
@@ -194,7 +205,8 @@ const VERIFY_TOOL = {
       repo: { type: "string", description: "Local repository path, defaults to the server working directory" },
       workingTree: { type: "boolean", description: "Verify staged and unstaged tracked changes against HEAD" },
       includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" },
-      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" },
+      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" }
     },
     required: ["report"],
     additionalProperties: false
@@ -233,7 +245,8 @@ const DOCTOR_TOOL = {
 };
 
 export function createFixMapMcpServer(
-  repositorySourceDependencies: RepositorySourceDependencies = {}
+  repositorySourceDependencies: RepositorySourceDependencies = {},
+  defaultRepo = process.cwd()
 ): Server {
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
@@ -244,6 +257,13 @@ export function createFixMapMcpServer(
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name === COMPARE_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["previous", "current", "format"].includes(key));
+      if (unknown.length > 0) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }]
+        };
+      }
       const previous = loadReportInput(record?.previous, '"previous"');
       if (!previous.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${previous.message}` }] };
       const current = loadReportInput(record?.current, '"current"');
@@ -286,13 +306,14 @@ export function createFixMapMcpServer(
       const args = parsed.value;
       try {
         const repo = await scanRepo({
-          repoRoot: args.repo ?? process.cwd(),
+          repoRoot: args.repo ?? defaultRepo,
           diffSpec: args.diff,
           baseRef: args.base,
           headRef: args.head,
           workingTree: args.workingTree,
           includeUntracked: args.includeUntracked,
-          useCache: true
+          useCache: !args.noCache,
+          internalExclude: args.reportPath ? [resolve(args.reportPath)] : undefined
         });
         const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
         if (diffFailure) {
@@ -329,7 +350,7 @@ export function createFixMapMcpServer(
         };
       }
       try {
-        const repoRoot = args.repo ?? process.cwd();
+        const repoRoot = args.repo ?? defaultRepo;
         const repo = await scanRepo({
           repoRoot,
           diffSpec: args.diff,
@@ -337,9 +358,9 @@ export function createFixMapMcpServer(
           headRef: args.head,
           workingTree: args.workingTree,
           includeUntracked: args.includeUntracked,
-          useCache: true
+          useCache: !args.noCache
         });
-        const explanation = explainFile(
+        const explanation = await clarifyMissingPath(explainFile(
           repo,
           {
             issueText: args.issue,
@@ -348,7 +369,7 @@ export function createFixMapMcpServer(
             limit: args.limit
           },
           args.path
-        );
+        ), repo, args.path);
         const text = args.format === "json"
           ? `${JSON.stringify(explanation, null, 2)}\n`
           : renderExplanationMarkdown(explanation);
@@ -386,14 +407,15 @@ export function createFixMapMcpServer(
     let report: FixMapReport;
     try {
       report = await buildReportForRepository({
-        repo: args.repo,
+        repo: args.repo ?? (tryParseGitHubIssueSource(args.issue ?? "") ? undefined : defaultRepo),
+        checkoutRef: args.ref,
         issueText: args.issue,
         diffSpec: args.diff,
         baseRef: args.base,
         headRef: args.head,
         workingTree: args.workingTree,
         includeUntracked: args.includeUntracked,
-        useCache: true,
+        useCache: !args.noCache,
         limit: args.limit,
         exclude: args.exclude
       }, repositorySourceDependencies);
@@ -433,7 +455,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "format", "limit", "exclude", "workingTree", "includeUntracked"]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return {
@@ -442,14 +464,16 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
     };
   }
 
-  for (const name of ["issue", "diff", "base", "head", "repo"] as const) {
+  for (const name of ["issue", "diff", "base", "head", "repo", "ref"] as const) {
     const value = record[name];
     if (value !== undefined && typeof value !== "string") {
       return { success: false, message: `"${name}" must be a string.` };
     }
   }
-  if (record.issue !== undefined && typeof record.issue === "string" && !record.issue.trim()) return { success: false, message: '"issue" must not be blank.' };
-  for (const name of ["workingTree", "includeUntracked"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
+  for (const name of ["issue", "diff", "base", "head", "repo", "ref"] as const) {
+    if (typeof record[name] === "string" && !record[name].trim()) return { success: false, message: `"${name}" must not be blank.` };
+  }
+  for (const name of ["workingTree", "includeUntracked", "noCache"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
   if (record.includeUntracked === true && record.workingTree !== true) return { success: false, message: '"includeUntracked" requires "workingTree".' };
   if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
   if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
@@ -465,7 +489,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const value: PlanArguments = {};
-  for (const name of ["issue", "diff", "base", "head", "repo"] as const) {
+  for (const name of ["issue", "diff", "base", "head", "repo", "ref"] as const) {
     const candidate = record[name];
     if (typeof candidate === "string" && candidate.trim()) {
       value[name] = candidate.trim();
@@ -480,6 +504,13 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
   if (record.workingTree === true) value.workingTree = true;
   if (record.includeUntracked === true) value.includeUntracked = true;
+  if (record.noCache === true) value.noCache = true;
+  if (value.ref && !/^https?:\/\//i.test(value.repo ?? "") && !tryParseGitHubIssueSource(value.issue ?? "")) {
+    return { success: false, message: '"ref" requires a remote GitHub "repo" or issue URL.' };
+  }
+  if (value.ref && !isSafeGitRefName(value.ref)) {
+    return { success: false, message: '"ref" must be a safe branch or tag name.' };
+  }
   if (value.issue && /^https?:\/\/\S+$/i.test(value.issue) && !tryParseGitHubIssueSource(value.issue)) return { success: false, message: '"issue" URL must be a canonical public GitHub issue or pull request URL.' };
   return { success: true, value };
 }
@@ -520,7 +551,7 @@ export function parseExplainArguments(
     return { success: false, message: "tool arguments must be an object." };
   }
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["path", "issue", "diff", "base", "head", "repo", "exclude", "format", "limit", "workingTree", "includeUntracked"]);
+  const allowed = new Set(["path", "issue", "diff", "base", "head", "repo", "exclude", "format", "limit", "workingTree", "includeUntracked", "noCache"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
@@ -531,7 +562,12 @@ export function parseExplainArguments(
       return { success: false, message: `"${name}" must be a string.` };
     }
   }
-  for (const name of ["workingTree", "includeUntracked"] as const) {
+  for (const name of ["issue", "diff", "base", "head", "repo"] as const) {
+    if (typeof record[name] === "string" && !record[name].trim()) {
+      return { success: false, message: `"${name}" must not be blank.` };
+    }
+  }
+  for (const name of ["workingTree", "includeUntracked", "noCache"] as const) {
     if (record[name] !== undefined && typeof record[name] !== "boolean") {
       return { success: false, message: `"${name}" must be a boolean.` };
     }
@@ -540,6 +576,10 @@ export function parseExplainArguments(
   if (!path) {
     return { success: false, message: '"path" is required and must be a repository-relative file path.' };
   }
+  if (record.includeUntracked === true && record.workingTree !== true) return { success: false, message: '"includeUntracked" requires "workingTree".' };
+  if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
+  if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
+  if (record.head && !record.base) return { success: false, message: '"head" requires "base".' };
   const format = normalizeFormat(record.format); if (!format.success) return format;
   const limit = validateLimit(record.limit); if (!limit.success) return limit;
   const exclude = validateExclude(record.exclude);
@@ -557,6 +597,7 @@ export function parseExplainArguments(
       ...(typeof record.head === "string" && record.head.trim() ? { head: record.head.trim() } : {}),
       ...(record.workingTree === true ? { workingTree: true } : {}),
       ...(record.includeUntracked === true ? { includeUntracked: true } : {}),
+      ...(record.noCache === true ? { noCache: true } : {}),
       ...(typeof record.repo === "string" && record.repo.trim() ? { repo: record.repo.trim() } : {}),
       ...(exclude.value.length > 0 ? { exclude: exclude.value } : {}),
       ...(limit.value !== undefined ? { limit: limit.value } : {}),
@@ -574,7 +615,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
     return { success: false, message: "tool arguments must be an object." };
   }
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["report", "diff", "base", "head", "repo", "format", "workingTree", "includeUntracked"]);
+  const allowed = new Set(["report", "diff", "base", "head", "repo", "format", "workingTree", "includeUntracked", "noCache"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
@@ -593,7 +634,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
   if (!record.diff && !record.base && record.workingTree !== true) {
     return { success: false, message: 'provide "diff", "base"/"head", or "workingTree" so FixMap can see what changed.' };
   }
-  for (const name of ["workingTree", "includeUntracked"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
+  for (const name of ["workingTree", "includeUntracked", "noCache"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
   if (record.includeUntracked === true && record.workingTree !== true) return { success: false, message: '"includeUntracked" requires "workingTree".' };
   if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
   if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
@@ -603,12 +644,14 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
     success: true,
     value: {
       report,
+      ...(loaded.sourcePath ? { reportPath: loaded.sourcePath } : {}),
       ...(typeof record.diff === "string" ? { diff: record.diff.trim() } : {}),
       ...(typeof record.base === "string" ? { base: record.base.trim() } : {}),
       ...(typeof record.head === "string" ? { head: record.head.trim() } : {}),
       ...(typeof record.repo === "string" ? { repo: record.repo.trim() } : {}),
       ...(record.workingTree === true ? { workingTree: true } : {}),
       ...(record.includeUntracked === true ? { includeUntracked: true } : {}),
+      ...(record.noCache === true ? { noCache: true } : {}),
       ...(format.value ? { format: format.value } : {})
     }
   };
@@ -617,12 +660,12 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
 function normalizeFormat(candidate: unknown): { success: true; value: "markdown" | "json" | undefined } | { success: false; message: string } {
   if (candidate === undefined) return { success: true, value: undefined };
   if (typeof candidate !== "string") return { success: false, message: '"format" must be either "markdown" or "json".' };
-  const value = candidate.toLowerCase();
+  const value = candidate.trim().toLowerCase();
   return value === "markdown" || value === "json" ? { success: true, value } : { success: false, message: '"format" must be either "markdown" or "json".' };
 }
 
 type LoadedReport =
-  | { success: true; report: FixMapReport }
+  | { success: true; report: FixMapReport; sourcePath?: string }
   | { success: false; message: string };
 
 /**
@@ -639,7 +682,7 @@ function loadReportInput(input: unknown, label: string): LoadedReport {
     }
     let contents: string;
     try {
-      contents = readFileSync(path, "utf8");
+      contents = stripByteOrderMark(readFileSync(path, "utf8"));
     } catch (error) {
       return {
         success: false,
@@ -655,7 +698,8 @@ function loadReportInput(input: unknown, label: string): LoadedReport {
         message: `${label} pointed at ${path}, which is not valid JSON: ${error instanceof Error ? error.message : String(error)}.`
       };
     }
-    return asFixMapReport(parsed, `the JSON in ${path}`);
+    const loaded = asFixMapReport(parsed, `the JSON in ${path}`);
+    return loaded.success ? { ...loaded, sourcePath: resolve(path) } : loaded;
   }
   return asFixMapReport(input, label);
 }
@@ -664,8 +708,8 @@ function asFixMapReport(candidate: unknown, label: string): LoadedReport {
   return validateFixMapReport(candidate, label);
 }
 
-export async function runMcpServer(): Promise<void> {
-  await createFixMapMcpServer().connect(new StdioServerTransport());
+export async function runMcpServer(defaultRepo = process.cwd()): Promise<void> {
+  await createFixMapMcpServer({}, defaultRepo).connect(new StdioServerTransport());
 }
 
 function readVersion(): string {

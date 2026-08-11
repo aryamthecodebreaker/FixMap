@@ -12,7 +12,7 @@
 
 import type { RepoFile, RepoMap } from "./types.js";
 
-export type PrimaryLanguage = "node" | "python" | "go" | "rust" | "unknown";
+export type PrimaryLanguage = "node" | "python" | "go" | "rust" | "ruby" | "php" | "java" | "dotnet" | "unknown";
 
 /** Root manifests, in the sense of "the file this toolchain requires at the top level". */
 const ROOT_MANIFESTS: Readonly<Record<string, PrimaryLanguage>> = {
@@ -26,7 +26,12 @@ const ROOT_MANIFESTS: Readonly<Record<string, PrimaryLanguage>> = {
   // reads as a guess when the root was in fact explicit.
   "requirements.txt": "python",
   "pipfile": "python",
-  "package.json": "node"
+  "package.json": "node",
+  "gemfile": "ruby",
+  "composer.json": "php",
+  "pom.xml": "java",
+  "build.gradle": "java",
+  "build.gradle.kts": "java"
 };
 
 const EXTENSION_LANGUAGES: Readonly<Record<string, PrimaryLanguage>> = {
@@ -38,7 +43,11 @@ const EXTENSION_LANGUAGES: Readonly<Record<string, PrimaryLanguage>> = {
   ".js": "node",
   ".jsx": "node",
   ".mjs": "node",
-  ".cjs": "node"
+  ".cjs": "node",
+  ".rb": "ruby",
+  ".php": "php",
+  ".java": "java",
+  ".cs": "dotnet"
 };
 
 export type LanguageDetection = {
@@ -95,7 +104,7 @@ function rootManifestLanguages(files: RepoFile[]): Map<PrimaryLanguage, string> 
     if (file.path.includes("/")) {
       continue;
     }
-    const language = ROOT_MANIFESTS[file.path.toLowerCase()];
+    const language = languageForManifest(file.path.toLowerCase());
     if (language && !found.has(language)) {
       found.set(language, file.path);
     }
@@ -121,7 +130,7 @@ export function nearestManifest(
   const candidates = files
     .filter((file) => {
       const name = file.path.split("/").pop()?.toLowerCase() ?? "";
-      return ROOT_MANIFESTS[name] === language;
+      return languageForManifest(name) === language;
     })
     .sort((a, b) =>
       a.path.split("/").length - b.path.split("/").length || a.path.localeCompare(b.path)
@@ -186,12 +195,33 @@ export function manifestTestCommand(
     return { command: "go test ./...", reason: "go.mod at the repository root" };
   }
   if (language === "rust") {
-    return packageDir
-      ? {
-        command: `cargo test --manifest-path ${packageDir}/Cargo.toml`,
-        reason: `nearest crate (${packageDir}) declared by Cargo.toml`
-      }
+    const requestedManifest = packageDir
+      ? files.find((file) => file.path.toLowerCase() === `${packageDir}/cargo.toml`.toLowerCase())
+      : undefined;
+    const manifest = requestedManifest
+      ? { path: requestedManifest.path, packageDir }
+      : nearestManifest(files, "rust");
+    if (!manifest) return { command: "cargo test", reason: "Rust source files; no Cargo.toml was found" };
+    return manifest.packageDir
+      ? { command: `cargo test --manifest-path ${manifest.path}`, reason: `nearest crate (${manifest.packageDir}) declared by ${manifest.path}` }
       : { command: "cargo test", reason: "Cargo.toml at the repository root" };
+  }
+  const manifest = nearestManifest(files, language);
+  if (language === "ruby" && manifest) {
+    return { command: "bundle exec rspec", reason: `${manifest.path} declares the Ruby bundle` };
+  }
+  if (language === "php" && manifest) {
+    return { command: "composer test", reason: `${manifest.path} declares Composer scripts` };
+  }
+  if (language === "java" && manifest) {
+    return manifest.path.toLowerCase().endsWith("pom.xml")
+      ? { command: "mvn test", reason: `${manifest.path} declares a Maven project` }
+      : { command: "./gradlew test", reason: `${manifest.path} declares a Gradle project` };
+  }
+  if (language === "dotnet") {
+    return manifest
+      ? { command: `dotnet test${manifest.packageDir ? ` ${manifest.path}` : ""}`, reason: `${manifest.path} declares a .NET project` }
+      : { command: "dotnet test", reason: ".NET source files; no project file was found" };
   }
   return undefined;
 }
@@ -202,13 +232,17 @@ export function suggestedRunner(language: PrimaryLanguage, files: RepoFile[]): s
     // Matching on the basename rather than the full path: a repository whose only manifest
     // is `svc/pyproject.toml` configures pytest exactly as much as one that keeps it at the
     // root, and the vaguer "pytest or unittest" was hedging against nothing.
-    const names = new Set(
-      files.map((file) => file.path.split("/").pop()?.toLowerCase() ?? "")
-    );
-    if (names.has("tox.ini")) {
+    const configs = files
+      .filter((file) => ["tox.ini", "pytest.ini", "pyproject.toml", "setup.cfg"].includes(file.path.split("/").pop()?.toLowerCase() ?? ""))
+      .sort((a, b) =>
+        a.path.split("/").length - b.path.split("/").length ||
+        Number((b.path.split("/").pop()?.toLowerCase() ?? "") === "tox.ini") - Number((a.path.split("/").pop()?.toLowerCase() ?? "") === "tox.ini") ||
+        a.path.localeCompare(b.path));
+    const nearest = configs[0]?.path.split("/").pop()?.toLowerCase();
+    if (nearest === "tox.ini") {
       return "tox";
     }
-    if (names.has("pytest.ini") || names.has("pyproject.toml") || names.has("setup.cfg")) {
+    if (nearest) {
       return "pytest";
     }
     return "pytest or unittest";
@@ -219,5 +253,14 @@ export function suggestedRunner(language: PrimaryLanguage, files: RepoFile[]): s
   if (language === "rust") {
     return "cargo test";
   }
+  if (language === "ruby") return "bundle exec rspec";
+  if (language === "php") return "composer test or vendor/bin/phpunit";
+  if (language === "java") return "mvn test or ./gradlew test";
+  if (language === "dotnet") return "dotnet test";
   return undefined;
+}
+
+function languageForManifest(path: string): PrimaryLanguage | undefined {
+  const name = path.split("/").pop()?.toLowerCase() ?? path.toLowerCase();
+  return ROOT_MANIFESTS[name] ?? (/\.(?:csproj|fsproj|vbproj)$/.test(name) ? "dotnet" : undefined);
 }

@@ -113,6 +113,8 @@ describe("compareReports", () => {
     const comparison = compareReports(previous, current);
 
     expect(comparison.groundingChanged).toBe(true);
+    expect(comparison.summary).toBe("The ranking is unchanged, but task grounding changed from vague to anchored.");
+    expect(comparison.summary).not.toContain("changed nothing");
     expect(renderComparisonMarkdown(comparison)).toContain("vague");
     expect(renderComparisonMarkdown(comparison)).toContain("anchored");
   });
@@ -127,5 +129,54 @@ describe("compareReports", () => {
     expect(markdown).toContain("## Entered");
     expect(markdown).toContain("`b.ts`");
     expect(markdown).toContain("confidence medium to high");
+  });
+
+  it("renders compatible legacy entries without leaking undefined values", () => {
+    const legacy = (paths: string[]) => ({
+      summary: "",
+      contextFiles: paths.map((path) => ({ path })),
+      testRoutes: [],
+      risks: [],
+      changedFiles: [],
+      diagnostics: []
+    }) as unknown as FixMapReport;
+
+    const entered = renderComparisonMarkdown(compareReports(legacy(["a.ts"]), legacy(["a.ts", "b.ts"])));
+    const moved = renderComparisonMarkdown(compareReports(legacy(["a.ts", "b.ts"]), legacy(["b.ts", "a.ts"])));
+
+    expect(entered).toContain("`b.ts` at rank 2");
+    expect(moved).toContain("rose from rank 2 to 1");
+    expect(entered).not.toContain("undefined");
+    expect(moved).not.toContain("undefined");
+  });
+
+  it("does not invent a grounding delta when only one report has grounding metadata", () => {
+    const legacy = reportOf([{ path: "a.ts" }]);
+    const current = reportOf([{ path: "a.ts" }]);
+    current.analysis = {
+      grounding: {
+        specificity: "descriptive",
+        identifiers: [],
+        unresolvedIdentifiers: [],
+        partiallyResolvedIdentifiers: [],
+        unverifiedIdentifiers: [],
+        scanComplete: true
+      },
+      ranking: { topScore: 10, runnerUpScore: null, topGap: null, clustered: false },
+      nextAction: ""
+    };
+
+    const comparison = compareReports(legacy, current);
+
+    expect(comparison.groundingChanged).toBe(false);
+    expect(comparison.summary).toContain("predates grounding analysis");
+  });
+
+  it("rejects duplicate ranked paths instead of silently collapsing buckets", () => {
+    const duplicate = reportOf([{ path: "a.ts" }, { path: "a.ts" }]);
+
+    expect(() => compareReports(duplicate, reportOf([{ path: "a.ts" }]))).toThrow(
+      "Previous report has a duplicate contextFiles path: a.ts"
+    );
   });
 });

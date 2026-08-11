@@ -61,17 +61,17 @@ export default function DemoPage() {
             <h3>Agent</h3>
             <p>I should get a focused map before searching blindly.</p>
             <p><strong>Calls <code>fixmap_plan</code>:</strong></p>
-            <pre><code>{`{
+            <pre tabIndex={0}><code>{`{
   "issue": "${agentTask}",
   "limit": 3
 }`}</code></pre>
 
             <h3>FixMap</h3>
-            <pre><code>{agentPlanOutput}</code></pre>
+            <pre tabIndex={0}><code>{agentPlanOutput}</code></pre>
 
             <h3>Agent edits carefully</h3>
             <p>The agent opens the leading files, confirms the evidence, and adds a bounded SMTP connection timeout:</p>
-            <pre><code>{`// Before
+            <pre tabIndex={0}><code>{`// Before
 const transport = createTransport({ host: config.smtpHost, port: config.smtpPort });
 
 // After
@@ -83,16 +83,16 @@ const transport = createTransport({
             <p>The configuration and related reset-email test are updated too.</p>
 
             <p><strong>Calls <code>fixmap_verify</code>:</strong></p>
-            <pre><code>{`{
+            <pre tabIndex={0}><code>{`{
   "report": { "...": "the previous FixMap JSON plan" },
   "diff": "main...HEAD"
 }`}</code></pre>
 
             <h3>FixMap</h3>
-            <pre><code>{agentVerificationOutput}</code></pre>
+            <pre tabIndex={0}><code>{agentVerificationOutput}</code></pre>
 
             <h3>Agent proves the fix</h3>
-            <pre><code>npm run test</code></pre>
+            <pre tabIndex={0}><code>npm run test</code></pre>
             <p>After the test passes, the agent reports the cause, the code change, and the validation result.</p>
           </article>
 

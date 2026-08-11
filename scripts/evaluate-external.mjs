@@ -40,7 +40,9 @@ const dataset = JSON.parse(await readFile(join(suiteDir, "dataset.json"), "utf8"
 
 // Floors exist to catch ranking collapses in the scheduled run; they are
 // deliberately below measured performance and must not be treated as targets.
-const FLOORS = { top1: 0.3, top3: 0.5, top5: 0.5 };
+const FLOORS = suite === "heldout"
+  ? { all: { top1: 0.5, top3: 0.583, top5: 0.667 }, unmentioned: { top1: 0.333, top3: 0.444, top5: 0.556 } }
+  : { all: { top1: 0.625, top3: 0.937, top5: 0.937 }, unmentioned: { top1: 0.615, top3: 0.923, top5: 0.923 } };
 
 const results = [];
 for (const benchmark of dataset.cases) {
@@ -56,10 +58,10 @@ for (const benchmark of dataset.cases) {
     slug: benchmark.slug,
     issue: benchmark.issue,
     expected: benchmark.expected,
-    top5: paths,
+    top5Paths: paths,
     topConfidence: ranked[0]?.confidence ?? null,
-    top1: benchmark.expected.includes(paths[0]),
-    top3: benchmark.expected.some((path) => paths.slice(0, 3).includes(path)),
+    top1Hit: benchmark.expected.includes(paths[0]),
+    top3Hit: benchmark.expected.some((path) => paths.slice(0, 3).includes(path)),
     top5Hit: benchmark.expected.some((path) => paths.includes(path)),
     // Derived every run from the same task text the ranker reads, never stored in the
     // dataset, so the cohort split cannot drift away from the case it describes.
@@ -83,7 +85,7 @@ const band = (key) => {
 // A top-3 hit still wastes an agent's first move when something wrong ranks above the
 // answer. Counting those separately keeps the headline rates from hiding the case where
 // FixMap had the right file and buried it.
-const misleadingCases = results.filter((result) => result.top5Hit && !result.top1);
+const misleadingCases = results.filter((result) => result.top5Hit && !result.top1Hit);
 
 // Calibration answers the question a confidence label is supposed to answer:
 // when FixMap says it is confident about the leading file, is that file the one
@@ -96,11 +98,11 @@ const calibration = ["high", "medium", "low"].map((confidence) => {
   return {
     confidence,
     cases: band.length,
-    top1Correct: band.filter((result) => result.top1).length,
+    top1Correct: band.filter((result) => result.top1Hit).length,
     top1Accuracy: band.length === 0
       ? null
-      : Number((band.filter((result) => result.top1).length / band.length).toFixed(3)),
-    interval95: wilsonInterval(band.filter((result) => result.top1).length, band.length)
+      : Number((band.filter((result) => result.top1Hit).length / band.length).toFixed(3)),
+    interval95: wilsonInterval(band.filter((result) => result.top1Hit).length, band.length)
   };
 });
 
@@ -115,10 +117,10 @@ function scoreCohort(cohort) {
   const interval = (key) => wilsonInterval(cohort.filter((result) => result[key]).length, cohort.length);
   return {
     cases: cohort.length,
-    top1HitRate: hitRate("top1"),
-    top3HitRate: hitRate("top3"),
+    top1HitRate: hitRate("top1Hit"),
+    top3HitRate: hitRate("top3Hit"),
     top5HitRate: hitRate("top5Hit"),
-    intervals95: { top1: interval("top1"), top3: interval("top3"), top5: interval("top5Hit") },
+    intervals95: { top1: interval("top1Hit"), top3: interval("top3Hit"), top5: interval("top5Hit") },
     slugs: cohort.map((result) => result.slug)
   };
 }
@@ -132,12 +134,12 @@ const cohorts = {
 
 const summary = {
   cases: results.length,
-  top1HitRate: Number(rate("top1").toFixed(3)),
-  top3HitRate: Number(rate("top3").toFixed(3)),
+  top1HitRate: Number(rate("top1Hit").toFixed(3)),
+  top3HitRate: Number(rate("top3Hit").toFixed(3)),
   top5HitRate: Number(rate("top5Hit").toFixed(3)),
   intervals95: {
-    top1: band("top1").interval95,
-    top3: band("top3").interval95,
+    top1: band("top1Hit").interval95,
+    top3: band("top3Hit").interval95,
     top5: band("top5Hit").interval95
   },
   misleadingTopResult: {
@@ -177,12 +179,17 @@ if (process.argv.includes("--check-recorded")) {
 
 if (
   process.argv.includes("--gate") &&
-  (summary.top1HitRate < FLOORS.top1 ||
-    summary.top3HitRate < FLOORS.top3 ||
-    summary.top5HitRate < FLOORS.top5)
+  (summary.top1HitRate < FLOORS.all.top1 ||
+    summary.top3HitRate < FLOORS.all.top3 ||
+    summary.top5HitRate < FLOORS.all.top5 ||
+    (summary.cohorts.unmentioned.top1HitRate ?? 0) < FLOORS.unmentioned.top1 ||
+    (summary.cohorts.unmentioned.top3HitRate ?? 0) < FLOORS.unmentioned.top3 ||
+    (summary.cohorts.unmentioned.top5HitRate ?? 0) < FLOORS.unmentioned.top5)
 ) {
   process.stderr.write(
-    `${suiteLabel} fell below regression floors: measured top-1=${summary.top1HitRate}, top-3=${summary.top3HitRate}, top-5=${summary.top5HitRate}; required top-1>=${FLOORS.top1}, top-3>=${FLOORS.top3}, top-5>=${FLOORS.top5}.\n`
+    `${suiteLabel} fell below regression floors in the pooled or unmentioned cohort: ` +
+    `pooled top-1=${summary.top1HitRate}, top-3=${summary.top3HitRate}, top-5=${summary.top5HitRate}; ` +
+    `unmentioned top-1=${summary.cohorts.unmentioned.top1HitRate}, top-3=${summary.cohorts.unmentioned.top3HitRate}, top-5=${summary.cohorts.unmentioned.top5HitRate}.\n`
   );
   failed = true;
 }

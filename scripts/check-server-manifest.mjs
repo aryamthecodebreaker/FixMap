@@ -37,6 +37,18 @@ if (!npmPackage) {
     `server npm package version ${npmPackage.version} must match CLI version ${cli.version}`
   );
 }
+if (npmPackage) {
+  if (npmPackage.transport?.type !== "stdio") {
+    errors.push("server npm package transport.type must be stdio");
+  }
+  const positional = npmPackage.packageArguments?.filter((argument) => argument?.type === "positional");
+  if (!Array.isArray(positional) || positional.length !== 1 || positional[0]?.value !== "mcp") {
+    errors.push('server npm package must launch the positional "mcp" command');
+  }
+}
+if (typeof server.repository?.url !== "string" || !/^https:\/\/github\.com\/[^/]+\/[^/]+\/?$/i.test(server.repository.url)) {
+  errors.push("server repository.url must be a canonical non-empty GitHub HTTPS URL");
+}
 
 if (errors.length > 0) {
   for (const error of errors) {

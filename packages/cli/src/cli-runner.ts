@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { realpath, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   compareReports,
   explainFile,
+  quoteCliValue as formatCliValue,
   renderComparisonMarkdown,
   renderExplanationMarkdown,
   renderJsonReport,
@@ -13,12 +15,16 @@ import {
   verifyPlan,
   renderMarkdownReport,
   scanRepo,
+  stripByteOrderMark,
   validateFixMapReport,
   type FixMapReport
 } from "@aryam/fixmap-core";
 import { runDoctorChecks, renderDoctorReport, type DoctorReport } from "./doctor.js";
+import { installAgentCommands, renderFeatureCatalog, type AgentTarget } from "./agent-setup.js";
+import { clarifyMissingPath } from "./explain-path.js";
 import {
   buildReportForRepository,
+  isSafeGitRefName,
   parseGitHubIssueSource,
   progressRequested,
   tryParseGitHubIssueSource,
@@ -33,12 +39,14 @@ export type CliOptions = {
   diffSpec?: string | undefined;
   baseRef?: string | undefined;
   headRef?: string | undefined;
+  checkoutRef?: string | undefined;
   format: "markdown" | "json";
   output?: string | undefined;
   explainPath?: string | undefined;
   reportPath?: string | undefined;
   comparePath?: string | undefined;
   limit?: number | undefined;
+  failOn?: "error" | "warning" | undefined;
   exclude: string[];
   workingTree: boolean;
   includeUntracked: boolean;
@@ -50,7 +58,7 @@ export type CliOptions = {
 export type CliDependencies = {
   buildReport?: (input: RepositoryPlanInput) => Promise<FixMapReport>;
   readVersion?: () => string;
-  runMcpServer?: () => Promise<void>;
+  runMcpServer?: (defaultRepo?: string) => Promise<void>;
   runDoctor?: () => Promise<DoctorReport>;
   stderr?: (text: string) => void;
   stdout?: (text: string) => void;
@@ -69,20 +77,29 @@ Usage:
   fixmap plan --issue-file task.md
   fixmap plan --issue -
   fixmap plan --issue "Fix login" --repo https://github.com/owner/repository
+  fixmap plan --issue "Fix login" --repo https://github.com/owner/repository --ref release-2.x
   fixmap plan --diff main...HEAD
   fixmap plan --working-tree --include-untracked --limit 12 --exclude "docs/**"
+  fixmap plan --no-cache --issue "Fix login" --repo .
   fixmap plan --issue "Fix login" --format json --output plan.json
   fixmap plan --issue "Fix login in auth middleware" --compare plan.json
   fixmap plan --base main --head HEAD --format json
   fixmap verify --report plan.json --diff main...HEAD
   fixmap verify --report plan.json --working-tree
+  fixmap verify --report plan.json --working-tree --fail-on warning
   fixmap doctor --format json
-  fixmap mcp
+  fixmap validate plan.json
+  fixmap features
+  fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>]
+  fixmap mcp [--repo <path>]
 
 Commands:
   plan                Generate a FixMap report for a task or diff
   verify              Compare a saved report against the diff that followed it
   doctor              Check the FixMap install for stale global or npx shadows
+  validate            Validate a saved FixMap JSON report
+  features            List every FixMap capability and its command
+  setup               Install a discoverable /fixmap command for coding agents
   mcp                 Run FixMap as an MCP server over stdio for AI coding agents
 
 Options:
@@ -95,6 +112,7 @@ Options:
   --include-untracked With --working-tree, also include untracked files
   --no-cache          Bypass the exact git-state repository scan cache
   --repo <source>     Local path or public GitHub HTTPS URL (defaults to current directory)
+  --ref <branch|tag>  Branch or tag to scan when --repo is a remote GitHub URL
   --limit <n>         Maximum context files to report (default 8, max 20)
   --exclude <glob>    Path pattern to leave out of ranking (repeatable)
   --format <fmt>      Output format: markdown (default) or json
@@ -102,16 +120,22 @@ Options:
   --explain <path>    Explain why one file was ranked where it was, or left out
   --compare <file>    Compare this plan against an earlier JSON report
   --report <file>     Verify command only: the JSON report the change was planned from
+  --fail-on <level>   Verify exit policy: error (default) or warning
   --help, -h          Show this help
   --version, -v       Show the FixMap version
 
 A repository may also list exclusion patterns in .fixmapignore, one per line. Supported
-syntax is *, **, ?, root-leading /, directory-trailing /, comments, and ! negation.
+syntax is *, **, ?, repository-root-leading /, directory-trailing /, comments, and ! negation.
+Absolute paths pasted from inside the repository are normalized to repository-relative patterns.
 Set FIXMAP_PROGRESS=1 to print scan and clone phases to stderr.
+Set FIXMAP_CACHE_DIR to move the OS scan cache, and FIXMAP_VERBOSE_USAGE=1 to include this full help after argument errors.
 `;
 
 const DOCTOR_USAGE = `Usage: fixmap doctor [--format markdown|json]\n\nChecks the running FixMap binary, PATH/global shadows, and known install blind spots.\n`;
-const MCP_USAGE = `Usage: fixmap mcp\n\nRuns the FixMap MCP server over stdio. Configure your MCP client to execute \"fixmap mcp\".\n`;
+const MCP_USAGE = `Usage: fixmap mcp [--repo <path>]\n\nRuns the FixMap MCP server over stdio. --repo sets the default local repository for tool calls that omit repo.\n`;
+const FEATURES_USAGE = `Usage: fixmap features [--format markdown|json]\n\nLists every FixMap capability and the command that exposes it.\n`;
+const SETUP_USAGE = `Usage: fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>] [--force]\n\nInstalls a /fixmap command that lists and runs FixMap workflows.\n`;
+const VALIDATE_USAGE = `Usage: fixmap validate <report.json> [--format markdown|json]\n\nChecks a saved report against FixMap's structural compatibility contract.\n`;
 
 export async function runCli(args: string[], dependencies: CliDependencies = {}): Promise<number> {
   const stdout = dependencies.stdout ?? ((text: string) => process.stdout.write(text));
@@ -128,18 +152,172 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 0;
   }
   if (args[0] === "version" || args[0] === "--version" || args[0] === "-v") {
-    stdout(`${(dependencies.readVersion ?? readVersion)()}\n`);
-    return 0;
+    try {
+      stdout(`${(dependencies.readVersion ?? readVersion)()}\n`);
+      return 0;
+    } catch (error) {
+      stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
   }
   if (args[0] === "mcp") {
     if (args[1] === "--help" || args[1] === "-h") { stdout(MCP_USAGE); return 0; }
-    if (args.length > 1) { stderr(`mcp takes no options.\n\n${MCP_USAGE}`); return 1; }
+    const mcpArgs = args.slice(1);
+    let defaultRepo: string | undefined;
+    if (mcpArgs.length === 1 && mcpArgs[0]?.startsWith("--repo=")) {
+      defaultRepo = mcpArgs[0].slice("--repo=".length).trim();
+    } else if (mcpArgs.length === 2 && mcpArgs[0] === "--repo") {
+      defaultRepo = mcpArgs[1]?.trim();
+    } else if (mcpArgs.length > 0) {
+      stderr(`mcp accepts only --repo <path>.\n\n${MCP_USAGE}`);
+      return 1;
+    }
+    if (defaultRepo !== undefined && !defaultRepo) {
+      stderr(`--repo needs a non-blank local path.\n\n${MCP_USAGE}`);
+      return 1;
+    }
+    if (defaultRepo && /^https?:\/\//i.test(defaultRepo)) {
+      stderr(`mcp --repo needs a local checkout, not a remote URL.\n\n${MCP_USAGE}`);
+      return 1;
+    }
     const runMcpServer = dependencies.runMcpServer ?? (async () => {
       const module = await import("./mcp.js");
-      await module.runMcpServer();
+      await module.runMcpServer(defaultRepo);
     });
-    await runMcpServer();
+    await runMcpServer(defaultRepo);
     return 0;
+  }
+
+  if (args[0] === "features") {
+    const featureArgs = args.slice(1);
+    if (featureArgs[0] === "--help" || featureArgs[0] === "-h") { stdout(FEATURES_USAGE); return 0; }
+    let format: "markdown" | "json" = "markdown";
+    if (featureArgs.length > 0) {
+      const value = featureArgs.length === 2 && featureArgs[0] === "--format"
+        ? featureArgs[1]
+        : featureArgs.length === 1
+          ? featureArgs[0]?.match(/^--format=(.+)$/)?.[1]
+          : undefined;
+      const normalized = value?.trim().toLowerCase();
+      if (normalized !== "markdown" && normalized !== "json") {
+        stderr('features accepts only --format markdown or --format json.\n');
+        return 1;
+      }
+      format = normalized;
+    }
+    stdout(renderFeatureCatalog(format));
+    return 0;
+  }
+
+  if (args[0] === "setup") {
+    if (args[1] === "--help" || args[1] === "-h") { stdout(SETUP_USAGE); return 0; }
+    let repoRoot = process.cwd();
+    let targets: AgentTarget[] = ["claude", "cursor", "copilot", "agents"];
+    let force = false;
+    let repoSeen = false;
+    let agentSeen = false;
+    for (let index = 1; index < args.length; index += 1) {
+      const arg = args[index];
+      if (arg === "--force") { force = true; continue; }
+      if (arg?.startsWith("--repo=")) {
+        if (repoSeen) { stderr(`Pass --repo only once.\n\n${SETUP_USAGE}`); return 1; }
+        const value = arg.slice("--repo=".length).trim();
+        if (!value) { stderr(`--repo requires a directory.\n\n${SETUP_USAGE}`); return 1; }
+        repoRoot = expandHomePath(value);
+        repoSeen = true;
+        continue;
+      }
+      if (arg === "--repo") {
+        if (repoSeen) { stderr(`Pass --repo only once.\n\n${SETUP_USAGE}`); return 1; }
+        const value = args[index + 1];
+        if (!value?.trim() || value.startsWith("--")) { stderr(`--repo requires a directory.\n\n${SETUP_USAGE}`); return 1; }
+        repoRoot = expandHomePath(value.trim());
+        repoSeen = true;
+        index += 1;
+        continue;
+      }
+      if (arg?.startsWith("--agent=")) {
+        if (agentSeen) { stderr(`Pass --agent only once.\n\n${SETUP_USAGE}`); return 1; }
+        const value = arg.slice("--agent=".length).trim().toLowerCase();
+        if (!["claude", "cursor", "copilot", "agents", "all"].includes(value)) {
+          stderr(`--agent must be claude, cursor, copilot, agents, or all.\n\n${SETUP_USAGE}`);
+          return 1;
+        }
+        targets = value === "all" ? ["claude", "cursor", "copilot", "agents"] : [value as AgentTarget];
+        agentSeen = true;
+        continue;
+      }
+      if (arg === "--agent") {
+        if (agentSeen) { stderr(`Pass --agent only once.\n\n${SETUP_USAGE}`); return 1; }
+        const value = args[index + 1]?.trim().toLowerCase();
+        if (!value || !["claude", "cursor", "copilot", "agents", "all"].includes(value)) {
+          stderr(`--agent must be claude, cursor, copilot, agents, or all.\n\n${SETUP_USAGE}`);
+          return 1;
+        }
+        targets = value === "all" ? ["claude", "cursor", "copilot", "agents"] : [value as AgentTarget];
+        agentSeen = true;
+        index += 1;
+        continue;
+      }
+      stderr(`Unknown setup option: ${arg}\n\n${SETUP_USAGE}`);
+      return 1;
+    }
+    try {
+      const installed = await installAgentCommands({ repoRoot, targets, force });
+      stdout(`${installed.map((entry) => `${entry.status}: ${entry.path}`).join("\n")}\n\nType /fixmap in a supported agent to open the full FixMap feature menu.\n`);
+      return 0;
+    } catch (error) {
+      stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
+
+  if (args[0] === "validate") {
+    if (args[1] === "--help" || args[1] === "-h") { stdout(VALIDATE_USAGE); return 0; }
+    let reportPath: string | undefined;
+    let format: "markdown" | "json" = "markdown";
+    let formatSeen = false;
+    for (let index = 1; index < args.length; index += 1) {
+      const arg = args[index]!;
+      if (arg === "--format") {
+        if (formatSeen) { stderr(`Pass --format only once.\n\n${VALIDATE_USAGE}`); return 1; }
+        const value = args[index + 1]?.trim().toLowerCase();
+        if (value !== "markdown" && value !== "json") { stderr(`--format must be markdown or json.\n\n${VALIDATE_USAGE}`); return 1; }
+        format = value;
+        formatSeen = true;
+        index += 1;
+      } else if (arg.startsWith("--format=")) {
+        if (formatSeen) { stderr(`Pass --format only once.\n\n${VALIDATE_USAGE}`); return 1; }
+        const value = arg.slice("--format=".length).trim().toLowerCase();
+        if (value !== "markdown" && value !== "json") { stderr(`--format must be markdown or json.\n\n${VALIDATE_USAGE}`); return 1; }
+        format = value;
+        formatSeen = true;
+      } else if (arg.startsWith("-") || reportPath) {
+        stderr(`Unknown validate argument: ${arg}\n\n${VALIDATE_USAGE}`);
+        return 1;
+      } else {
+        reportPath = expandHomePath(arg);
+      }
+    }
+    if (!reportPath) { stderr(`validate requires a report path.\n\n${VALIDATE_USAGE}`); return 1; }
+    try {
+      const parsed = JSON.parse(stripByteOrderMark(readFileSync(reportPath, "utf8"))) as unknown;
+      const result = validateFixMapReport(parsed, `"${reportPath}"`);
+      if (!result.success) { stderr(`${result.message}\n`); return 1; }
+      const payload = {
+        valid: true,
+        path: reportPath,
+        reportVersion: result.report.reportVersion ?? "legacy",
+        contextFiles: result.report.contextFiles.length
+      };
+      stdout(format === "json"
+        ? `${JSON.stringify(payload, null, 2)}\n`
+        : `Valid FixMap report: ${reportPath} (${payload.contextFiles} context files, reportVersion ${payload.reportVersion}).\n`);
+      return 0;
+    } catch (error) {
+      stderr(`Could not validate "${reportPath}": ${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
   }
 
   if (args[0] === "doctor") {
@@ -149,7 +327,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     if (doctorArgs.length > 0) {
       const match = doctorArgs.length === 2 && doctorArgs[0] === "--format" ? doctorArgs[1] :
         doctorArgs.length === 1 ? doctorArgs[0]?.match(/^--format=(.+)$/)?.[1] : undefined;
-      const normalized = match?.toLowerCase();
+      const normalized = match?.trim().toLowerCase();
       if (normalized === "markdown" || normalized === "json") doctorFormat = normalized;
       else { stderr(`Unknown doctor option(s): ${doctorArgs.join(", ")}\n\n${DOCTOR_USAGE}`); return 1; }
     }
@@ -160,7 +338,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return report.healthy ? 0 : 1;
   }
 
-  if ((args[0] === "plan" || args[0] === "verify") && args.slice(1).some((arg) => arg === "--help" || arg === "-h")) {
+  if ((args[0] === "plan" || args[0] === "verify") && hasStandaloneHelpFlag(args)) {
     stdout(USAGE);
     return 0;
   }
@@ -190,6 +368,8 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   if (options.command === "verify") {
     const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain"].filter(Boolean);
     if (planOnly.length > 0) { stderr(`verify does not accept plan-only option(s): ${planOnly.join(", ")}.\n`); return 1; }
+    const outputCollision = await describeOutputInputCollision(options);
+    if (outputCollision) { stderr(`${outputCollision}\n`); return 1; }
     return runVerify(options, {
       stdout,
       stderr,
@@ -200,6 +380,13 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     stderr(withUsageHint("--report is a verify option. Did you mean --output to write this plan to a file?"));
     return 1;
   }
+  if (options.failOn) {
+    stderr(withUsageHint("--fail-on is a verify option. Use it with fixmap verify."));
+    return 1;
+  }
+
+  const outputCollision = await describeOutputInputCollision(options);
+  if (outputCollision) { stderr(`${outputCollision}\n`); return 1; }
 
   try {
     options.issueText = loadIssueText(options, dependencies.readIssueFile ?? defaultReadIssueFile);
@@ -221,7 +408,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     stderr("--include-untracked only applies with --working-tree.\n");
     return 1;
   }
-  if (options.workingTree && (options.diffSpec || options.baseRef)) {
+  if (options.workingTree && (options.diffSpec || options.baseRef || options.headRef)) {
     stderr("Use either --working-tree or --diff/--base, not both: they name different sets of changes.\n");
     return 1;
   }
@@ -241,6 +428,12 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     stderr("--working-tree and --include-untracked need a local checkout; remote URL checkouts are always clean.\n");
     return 1;
   }
+  const remoteIssueSource = options.issueText ? tryParseGitHubIssueSource(options.issueText) : undefined;
+  const remoteRepository = /^https?:\/\//i.test(options.repo ?? "") || (!options.repo && remoteIssueSource !== undefined);
+  if (options.checkoutRef && !remoteRepository) {
+    stderr("--ref only applies when --repo is a remote GitHub URL or the issue URL infers one.\n");
+    return 1;
+  }
   const unsupportedTaskUrl = describeUnsupportedTaskUrl(options.issueText);
   if (unsupportedTaskUrl) { stderr(`${unsupportedTaskUrl}\n`); return 1; }
 
@@ -254,8 +447,22 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     }
     try {
       const repoRoot = options.repo ?? process.cwd();
-      const repo = await scanRepo({ repoRoot, diffSpec: options.diffSpec, baseRef: options.baseRef, headRef: options.headRef, workingTree: options.workingTree, includeUntracked: options.includeUntracked, useCache: !options.noCache });
-      const explanation = explainFile(
+      const repo = await scanRepo({
+        repoRoot,
+        diffSpec: options.diffSpec,
+        baseRef: options.baseRef,
+        headRef: options.headRef,
+        workingTree: options.workingTree,
+        includeUntracked: options.includeUntracked,
+        useCache: !options.noCache,
+        internalExclude: localPlanArtifactExclusions(options)
+      });
+      const unresolvedDiff = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
+      if (unresolvedDiff && (options.diffSpec || options.baseRef || options.headRef || options.workingTree)) {
+        stderr(`${unresolvedDiff.message}\nExplanation needs a resolvable diff to include change evidence.\n`);
+        return 1;
+      }
+      const explanation = await clarifyMissingPath(explainFile(
         repo,
         {
           issueText: options.issueText,
@@ -263,16 +470,30 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
           // Without this, a file left out by .fixmapignore would be reported as having
           // scored below the cutoff — a false answer to the exact question --explain exists
           // to answer.
-          exclude: await resolveExclusions(repoRoot, options.exclude),
+          exclude: await resolveExclusions(repoRoot, [
+            ...options.exclude,
+            ...localPlanArtifactExclusions(options)
+          ]),
           limit: options.limit
         },
         options.explainPath
-      );
-      stdout(
-        options.format === "json"
-          ? `${JSON.stringify(explanation, null, 2)}\n`
-          : renderExplanationMarkdown(explanation)
-      );
+      ), repo, options.explainPath);
+      const renderedExplanation = options.format === "json"
+        ? `${JSON.stringify(explanation, null, 2)}\n`
+        : renderExplanationMarkdown(explanation);
+      if (options.output) {
+        try {
+          await (dependencies.writeReport ?? ((path, contents) => writeFile(path, contents, "utf8")))(
+            options.output,
+            renderedExplanation
+          );
+        } catch (error) {
+          stderr(formatOutputError(options.output, error, "explanation"));
+          return 1;
+        }
+      } else {
+        stdout(renderedExplanation);
+      }
       return 0;
     } catch (error) {
       stderr(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -288,11 +509,13 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       diffSpec: options.diffSpec,
       baseRef: options.baseRef,
       headRef: options.headRef,
+      checkoutRef: options.checkoutRef,
       workingTree: options.workingTree,
       includeUntracked: options.includeUntracked,
       useCache: !options.noCache,
       limit: options.limit,
-      exclude: options.exclude
+      exclude: options.exclude,
+      internalExclude: localPlanArtifactExclusions(options)
     });
   } catch (error) {
     stderr(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -343,7 +566,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     let previous: FixMapReport;
     let previousText: string;
     try {
-      previousText = readFileSync(options.comparePath, "utf8");
+      previousText = stripByteOrderMark(readFileSync(options.comparePath, "utf8"));
     } catch (error) {
       stderr(
         `Could not read comparison file "${options.comparePath}": ${error instanceof Error ? error.message : String(error)}\n` +
@@ -519,6 +742,7 @@ export function expandIssueShorthand(args: string[]): string[] {
   if (!shorthand) return args;
 
   const [, owner, repository, number] = shorthand;
+  if (!/[A-Za-z]/.test(owner ?? "")) return ["plan", "--issue", first, ...args.slice(1)];
   return ["plan", "--issue", `https://github.com/${owner}/${repository}/issues/${number}`, ...args.slice(1)];
 }
 
@@ -530,14 +754,34 @@ const SINGLE_VALUE_FLAGS = new Set([
   "--diff",
   "--base",
   "--head",
+  "--ref",
   "--repo",
   "--format",
   "--report",
   "--explain",
   "--compare",
   "--limit",
+  "--fail-on",
   "--output"
 ]);
+const BOOLEAN_FLAGS = new Set(["--working-tree", "--include-untracked", "--no-cache"]);
+
+function hasStandaloneHelpFlag(args: string[]): boolean {
+  for (let index = 1; index < args.length; index += 1) {
+    const raw = args[index] ?? "";
+    if (raw === "--help" || raw === "-h") return true;
+    const separator = raw.indexOf("=");
+    const flag = separator === -1 ? raw : raw.slice(0, separator);
+    if (separator === -1 && (SINGLE_VALUE_FLAGS.has(flag) || flag === "--exclude")) index += 1;
+  }
+  return false;
+}
+
+function isKnownOptionToken(value: string): boolean {
+  const separator = value.indexOf("=");
+  const flag = separator === -1 ? value : value.slice(0, separator);
+  return SINGLE_VALUE_FLAGS.has(flag) || BOOLEAN_FLAGS.has(flag) || flag === "--exclude" || flag === "--help" || flag === "-h";
+}
 
 export const MAX_CONTEXT_FILE_LIMIT = 20;
 
@@ -549,12 +793,14 @@ export function parseArgs(args: string[]): CliOptions {
   let diffSpec: string | undefined;
   let baseRef: string | undefined;
   let headRef: string | undefined;
+  let checkoutRef: string | undefined;
   let format: "markdown" | "json" = "markdown";
   let output: string | undefined;
   let explainPath: string | undefined;
   let reportPath: string | undefined;
   let comparePath: string | undefined;
   let limit: number | undefined;
+  let failOn: "error" | "warning" | undefined;
   let workingTree = false;
   let includeUntracked = false;
   let noCache = false;
@@ -577,6 +823,7 @@ export function parseArgs(args: string[]): CliOptions {
       inlineValue === undefined &&
       followingValue !== undefined &&
       (!followingValue.startsWith("-") ||
+        (arg === "--issue" && !isKnownOptionToken(followingValue)) ||
         (arg === "--limit" && /^-\d/.test(followingValue)) ||
         ((arg === "--issue" || arg === "--issue-file") && followingValue === "-"));
     const value = inlineValue ?? (canConsumeFollowing ? followingValue : undefined);
@@ -606,27 +853,34 @@ export function parseArgs(args: string[]): CliOptions {
       else invalidValues.push('--issue requires non-empty text or a GitHub issue URL');
     } else if (arg === "--issue-file") {
       consumeValue();
-      if (value?.trim()) issueFile = value.trim();
+      if (value?.trim()) issueFile = expandHomePath(value.trim());
       else invalidValues.push("--issue-file requires a UTF-8 file path or - for stdin");
     } else if (arg === "--diff") {
       consumeValue();
-      if (value?.trim()) diffSpec = value;
+      if (value?.trim()) diffSpec = value.trim();
       else invalidValues.push("--diff requires a non-empty git diff spec");
     } else if (arg === "--base") {
       consumeValue();
-      if (value?.trim()) baseRef = value;
+      if (value?.trim()) baseRef = value.trim();
       else invalidValues.push("--base requires a non-empty git ref");
     } else if (arg === "--head") {
       consumeValue();
-      if (value?.trim()) headRef = value;
+      if (value?.trim()) headRef = value.trim();
       else invalidValues.push("--head requires a non-empty git ref");
+    } else if (arg === "--ref") {
+      consumeValue();
+      if (value?.trim() && isSafeGitRefName(value.trim())) {
+        checkoutRef = value.trim();
+      } else {
+        invalidValues.push("--ref requires a safe branch or tag name");
+      }
     } else if (arg === "--repo") {
       consumeValue();
-      if (value?.trim()) repo = value;
+      if (value?.trim()) repo = expandHomePath(value.trim());
       else invalidValues.push("--repo requires a local path or public GitHub repository URL");
     } else if (arg === "--format") {
       consumeValue();
-      const normalized = value?.toLowerCase();
+      const normalized = value?.trim().toLowerCase();
       if (normalized === "markdown" || normalized === "json") {
         format = normalized;
       } else {
@@ -634,7 +888,7 @@ export function parseArgs(args: string[]): CliOptions {
       }
     } else if (arg === "--report") {
       consumeValue();
-      if (value?.trim()) reportPath = value.trim();
+      if (value?.trim()) reportPath = expandHomePath(value.trim());
       else invalidValues.push("--report requires a path to a FixMap JSON report");
     } else if (arg === "--explain") {
       consumeValue();
@@ -642,7 +896,7 @@ export function parseArgs(args: string[]): CliOptions {
       else invalidValues.push("--explain requires a repository-relative file path");
     } else if (arg === "--compare") {
       consumeValue();
-      if (value?.trim()) comparePath = value.trim();
+      if (value?.trim()) comparePath = expandHomePath(value.trim());
       else invalidValues.push("--compare requires a path to an earlier FixMap JSON report");
     } else if (arg === "--exclude") {
       consumeValue();
@@ -650,29 +904,38 @@ export function parseArgs(args: string[]): CliOptions {
       else invalidValues.push("--exclude requires a path or glob pattern");
     } else if (arg === "--limit") {
       consumeValue();
-      const parsed = Number(value);
-      if (value?.trim() && Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= MAX_CONTEXT_FILE_LIMIT) {
+      const normalized = value?.trim() ?? "";
+      const parsed = Number(normalized);
+      if (/^\d+$/.test(normalized) && Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= MAX_CONTEXT_FILE_LIMIT) {
         limit = parsed;
       } else {
         invalidValues.push(
           `--limit received ${JSON.stringify(value ?? "(missing)")}; expected a whole number from 1 to ${MAX_CONTEXT_FILE_LIMIT}`
         );
       }
+    } else if (arg === "--fail-on") {
+      consumeValue();
+      const normalized = value?.trim().toLowerCase();
+      if (normalized === "error" || normalized === "warning") failOn = normalized;
+      else invalidValues.push(`--fail-on received ${JSON.stringify(value ?? "(missing)")}; expected "error" or "warning"`);
     } else if (arg === "--working-tree") {
       if (flagCounts.has(arg)) invalidValues.push(`pass ${arg} only once`);
       flagCounts.set(arg, 1);
-      workingTree = true;
+      if (inlineValue !== undefined) invalidValues.push(`${arg} does not accept a value; pass ${arg} by itself`);
+      else workingTree = true;
     } else if (arg === "--include-untracked") {
       if (flagCounts.has(arg)) invalidValues.push(`pass ${arg} only once`);
       flagCounts.set(arg, 1);
-      includeUntracked = true;
+      if (inlineValue !== undefined) invalidValues.push(`${arg} does not accept a value; pass ${arg} by itself`);
+      else includeUntracked = true;
     } else if (arg === "--no-cache") {
       if (flagCounts.has(arg)) invalidValues.push(`pass ${arg} only once`);
       flagCounts.set(arg, 1);
-      noCache = true;
+      if (inlineValue !== undefined) invalidValues.push(`${arg} does not accept a value; pass ${arg} by itself`);
+      else noCache = true;
     } else if (arg === "--output") {
       consumeValue();
-      if (value?.trim()) output = value;
+      if (value?.trim()) output = expandHomePath(value.trim());
       else invalidValues.push("--output requires a non-empty file path");
     } else {
       unknownArgs.push(rawArg);
@@ -687,12 +950,14 @@ export function parseArgs(args: string[]): CliOptions {
     diffSpec,
     baseRef,
     headRef,
+    checkoutRef,
     format,
     output,
     explainPath,
     reportPath,
     comparePath,
     limit,
+    failOn,
     exclude,
     workingTree,
     includeUntracked,
@@ -700,6 +965,101 @@ export function parseArgs(args: string[]): CliOptions {
     unknownArgs,
     invalidValues
   };
+}
+
+function expandHomePath(value: string): string {
+  if (value === "~") return homedir();
+  if (value.startsWith("~/") || value.startsWith("~\\")) {
+    return join(homedir(), value.slice(2));
+  }
+  return value;
+}
+
+/**
+ * Inputs and outputs generated by the current FixMap workflow are rich in the task's own
+ * vocabulary. If they live inside the scanned checkout, ranking them as repository context
+ * creates a self-fulfilling result (`plan.json` explaining why `plan.json` is relevant).
+ */
+function localPlanArtifactExclusions(options: CliOptions): string[] {
+  const remoteIssue = options.issueText ? parseGitHubIssueSource(options.issueText) : undefined;
+  const remoteRepository = /^https?:\/\//i.test(options.repo ?? "") || (remoteIssue && !options.repo);
+  if (remoteRepository) return [];
+
+  const root = resolve(options.repo ?? process.cwd());
+  return [
+    options.output,
+    options.comparePath,
+    options.reportPath,
+    options.issueFile === "-" ? undefined : options.issueFile
+  ]
+    .filter((path): path is string => path !== undefined)
+    .map((path) => resolve(path))
+    .filter((path) => {
+      const distance = relative(root, path);
+      return distance !== "" && distance !== ".." && !distance.startsWith(`..${sep}`) && !isAbsolute(distance);
+    });
+}
+
+/**
+ * A workflow input must remain usable after the command finishes. Reading a plan, task, or
+ * source file and then writing the result back through the same path silently destroyed the
+ * only copy while still exiting zero. Compare both path spelling and filesystem identity so
+ * relative aliases, symlinks, and hardlinks receive the same protection.
+ */
+async function describeOutputInputCollision(options: CliOptions): Promise<string | undefined> {
+  if (!options.output) return undefined;
+
+  const inputs: Array<{ flag: string; path: string }> = [];
+  if (options.command === "verify" && options.reportPath) {
+    inputs.push({ flag: "--report", path: options.reportPath });
+  } else {
+    if (options.issueFile && options.issueFile !== "-") {
+      inputs.push({ flag: "--issue-file", path: options.issueFile });
+    }
+    if (options.comparePath) {
+      inputs.push({ flag: "--compare", path: options.comparePath });
+    }
+    if (options.explainPath) {
+      inputs.push({
+        flag: "--explain",
+        path: isAbsolute(options.explainPath)
+          ? options.explainPath
+          : resolve(options.repo ?? process.cwd(), options.explainPath)
+      });
+    }
+  }
+
+  for (const input of inputs) {
+    if (await pathsReferToSameFile(options.output, input.path)) {
+      return `Refusing to write --output "${options.output}" because it is the same file as ${input.flag} "${input.path}". ` +
+        "Choose a different --output path so FixMap does not overwrite its input.";
+    }
+  }
+  return undefined;
+}
+
+async function pathsReferToSameFile(leftPath: string, rightPath: string): Promise<boolean> {
+  const left = resolve(leftPath);
+  const right = resolve(rightPath);
+  const normalize = process.platform === "win32"
+    ? (path: string) => path.toLowerCase()
+    : (path: string) => path;
+  if (normalize(left) === normalize(right)) return true;
+
+  try {
+    const [leftReal, rightReal] = await Promise.all([realpath(left), realpath(right)]);
+    if (normalize(leftReal) === normalize(rightReal)) return true;
+  } catch {
+    // A missing path cannot already alias an existing input. The command that consumes it
+    // will produce the more useful read/write error later.
+  }
+
+  try {
+    const [leftStat, rightStat] = await Promise.all([stat(left), stat(right)]);
+    return leftStat.ino !== 0 && leftStat.dev === rightStat.dev && leftStat.ino === rightStat.ino;
+  } catch {
+    return false;
+  }
 }
 
 function loadIssueText(
@@ -748,18 +1108,38 @@ function decodeIssueText(raw: string | Buffer): string {
     }
     return swapped.toString("utf16le").replace(/^\uFEFF/, "");
   }
+  if (raw.length >= 4 && raw.length % 2 === 0) {
+    let evenNuls = 0;
+    let oddNuls = 0;
+    for (let index = 0; index < raw.length; index += 2) {
+      if (raw[index] === 0) evenNuls += 1;
+      if (raw[index + 1] === 0) oddNuls += 1;
+    }
+    const pairs = raw.length / 2;
+    if (oddNuls / pairs >= 0.3 && evenNuls / pairs < 0.1) return raw.toString("utf16le");
+    if (evenNuls / pairs >= 0.3 && oddNuls / pairs < 0.1) return Buffer.from(raw).swap16().toString("utf16le");
+  }
   return raw.toString("utf8").replace(/^\uFEFF/, "");
 }
 
 function quoteCliValue(value: string): string {
-  return /\s/.test(value) ? `"${value.replaceAll('"', '\\"')}"` : value;
+  return formatCliValue(value, process.platform === "win32" ? "powershell" : "posix");
 }
 
 function readVersion(): string {
-  const packageJson = JSON.parse(
-    readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")
-  ) as { version: string };
-  return packageJson.version;
+  const path = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json");
+  try {
+    const packageJson = JSON.parse(readFileSync(path, "utf8")) as { version?: unknown };
+    if (typeof packageJson.version !== "string" || !packageJson.version.trim()) {
+      throw new Error("the version field is missing or invalid");
+    }
+    return packageJson.version;
+  } catch (error) {
+    throw new Error(
+      `FixMap could not read its version from "${path}"; the installation looks incomplete: ` +
+      `${error instanceof Error ? error.message : String(error)}`
+    );
+  }
 }
 
 /**
@@ -808,7 +1188,7 @@ async function runVerify(
 
   let reportText: string;
   try {
-    reportText = readFileSync(options.reportPath, "utf8");
+    reportText = stripByteOrderMark(readFileSync(options.reportPath, "utf8"));
   } catch (error) {
     io.stderr(
       `Could not read "${options.reportPath}": ${error instanceof Error ? error.message : String(error)}\n` +
@@ -863,7 +1243,8 @@ async function runVerify(
       headRef: options.headRef,
       workingTree: options.workingTree,
       includeUntracked: options.includeUntracked,
-      useCache: !options.noCache
+      useCache: !options.noCache,
+      internalExclude: localPlanArtifactExclusions(options)
     });
     const unresolvedDiff = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
     if (unresolvedDiff) {
@@ -889,7 +1270,10 @@ async function runVerify(
     }
     // A generated-location edit is discarded by the next build, so it fails the command
     // rather than being reported and ignored. Everything else is advisory.
-    return result.findings.some((finding) => finding.severity === "error") ? 1 : 0;
+    const failOn = options.failOn ?? "error";
+    return result.findings.some((finding) =>
+      finding.severity === "error" || (failOn === "warning" && finding.severity === "warning")
+    ) ? 1 : 0;
   } catch (error) {
     io.stderr(`${error instanceof Error ? error.message : String(error)}\n`);
     return 1;
@@ -910,7 +1294,8 @@ function describeUnsupportedTaskUrl(issueText: string): string | undefined {
   if (!/^https?:\/\/\S+$/i.test(value) || tryParseGitHubIssueSource(value)) return undefined;
   return "Unsupported task URL. Use a public GitHub issue or pull request URL such as " +
     "https://github.com/owner/repository/issues/123 or /pull/123, or pass descriptive task text. " +
-    "A ?query, #fragment, and a www. or api. host are accepted and normalized; other hosts, credentials and ports are not.";
+    "The URL must use https. A ?query, #fragment, and a www. or api. host are accepted and normalized; " +
+    "other hosts, credentials and ports are not.";
 }
 
 function formatOutputError(path: string, error: unknown, kind: string): string {

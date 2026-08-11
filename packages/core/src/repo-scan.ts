@@ -1,37 +1,27 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, realpath, stat, unlink, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, extname, join, relative, resolve, sep } from "node:path";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
-import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS, isGeneratedPath } from "./paths.js";
+import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS, SOURCE_FILE_EXTENSIONS, isGeneratedPath } from "./paths.js";
 import { DIAGNOSTIC_SPEC_LIMIT, truncateForDiagnostic } from "./text.js";
 import type { FixMapInput, PackageScript, RepoFile, RepoMap } from "./types.js";
 
-const WALK_IGNORED_DIRS = new Set([...ALWAYS_IGNORED_DIRS, ...GENERATED_DIRS]);
-const SOURCE_EXTENSIONS = new Set([
-  ".cjs",
-  ".cs",
-  ".css",
-  ".cts",
-  ".go",
-  ".java",
-  ".js",
-  ".json",
-  ".jsx",
-  ".md",
-  ".mjs",
-  ".mts",
-  ".php",
-  ".py",
-  ".rb",
-  ".rs",
-  ".svelte",
-  ".ts",
-  ".tsx",
-  ".vue",
-  ".yaml",
-  ".yml"
+// Vendored source is intentionally scannable and receives a ranking penalty. Git mode has
+// always kept tracked vendor/ files; walk mode must not silently use a smaller corpus.
+const WALK_IGNORED_DIRS = new Set([
+  ...ALWAYS_IGNORED_DIRS,
+  ...[...GENERATED_DIRS].filter((directory) => directory !== "vendor")
+]);
+const SOURCE_EXTENSIONS = SOURCE_FILE_EXTENSIONS;
+const CONVENTIONAL_DOCUMENT_NAMES = new Set([
+  "authors", "changelog", "code_of_conduct", "contributing", "license", "notice", "readme", "security"
+]);
+const CONVENTIONAL_CONFIG_NAMES = new Set([
+  ".dockerignore", ".editorconfig", ".gitattributes", ".gitignore", ".npmignore",
+  "codeowners", "dockerfile", "gemfile", "jenkinsfile", "makefile", "procfile", "rakefile", "vagrantfile",
+  "pom.xml", "build.gradle", "settings.gradle"
 ]);
 
 /**
@@ -46,6 +36,9 @@ const TEST_PATTERNS = [
   /\.spec\./,
   /(^|\/|\\)__tests__(\/|\\)/,
   /(^|\/|\\)tests?(\/|\\)/,
+  /(^|\/|\\)spec(\/|\\)/,
+  /_spec\.rb$/i,
+  /(?:Test\.java|Tests?\.cs|Test\.php)$/i,
   /_test\.go$/,
   /(^|\/|\\)(?:test_[^/\\]+|[^/\\]+_test)\.py$/
 ];
@@ -55,11 +48,16 @@ const MAX_SCANNED_FILES = 25_000;
 const GIT_MAX_BUFFER = 10 * 1024 * 1024;
 const exec = promisify(execFile);
 type ScanState = { count: number; limitReported: boolean };
-const SCAN_CACHE_VERSION = 1;
+const SCAN_CACHE_VERSION = 3;
+const SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
+const SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
+const SCAN_CACHE_TEMP_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i;
 
 type CachedScan = {
   version: typeof SCAN_CACHE_VERSION;
   stateKey: string;
+  createdAt: string;
   files: RepoFile[];
   trackedFiles: string[];
   packageScripts: PackageScript[];
@@ -71,7 +69,7 @@ export async function scanRepo(
   input: Pick<
     FixMapInput,
     "repoRoot" | "baseRef" | "headRef" | "diffSpec" | "workingTree" | "includeUntracked" | "useCache"
-  >
+  > & { internalExclude?: string[] | undefined }
 ): Promise<RepoMap> {
   const repoRoot = resolve(input.repoRoot);
   if (!(await isDirectory(repoRoot))) {
@@ -91,7 +89,28 @@ export async function scanRepo(
   }
 
   const diagnostics: RepoMap["diagnostics"] = [];
-  const cacheLocation = input.useCache ? await buildScanCacheLocation(repoRoot) : undefined;
+  const internalPaths = await resolveInternalPaths(repoRoot, input.internalExclude ?? []);
+  const cacheRoot = configuredScanCacheRoot();
+  const internalCacheRoot = sameFilesystemPath(cacheRoot, repoRoot) || containedPath(repoRoot, cacheRoot) !== undefined
+    ? cacheRoot
+    : undefined;
+  const cacheDecision = input.useCache === true
+    ? await buildScanCacheLocation(repoRoot, cacheRoot, internalPaths)
+    : undefined;
+  const cacheLocation = cacheDecision?.location;
+  if (input.useCache === false) {
+    diagnostics.push({
+      code: "cache-bypass",
+      severity: "info",
+      message: "Repository scan caching was bypassed by --no-cache; this report used a fresh scan."
+    });
+  } else if (input.useCache === true && cacheDecision?.skipReason) {
+    diagnostics.push({
+      code: "cache-skip",
+      severity: "info",
+      message: cacheDecision.skipReason
+    });
+  }
   const cached = cacheLocation ? await readScanCache(cacheLocation) : undefined;
   let files: RepoFile[];
   let trackedFiles: string[];
@@ -105,17 +124,18 @@ export async function scanRepo(
     diagnostics.push(...cached.diagnostics, {
       code: "cache-hit",
       severity: "info",
-      message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files). Pass --no-cache to rescan.`
+      message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files, ${describeCacheAge(cached.createdAt)}). Pass --no-cache to rescan.`
     });
   } else {
-    files = await listFiles(repoRoot, diagnostics);
-    trackedFiles = await listTrackedPaths(repoRoot);
+    files = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths);
+    trackedFiles = await listTrackedPaths(repoRoot, internalPaths);
     packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
-    packageManager = detectPackageManager(files);
+    packageManager = detectPackageManager(files, diagnostics);
     if (cacheLocation) {
       await writeScanCache(cacheLocation, {
         version: SCAN_CACHE_VERSION,
         stateKey: cacheLocation.stateKey,
+        createdAt: new Date().toISOString(),
         files,
         trackedFiles,
         packageScripts,
@@ -126,8 +146,8 @@ export async function scanRepo(
   }
   const diffSpec = resolveDiffSpec(input);
   const diff = input.workingTree
-    ? await readWorkingTree(repoRoot, input.includeUntracked === true, diagnostics)
-    : await readDiff(repoRoot, diffSpec, diagnostics);
+    ? await readWorkingTree(repoRoot, input.includeUntracked === true, diagnostics, internalPaths)
+    : await readDiff(repoRoot, diffSpec, diagnostics, internalPaths);
 
   return {
     root: repoRoot,
@@ -142,21 +162,87 @@ export async function scanRepo(
 }
 
 type ScanCacheLocation = { path: string; stateKey: string };
+type ScanCacheDecision = { location?: ScanCacheLocation; skipReason?: string };
 
-async function buildScanCacheLocation(root: string): Promise<ScanCacheLocation | undefined> {
+function configuredScanCacheRoot(): string {
+  return resolve(process.env.FIXMAP_CACHE_DIR ?? join(
+    process.env.LOCALAPPDATA ?? process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"),
+    "fixmap",
+    "scans"
+  ));
+}
+
+function containedPath(root: string, candidate: string): string | undefined {
+  const distance = relative(root, candidate);
+  return distance === "" || distance === ".." || distance.startsWith(`..${sep}`) || isAbsolute(distance)
+    ? undefined
+    : normalizePath(distance);
+}
+
+async function resolveInternalPaths(root: string, paths: string[]): Promise<Set<string>> {
+  const requested = paths.flatMap((path) => {
+    const relativePath = containedPath(root, resolve(path));
+    return relativePath ? [relativePath] : [];
+  });
+  if (requested.length === 0 || process.platform !== "win32") return new Set(requested);
+
+  // Git pathspecs remain case-sensitive even on a case-insensitive Windows worktree. A
+  // caller can open PLAN.JSON when the directory entry is plan.json, so recover Git's
+  // canonical spelling before using exact exclusions in status and diff commands.
+  try {
+    const { stdout } = await exec(
+      "git",
+      ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+      { cwd: root, maxBuffer: GIT_MAX_BUFFER }
+    );
+    const repositoryPaths = stdout.split("\0").filter(Boolean).map(normalizePath);
+    return new Set(requested.map((path) =>
+      repositoryPaths.find((candidate) => sameFilesystemPath(candidate, path)) ?? path
+    ));
+  } catch {
+    return new Set(requested);
+  }
+}
+
+function hasInternalPath(paths: ReadonlySet<string>, path: string): boolean {
+  return [...paths].some((candidate) => sameFilesystemPath(candidate, path));
+}
+
+function gitPathspec(internalPaths: ReadonlySet<string>): string[] {
+  return ["--", ".", ...[...internalPaths]
+    .sort((a, b) => a.localeCompare(b))
+    .map((path) => `:(exclude,literal)${path}`)];
+}
+
+async function buildScanCacheLocation(
+  root: string,
+  cacheRoot: string,
+  internalPaths: ReadonlySet<string>
+): Promise<ScanCacheDecision> {
+  if (sameFilesystemPath(cacheRoot, root) || containedPath(root, cacheRoot) !== undefined) {
+    return {
+      skipReason:
+        "Repository scan caching was skipped because FIXMAP_CACHE_DIR is inside the scanned repository. " +
+        "Move the cache outside the repository to enable exact-state reuse."
+    };
+  }
   try {
     const [{ stdout: head }, { stdout: status }] = await Promise.all([
       exec("git", ["rev-parse", "HEAD"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "."], {
+      exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all", ...gitPathspec(internalPaths)], {
         cwd: root,
         maxBuffer: GIT_MAX_BUFFER
       })
     ]);
     // Untracked files are scanner inputs but are absent from `git diff`. Do not cache that
     // state rather than keying it on names alone and serving stale contents after an edit.
-    if (status.split("\0").some((entry) => entry.startsWith("?? "))) return undefined;
+    if (status.split("\0").some((entry) => entry.startsWith("?? "))) {
+      return {
+        skipReason: "Repository scan caching was skipped because untracked files are scanner inputs and can change without a stable git diff."
+      };
+    }
     const dirtyDiff = status.length > 0
-      ? (await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", "--", "."], {
+      ? (await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", ...gitPathspec(internalPaths)], {
           cwd: root,
           maxBuffer: GIT_MAX_BUFFER
         })).stdout
@@ -166,33 +252,40 @@ async function buildScanCacheLocation(root: string): Promise<ScanCacheLocation |
       resolve(root),
       head.trim(),
       status,
-      dirtyDiff
+      dirtyDiff,
+      ...[...internalPaths].sort((a, b) => a.localeCompare(b))
     ].join("\0"));
-    const cacheRoot = process.env.FIXMAP_CACHE_DIR ?? join(
-      process.env.LOCALAPPDATA ?? process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"),
-      "fixmap",
-      "scans"
-    );
-    return {
+    return { location: {
       path: join(cacheRoot, `${hashText(resolve(root))}-${stateKey}.json`),
       stateKey
-    };
+    } };
   } catch {
     // Non-git directories deliberately do not cache: they have no cheap exact invalidation key.
-    return undefined;
+    return {
+      skipReason: "Repository scan caching was skipped because this directory has no exact git state to key safely."
+    };
   }
 }
 
 async function readScanCache(location: ScanCacheLocation): Promise<CachedScan | undefined> {
   try {
     const cached = JSON.parse(await readFile(location.path, "utf8")) as Partial<CachedScan>;
+    const createdAt = typeof cached.createdAt === "string" ? Date.parse(cached.createdAt) : Number.NaN;
     if (
       cached.version !== SCAN_CACHE_VERSION ||
       cached.stateKey !== location.stateKey ||
+      typeof cached.createdAt !== "string" ||
+      !Number.isFinite(createdAt) ||
+      Date.now() - createdAt > SCAN_CACHE_MAX_AGE_MS ||
+      createdAt - Date.now() > SCAN_CACHE_MAX_FUTURE_SKEW_MS ||
       !Array.isArray(cached.files) ||
+      !cached.files.every(isCachedRepoFile) ||
       !Array.isArray(cached.trackedFiles) ||
+      !cached.trackedFiles.every(isCachedRelativePath) ||
       !Array.isArray(cached.packageScripts) ||
+      !cached.packageScripts.every(isCachedPackageScript) ||
       !Array.isArray(cached.diagnostics) ||
+      !cached.diagnostics.every(isCachedDiagnostic) ||
       !["npm", "pnpm", "yarn", "bun"].includes(cached.packageManager ?? "")
     ) return undefined;
     return cached as CachedScan;
@@ -201,41 +294,121 @@ async function readScanCache(location: ScanCacheLocation): Promise<CachedScan | 
   }
 }
 
+function isCachedRepoFile(candidate: unknown): candidate is RepoFile {
+  if (!isRecord(candidate)) return false;
+  const validSkipReason = candidate.textSampleSkipReason === "too-large" ||
+    candidate.textSampleSkipReason === "not-text" || candidate.textSampleSkipReason === "unreadable";
+  return isCachedRelativePath(candidate.path) &&
+    typeof candidate.extension === "string" &&
+    typeof candidate.sizeBytes === "number" && Number.isFinite(candidate.sizeBytes) && candidate.sizeBytes >= 0 &&
+    typeof candidate.isTest === "boolean" &&
+    typeof candidate.isSource === "boolean" &&
+    (candidate.kind === "code" || candidate.kind === "config" || candidate.kind === "documentation" || candidate.kind === "other") &&
+    typeof candidate.textSample === "string" &&
+    typeof candidate.textSampleComplete === "boolean" &&
+    ((candidate.textSampleComplete && candidate.textSampleSkipReason === undefined) ||
+      (!candidate.textSampleComplete && validSkipReason));
+}
+
+function isCachedPackageScript(candidate: unknown): candidate is PackageScript {
+  if (!isRecord(candidate)) return false;
+  return typeof candidate.name === "string" && candidate.name.trim().length > 0 &&
+    typeof candidate.command === "string" &&
+    (candidate.packageDir === "" || isCachedRelativePath(candidate.packageDir)) &&
+    (candidate.packageName === undefined ||
+      (typeof candidate.packageName === "string" && candidate.packageName.trim().length > 0));
+}
+
+function isCachedDiagnostic(candidate: unknown): candidate is RepoMap["diagnostics"][number] {
+  if (!isRecord(candidate)) return false;
+  return typeof candidate.code === "string" && candidate.code.trim().length > 0 &&
+    typeof candidate.message === "string" && candidate.message.trim().length > 0 &&
+    (candidate.severity === "info" || candidate.severity === "warning" || candidate.severity === "error") &&
+    (candidate.paths === undefined ||
+      (Array.isArray(candidate.paths) && candidate.paths.every(isCachedRelativePath)));
+}
+
+function isRecord(candidate: unknown): candidate is Record<string, unknown> {
+  return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
+}
+
+function isCachedRelativePath(candidate: unknown): candidate is string {
+  if (typeof candidate !== "string" || candidate.trim().length === 0 || candidate.includes("\0") ||
+    isAbsolute(candidate) || /^[\\/]/.test(candidate) || /^[A-Za-z]:/.test(candidate)) {
+    return false;
+  }
+  // Cache files may move between Windows and POSIX. Normalize both separators regardless
+  // of the current host so `..\secret`, UNC paths, and drive-relative paths cannot become
+  // trusted repository paths merely because they were read on Linux.
+  const segments = candidate.replace(/\\/g, "/").split("/");
+  return segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..");
+}
+
 async function writeScanCache(location: ScanCacheLocation, cached: CachedScan): Promise<void> {
+  const temporaryPath = `${location.path}.${process.pid}-${randomUUID()}.tmp`;
   try {
     await mkdir(dirname(location.path), { recursive: true });
-    await writeFile(location.path, `${JSON.stringify(cached)}\n`, { encoding: "utf8", flag: "wx" });
-  } catch (error) {
-    const code = (error as { code?: unknown }).code;
-    if (code !== "EEXIST") {
-      // Cache writes are an optimization. A read-only cache directory must not fail a plan.
-      return;
-    }
-    // An interrupted prior write can leave an invalid exact-key file. Replace only that
-    // FixMap-owned cache entry; never touch a repository path.
-    const existing = await readScanCache(location);
-    if (existing) return;
+    await pruneExpiredScanCache(dirname(location.path));
+    // Write beside the destination and rename only after the JSON is complete. Readers never
+    // observe a truncated cache file, and a corrupt/expired exact-key entry heals immediately.
+    await writeFile(temporaryPath, `${JSON.stringify(cached)}\n`, { encoding: "utf8", flag: "wx" });
+    await rename(temporaryPath, location.path);
+  } catch {
+    // Cache writes are an optimization. Read-only directories and concurrent writers must not
+    // fail a report. Remove only this process's uniquely named temporary file.
     try {
-      await unlink(location.path);
-      await writeFile(location.path, `${JSON.stringify(cached)}\n`, { encoding: "utf8", flag: "wx" });
-    } catch {
-      // Another process may have won the replacement race; the current scan is still valid.
-    }
+      await unlink(temporaryPath);
+    } catch { /* The rename may already have consumed it. */ }
   }
+}
+
+async function pruneExpiredScanCache(cacheRoot: string): Promise<void> {
+  try {
+    const entries = await readdir(cacheRoot, { withFileTypes: true });
+    const now = Date.now();
+    await Promise.all(entries
+      // A killed process can leave its uniquely named atomic-write file behind. It is not
+      // readable as a cache entry, but without pruning it the cache directory grows forever.
+      // The same seven-day horizon preserves any plausible active writer.
+      .filter((entry) => entry.isFile() && (SCAN_CACHE_FILE.test(entry.name) || SCAN_CACHE_TEMP_FILE.test(entry.name)))
+      .map(async (entry) => {
+        const path = join(cacheRoot, entry.name);
+        try {
+          const metadata = await stat(path);
+          if (now - metadata.mtimeMs > SCAN_CACHE_MAX_AGE_MS) await unlink(path);
+        } catch {
+          // Cache cleanup is best effort and must never block a report.
+        }
+      }));
+  } catch {
+    // A read-only or concurrently removed cache directory is harmless.
+  }
+}
+
+function describeCacheAge(createdAt: string): string {
+  const ageMs = Math.max(0, Date.now() - Date.parse(createdAt));
+  if (ageMs < 5_000) return "scanned just now";
+  const minutes = Math.floor(ageMs / 60_000);
+  if (minutes < 1) return "scanned less than a minute ago";
+  if (minutes < 60) return `scanned ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `scanned ${hours}h ago`;
+  return `scanned ${Math.floor(hours / 24)}d ago`;
 }
 
 function hashText(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 24);
 }
 
-async function listTrackedPaths(root: string): Promise<string[]> {
+async function listTrackedPaths(root: string, internalPaths: ReadonlySet<string>): Promise<string[]> {
   try {
     const { stdout } = await exec(
       "git",
       ["ls-files", "--cached", "-z"],
       { cwd: root, maxBuffer: GIT_MAX_BUFFER }
     );
-    return stdout.split("\0").filter(Boolean).map(normalizePath);
+    return stdout.split("\0").filter(Boolean).map(normalizePath)
+      .filter((path) => !hasInternalPath(internalPaths, path));
   } catch {
     return [];
   }
@@ -245,11 +418,19 @@ function resolveDiffSpec(input: Pick<FixMapInput, "baseRef" | "headRef" | "diffS
   return input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : undefined);
 }
 
-async function listFiles(root: string, diagnostics: RepoMap["diagnostics"]): Promise<RepoFile[]> {
+async function listFiles(
+  root: string,
+  diagnostics: RepoMap["diagnostics"],
+  internalCacheRoot: string | undefined,
+  internalPaths: ReadonlySet<string>
+): Promise<RepoFile[]> {
   const gitPaths = await listGitPaths(root);
+  const visiblePaths = gitPaths?.paths.filter((path) =>
+    !hasInternalPath(internalPaths, normalizePath(path)) && !isInternalCachePath(root, path, internalCacheRoot)
+  );
   const files = gitPaths
-    ? await buildFilesFromPaths(root, gitPaths.paths, diagnostics, gitPaths.gitLinks)
-    : (await walkFiles(root, root, diagnostics, { count: 0, limitReported: false }))
+    ? await buildFilesFromPaths(root, visiblePaths ?? [], diagnostics, gitPaths.gitLinks)
+    : (await walkFiles(root, root, diagnostics, { count: 0, limitReported: false }, internalCacheRoot, internalPaths))
       .sort((a, b) => a.path.localeCompare(b.path));
 
   // These are properties of the scanned files, not of git. Keeping them here makes an
@@ -257,6 +438,22 @@ async function listFiles(root: string, diagnostics: RepoMap["diagnostics"]): Pro
   reportUnreadContent(diagnostics, files);
   reportGeneratedDominance(diagnostics, files);
   return files;
+}
+
+function isInternalCachePath(root: string, path: string, internalCacheRoot?: string): boolean {
+  if (!internalCacheRoot) return false;
+  const relativeCacheRoot = containedPath(root, internalCacheRoot);
+  if (relativeCacheRoot) {
+    const candidate = process.platform === "win32" ? path.toLowerCase() : path;
+    const cachePath = process.platform === "win32" ? relativeCacheRoot.toLowerCase() : relativeCacheRoot;
+    return candidate === cachePath || candidate.startsWith(`${cachePath}/`);
+  }
+  // If someone points FIXMAP_CACHE_DIR at the repository root itself, do not hide the
+  // repository. Hide only filenames owned by FixMap's cache format.
+  return sameFilesystemPath(internalCacheRoot, root) && (
+    SCAN_CACHE_FILE.test(path) ||
+    SCAN_CACHE_TEMP_FILE.test(path)
+  );
 }
 
 async function listGitPaths(root: string): Promise<{ paths: string[]; gitLinks: Set<string> } | undefined> {
@@ -296,6 +493,10 @@ async function buildFilesFromPaths(
   // git listed first would have made that an alphabetical accident.
   const seenRealPaths = new Map<string, number>();
   const linked: Array<{ path: string; target: string }> = [];
+  // macOS temporary directories commonly enter through /var while realpath returns
+  // /private/var. Resolve the repository root once so that prefix alias does not make
+  // every ordinary file look like a symlink.
+  const realRoot = await resolveRealPath(root);
 
   for (const [index, rawPath] of paths.entries()) {
     if (results.length >= MAX_SCANNED_FILES) {
@@ -333,8 +534,8 @@ async function buildFilesFromPaths(
       const seenFile = results[seenIndex]!;
       // Looking only at the leaf with lstat misses Windows junctions, where the linked
       // object is an ancestor directory. Comparing literal and resolved paths covers both.
-      const seenIsAlias = !sameFilesystemPath(resolve(root, seenFile.path), scanned.realPath);
-      const currentIsAlias = !sameFilesystemPath(resolve(root, relativePath), scanned.realPath);
+      const seenIsAlias = !sameFilesystemPath(resolve(realRoot, seenFile.path), scanned.realPath);
+      const currentIsAlias = !sameFilesystemPath(resolve(realRoot, relativePath), scanned.realPath);
       if (seenIsAlias && !currentIsAlias) {
         linked.push({ path: seenFile.path, target: relativePath });
         results[seenIndex] = scanned.file;
@@ -396,7 +597,7 @@ function reportUnreadContent(diagnostics: RepoMap["diagnostics"], files: RepoFil
     const sample = affected.slice(0, 3).map((file) => file.path).join(", ");
     const prefix = `${affected.length.toLocaleString()} source file${affected.length === 1 ? "" : "s"}`;
     diagnostics.push({
-      code: "content-unread",
+      code: reason === "not-text" ? "content-not-utf8" : "content-unreadable",
       severity: "warning",
       message: reason === "not-text"
         ? `${prefix} ${affected.length === 1 ? "is" : "are"} not UTF-8 text (for example UTF-16 or binary) and ` +
@@ -421,7 +622,7 @@ function reportUnreadContent(diagnostics: RepoMap["diagnostics"], files: RepoFil
     .join(", ");
 
   diagnostics.push({
-    code: "content-unread",
+    code: "content-too-large",
     severity: "warning",
     message:
       `${unread.length.toLocaleString()} source file${unread.length === 1 ? "" : "s"} could not be read as text and ` +
@@ -494,7 +695,9 @@ async function walkFiles(
   root: string,
   current: string,
   diagnostics: RepoMap["diagnostics"],
-  state: ScanState
+  state: ScanState,
+  internalCacheRoot: string | undefined,
+  internalPaths: ReadonlySet<string>
 ): Promise<RepoFile[]> {
   let entries;
   try {
@@ -516,7 +719,9 @@ async function walkFiles(
       if (WALK_IGNORED_DIRS.has(entry.name)) {
         continue;
       }
-      results.push(...await walkFiles(root, join(current, entry.name), diagnostics, state));
+      const directory = join(current, entry.name);
+      if (internalCacheRoot && sameFilesystemPath(directory, internalCacheRoot)) continue;
+      results.push(...await walkFiles(root, directory, diagnostics, state, internalCacheRoot, internalPaths));
       continue;
     }
 
@@ -525,7 +730,9 @@ async function walkFiles(
     }
 
     const absolutePath = join(current, entry.name);
-    const scanned = await toRepoFile(absolutePath, normalizePath(relative(root, absolutePath)));
+    const relativePath = normalizePath(relative(root, absolutePath));
+    if (hasInternalPath(internalPaths, relativePath) || isInternalCachePath(root, relativePath, internalCacheRoot)) continue;
+    const scanned = await toRepoFile(absolutePath, relativePath);
     if (scanned.status === "ok") {
       results.push(scanned.file);
       state.count += 1;
@@ -552,8 +759,9 @@ async function toRepoFile(absolutePath: string, relativePath: string): Promise<S
     return { status: "not-a-file" };
   }
 
-  const extension = extname(relativePath);
-  const isSource = SOURCE_EXTENSIONS.has(extension);
+  const extension = extname(relativePath).toLowerCase();
+  const conventionalKind = classifyConventionalTextFile(relativePath);
+  const isSource = SOURCE_EXTENSIONS.has(extension) || conventionalKind !== undefined;
   const sample = isSource
     ? await readTextSample(absolutePath, fileStat.size)
     : { text: "", complete: true };
@@ -715,7 +923,8 @@ function decodeManifest(bytes: Buffer): { text: string; encoding: string } {
 async function readDiff(
   repoRoot: string,
   diffSpec: string | undefined,
-  diagnostics: RepoMap["diagnostics"]
+  diagnostics: RepoMap["diagnostics"],
+  internalPaths: ReadonlySet<string>
 ): Promise<{ changedFiles: string[]; diffText: string }> {
   if (!diffSpec) {
     return { changedFiles: [], diffText: "" };
@@ -723,15 +932,15 @@ async function readDiff(
 
   try {
     const [{ stdout: names }, { stdout: diffText }] = await Promise.all([
-      exec("git", ["diff", "--relative", "--name-only", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["diff", "--relative", diffSpec], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
+      exec("git", ["diff", "--relative", "--name-only", diffSpec, ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", "--relative", diffSpec, ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
     ]);
     const tracked = names
       .split(/\r?\n/)
       .map((path) => path.trim())
       .filter(Boolean)
       .map(normalizePath);
-    const untracked = diffSpec.includes("..") ? [] : await listUntrackedPaths(repoRoot);
+    const untracked = diffSpec.includes("..") ? [] : await listUntrackedPaths(repoRoot, internalPaths);
     const changedFiles = [...new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
     diagnostics.push({
       code: "diff-resolved",
@@ -741,10 +950,7 @@ async function readDiff(
         : `Diff "${truncateForDiagnostic(diffSpec, DIAGNOSTIC_SPEC_LIMIT)}" resolved ${changedFiles.length} changed ${changedFiles.length === 1 ? "path" : "paths"}.`,
       paths: changedFiles.slice(0, 8)
     });
-    return {
-      changedFiles,
-      diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS)
-    };
+    return { changedFiles, diffText: sampleDiffText(diffText, diagnostics) };
   } catch (error) {
     const checkoutState = isMissingGit(error) ? undefined : await describeGitCheckout(repoRoot);
     const detail = truncateForDiagnostic(gitErrorDetail(error), DIAGNOSTIC_SPEC_LIMIT * 2);
@@ -763,6 +969,70 @@ async function readDiff(
 }
 
 /**
+ * Large diffs used to be cut at an arbitrary UTF-16 offset. That could split a line and,
+ * because git orders files, erase every content signal from files later in the diff. For an
+ * oversized diff the ranker only needs added lines, so sample complete added lines from every
+ * file in round-robin order and say exactly what was omitted.
+ */
+function sampleDiffText(diffText: string, diagnostics: RepoMap["diagnostics"]): string {
+  if (diffText.length <= MAX_DIFF_TEXT_CHARS) return diffText;
+
+  const groups: string[][] = [];
+  let current: string[] | undefined;
+  for (const line of diffText.split(/\r?\n/)) {
+    if (line.startsWith("diff --git ")) {
+      current = [];
+      groups.push(current);
+      continue;
+    }
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      if (!current) {
+        current = [];
+        groups.push(current);
+      }
+      current.push(line);
+    }
+  }
+
+  const queues = groups.filter((group) => group.length > 0);
+  const selected: string[] = [];
+  let selectedChars = 0;
+  let selectedLines = 0;
+  const totalLines = queues.reduce((total, group) => total + group.length, 0);
+  let cursor = 0;
+  let madeProgress = true;
+
+  while (madeProgress && selectedChars < MAX_DIFF_TEXT_CHARS) {
+    madeProgress = false;
+    for (const group of queues) {
+      const line = group[cursor];
+      if (line === undefined) continue;
+      madeProgress = true;
+      const separator = selected.length === 0 ? 0 : 1;
+      if (selectedChars + separator + line.length <= MAX_DIFF_TEXT_CHARS) {
+        selected.push(line);
+        selectedChars += separator + line.length;
+        selectedLines += 1;
+      }
+    }
+    cursor += 1;
+  }
+
+  diagnostics.push({
+    code: "diff-text-truncated",
+    severity: "warning",
+    message:
+      `The git diff was ${diffText.length.toLocaleString()} characters, above FixMap's ` +
+      `${MAX_DIFF_TEXT_CHARS.toLocaleString()}-character signal budget. FixMap sampled ` +
+      `${selectedLines.toLocaleString()} of ${totalLines.toLocaleString()} complete added lines ` +
+      `across ${queues.length.toLocaleString()} changed ${queues.length === 1 ? "file" : "files"}; ` +
+      "changed-file paths remain complete, but omitted diff content could reduce ranking precision."
+  });
+
+  return selected.join("\n");
+}
+
+/**
  * "Map what I am touching right now."
  *
  * Reaching this through `--diff HEAD` worked but was neither obvious nor quite right: it
@@ -773,19 +1043,20 @@ async function readDiff(
 async function readWorkingTree(
   repoRoot: string,
   includeUntracked: boolean,
-  diagnostics: RepoMap["diagnostics"]
+  diagnostics: RepoMap["diagnostics"],
+  internalPaths: ReadonlySet<string>
 ): Promise<{ changedFiles: string[]; diffText: string }> {
   try {
     const [{ stdout: names }, { stdout: diffText }] = await Promise.all([
-      exec("git", ["diff", "--relative", "--name-only", "HEAD"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["diff", "--relative", "HEAD"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
+      exec("git", ["diff", "--relative", "--name-only", "HEAD", ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", "--relative", "HEAD", ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
     ]);
     const tracked = names
       .split(/\r?\n/)
       .map((path) => path.trim())
       .filter(Boolean)
       .map(normalizePath);
-    const untracked = includeUntracked ? await listUntrackedPaths(repoRoot) : [];
+    const untracked = includeUntracked ? await listUntrackedPaths(repoRoot, internalPaths) : [];
     const changedFiles = [...new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
 
     diagnostics.push({
@@ -800,7 +1071,7 @@ async function readWorkingTree(
       paths: changedFiles.slice(0, 8)
     });
 
-    return { changedFiles, diffText: diffText.slice(0, MAX_DIFF_TEXT_CHARS) };
+    return { changedFiles, diffText: sampleDiffText(diffText, diagnostics) };
   } catch (error) {
     const checkoutState = isMissingGit(error) ? undefined : await describeGitCheckout(repoRoot);
     diagnostics.push({
@@ -862,24 +1133,61 @@ function isMissingGit(error: unknown): boolean {
   return (error as { code?: unknown })?.code === "ENOENT";
 }
 
-function detectPackageManager(files: RepoFile[]): RepoMap["packageManager"] {
-  const paths = new Set(files.map((file) => file.path));
-  if (paths.has("pnpm-lock.yaml") || paths.has("pnpm-workspace.yaml")) return "pnpm";
-  if (paths.has("yarn.lock") || paths.has(".yarnrc.yml")) return "yarn";
-  if (paths.has("bun.lock") || paths.has("bun.lockb")) return "bun";
+function detectPackageManager(files: RepoFile[], diagnostics: RepoMap["diagnostics"]): RepoMap["packageManager"] {
+  const rootManagers = packageManagersForPaths(files.map((file) => file.path).filter((path) => !path.includes("/")));
+  if (rootManagers.length > 1) {
+    diagnostics.push({
+      code: "package-manager-conflict",
+      severity: "warning",
+      message: `Conflicting root package-manager files were found (${rootManagers.join(", ")}); using ${rootManagers[0]} deterministically. Remove the stale lockfile so routed commands are unambiguous.`
+    });
+  }
+  if (rootManagers[0]) return rootManagers[0];
+
+  // Archives and workspace extracts do not always carry a root lockfile. When every nested
+  // declaration agrees, use that manager rather than printing npm commands that cannot run.
+  const nestedManagers = packageManagersForPaths(files.map((file) => file.path));
+  if (nestedManagers.length === 1) return nestedManagers[0]!;
+  if (nestedManagers.length > 1) {
+    diagnostics.push({
+      code: "package-manager-conflict",
+      severity: "warning",
+      message: `Nested package-manager files disagree (${nestedManagers.join(", ")}); defaulting to npm for root routes. Point --repo at one workspace to get an unambiguous command.`
+    });
+  }
   return "npm";
+}
+
+function packageManagersForPaths(paths: string[]): RepoMap["packageManager"][] {
+  const names = new Set(paths.map((path) => path.split("/").at(-1) ?? path));
+  const managers: RepoMap["packageManager"][] = [];
+  if (names.has("pnpm-lock.yaml") || names.has("pnpm-workspace.yaml")) managers.push("pnpm");
+  if (names.has("yarn.lock") || names.has(".yarnrc.yml")) managers.push("yarn");
+  if (names.has("bun.lock") || names.has("bun.lockb")) managers.push("bun");
+  if (names.has("package-lock.json") || names.has("npm-shrinkwrap.json")) managers.push("npm");
+  return managers;
 }
 
 function classifyFile(path: string, extension: string): RepoFile["kind"] {
   const lower = path.toLowerCase();
-  if (extension === ".md" || lower.startsWith("docs/") || lower === "license") return "documentation";
+  const conventionalKind = classifyConventionalTextFile(path);
+  if (conventionalKind) return conventionalKind;
+  if (extension === ".md" || lower.startsWith("docs/")) return "documentation";
   if (
     lower.startsWith(".github/") ||
     [".json", ".yaml", ".yml"].includes(extension) ||
-    /(^|\/)([^/]+\.)?(config|rc)\.[^/]+$/.test(lower)
+    /(^|\/)(?:[^/]+\.config|\.[^/]*rc)\.[^/]+$/.test(lower)
   ) return "config";
   if (SOURCE_EXTENSIONS.has(extension)) return "code";
   return "other";
+}
+
+function classifyConventionalTextFile(path: string): "documentation" | "config" | undefined {
+  const name = path.replace(/\\/g, "/").split("/").at(-1)?.toLowerCase() ?? "";
+  if (CONVENTIONAL_DOCUMENT_NAMES.has(name)) return "documentation";
+  if (CONVENTIONAL_CONFIG_NAMES.has(name)) return "config";
+  if (/\.(?:csproj|fsproj|vbproj)$/.test(name)) return "config";
+  return undefined;
 }
 
 async function readTextSample(
@@ -906,14 +1214,18 @@ async function readTextSample(
   }
 }
 
-async function listUntrackedPaths(repoRoot: string): Promise<string[]> {
+async function listUntrackedPaths(
+  repoRoot: string,
+  internalPaths: ReadonlySet<string> = new Set<string>()
+): Promise<string[]> {
   try {
     const { stdout } = await exec(
       "git",
       ["ls-files", "--others", "--exclude-standard", "-z"],
       { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }
     );
-    return stdout.split("\0").filter(Boolean).map(normalizePath);
+    return stdout.split("\0").filter(Boolean).map(normalizePath)
+      .filter((path) => !hasInternalPath(internalPaths, path));
   } catch {
     return [];
   }

@@ -37,12 +37,25 @@ export default function EvidencePage() {
     <main>
       <section className="subpage-hero page-shell evidence-hero">
         <p className="eyebrow">Evidence</p>
-        <h1>Measured honestly.<br /><em>Misses included.</em></h1>
+        <h1>Measured honestly.{" "}<br /><em>Misses included.</em></h1>
         <p>
           Every benchmark case is a real issue later closed by a merged pull request. FixMap sees
           the repository before the fix and tries to surface the file that actually changed.
         </p>
         <div className="button-row"><a className="button primary" href={`${repoUrl}/tree/main/benchmarks`}>Open benchmark data <ArrowRight size={18} weight="bold" aria-hidden /></a></div>
+      </section>
+
+      <section className="section page-shell">
+        <div className="section-heading split-heading">
+          <div><p className="eyebrow">Confidence calibration</p><h2>Labels are evidence bands, not probabilities.</h2></div>
+          <p>Across the held-out and external suites, high confidence is not more accurate than medium in this small sample. The counts are published so readers can see that limitation instead of treating a label as a calibrated chance of correctness.</p>
+        </div>
+        <div className="results-table" role="table" aria-label="Top-result accuracy by FixMap confidence label">
+          <div className="results-row results-head" role="row"><span role="columnheader">Top label</span><span role="columnheader">Cases</span><span role="columnheader">Correct</span><span role="columnheader">Accuracy</span></div>
+          {siteStats.confidenceCalibration.map((band) => (
+            <div className="results-row" role="row" key={band.confidence}><span role="cell">{band.confidence}</span><span role="cell">{band.cases}</span><span role="cell">{band.correct}</span><span role="cell">{rate(band.accuracy)}</span></div>
+          ))}
+        </div>
       </section>
 
       <section className="section page-shell">
@@ -122,8 +135,8 @@ export default function EvidencePage() {
               <div className="results-row" role="row" key={result.slug}>
                 <span role="cell"><a href={`https://github.com/${result.slug}/issues/${result.issue}`}>{result.slug} #{result.issue}</a></span>
                 <code role="cell">{result.expected[0]}</code>
-                <code role="cell">{result.top5[0]}</code>
-                <span role="cell" className={result.top3 ? "result-hit" : "result-miss"}>{result.top3 ? <Check size={18} weight="bold" aria-hidden /> : <Minus size={18} weight="bold" aria-hidden />}{result.top3 ? "Hit" : "Miss"}</span>
+                <code role="cell">{result.top5Paths[0]}</code>
+                <span role="cell" className={result.top3Hit ? "result-hit" : "result-miss"}>{result.top3Hit ? <Check size={18} weight="bold" aria-hidden /> : <Minus size={18} weight="bold" aria-hidden />}{result.top3Hit ? "Hit" : "Miss"}</span>
               </div>
             ))}
           </div>

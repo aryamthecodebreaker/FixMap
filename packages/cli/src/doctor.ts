@@ -8,7 +8,7 @@
 
 import { exec as execWithShell, execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -30,7 +30,9 @@ export type DoctorReport = {
 export type DoctorDependencies = {
   readVersion?: () => string;
   resolveBinary?: (name: string) => Promise<string | undefined>;
+  resolveBinaries?: (name: string) => Promise<string[]>;
   globalVersion?: () => Promise<string | undefined>;
+  projectVersion?: () => Promise<{ version: string; path: string } | undefined>;
   nodeVersion?: () => string;
   modulePath?: () => string;
   requestedPackage?: () => string | undefined;
@@ -63,11 +65,41 @@ export async function runDoctorChecks(dependencies: DoctorDependencies = {}): Pr
     findings.push({ label: "Requested package", value: `${requestedVersion} (matches)`, ok: true });
   }
 
-  const binary = await (dependencies.resolveBinary ?? resolveBinary)("fixmap");
+  const binaries = dependencies.resolveBinaries
+    ? await dependencies.resolveBinaries("fixmap")
+    : dependencies.resolveBinary
+      ? [await dependencies.resolveBinary("fixmap")].filter((entry): entry is string => Boolean(entry))
+      : await resolveBinaries("fixmap");
   const globalVersion = await (dependencies.globalVersion ?? readGlobalVersion)();
 
-  if (binary) {
-    findings.push({ label: "fixmap on PATH", value: binary, ok: true });
+  findings.push(binaries.length === 0
+    ? {
+      label: "fixmap on PATH",
+      value: "not on PATH",
+      ok: true,
+      advice: "This npx-only setup is valid. Run `npm install --global @aryam/fixmap` only if you want a persistent fixmap command."
+    }
+    : binaries.length === 1
+      ? { label: "fixmap on PATH", value: binaries[0]!, ok: true }
+      : {
+        label: "fixmap on PATH",
+        value: binaries.join("; "),
+        ok: false,
+        advice: "Multiple FixMap binaries are on PATH. Remove or reorder stale entries so one installation wins consistently."
+      });
+
+  const project = await (dependencies.projectVersion ?? (() => readProjectVersion(process.cwd())))();
+  if (project && project.version !== runningVersion) {
+    findings.push({
+      label: "Project install",
+      value: `${project.version} at ${project.path} (this process is ${runningVersion})`,
+      ok: false,
+      advice: "Update or remove the project-local @aryam/fixmap dependency so it cannot shadow the requested version."
+    });
+  } else if (project) {
+    findings.push({ label: "Project install", value: `${project.version} at ${project.path} (matches)`, ok: true });
+  } else {
+    findings.push({ label: "Project install", value: "none", ok: true });
   }
 
   // The finding that matters. A global install at a different version than the one this
@@ -133,13 +165,28 @@ function satisfiesEngine(version: string): boolean {
   return major > 20 || (major === 20 && minor >= 11);
 }
 
-async function resolveBinary(name: string): Promise<string | undefined> {
+async function resolveBinaries(name: string): Promise<string[]> {
   const command = process.platform === "win32" ? "where" : "which";
+  const args = process.platform === "win32" ? [name] : ["-a", name];
   try {
-    const { stdout } = await exec(command, [name]);
-    return stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)[0];
+    const { stdout } = await exec(command, args);
+    return [...new Set(stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))];
   } catch {
-    return undefined;
+    return [];
+  }
+}
+
+async function readProjectVersion(start: string): Promise<{ version: string; path: string } | undefined> {
+  let current = resolve(start);
+  const root = parse(current).root;
+  while (true) {
+    const path = join(current, "node_modules", "@aryam", "fixmap", "package.json");
+    try {
+      const parsed = JSON.parse(readFileSync(path, "utf8")) as { version?: unknown };
+      if (typeof parsed.version === "string" && parsed.version.trim()) return { version: parsed.version, path };
+    } catch { /* Walk to the parent. */ }
+    if (current === root) return undefined;
+    current = dirname(current);
   }
 }
 

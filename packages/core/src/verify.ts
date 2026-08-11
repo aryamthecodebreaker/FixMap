@@ -10,6 +10,7 @@
 import { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
 import { buildRiskNotes, pathsForRiskArea } from "./report.js";
 import type { FixMapReport, RepoMap, VerifyFinding, VerifyResult } from "./types.js";
+import { markdownCode } from "./markdown.js";
 
 export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
   const changed = repo.changedFiles;
@@ -17,7 +18,11 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
   const fileByPath = new Map(repo.files.map((file) => [file.path, file]));
   const plannedPaths = report.contextFiles.map((file) => file.path);
 
-  if (plannedPaths.length > 0 && !plannedPaths.some((path) => fileByPath.has(path))) {
+  const missingPlanned = plannedPaths.filter((path) => !fileByPath.has(path));
+  const changedMissingPlanned = missingPlanned.filter((path) => changed.includes(path));
+  const unexplainedMissingPlanned = missingPlanned.filter((path) => !changed.includes(path));
+
+  if (plannedPaths.length > 0 && unexplainedMissingPlanned.length === plannedPaths.length) {
     const mismatch: VerifyFinding = {
       code: "plan-repository-mismatch",
       severity: "error",
@@ -32,6 +37,27 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
       findings: [mismatch],
       diagnostics: repo.diagnostics
     };
+  }
+
+  if (unexplainedMissingPlanned.length > 0) {
+    findings.push({
+      code: "plan-partially-stale",
+      severity: "warning",
+      paths: unexplainedMissingPlanned.slice(0, 8),
+      message:
+        `${unexplainedMissingPlanned.length} of ${plannedPaths.length} planned paths no longer exist and are not explained by this diff. ` +
+        "The plan may predate a rebase or rename; regenerate it before relying on the missing entries."
+    });
+  }
+  if (changedMissingPlanned.length > 0) {
+    findings.push({
+      code: "planned-file-deleted",
+      severity: "info",
+      paths: changedMissingPlanned.slice(0, 8),
+      message:
+        `${changedMissingPlanned.length === 1 ? "A planned file was" : `${changedMissingPlanned.length} planned files were`} removed by this diff. ` +
+        "The deletion accounts for the missing path, so verification continued."
+    });
   }
 
   if (changed.length === 0) {
@@ -202,11 +228,11 @@ export function renderVerifyMarkdown(result: VerifyResult): string {
     for (const finding of result.findings) {
       lines.push(`- **${finding.severity}** ${finding.message}`);
       for (const path of finding.paths.slice(0, 8)) {
-        lines.push(`  - \`${path}\``);
+        lines.push(`  - ${markdownCode(path)}`);
       }
     }
   }
   lines.push("", "## Changed Files", "");
-  lines.push(...(result.changedFiles.length > 0 ? result.changedFiles.map((path) => `- \`${path}\``) : ["- None found"]));
+  lines.push(...(result.changedFiles.length > 0 ? result.changedFiles.map((path) => `- ${markdownCode(path)}`) : ["- None found"]));
   return `${lines.join("\n")}\n`;
 }

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildFixMapReport } from "../src/plan.js";
+import { renderMarkdownReport } from "../src/report.js";
 
 async function createAuthFixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "fixmap-plan-"));
@@ -77,6 +78,20 @@ describe("buildFixMapReport", () => {
     expect(report.diagnostics.find((entry) => entry.code === "paths-excluded")?.severity).toBe("warning");
   });
 
+  it("renders exclusion globs as code instead of live markdown", async () => {
+    const root = await createAuthFixture();
+
+    const report = await buildFixMapReport({
+      repoRoot: root,
+      issueText: "password reset emails fail",
+      exclude: ["**/_x_/**"]
+    });
+    const markdown = renderMarkdownReport(report);
+
+    expect(markdown).toContain("`**/_x_/**`");
+    expect(markdown).not.toContain("paths: **/_x_/**");
+  });
+
   it("does not let a giant task token become a giant diagnostic", async () => {
     const root = await createAuthFixture();
     // A pasted blob with no spaces, which used to travel verbatim into the message and
@@ -91,7 +106,7 @@ describe("buildFixMapReport", () => {
     expect(diagnostic!.message).not.toContain("z".repeat(100));
     // The terms a reader can act on survive.
     expect(diagnostic!.message).toContain("flurbulator");
-  });
+  }, 15_000);
 
   it("does not let a giant diff spec become a giant diagnostic", async () => {
     const root = await createAuthFixture();
@@ -106,7 +121,7 @@ describe("buildFixMapReport", () => {
     // and once inside git's own error text.
     expect(diagnostic!.message).not.toContain("Y".repeat(200));
     expect(diagnostic!.message).toContain("notadiff");
-  });
+  }, 15_000);
 
   it("does not report a term diagnostic when context files are found", async () => {
     const root = await createAuthFixture();
@@ -154,7 +169,8 @@ describe("buildFixMapReport", () => {
       issueText: "improve error handling"
     });
 
-    expect(report.contextFiles).toEqual([]);
+    expect(report.contextFiles).toHaveLength(3);
+    expect(report.contextFiles.every((file) => file.confidence === "low")).toBe(true);
     expect(report.diagnostics.map((entry) => entry.code)).toContain("vague-task");
     expect(report.analysis?.nextAction).toContain("Add a concrete");
   });

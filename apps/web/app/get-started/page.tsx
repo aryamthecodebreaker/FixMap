@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, GithubLogo, Robot, TerminalWindow } from "@phosphor-icons/react/ssr";
+import { ArrowRight, Command, GithubLogo, Robot, TerminalWindow } from "@phosphor-icons/react/ssr";
 import { CopyCommand } from "../_components/copy-command";
 import { commands, marketplaceUrl, repoUrl, siteStats } from "../_lib/site-data";
 
 export const metadata: Metadata = {
   title: "Get started",
-  description: "Run FixMap from the CLI, connect it through MCP, or add it to pull requests with the GitHub Action.",
+  description: "Install the /fixmap command, run the CLI, connect MCP, or add FixMap to pull requests with the GitHub Action.",
   alternates: { canonical: "/get-started" },
   openGraph: {
     title: "Get started with FixMap",
-    description: "Install the CLI, connect MCP, or add the GitHub Action.",
+    description: "Install /fixmap, use the CLI, connect MCP, or add the GitHub Action.",
     url: "/get-started"
   }
 };
@@ -21,12 +21,23 @@ export default function GetStartedPage() {
       <section className="subpage-hero page-shell">
         <p className="eyebrow">Get started</p>
         <h1>Choose where the map <em>should appear.</em></h1>
-        <p>Install the CLI once and use a short command, let a compatible coding agent request the map, or publish it automatically on pull requests.</p>
-        <div className="jump-links"><a href="#cli">CLI</a><a href="#mcp">MCP</a><a href="#action">GitHub Action</a></div>
+        <p>Install the CLI once, add a discoverable slash command to a coding agent, connect the MCP tools, or publish a map automatically on pull requests.</p>
+        <div className="jump-links"><a href="#slash-command">/fixmap</a><a href="#cli">CLI</a><a href="#mcp">MCP</a><a href="#action">GitHub Action</a></div>
+      </section>
+
+      <section className="setup-section page-shell" id="slash-command">
+        <div className="setup-heading"><span>01</span><Command size={34} aria-hidden /><div><p className="eyebrow">Slash command</p><h2>Type /fixmap. See every workflow.</h2></div></div>
+        <div className="setup-content">
+          <p className="setup-lede">Install project-level discovery for Claude Code, Cursor, GitHub Copilot, and Agent Skills. Invoking <code>/fixmap</code> without a task opens the complete Plan, Explain, Compare, Verify, Validate, Doctor, MCP, focus, working-tree, and fresh-scan menu.</p>
+          <CopyCommand command={commands.setup} />
+          <p>The installer is idempotent and refuses to overwrite an existing customized command. Target one integration with <code>--agent claude</code>, <code>cursor</code>, <code>copilot</code>, or <code>agents</code>. Use <code>--force</code> only after reviewing the file.</p>
+          <h3>See the same menu in a terminal</h3>
+          <CopyCommand command={commands.features} />
+        </div>
       </section>
 
       <section className="setup-section page-shell" id="cli">
-        <div className="setup-heading"><span>01</span><TerminalWindow size={34} aria-hidden /><div><p className="eyebrow">CLI</p><h2>Install once. Keep the command short.</h2></div></div>
+        <div className="setup-heading"><span>02</span><TerminalWindow size={34} aria-hidden /><div><p className="eyebrow">CLI</p><h2>Install once. Keep the command short.</h2></div></div>
         <div className="setup-content">
           <p className="setup-lede">Install FixMap globally, then paste a public GitHub issue URL. FixMap fetches the task, infers the repository, scans a temporary checkout, and removes it when the report is done.</p>
           <CopyCommand command="npm install --global @aryam/fixmap@latest" />
@@ -71,13 +82,13 @@ npx fixmap plan --issue "password reset emails fail"`} />
       </section>
 
       <section className="setup-section page-shell" id="mcp">
-        <div className="setup-heading"><span>02</span><Robot size={34} aria-hidden /><div><p className="eyebrow">MCP</p><h2>Let the agent ask.</h2></div></div>
+        <div className="setup-heading"><span>03</span><Robot size={34} aria-hidden /><div><p className="eyebrow">MCP</p><h2>Let the agent ask.</h2></div></div>
         <div className="setup-content">
           <p className="setup-lede">FixMap exposes five local stdio tools: <code>fixmap_plan</code> before editing, <code>fixmap_explain</code> when a file is missing, <code>fixmap_compare</code> to measure a refined plan, <code>fixmap_verify</code> after the diff exists, and <code>fixmap_doctor</code> to diagnose install shadows.</p>
           <h3>Claude Code</h3>
           <CopyCommand command="claude mcp add fixmap -- fixmap mcp" />
           <h3>Cursor, Windsurf, and other MCP clients</h3>
-          <pre className="code-block"><code>{`{
+          <pre className="code-block" tabIndex={0}><code>{`{
   "mcpServers": {
     "fixmap": {
       "command": "fixmap",
@@ -85,15 +96,15 @@ npx fixmap plan --issue "password reset emails fail"`} />
     }
   }
 }`}</code></pre>
-          <p className="small-note">Analysis runs locally over stdio. FixMap does not send repository source to a hosted model or service.</p>
+          <p className="small-note">Analysis runs locally over stdio. FixMap does not send repository source to a hosted model or service. Plan, Explain, and Verify accept <code>noCache: true</code> for an explicit fresh scan.</p>
         </div>
       </section>
 
       <section className="setup-section page-shell" id="action">
-        <div className="setup-heading"><span>03</span><GithubLogo size={34} weight="fill" aria-hidden /><div><p className="eyebrow">GitHub Action</p><h2>Map every pull request.</h2></div></div>
+        <div className="setup-heading"><span>04</span><GithubLogo size={34} weight="fill" aria-hidden /><div><p className="eyebrow">GitHub Action</p><h2>Map every pull request.</h2></div></div>
         <div className="setup-content">
-          <p className="setup-lede">The Action posts one report as a pull-request comment and writes the complete result to the job summary.</p>
-          <pre className="code-block"><code>{`name: FixMap
+          <p className="setup-lede">The Action posts one report as a pull-request comment and writes the complete result to the job summary. Set <code>no-cache: true</code> when a workflow needs an explicit fresh scan.</p>
+          <pre className="code-block" tabIndex={0}><code>{`name: FixMap
 on:
   pull_request:
 

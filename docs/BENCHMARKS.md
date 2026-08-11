@@ -89,7 +89,7 @@ Both keyword arms are case-insensitive and expand camelCase, which favours the b
 | --- | ---: | ---: | ---: |
 | `path-extraction` (any policy) | 0.0% | 0.0% | 0.0% |
 | `lexical-literal:raw` | 11.1% | 22.2% | 33.3% |
-| `lexical-literal:code` | 22.2% | 44.4% | 66.7% |
+| `lexical-literal:code` | 22.2% | 44.4% | 77.8% |
 | `bm25:raw` | 11.1% | 22.2% | 33.3% |
 | `bm25:source` | 11.1% | 22.2% | 44.4% |
 | **`bm25:code`** | **44.4%** | **55.6%** | **100%** |

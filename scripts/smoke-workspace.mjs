@@ -34,8 +34,9 @@ for (const benchmark of cases) {
     console.error(`Workspace smoke failed: "${benchmark.task}" routed to "${firstRoute}" instead of "${benchmark.expectedFirstRoute}".`);
     failed = true;
   }
-  if (!contextPaths.includes(benchmark.expectedContext)) {
-    console.error(`Workspace smoke failed: "${benchmark.task}" did not rank ${benchmark.expectedContext}.`);
+  if (contextPaths[0] !== benchmark.expectedContext) {
+    const position = contextPaths.indexOf(benchmark.expectedContext);
+    console.error(`Workspace smoke failed: "${benchmark.task}" ranked ${benchmark.expectedContext} ${position === -1 ? "nowhere" : `at position ${position + 1}`}, not first.`);
     failed = true;
   }
 

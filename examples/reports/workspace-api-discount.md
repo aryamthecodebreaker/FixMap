@@ -4,8 +4,8 @@ FixMap found 2 context files and generated 3 test routes.
 
 ## Context Files
 
-- `apps/api/src/orders.ts` (high confidence, score 37): path matches task terms: order; content matches task terms: discount, order, total, code; defines task identifiers: orderTotal
-- `packages/utils/src/currency.ts` (low confidence, score 6): content matches task terms: discount, total
+- `apps/api/src/orders.ts` (high confidence, score 41): path matches task terms: order; content matches task terms: discount, order, total, code; defines task identifiers: orderTotal; task identifier is defined in maintained implementation source
+- `packages/utils/src/currency.ts` (medium confidence, score 14): content matches task terms: discount, total; defines symbols matching task terms: applyDiscount, discounted
 
 ## Test Routes
 

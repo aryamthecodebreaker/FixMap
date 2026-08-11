@@ -1,6 +1,14 @@
 import type { RepoFile, ScanDiagnostic } from "./types.js";
 
-const GATE_PATTERN = /\.(skipIf|runIf)\s*\(/;
+const CONDITIONAL_GATE_PATTERN = /\.(?:skipIf|runIf)\s*\(/;
+const UNCONDITIONAL_GATE_PATTERNS = [
+  /\b(?:it|test|describe|context)\.(?:skip|todo)\s*\(/,
+  /\b(?:xit|xtest|xdescribe|xcontext)\s*\(/,
+  /\bthis\.skip\s*\(/,
+  /@(?:pytest\.mark\.(?:skip|skipif)|unittest\.skip(?:If|Unless)?)\b/,
+  /\bt\.Skip(?:f|Now)?\s*\(/,
+  /#\[ignore(?:\s*=|\s*\])/
+];
 const ENV_NAME_PATTERNS = [/process\.env\.([A-Z][A-Z0-9_]*)/g, /process\.env\[["']([A-Z][A-Z0-9_]*)["']\]/g];
 
 export function findGatedTestDiagnostics(files: RepoFile[], routedTestPaths: string[]): ScanDiagnostic[] {
@@ -8,14 +16,18 @@ export function findGatedTestDiagnostics(files: RepoFile[], routedTestPaths: str
   const diagnostics: ScanDiagnostic[] = [];
 
   for (const file of files) {
-    if (!file.isTest || !routed.has(file.path) || !GATE_PATTERN.test(file.textSample)) {
+    const conditional = CONDITIONAL_GATE_PATTERN.test(file.textSample);
+    const unconditional = UNCONDITIONAL_GATE_PATTERNS.some((pattern) => pattern.test(file.textSample));
+    if (!file.isTest || !routed.has(file.path) || (!conditional && !unconditional)) {
       continue;
     }
 
     diagnostics.push({
       code: "gated-test-skipped",
       severity: "warning",
-      message: gateMessage(file.path, extractEnvNames(file.textSample))
+      message: unconditional
+        ? `${file.path} contains skipped or ignored tests; the suggested test command will not exercise them until the skip is removed.`
+        : gateMessage(file.path, extractEnvNames(file.textSample))
     });
   }
 

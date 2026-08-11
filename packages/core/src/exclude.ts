@@ -20,12 +20,15 @@ export type PathExcluder = {
   /** The pattern that matched, for `--explain` to quote back. */
   reasonFor: (path: string) => string | undefined;
   patterns: string[];
+  /** Patterns that matched at least one path inspected by this excluder. */
+  matchedPatterns: ReadonlySet<string>;
 };
 
 export const NO_EXCLUSIONS: PathExcluder = {
   excludes: () => false,
   reasonFor: () => undefined,
-  patterns: []
+  patterns: [],
+  matchedPatterns: new Set<string>()
 };
 
 /**
@@ -49,6 +52,7 @@ export function buildPathExcluder(patterns: string[]): PathExcluder {
     return { pattern, negated, test: compile(body) };
   });
   const cache = new Map<string, string | undefined>();
+  const matchedPatterns = new Set<string>();
 
   const reasonFor = (path: string): string | undefined => {
     if (cache.has(path)) {
@@ -56,7 +60,10 @@ export function buildPathExcluder(patterns: string[]): PathExcluder {
     }
     let hit: string | undefined;
     for (const matcher of matchers) {
-      if (matcher.test(path)) hit = matcher.negated ? undefined : matcher.pattern;
+      if (matcher.test(path)) {
+        matchedPatterns.add(matcher.pattern);
+        hit = matcher.negated ? undefined : matcher.pattern;
+      }
     }
     cache.set(path, hit);
     return hit;
@@ -65,7 +72,8 @@ export function buildPathExcluder(patterns: string[]): PathExcluder {
   return {
     excludes: (path: string) => reasonFor(path) !== undefined,
     reasonFor,
-    patterns: cleaned
+    patterns: cleaned,
+    matchedPatterns
   };
 }
 

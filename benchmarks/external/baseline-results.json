@@ -593,52 +593,52 @@
       "all": {
         "cases": 16,
         "top1HitRate": 0.688,
-        "top3HitRate": 1,
-        "top5HitRate": 1,
+        "top3HitRate": 0.938,
+        "top5HitRate": 0.938,
         "intervals95": {
           "top1": [
             0.444,
             0.858
           ],
           "top3": [
-            0.806,
-            1
+            0.717,
+            0.989
           ],
           "top5": [
-            0.806,
-            1
+            0.717,
+            0.989
           ]
         }
       },
       "unmentioned": {
         "cases": 13,
-        "top1HitRate": 0.692,
-        "top3HitRate": 1,
-        "top5HitRate": 1,
+        "top1HitRate": 0.615,
+        "top3HitRate": 0.923,
+        "top5HitRate": 0.923,
         "intervals95": {
           "top1": [
-            0.424,
-            0.873
+            0.355,
+            0.823
           ],
           "top3": [
-            0.772,
-            1
+            0.667,
+            0.986
           ],
           "top5": [
-            0.772,
-            1
+            0.667,
+            0.986
           ]
         }
       },
       "mentioned": {
         "cases": 3,
-        "top1HitRate": 0.667,
+        "top1HitRate": 1,
         "top3HitRate": 1,
         "top5HitRate": 1,
         "intervals95": {
           "top1": [
-            0.208,
-            0.939
+            0.438,
+            1
           ],
           "top3": [
             0.438,
@@ -656,124 +656,124 @@
     "all": {
       "path-extraction:raw": {
         "top1": {
-          "aWins": 9,
-          "bWins": 1,
-          "discordant": 10,
-          "pValue": 0.0215
+          "aWins": 8,
+          "bWins": 0,
+          "discordant": 8,
+          "pValue": 0.0078
         },
         "top3": {
-          "aWins": 13,
+          "aWins": 12,
           "bWins": 0,
-          "discordant": 13,
-          "pValue": 0.0002
+          "discordant": 12,
+          "pValue": 0.0005
         },
         "top5": {
-          "aWins": 13,
+          "aWins": 12,
           "bWins": 0,
-          "discordant": 13,
-          "pValue": 0.0002
+          "discordant": 12,
+          "pValue": 0.0005
         }
       },
       "lexical-literal:code": {
         "top1": {
-          "aWins": 6,
-          "bWins": 0,
-          "discordant": 6,
-          "pValue": 0.0313
+          "aWins": 8,
+          "bWins": 2,
+          "discordant": 10,
+          "pValue": 0.1094
         },
         "top3": {
           "aWins": 11,
-          "bWins": 0,
-          "discordant": 11,
-          "pValue": 0.001
+          "bWins": 1,
+          "discordant": 12,
+          "pValue": 0.0063
         },
         "top5": {
           "aWins": 11,
-          "bWins": 0,
-          "discordant": 11,
-          "pValue": 0.001
+          "bWins": 1,
+          "discordant": 12,
+          "pValue": 0.0063
         }
       },
       "bm25:code": {
         "top1": {
-          "aWins": 5,
-          "bWins": 0,
-          "discordant": 5,
-          "pValue": 0.0625
+          "aWins": 7,
+          "bWins": 2,
+          "discordant": 9,
+          "pValue": 0.1797
         },
         "top3": {
           "aWins": 7,
-          "bWins": 0,
-          "discordant": 7,
-          "pValue": 0.0156
+          "bWins": 1,
+          "discordant": 8,
+          "pValue": 0.0703
         },
         "top5": {
           "aWins": 7,
-          "bWins": 0,
-          "discordant": 7,
-          "pValue": 0.0156
+          "bWins": 1,
+          "discordant": 8,
+          "pValue": 0.0703
         }
       }
     },
     "unmentioned": {
       "path-extraction:raw": {
         "top1": {
-          "aWins": 9,
+          "aWins": 8,
           "bWins": 0,
-          "discordant": 9,
-          "pValue": 0.0039
+          "discordant": 8,
+          "pValue": 0.0078
         },
         "top3": {
-          "aWins": 13,
+          "aWins": 12,
           "bWins": 0,
-          "discordant": 13,
-          "pValue": 0.0002
+          "discordant": 12,
+          "pValue": 0.0005
         },
         "top5": {
-          "aWins": 13,
+          "aWins": 12,
           "bWins": 0,
-          "discordant": 13,
-          "pValue": 0.0002
+          "discordant": 12,
+          "pValue": 0.0005
         }
       },
       "lexical-literal:code": {
         "top1": {
-          "aWins": 5,
-          "bWins": 0,
-          "discordant": 5,
-          "pValue": 0.0625
+          "aWins": 6,
+          "bWins": 2,
+          "discordant": 8,
+          "pValue": 0.2891
         },
         "top3": {
           "aWins": 9,
-          "bWins": 0,
-          "discordant": 9,
-          "pValue": 0.0039
+          "bWins": 1,
+          "discordant": 10,
+          "pValue": 0.0215
         },
         "top5": {
           "aWins": 9,
-          "bWins": 0,
-          "discordant": 9,
-          "pValue": 0.0039
+          "bWins": 1,
+          "discordant": 10,
+          "pValue": 0.0215
         }
       },
       "bm25:code": {
         "top1": {
-          "aWins": 4,
-          "bWins": 0,
-          "discordant": 4,
-          "pValue": 0.125
+          "aWins": 5,
+          "bWins": 2,
+          "discordant": 7,
+          "pValue": 0.4531
         },
         "top3": {
           "aWins": 5,
-          "bWins": 0,
-          "discordant": 5,
-          "pValue": 0.0625
+          "bWins": 1,
+          "discordant": 6,
+          "pValue": 0.2188
         },
         "top5": {
           "aWins": 5,
-          "bWins": 0,
-          "discordant": 5,
-          "pValue": 0.0625
+          "bWins": 1,
+          "discordant": 6,
+          "pValue": 0.2188
         }
       }
     }
@@ -789,111 +789,111 @@
       "mentionTier": "full-path",
       "arms": {
         "path-extraction:raw": {
-          "top5": [
+          "top5Paths": [
             "lib/request.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "path-extraction:source": {
-          "top5": [
+          "top5Paths": [
             "lib/request.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "path-extraction:code": {
-          "top5": [
+          "top5Paths": [
             "lib/request.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "lib/request.js",
             "lib/response.js",
             "test/res.send.js",
             "lib/application.js",
             "test/app.router.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "lib/request.js",
             "lib/response.js",
             "lib/application.js",
             "Readme.md",
             "examples/auth/index.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "lib/request.js",
             "lib/response.js",
             "lib/application.js",
             "examples/auth/index.js",
             "examples/web-service/index.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "lib/request.js",
             "test/req.fresh.js",
             "test/res.send.js",
             "test/req.stale.js",
             "lib/response.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "lib/request.js",
             "lib/response.js",
             "lib/application.js",
             "lib/express.js",
             "examples/mvc/index.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "lib/request.js",
             "lib/response.js",
             "lib/application.js",
             "lib/express.js",
             "examples/search/public/client.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "fixmap": {
-          "top5": [
+          "top5Paths": [
             "lib/request.js",
             "lib/response.js",
-            "package.json",
             "examples/auth/index.js",
-            "examples/route-middleware/index.js"
+            "examples/route-middleware/index.js",
+            "examples/web-service/index.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -908,105 +908,105 @@
       "mentionTier": "none",
       "arms": {
         "path-extraction:raw": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:source": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:code": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "tests/unit/prototypePollution.test.js",
             "lib/adapters/http.js",
             "tests/unit/core/AxiosError.test.js",
             "docs/pages/advanced/request-config.md",
             "tests/unit/adapters/fetch.test.js"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "lib/adapters/http.js",
             "docs/pages/advanced/request-config.md",
             "MIGRATION_GUIDE.md",
             "AGENTS.md",
             "docs/pages/advanced/api-reference.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "lib/adapters/http.js",
             "index.d.cts",
             "index.d.ts",
             "lib/utils.js",
             "lib/adapters/xhr.js"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "MIGRATION_GUIDE.md",
             "docs/pages/getting-started/first-steps.md",
             "tests/unit/toFormData.test.js",
             "docs/pages/advanced/create-an-instance.md",
             "docs/pages/advanced/testing.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "MIGRATION_GUIDE.md",
             "docs/pages/advanced/testing.md",
             "docs/pages/getting-started/first-steps.md",
             "docs/zh/pages/advanced/testing.md",
             "docs/pages/advanced/x-www-form-urlencoded-format.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "lib/core/AxiosError.js",
             "lib/core/InterceptorManager.js",
             "gulpfile.js",
             "lib/adapters/xhr.js",
             "index.d.cts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "fixmap": {
-          "top5": [
+          "top5Paths": [
             "lib/core/AxiosError.js",
             "lib/adapters/http.js",
             "lib/helpers/HttpStatusCode.js",
-            "index.d.cts",
-            "index.d.ts"
+            "lib/core/Axios.js",
+            "lib/core/AxiosHeaders.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -1021,105 +1021,105 @@
       "mentionTier": "none",
       "arms": {
         "path-extraction:raw": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:source": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:code": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "README.md",
             "src/node.js",
             "src/common.js",
             "src/browser.js",
             ".github/PULL_REQUEST_TEMPLATE.md"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "README.md",
             "src/node.js",
             "src/common.js",
             "src/browser.js",
             ".github/PULL_REQUEST_TEMPLATE.md"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "src/node.js",
             "src/common.js",
             "src/browser.js",
             "test.js",
             "karma.conf.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "src/node.js",
             "README.md",
             "src/common.js",
             "src/browser.js",
             ".github/PULL_REQUEST_TEMPLATE.md"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "src/node.js",
             "README.md",
             "src/common.js",
             "src/browser.js",
             ".github/PULL_REQUEST_TEMPLATE.md"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "src/node.js",
             "src/browser.js",
             "src/common.js",
             "karma.conf.js",
             "test.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "fixmap": {
-          "top5": [
-            "src/node.js",
-            "src/browser.js",
+          "top5Paths": [
             "src/common.js",
             "test.js",
-            "karma.conf.js"
+            "src/node.js",
+            "README.md",
+            "src/browser.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -1134,105 +1134,105 @@
       "mentionTier": "none",
       "arms": {
         "path-extraction:raw": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:source": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:code": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "readme.md",
             "source/core/Ky.ts",
             "source/types/options.ts",
             "source/types/hooks.ts",
             "test/main.ts"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "readme.md",
             "source/core/Ky.ts",
             "source/types/options.ts",
             "source/types/hooks.ts",
             "source/core/constants.ts"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "source/core/Ky.ts",
             "source/types/options.ts",
             "source/types/hooks.ts",
             "source/core/constants.ts",
             "source/utils/merge.ts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "readme.md",
             "source/core/Ky.ts",
             "source/core/constants.ts",
             "source/types/options.ts",
             "test/http-error.ts"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "readme.md",
             "source/core/Ky.ts",
             "source/core/constants.ts",
             "source/types/options.ts",
             "source/errors/HTTPError.ts"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "source/core/Ky.ts",
             "source/core/constants.ts",
             "source/types/options.ts",
             "source/errors/HTTPError.ts",
             "source/utils/merge.ts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "fixmap": {
-          "top5": [
+          "top5Paths": [
             "source/core/Ky.ts",
             "source/errors/HTTPError.ts",
             "source/types/hooks.ts",
             "source/types/options.ts",
-            "source/errors/SchemaValidationError.ts"
+            "source/core/constants.ts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -1247,105 +1247,105 @@
       "mentionTier": "none",
       "arms": {
         "path-extraction:raw": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:source": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:code": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "packages/docs-v3/README_ZH.md",
             "packages/zod/src/v4/mini/schemas.ts",
             "packages/zod/src/v4/mini/tests/index.test.ts",
             "packages/zod/src/v4/classic/from-json-schema.ts",
             "packages/docs-v3/ERROR_HANDLING.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "packages/docs-v3/README_ZH.md",
             "packages/zod/src/v4/mini/schemas.ts",
             "packages/zod/src/v4/classic/from-json-schema.ts",
             "packages/docs-v3/ERROR_HANDLING.md",
             "packages/zod/src/v4/core/checks.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "packages/zod/src/v4/mini/schemas.ts",
             "packages/zod/src/v4/classic/from-json-schema.ts",
             "packages/zod/src/v4/core/checks.ts",
             "packages/zod/src/v4/core/json-schema-processors.ts",
             "packages/zod/src/v4/core/api.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "packages/zod/src/v4/mini/tests/string.test.ts",
             "packages/zod/src/v4/classic/tests/detached-methods.test.ts",
             "packages/zod/src/v4/classic/tests/refine.test.ts",
             "packages/zod/src/v4/classic/tests/tuple.test.ts",
             "packages/zod/src/v4/mini/tests/codec.test.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "packages/docs-v3/README_ZH.md",
             "packages/zod/README.md",
-            "wiki/optionality.md",
             "packages/resolution/src/index.mts",
-            "packages/resolution/src/index.cts"
+            "packages/resolution/src/index.cts",
+            "packages/resolution/src/index.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "packages/resolution/src/index.mts",
             "packages/resolution/src/index.cts",
             "packages/resolution/src/index.ts",
             "packages/zod/src/v4/core/to-json-schema.ts",
             "packages/docs/components/ecosystem.tsx"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "fixmap": {
-          "top5": [
-            "packages/zod/src/v4/core/regexes.ts",
-            "packages/zod/src/v4/classic/from-json-schema.ts",
+          "top5Paths": [
             "packages/zod/src/v4/core/json-schema-processors.ts",
+            "packages/zod/src/v4/core/regexes.ts",
             "packages/zod/src/v4/mini/schemas.ts",
-            "packages/zod/src/v4/core/parse.ts"
+            "packages/zod/src/v4/classic/from-json-schema.ts",
+            "packages/zod/src/v4/core/checks.ts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -1361,105 +1361,105 @@
       "mentionTier": "none",
       "arms": {
         "path-extraction:raw": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:source": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:code": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "docs/transports.md",
             "docs/api.md",
             "pino.d.ts",
             "docs/help.md",
             "test/transport/core.test.js"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "docs/transports.md",
             "docs/api.md",
             "pino.d.ts",
             "docs/help.md",
             "pino.js"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "pino.d.ts",
             "pino.js",
             "lib/tools.js",
             "examples/transport.js",
             "browser.js"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "docs/api.md",
             "test/transport/core.test.js",
             "docs/transports.md",
             "test/types/pino-transport.tst.ts",
             "docs/help.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "docs/api.md",
             "docs/transports.md",
             "docs/help.md",
             "examples/transport.js",
             "pino.d.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "examples/transport.js",
             "pino.d.ts",
             "lib/transport.js",
             "pino.js",
             "lib/tools.js"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "fixmap": {
-          "top5": [
+          "top5Paths": [
+            "lib/worker.js",
+            "benchmarks/basic.bench.js",
+            "examples/transport.js",
             "pino.d.ts",
-            "lib/multistream.js",
-            "lib/transport.js",
-            "pino.js",
-            "lib/levels.js"
+            "browser.js"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -1474,105 +1474,105 @@
       "mentionTier": "none",
       "arms": {
         "path-extraction:raw": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:source": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:code": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "docs/Reference/Errors.md",
             "docs/Reference/Routes.md",
             "SECURITY.md",
             "docs/Reference/TypeScript.md",
             "docs/Guides/Migration-Guide-V5.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "docs/Reference/Errors.md",
             "docs/Reference/Routes.md",
             "SECURITY.md",
             "docs/Reference/TypeScript.md",
             "docs/Guides/Migration-Guide-V5.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "lib/handle-request.js",
             "scripts/validate-ecosystem-links.js",
             "fastify.js",
             "lib/reply.js",
             "lib/server.js"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "SECURITY.md",
             "docs/Reference/Errors.md",
             ".github/workflows/links-check.yml",
             "CONTRIBUTING.md",
             "docs/Guides/Serverless.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "SECURITY.md",
             "docs/Reference/Errors.md",
             ".github/workflows/links-check.yml",
             "docs/Reference/Routes.md",
             "docs/Guides/Serverless.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "scripts/validate-ecosystem-links.js",
             "lib/handle-request.js",
             "types/schema.d.ts",
             "lib/logger-pino.js",
             "lib/server.js"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "fixmap": {
-          "top5": [
+          "top5Paths": [
             "lib/request.js",
-            "lib/server.js",
             "fastify.js",
-            "integration/server.js",
-            "types/request.d.ts"
+            "types/request.d.ts",
+            "lib/server.js",
+            "lib/route.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -1587,105 +1587,105 @@
       "mentionTier": "none",
       "arms": {
         "path-extraction:raw": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:source": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:code": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "readme.md",
             "source/vendor/supports-color/index.js",
             "source/vendor/supports-color/index.d.ts",
             "test/chalk.js",
             "source/index.d.ts"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "readme.md",
             "source/vendor/supports-color/index.js",
             "source/vendor/supports-color/index.d.ts",
             "source/index.d.ts",
             "source/vendor/supports-color/browser.js"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "source/vendor/supports-color/index.js",
             "source/vendor/supports-color/index.d.ts",
             "source/index.d.ts",
             "source/vendor/supports-color/browser.js",
             "source/index.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "source/vendor/supports-color/index.js",
             "test/no-color-support.js",
             "source/vendor/supports-color/index.d.ts",
             "readme.md",
             "source/vendor/supports-color/browser.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "source/vendor/supports-color/index.js",
             "readme.md",
             "source/vendor/supports-color/index.d.ts",
             "source/vendor/supports-color/browser.js",
             "source/index.d.ts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "source/vendor/supports-color/index.js",
             "source/vendor/supports-color/index.d.ts",
             "source/vendor/supports-color/browser.js",
             "examples/rainbow.js",
             "source/index.d.ts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "fixmap": {
-          "top5": [
+          "top5Paths": [
             "source/vendor/supports-color/index.js",
             "source/vendor/supports-color/browser.js",
             "source/vendor/supports-color/index.d.ts",
             "source/index.d.ts",
-            "source/index.js"
+            "package.json"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -1700,105 +1700,105 @@
       "mentionTier": "none",
       "arms": {
         "path-extraction:raw": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:source": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:code": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "docs/guide/browser/visual-regression-testing.md",
             "docs/api/vi.md",
             "docs/guide/migration.md",
             "docs/guide/learn/debugging-tests.md",
             "docs/blog/vitest-4-1.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "docs/guide/browser/visual-regression-testing.md",
             "docs/api/vi.md",
             "docs/guide/migration.md",
             "docs/guide/learn/debugging-tests.md",
             "docs/blog/vitest-4-1.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
+            "packages/vitest/src/node/types/config.ts",
             "packages/vitest/src/node/types/browser.ts",
             "packages/browser/src/client/orchestrator.ts",
             "packages/vitest/src/node/cli/cli-config.ts",
-            "packages/vitest/src/integrations/vi.ts",
-            "packages/browser/context.d.ts"
+            "packages/vitest/src/integrations/vi.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             ".github/ISSUE_TEMPLATE/feature_request.yml",
             "docs/guide/browser/index.md",
             "docs/blog/vitest-4-1.md",
             "docs/guide/learn/debugging-tests.md",
             "docs/guide/features.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             ".github/ISSUE_TEMPLATE/feature_request.yml",
             "docs/guide/learn/debugging-tests.md",
             "docs/guide/browser/index.md",
             "docs/blog/vitest-4-1.md",
             "docs/api/vi.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "packages/vitest/src/integrations/vi.ts",
             "packages/browser/src/client/tester/dialog.ts",
+            "packages/vitest/src/node/types/config.ts",
             "packages/vitest/src/node/cli/cli-config.ts",
-            "packages/spy/src/types.ts",
-            "packages/spy/src/index.ts"
+            "packages/spy/src/types.ts"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "fixmap": {
-          "top5": [
+          "top5Paths": [
             "packages/vitest/src/integrations/env/jsdom-keys.ts",
             "packages/browser/src/client/tester/dialog.ts",
-            "packages/vitest/src/node/printError.ts",
-            "packages/vitest/src/runtime/runner/suite.ts",
-            "packages/pretty-format/src/index.ts"
+            "packages/vitest/src/runtime/runners/test.ts",
+            "packages/browser/src/client/tester/runner.ts",
+            "packages/vitest/src/create/browser/creator.ts"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -1813,105 +1813,105 @@
       "mentionTier": "none",
       "arms": {
         "path-extraction:raw": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:source": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:code": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "docs/src/extend/custom-rules.md",
             "lib/linter/linter.js",
             "docs/src/use/migrate-to-9.0.0.md",
             "lib/types/index.d.ts",
             "docs/src/use/configure/migration-guide.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "docs/src/extend/custom-rules.md",
             "lib/linter/linter.js",
             "docs/src/use/migrate-to-9.0.0.md",
             "lib/types/index.d.ts",
             "docs/src/use/configure/migration-guide.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "lib/linter/linter.js",
             "lib/types/index.d.ts",
             "lib/eslint/eslint.js",
             "lib/languages/js/source-code/source-code.js",
-            "lib/eslint/eslint-helpers.js"
+            "lib/config/config.js"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "docs/src/use/configure/migration-guide.md",
             "docs/src/extend/plugin-migration-flat-config.md",
             "docs/src/use/migrate-to-9.0.0.md",
             "docs/src/extend/custom-rule-tutorial.md",
             "docs/src/use/configure/configuration-files.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "docs/src/use/configure/migration-guide.md",
             "docs/src/use/migrate-to-9.0.0.md",
             "docs/src/extend/plugin-migration-flat-config.md",
             "docs/src/use/migrate-to-10.0.0.md",
             "docs/src/extend/custom-rule-tutorial.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "lib/options.js",
             "lib/linter/linter.js",
             "lib/types/index.d.ts",
             "lib/languages/js/source-code/source-code.js",
             "messages/all-matched-files-ignored.js"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "fixmap": {
-          "top5": [
+          "top5Paths": [
             "lib/types/config-api.d.ts",
-            "package.json",
-            "lib/config-api.js",
+            "lib/config/config.js",
             "lib/types/index.d.ts",
-            "lib/config/config.js"
+            "package.json",
+            "lib/rules/space-before-function-paren.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -1926,105 +1926,105 @@
       "mentionTier": "none",
       "arms": {
         "path-extraction:raw": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:source": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:code": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "AGENTS.md",
             "lib/Module.js",
             "CONTRIBUTING.md",
             "lib/SourceMapDevToolPlugin.js",
             "examples/css/README.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "AGENTS.md",
             "lib/Module.js",
             "CONTRIBUTING.md",
             "lib/SourceMapDevToolPlugin.js",
             "examples/css/README.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "lib/Module.js",
             "lib/SourceMapDevToolPlugin.js",
             "lib/dependencies/HtmlEntryDependency.js",
             "lib/WebpackOptionsApply.js",
             "lib/RuntimeTemplate.js"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "CONTRIBUTING.md",
             ".changeset/README.md",
             "WORKING_GROUP.md",
             ".github/workflows/release.yml",
             "AGENTS.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "CONTRIBUTING.md",
             "AGENTS.md",
             "open-bot.yaml",
             "lib/DotenvPlugin.js",
             ".github/workflows/test.yml"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "lib/DotenvPlugin.js",
             "lib/WebpackOptionsApply.js",
             "lib/config/target.js",
             "lib/CleanPlugin.js",
             "bin/webpack.js"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "fixmap": {
-          "top5": [
+          "top5Paths": [
+            "lib/DefinePlugin.js",
             "lib/dependencies/ImportMetaPlugin.js",
             "lib/WebpackOptionsApply.js",
-            "lib/DefinePlugin.js",
             "lib/EnvironmentPlugin.js",
-            "lib/dependencies/CreateRequireParserPlugin.js"
+            "lib/url/URLParserPlugin.js"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -2039,106 +2039,106 @@
       "mentionTier": "none",
       "arms": {
         "path-extraction:raw": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:source": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:code": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "lib/dispatcher/client-h2.js",
             "test/http2-dispatcher.js",
             "docs/docs/index.md",
             "README.md",
             "lib/dispatcher/client-h1.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "lib/dispatcher/client-h2.js",
             "docs/docs/index.md",
             "README.md",
             "lib/dispatcher/client-h1.js",
             "lib/web/fetch/request.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "lib/dispatcher/client-h2.js",
             "lib/dispatcher/client-h1.js",
             "lib/web/fetch/request.js",
             "types/dispatcher.d.ts",
             "lib/web/fetch/util.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "test/http2-late-data.js",
             "lib/dispatcher/client-h2.js",
             "test/http2-dispatcher.js",
             "lib/api/api-stream.js",
             "test/fetch/issue-4058.js"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "lib/dispatcher/client-h2.js",
             "lib/api/api-stream.js",
             "types/dispatcher.d.ts",
             "lib/dispatcher/client-h1.js",
             "lib/web/eventsource/eventsource.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "lib/dispatcher/client-h2.js",
             "lib/api/api-stream.js",
             "lib/dispatcher/client-h1.js",
             "types/dispatcher.d.ts",
             "lib/web/eventsource/eventsource.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "fixmap": {
-          "top5": [
-            "lib/dispatcher/client-h2.js",
-            "lib/web/fetch/body.js",
+          "top5Paths": [
             "lib/web/fetch/request.js",
-            "lib/web/fetch/response.js",
-            "lib/api/api-request.js"
+            "lib/core/request.js",
+            "lib/dispatcher/client-h1.js",
+            "lib/dispatcher/client.js",
+            "lib/web/fetch/body.js"
           ],
-          "top1": true,
-          "top3": true,
-          "top5Hit": true
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
         }
       }
     },
@@ -2152,111 +2152,111 @@
       "mentionTier": "path-suffix",
       "arms": {
         "path-extraction:raw": {
-          "top5": [
+          "top5Paths": [
             "packages/toolkit/src/query/react/buildHooks.ts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "path-extraction:source": {
-          "top5": [
+          "top5Paths": [
             "packages/toolkit/src/query/react/buildHooks.ts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "path-extraction:code": {
-          "top5": [
+          "top5Paths": [
             "packages/toolkit/src/query/react/buildHooks.ts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "packages/toolkit/src/query/core/buildThunks.ts",
             "packages/toolkit/src/query/core/module.ts",
             "packages/toolkit/src/query/core/apiState.ts",
             "packages/toolkit/src/query/tests/buildThunks.test.tsx",
             "_artifacts/domain_map.yaml"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "packages/toolkit/src/query/core/buildThunks.ts",
             "packages/toolkit/src/query/core/module.ts",
             "packages/toolkit/src/query/core/apiState.ts",
             "_artifacts/domain_map.yaml",
             "packages/toolkit/src/query/endpointDefinitions.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "packages/toolkit/src/query/core/buildThunks.ts",
             "packages/toolkit/src/query/core/module.ts",
             "packages/toolkit/src/query/core/apiState.ts",
             "packages/toolkit/src/query/endpointDefinitions.ts",
             "packages/toolkit/src/query/core/buildSlice.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "packages/toolkit/src/query/core/apiState.ts",
             "packages/toolkit/src/query/core/buildSlice.ts",
             "packages/toolkit/src/query/tests/queryLifecycle.test.tsx",
             "packages/toolkit/src/query/core/buildThunks.ts",
             "packages/toolkit/src/query/tests/cacheLifecycle.test.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "packages/toolkit/src/query/core/apiState.ts",
             "packages/toolkit/src/query/core/buildSlice.ts",
             "packages/toolkit/src/query/core/buildThunks.ts",
             "packages/toolkit/src/query/core/buildSelectors.ts",
             "packages/toolkit/src/query/core/buildMiddleware/cacheLifecycle.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "packages/toolkit/src/query/core/apiState.ts",
             "packages/toolkit/src/query/core/buildSlice.ts",
             "packages/toolkit/src/query/core/buildThunks.ts",
             "packages/toolkit/src/query/core/buildSelectors.ts",
             "packages/toolkit/src/query/core/buildMiddleware/queryLifecycle.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "fixmap": {
-          "top5": [
+          "top5Paths": [
+            "packages/toolkit/src/query/react/buildHooks.ts",
             "packages/toolkit/src/query/core/apiState.ts",
             "packages/toolkit/src/query/core/buildThunks.ts",
-            "packages/toolkit/src/query/react/buildHooks.ts",
-            "packages/toolkit/src/listenerMiddleware/index.ts",
-            "examples/query/react/authentication-with-extrareducers/public/mockServiceWorker.js"
+            "packages/toolkit/src/query/core/buildMiddleware/types.ts",
+            "packages/toolkit/src/createAsyncThunk.ts"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -2271,105 +2271,105 @@
       "mentionTier": "none",
       "arms": {
         "path-extraction:raw": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:source": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:code": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "website/blog/2021-05-09-2.3.0.md",
             "tests/format/markdown/markdown/real-world-case.md",
             "website/blog/2018-04-11-1.12.0.md",
             "website/blog/2017-11-07-1.8.0.md",
             "website/blog/2020-03-21-2.0.0.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "website/blog/2021-05-09-2.3.0.md",
             "website/blog/2018-04-11-1.12.0.md",
             "website/blog/2017-11-07-1.8.0.md",
             "website/blog/2020-03-21-2.0.0.md",
             "website/blog/2018-05-27-1.13.0.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "src/index.d.ts",
             "src/language-js/parentheses/needs-parentheses.js",
             "src/language-js/types/flow-estree.d.ts",
             "src/language-js/print/binaryish.js",
             "src/language-css/parser-postcss.js"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "website/blog/2017-04-20-1.2.0.md",
             "README.md",
             "website/blog/2023-11-13-curious-ternaries.md",
             "website/blog/2018-04-09-plugin-php-0.1.md",
             ".vscode/settings.example.json"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "website/blog/2017-04-20-1.2.0.md",
             "website/blog/2023-11-13-curious-ternaries.md",
             "website/blog/2017-11-07-1.8.0.md",
             "website/blog/2023-11-30-cli-deep-dive.md",
             "docs/rationale.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "scripts/utilities/changelog.js",
             "website/playground/utilities.js",
             "src/main/core-options.evaluate.js",
             "website/src/pages/index.jsx",
             "src/language-css/parser-postcss.js"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "fixmap": {
-          "top5": [
-            "src/language-css/print/comma-separated-value-group.js",
-            "src/language-js/print/member-chain.js",
+          "top5Paths": [
             "scripts/build/builders/javascript-module.js",
+            "src/language-css/print/comma-separated-value-group.js",
             "website/playground/Playground.jsx",
-            "src/language-js/print/binaryish.js"
+            "src/language-css/parser-postcss.js",
+            "src/language-css/utilities/index.js"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -2384,105 +2384,105 @@
       "mentionTier": "none",
       "arms": {
         "path-extraction:raw": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:source": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "path-extraction:code": {
-          "top5": [],
-          "top1": false,
-          "top3": false,
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "runtime-tests/lambda/index.test.ts",
             "src/adapter/aws-lambda/handler.ts",
             "runtime-tests/lambda/stream.test.ts",
             "src/adapter/aws-lambda/handler.test.ts",
             "docs/MIGRATION.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "src/adapter/aws-lambda/handler.ts",
             "docs/MIGRATION.md",
             "src/jsx/dom/render.ts",
             "src/context.ts",
             "src/hono-base.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "src/adapter/aws-lambda/handler.ts",
             "src/jsx/dom/render.ts",
             "src/context.ts",
             "src/hono-base.ts",
             "src/adapter/lambda-edge/handler.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "runtime-tests/lambda/stream.test.ts",
             "runtime-tests/lambda/index.test.ts",
             "src/adapter/aws-lambda/handler.ts",
             "src/adapter/aws-lambda/handler.test.ts",
             "src/adapter/aws-lambda/types.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": true
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "src/adapter/aws-lambda/handler.ts",
             "src/adapter/aws-lambda/types.ts",
             "src/adapter/aws-lambda/index.ts",
             "src/adapter/lambda-edge/handler.ts",
             "runtime-tests/lambda/stream-mock.ts"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "src/adapter/aws-lambda/handler.ts",
             "src/adapter/aws-lambda/types.ts",
             "src/adapter/aws-lambda/index.ts",
             "runtime-tests/lambda/stream-mock.ts",
             "runtime-tests/lambda/mock.ts"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "fixmap": {
-          "top5": [
-            "src/adapter/aws-lambda/handler.ts",
+          "top5Paths": [
             "src/adapter/aws-lambda/types.ts",
+            "src/adapter/aws-lambda/handler.ts",
             "src/adapter/aws-lambda/conninfo.ts",
-            "src/adapter/lambda-edge/handler.ts",
-            "src/jsx/context.ts"
+            "src/middleware/basic-auth/index.ts",
+            "src/middleware/bearer-auth/index.ts"
           ],
-          "top1": false,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         }
       }
@@ -2497,111 +2497,111 @@
       "mentionTier": "full-path",
       "arms": {
         "path-extraction:raw": {
-          "top5": [
+          "top5Paths": [
             "source/core/index.ts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "path-extraction:source": {
-          "top5": [
+          "top5Paths": [
             "source/core/index.ts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "path-extraction:code": {
-          "top5": [
+          "top5Paths": [
             "source/core/index.ts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         },
         "lexical-literal:raw": {
-          "top5": [
+          "top5Paths": [
             "documentation/2-options.md",
             "documentation/3-streams.md",
             "documentation/tips.md",
             "documentation/migration-guides/request.md",
             "documentation/4-pagination.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:source": {
-          "top5": [
+          "top5Paths": [
             "documentation/2-options.md",
             "documentation/3-streams.md",
             "documentation/tips.md",
             "documentation/migration-guides/request.md",
             "documentation/4-pagination.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "lexical-literal:code": {
-          "top5": [
+          "top5Paths": [
             "source/core/response.ts",
             "source/types.ts",
             "source/as-promise/index.ts",
             "source/core/errors.ts",
             "source/as-promise/types.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:raw": {
-          "top5": [
+          "top5Paths": [
             "documentation/2-options.md",
             "documentation/4-pagination.md",
             "source/core/response.ts",
             "documentation/migration-guides/request.md",
             "documentation/tips.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:source": {
-          "top5": [
+          "top5Paths": [
             "documentation/2-options.md",
             "source/core/response.ts",
             "documentation/4-pagination.md",
             "documentation/migration-guides/request.md",
             "documentation/tips.md"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "bm25:code": {
-          "top5": [
+          "top5Paths": [
             "source/core/response.ts",
             "source/as-promise/types.ts",
             "source/as-promise/index.ts",
             "source/types.ts",
             "source/core/errors.ts"
           ],
-          "top1": false,
-          "top3": false,
+          "top1Hit": false,
+          "top3Hit": false,
           "top5Hit": false
         },
         "fixmap": {
-          "top5": [
+          "top5Paths": [
             "source/core/index.ts",
-            "source/core/diagnostics-channel.ts",
-            "source/core/response.ts",
             "source/as-promise/index.ts",
-            "source/core/errors.ts"
+            "source/core/errors.ts",
+            "source/core/response.ts",
+            "source/core/diagnostics-channel.ts"
           ],
-          "top1": true,
-          "top3": true,
+          "top1Hit": true,
+          "top3Hit": true,
           "top5Hit": true
         }
       }

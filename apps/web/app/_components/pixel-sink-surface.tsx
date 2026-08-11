@@ -176,7 +176,10 @@ export function PixelSinkSurface() {
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") schedule();
-      else if (frame) cancelAnimationFrame(frame);
+      else if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
     };
 
     const observer = new ResizeObserver(resize);
@@ -187,7 +190,10 @@ export function PixelSinkSurface() {
     resize();
 
     return () => {
-      if (frame) cancelAnimationFrame(frame);
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
       observer.disconnect();
       host.removeEventListener("pointermove", onPointerMove);
       host.removeEventListener("pointerleave", onPointerLeave);

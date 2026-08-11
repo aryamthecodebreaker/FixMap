@@ -35,4 +35,5 @@ FixMap found 0 context files and generated 0 test routes.
 
 ## Diagnostics
 
-- **warning** No context files: no file in the 3 scanned matched the task terms backpressure, drop, dur, ingestion, pipeline, span, telemetry. The repository may not contain this behavior, or it may name it differently.
+- **info** Repository scan caching was bypassed by --no-cache; this report used a fresh scan.
+- **warning** No context files: no file in the 3 scanned matched the task terms backpressure, drop, dure, ingestion, pipeline, span, telemetry. The repository may not contain this behavior, or it may name it differently.

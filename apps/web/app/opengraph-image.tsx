@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element -- next/image is not supported inside ImageResponse. */
 import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";

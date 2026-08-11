@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { FixMapReport } from "@aryam/fixmap-core";
-import { fitStepSummary, renderActionOutputs, runAction, splitExcludeInput, trimToBoundary, withJsonDetails } from "../src/runner.js";
+import { fitStepSummary, renderActionOutputs, renderVerifyOutputs, runAction, splitExcludeInput, trimToBoundary, withJsonDetails } from "../src/runner.js";
 import { FIXMAP_REPORT_MARKER, fitCommentBody, MAX_COMMENT_BODY_CHARS } from "../src/github.js";
 
 const report: FixMapReport = {
@@ -27,6 +27,23 @@ describe("GitHub Action runner", () => {
       "context-count=1\n" +
       "test-route-count=0\n"
     );
+  });
+
+  it("bounds both plan and verify report outputs and points to a real complete-artifact path", () => {
+    const oversized = "🙂".repeat(500_000);
+    const planOutput = renderActionOutputs(oversized, report, () => "stable");
+    const verifyOutput = renderVerifyOutputs(oversized, {
+      summary: "",
+      changedFiles: [],
+      findings: [],
+      diagnostics: []
+    }, () => "stable");
+
+    for (const output of [planOutput, verifyOutput]) {
+      expect(output).toContain("Run FixMap locally with --output for a complete report");
+      expect(output).not.toContain("�");
+      expect(Buffer.byteLength(output)).toBeLessThan(925 * 1024);
+    }
   });
 
   it("truncates oversized summaries by bytes and retains an explicit notice", () => {
@@ -66,6 +83,20 @@ describe("GitHub Action runner", () => {
     expect(stdout).toHaveBeenCalledOnce();
   });
 
+  it("fits its appended summary into the bytes earlier steps left available", async () => {
+    const writes: Array<{ path: string; contents: string }> = [];
+    const large = structuredClone(report);
+    large.summary = "x".repeat(20_000);
+    await runAction({ INPUT_ISSUE: "x", GITHUB_STEP_SUMMARY: "summary.md" }, {
+      appendFile: (path, contents) => writes.push({ path, contents }),
+      buildReport: vi.fn(async () => large),
+      fileSize: () => 1024 * 1024 - 500,
+      stdout: vi.fn()
+    });
+    expect(Buffer.byteLength(writes[0]?.contents ?? "")).toBeLessThanOrEqual(500);
+    expect(writes[0]?.contents).toContain("report truncated");
+  });
+
   it("accepts case-insensitive format input", async () => {
     const stdout = vi.fn();
     await runAction({ INPUT_ISSUE: "password reset", INPUT_FORMAT: "JSON" }, {
@@ -74,6 +105,15 @@ describe("GitHub Action runner", () => {
     });
 
     expect(stdout.mock.calls[0]?.[0]).toContain('"contextFiles"');
+  });
+
+  it("passes no-cache through to a fresh plan scan", async () => {
+    const buildReport = vi.fn(async () => structuredClone(report));
+    await runAction({ INPUT_ISSUE: "password reset", INPUT_NO_CACHE: "true" }, {
+      buildReport,
+      stdout: vi.fn()
+    });
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({ useCache: false }));
   });
 
   it("fetches same-repository GitHub issue URLs before ranking", async () => {
@@ -149,6 +189,67 @@ describe("GitHub Action runner", () => {
     expect(stdout.mock.calls[0]?.[0]).toContain("# FixMap Verification");
   });
 
+  it("accepts a verify report saved by a Windows editor with a byte-order mark", async () => {
+    const stdout = vi.fn();
+    const scanRepo = vi.fn(async () => scannedRepo(["src/auth.ts"]));
+    await expect(runAction({
+      INPUT_MODE: "verify",
+      INPUT_REPORT_PATH: "plan.json",
+      INPUT_DIFF: "main...HEAD"
+    }, {
+      readFile: () => `\uFEFF${JSON.stringify(report)}`,
+      scanRepo,
+      stdout
+    })).resolves.toBeUndefined();
+    expect(stdout.mock.calls[0]?.[0]).toContain("# FixMap Verification");
+    expect(scanRepo).toHaveBeenCalledWith(expect.objectContaining({
+      internalExclude: [expect.stringMatching(/plan\.json$/)]
+    }));
+  });
+
+  it("passes no-cache through to a fresh verify scan", async () => {
+    const scanRepo = vi.fn(async () => scannedRepo(["src/auth.ts"]));
+    await runAction({
+      INPUT_MODE: "verify",
+      INPUT_REPORT_PATH: "plan.json",
+      INPUT_DIFF: "main...HEAD",
+      INPUT_NO_CACHE: "true"
+    }, {
+      readFile: () => JSON.stringify(report),
+      scanRepo,
+      stdout: vi.fn()
+    });
+    expect(scanRepo).toHaveBeenCalledWith(expect.objectContaining({ useCache: false }));
+  });
+
+  it("rejects a truncated non-empty report before scanning or dereferencing missing fields", async () => {
+    const scanRepo = vi.fn(async () => scannedRepo(["src/auth.ts"]));
+    await expect(runAction({
+      INPUT_MODE: "verify",
+      INPUT_REPORT_PATH: "plan.json",
+      INPUT_DIFF: "main...HEAD"
+    }, {
+      readFile: () => JSON.stringify({ reportVersion: 1, contextFiles: [{ path: "src/auth.ts" }] }),
+      scanRepo,
+      stdout: vi.fn()
+    })).rejects.toThrow("complete FixMap report envelope");
+    expect(scanRepo).not.toHaveBeenCalled();
+  });
+
+  it("rejects an incomplete marked version 1 entry before scanning", async () => {
+    const scanRepo = vi.fn(async () => scannedRepo(["src/auth.ts"]));
+    await expect(runAction({
+      INPUT_MODE: "verify",
+      INPUT_REPORT_PATH: "plan.json",
+      INPUT_DIFF: "main...HEAD"
+    }, {
+      readFile: () => JSON.stringify({ ...report, reportVersion: 1, contextFiles: [{ path: "src/auth.ts" }] }),
+      scanRepo,
+      stdout: vi.fn()
+    })).rejects.toThrow("version 1 requires");
+    expect(scanRepo).not.toHaveBeenCalled();
+  });
+
   it("says what verify mode needs when report-path is missing", async () => {
     await expect(runAction({ INPUT_MODE: "verify", INPUT_DIFF: "main...HEAD" }, { stdout: vi.fn() }))
       .rejects.toThrow("report-path");
@@ -170,6 +271,25 @@ describe("GitHub Action runner", () => {
       scanRepo: async () => scannedRepo(["dist/auth.js"]),
       stdout: vi.fn()
     })).rejects.toThrow("generated or retired location");
+  });
+
+  it("opts into failing verify mode on advisory warnings", async () => {
+    const dependencies = {
+      readFile: () => JSON.stringify(report),
+      scanRepo: async () => scannedRepo(["src/auth.ts"]),
+      stdout: vi.fn()
+    };
+    await expect(runAction({
+      INPUT_MODE: "verify", INPUT_REPORT_PATH: "plan.json", INPUT_DIFF: "main...HEAD"
+    }, dependencies)).resolves.toBeUndefined();
+    await expect(runAction({
+      INPUT_MODE: "verify", INPUT_REPORT_PATH: "plan.json", INPUT_DIFF: "main...HEAD", INPUT_FAIL_ON: "warning"
+    }, dependencies)).rejects.toThrow("configured warning threshold");
+  });
+
+  it.each(["0xA", "0b101", "1e1", "+5", "5.0"])("rejects non-decimal limit spelling %s", async (limit) => {
+    await expect(runAction({ INPUT_ISSUE: "x", INPUT_LIMIT: limit }, { stdout: vi.fn() }))
+      .rejects.toThrow("whole number from 1 to 20");
   });
 });
 

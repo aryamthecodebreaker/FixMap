@@ -12,7 +12,7 @@
       "grounding": "descriptive",
       "diagnostics": [
         "submodules-skipped",
-        "content-unread",
+        "content-too-large",
         "identifier-unverified",
         "flat-ranking"
       ],
@@ -30,8 +30,9 @@
       "topConfidence": "low",
       "grounding": "descriptive",
       "diagnostics": [
-        "content-unread",
-        "identifier-unverified"
+        "content-too-large",
+        "identifier-unverified",
+        "flat-ranking"
       ],
       "contextFileCount": 8,
       "overconfident": false,
@@ -47,10 +48,10 @@
       "topConfidence": "low",
       "grounding": "descriptive",
       "diagnostics": [
-        "content-unread",
+        "content-too-large",
         "identifier-unverified"
       ],
-      "contextFileCount": 5,
+      "contextFileCount": 7,
       "overconfident": false,
       "groundingOk": true,
       "diagnosticOk": true,
@@ -61,13 +62,15 @@
       "kind": "vague-task",
       "slug": "vitest-dev/vitest",
       "maxConfidence": "low",
-      "topConfidence": null,
+      "topConfidence": "low",
       "grounding": "vague",
       "diagnostics": [
-        "content-unread",
-        "vague-task"
+        "content-too-large",
+        "gated-test-skipped",
+        "vague-task",
+        "flat-ranking"
       ],
-      "contextFileCount": 0,
+      "contextFileCount": 8,
       "overconfident": false,
       "groundingOk": true,
       "diagnosticOk": true,
@@ -81,7 +84,8 @@
       "topConfidence": null,
       "grounding": "vague",
       "diagnostics": [
-        "vague-task"
+        "vague-task",
+        "no-context-match"
       ],
       "contextFileCount": 0,
       "overconfident": false,
@@ -97,7 +101,7 @@
       "topConfidence": "medium",
       "grounding": "descriptive",
       "diagnostics": [],
-      "contextFileCount": 6,
+      "contextFileCount": 7,
       "overconfident": false,
       "groundingOk": true,
       "diagnosticOk": true,
@@ -110,8 +114,10 @@
       "maxConfidence": "medium",
       "topConfidence": "medium",
       "grounding": "descriptive",
-      "diagnostics": [],
-      "contextFileCount": 6,
+      "diagnostics": [
+        "flat-ranking"
+      ],
+      "contextFileCount": 8,
       "overconfident": false,
       "groundingOk": true,
       "diagnosticOk": true,
@@ -126,9 +132,9 @@
       "grounding": "descriptive",
       "diagnostics": [
         "submodules-skipped",
-        "content-unread",
-        "content-unread",
-        "flat-ranking"
+        "content-not-utf8",
+        "content-too-large",
+        "import-graph-truncated"
       ],
       "contextFileCount": 8,
       "overconfident": false,

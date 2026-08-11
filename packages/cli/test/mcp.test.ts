@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
-import { createFixMapMcpServer, parseExplainArguments, parsePlanArguments } from "../src/mcp.js";
+import { createFixMapMcpServer, parseExplainArguments, parsePlanArguments, parseVerifyArguments } from "../src/mcp.js";
 import type { RepositorySourceDependencies } from "../src/repository-source.js";
 
 const exec = promisify(execFile);
@@ -118,6 +118,22 @@ describe("fixmap mcp server", () => {
     });
   });
 
+  it("bypasses the repository cache when an MCP caller requests a fresh scan", async () => {
+    const root = await createAuthFixture();
+    const client = await connectClient();
+
+    const result = await client.callTool({
+      name: "fixmap_plan",
+      arguments: { issue: "password reset fails", repo: root, noCache: true, format: "json" }
+    });
+
+    expect(result.isError).toBeFalsy();
+    const report = JSON.parse((result.content as Array<{ text: string }>)[0]!.text) as {
+      diagnostics: Array<{ code: string }>;
+    };
+    expect(report.diagnostics.map((diagnostic) => diagnostic.code)).toContain("cache-bypass");
+  });
+
   it("caps the reported context files through MCP", async () => {
     const root = await createAuthFixture();
     const client = await connectClient();
@@ -138,23 +154,39 @@ describe("fixmap mcp server", () => {
 
     const tools = await client.listTools();
 
+    expect(tools.tools.map((tool) => tool.name)).toEqual([
+      "fixmap_plan", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
+    ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
     expect(plan).toBeDefined();
     expect(plan?.description).toContain("test commands");
-    expect(Object.keys(plan?.inputSchema.properties ?? {})).toEqual(
-      expect.arrayContaining(["issue", "diff", "base", "head", "repo", "format"])
+    expect(Object.keys(plan?.inputSchema.properties ?? {}).sort()).toEqual(
+      ["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache"].sort()
     );
+    expect(plan?.inputSchema.additionalProperties).toBe(false);
     expect(plan?.inputSchema.properties?.repo?.description).toContain("public GitHub HTTPS");
     expect(plan?.inputSchema.properties?.issue?.description).toContain("GitHub issue URL");
     expect(verify).toBeDefined();
-    expect(Object.keys(verify?.inputSchema.properties ?? {})).toContain("report");
+    expect(Object.keys(verify?.inputSchema.properties ?? {}).sort()).toEqual(
+      ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache"].sort()
+    );
+    expect(verify?.inputSchema.required).toEqual(["report"]);
+    expect(verify?.inputSchema.additionalProperties).toBe(false);
     const explain = tools.tools.find((tool) => tool.name === "fixmap_explain");
     expect(explain).toBeDefined();
-    expect(Object.keys(explain?.inputSchema.properties ?? {})).toContain("path");
-    expect(explain?.inputSchema.required).toContain("path");
-    expect(tools.tools.find((tool) => tool.name === "fixmap_compare")).toBeDefined();
-    expect(tools.tools.find((tool) => tool.name === "fixmap_doctor")).toBeDefined();
+    expect(Object.keys(explain?.inputSchema.properties ?? {}).sort()).toEqual(
+      ["path", "issue", "diff", "base", "head", "workingTree", "includeUntracked", "repo", "exclude", "limit", "format", "noCache"].sort()
+    );
+    expect(explain?.inputSchema.required).toEqual(["path"]);
+    expect(explain?.inputSchema.additionalProperties).toBe(false);
+    const compare = tools.tools.find((tool) => tool.name === "fixmap_compare");
+    expect(Object.keys(compare?.inputSchema.properties ?? {}).sort()).toEqual(["previous", "current", "format"].sort());
+    expect(compare?.inputSchema.required).toEqual(["previous", "current"]);
+    expect(compare?.inputSchema.additionalProperties).toBe(false);
+    const doctor = tools.tools.find((tool) => tool.name === "fixmap_doctor");
+    expect(Object.keys(doctor?.inputSchema.properties ?? {})).toEqual(["format"]);
+    expect(doctor?.inputSchema.additionalProperties).toBe(false);
   });
 
   it("compares two reports through MCP", async () => {
@@ -207,11 +239,12 @@ describe("fixmap mcp server", () => {
     [{ path: "a.ts", confidence: "certain" }, "confidence"]
   ])("rejects malformed optional comparison fields in %j", async (entry, expectedField) => {
     const client = await connectClient();
+    const envelope = { summary: "", testRoutes: [], risks: [], changedFiles: [], diagnostics: [] };
     const result = await client.callTool({
       name: "fixmap_compare",
       arguments: {
-        previous: { contextFiles: [entry] },
-        current: { contextFiles: [{ path: "a.ts" }] }
+        previous: { ...envelope, contextFiles: [entry] },
+        current: { ...envelope, contextFiles: [{ path: "a.ts" }] }
       }
     });
 
@@ -293,7 +326,7 @@ describe("fixmap mcp server", () => {
       "export function sendResetEmail(email: string) { return email.trim(); }\n"
     );
     const planPath = join(root, "plan.json");
-    await writeFile(planPath, JSON.stringify({
+    await writeFile(planPath, `\uFEFF${JSON.stringify({
       summary: "",
       contextFiles: [{
         path: "src/auth/reset-password.ts",
@@ -305,7 +338,7 @@ describe("fixmap mcp server", () => {
       risks: [],
       changedFiles: [],
       diagnostics: []
-    }));
+    })}`);
     const client = await connectClient();
 
     // Agents that used the CLI first pass a path. Requiring the object form also made the
@@ -317,8 +350,47 @@ describe("fixmap mcp server", () => {
 
     expect(result.isError).toBeFalsy();
     const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
-    expect((JSON.parse(text) as { changedFiles: string[] }).changedFiles)
-      .toContain("src/auth/reset-password.ts");
+    const changedFiles = (JSON.parse(text) as { changedFiles: string[] }).changedFiles;
+    expect(changedFiles).toContain("src/auth/reset-password.ts");
+    expect(changedFiles).not.toContain("plan.json");
+  }, 15_000);
+
+  it("rejects a truncated non-empty verify report with a structural error", async () => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_verify",
+      arguments: {
+        report: { reportVersion: 1, contextFiles: [{ path: "src/auth/reset-password.ts" }] },
+        diff: "HEAD"
+      }
+    });
+
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ text: string }>)[0]?.text ?? "";
+    expect(text).toContain("complete FixMap report envelope");
+    expect(text).not.toContain("Cannot read properties");
+  });
+
+  it("rejects incomplete marked version 1 entries before verify scans", async () => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_verify",
+      arguments: {
+        report: {
+          reportVersion: 1,
+          summary: "Incomplete versioned report",
+          contextFiles: [{ path: "src/auth/reset-password.ts" }],
+          testRoutes: [],
+          risks: [],
+          changedFiles: [],
+          diagnostics: []
+        },
+        diff: "HEAD"
+      }
+    });
+
+    expect(result.isError).toBe(true);
+    expect((result.content as Array<{ text: string }>)[0]?.text).toContain("version 1 requires");
   });
 
   it("says why a report path did not work instead of only naming the object shape", async () => {
@@ -365,7 +437,8 @@ describe("fixmap mcp server", () => {
 
   it("analyzes a public GitHub URL through an isolated temporary checkout", async () => {
     const client = await connectClient({
-      clonePublicRepository: async (_url, destination) => {
+      clonePublicRepository: async (_url, destination, _hooks, ref) => {
+        expect(ref).toBe("release-2.x");
         await mkdir(join(destination, "src", "auth"), { recursive: true });
         await writeFile(
           join(destination, "package.json"),
@@ -387,6 +460,7 @@ describe("fixmap mcp server", () => {
       arguments: {
         issue: "password reset emails fail",
         repo: "https://github.com/owner/repository",
+        ref: "release-2.x",
         format: "json"
       }
     });
@@ -544,9 +618,54 @@ describe("MCP surface parity", () => {
     expect(wrong.success === false && wrong.message).toContain('"workingTree" must be a boolean');
   });
 
+  it("rejects contradictory explain scan options instead of silently changing their meaning", () => {
+    expect(parseExplainArguments({ path: "a.ts", includeUntracked: true }).success).toBe(false);
+    expect(parseExplainArguments({ path: "a.ts", workingTree: true, diff: "HEAD" }).success).toBe(false);
+    expect(parseExplainArguments({ path: "a.ts", diff: "main...HEAD", base: "main" }).success).toBe(false);
+    expect(parseExplainArguments({ path: "a.ts", head: "HEAD" }).success).toBe(false);
+  });
+
   // #278: a four-literal enum rejected `Markdown` in strict clients before normalization ran.
-  it.each(["markdown", "JSON", "Markdown", "JsOn"])("accepts %j as a format", (format) => {
+  it.each(["markdown", "JSON", "Markdown", "JsOn", " JSON\n"])("accepts %j as a format", (format) => {
     expect(parsePlanArguments({ issue: "x", format }).success).toBe(true);
+  });
+
+  it("normalizes fresh-scan and whitespace inputs consistently across MCP tools", () => {
+    const report = { summary: "No matches", contextFiles: [], testRoutes: [], risks: [], changedFiles: [], diagnostics: [] };
+    expect(parsePlanArguments({ issue: " x ", format: " JSON ", noCache: true })).toEqual({
+      success: true,
+      value: { issue: "x", format: "json", noCache: true }
+    });
+    expect(parseExplainArguments({ path: " a.ts ", issue: " x ", format: " Markdown ", noCache: true })).toEqual({
+      success: true,
+      value: { path: "a.ts", issue: "x", noCache: true, format: "markdown" }
+    });
+    expect(parseVerifyArguments({ report, diff: " HEAD ", format: " JSON ", noCache: true })).toEqual({
+      success: true,
+      value: { report, diff: "HEAD", noCache: true, format: "json" }
+    });
+  });
+
+  it("rejects unsafe remote refs before cloning", () => {
+    expect(parsePlanArguments({ issue: "x", repo: "https://github.com/o/r", ref: "feature//oops" })).toEqual({
+      success: false,
+      message: '"ref" must be a safe branch or tag name.'
+    });
+    expect(parsePlanArguments({ issue: "x", repo: "https://github.com/o/r", ref: "release-2.x" })).toEqual({
+      success: true,
+      value: { issue: "x", repo: "https://github.com/o/r", ref: "release-2.x" }
+    });
+  });
+
+  it("rejects unknown compare arguments at the request handler", async () => {
+    const client = await connectClient();
+    const report = { summary: "No matches", contextFiles: [], testRoutes: [], risks: [], changedFiles: [], diagnostics: [] };
+    const result = await client.callTool({
+      name: "fixmap_compare",
+      arguments: { previous: report, current: report, surprise: true }
+    });
+    expect(result.isError).toBe(true);
+    expect((result.content as Array<{ text: string }>)[0]?.text).toContain("unknown argument: surprise");
   });
 
   // #369: the throwing parser surfaced an uncaught exception instead of Invalid arguments.

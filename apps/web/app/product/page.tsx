@@ -68,7 +68,7 @@ export default function ProductPage() {
     <main>
       <section className="subpage-hero page-shell">
         <p className="eyebrow">The product</p>
-        <h1>One problem.<br /><em>Three useful answers.</em></h1>
+        <h1>One problem.{" "}<br /><em>Three useful answers.</em></h1>
         <p>
           FixMap narrows the first step, explains its reasoning, and checks the work that followed.
           It is a map you can inspect—not a promise that the map is always right.

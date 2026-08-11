@@ -94,7 +94,7 @@ describe("report rendering", () => {
     const risks = buildRiskNotes(["src/auth/reset-password.ts"]);
 
     expect(routes[0]?.relatedFiles).toEqual(["test/auth/reset-password.test.ts"]);
-    expect(routes.map((route) => route.command)).toEqual(["npm run test", "npm run typecheck"]);
+    expect(routes.map((route) => route.command)).toEqual(["npm run test"]);
     expect(risks[0]?.area).toBe("authentication");
     expect(risks[0]?.severity).toBe("low");
     expect(risks[0]?.reason).toContain("no diff evidence");
@@ -239,7 +239,32 @@ describe("report rendering", () => {
     expect(routes[0]?.command).toBe("npm run test");
     expect(routes[0]?.relatedFiles).toContain("packages/core/test/rank.test.ts");
   });
-it("ignores demo code when deriving risk, but trusts a changed file anywhere", () => {
+  it("does not route lint or typecheck scripts as tests", () => {
+    const repo: RepoMap = {
+      root: "/repo",
+      packageManager: "npm",
+      changedFiles: [],
+      diffText: "",
+      diagnostics: [],
+      packageScripts: [
+        { name: "lint", command: "eslint .", packageDir: "" },
+        { name: "typecheck", command: "tsc --noEmit", packageDir: "" }
+      ],
+      files: [
+        { path: "src/auth.ts", extension: ".ts", sizeBytes: 10, isSource: true, isTest: false, kind: "code", textSample: "" }
+      ]
+    };
+
+    expect(buildTestRoutes(repo, ["src/auth.ts"])).toEqual([]);
+  });
+
+  it("keeps billing, package, and public API risk triggers reachable", () => {
+    expect(buildRiskNotes(["src/billing/invoice.ts"])).toContainEqual(expect.objectContaining({ area: "billing" }));
+    expect(buildRiskNotes(["package.json"])).toContainEqual(expect.objectContaining({ area: "dependencies" }));
+    expect(buildRiskNotes(["src/public/api.ts"])).toContainEqual(expect.objectContaining({ area: "public-api" }));
+  });
+
+  it("ignores demo code when deriving risk, but trusts a changed file anywhere", () => {
     // Express ships examples/auth/. Reading it for risk turned a deprioritized demo
     // file into a high-severity authentication note on a request-parsing task.
     expect(buildRiskNotes(["examples/auth/index.js"], [])).toEqual([]);

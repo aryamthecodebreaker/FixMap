@@ -50,7 +50,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${body.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${body.variable} ${mono.variable}`} data-scroll-behavior="smooth" suppressHydrationWarning>
       <body>
         <Script id="fixmap-theme-init" strategy="beforeInteractive">{`try{const t=localStorage.getItem("fixmap-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch{}`}</Script>
         <a className="skip-link" href="#main-content">Skip to main content</a>
