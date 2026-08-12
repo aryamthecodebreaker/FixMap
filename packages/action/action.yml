@@ -1,9 +1,9 @@
 name: FixMap
-description: Map pull request changes to context files, test routes, and review risks.
+description: Map pull request changes to primary context, likely impact, test routes, and review risks.
 inputs:
   mode:
     description: >-
-      plan (default) maps the change to context files, test routes, and review risks.
+      plan (default) maps the change to context files, likely impact, test routes, and review risks.
       verify compares a saved plan against the diff that followed it and needs report-path.
       Explain and compare are intentionally CLI/MCP-only because Action comments operate on complete reports.
     required: false

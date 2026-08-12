@@ -126,6 +126,29 @@ export default function EvidencePage() {
         <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap does not beat BM25 over code files on repositories it was never tuned against.</strong> Top 1 and Top 3 are exact ties — a paired McNemar exact test puts both at p = 1.0, with two disagreements each way. At Top 5 the baseline wins three cases FixMap misses and FixMap wins none: BM25 has the fixing file in its top five for 9 of 9 of these cases, FixMap for 6 of 9. FixMap does lead on the regression suite (69% vs 39% Top 1), but that is the suite whose cases shaped the ranker, and even there the lead is not significant against this baseline. We publish this because it is what the measurement says; closing the Top-5 recall gap is the next piece of work.</p></div>
       </section>
 
+      <section className="section page-shell">
+        <div className="section-heading split-heading">
+          <div><p className="eyebrow">Your repository</p><h2>Run the baseline comparison locally.</h2></div>
+          <p><code>fixmap benchmark --repo . --last 50</code> backtests BM25-over-code, FixMap, and FixMap with Impact Graph on bounded recent Git history.</p>
+        </div>
+        <div className="method-grid">
+          <article><span>01</span><h3>Parent snapshots</h3><p>Every case runs before its target commit, so the target change and later co-change history are unavailable.</p></article>
+          <article><span>02</span><h3>Identical corpus</h3><p>All three arms see the same scanned files. The comparison never weakens a baseline with a noisier candidate set.</p></article>
+          <article><span>03</span><h3>Separated cohorts</h3><p>Tasks that name an expected path are reported separately from tasks that require retrieval.</p></article>
+          <article><span>04</span><h3>Bounded and non-executing</h3><p>Temporary worktrees, commit and file caps, and no repository code execution keep the run inspectable.</p></article>
+        </div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>No universal performance claim is derived from one repository.</strong> Commit messages are imperfect task proxies, and historical changes reflect that project&rsquo;s own maintenance patterns. The JSON output includes every eligible case, skip counts, cohort scores, and Wilson intervals so users can judge the evidence directly.</p></div>
+      </section>
+
+      <section className="section page-shell">
+        <div className="section-heading split-heading">
+          <div><p className="eyebrow">Controlled agent study</p><h2>The protocol exists; the result does not yet.</h2></div>
+          <p>FixMap publishes a frozen four-arm protocol for baseline, available, instructed, and Impact Graph-assisted runs. It requires the same agent model and version, pinned repository revision, complete transcripts, and one run per task and arm.</p>
+        </div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>No fix-rate, turn-count, token, cost, or time-saved claim is made until real runs are completed and audited.</strong> The checked-in evaluator validates the protocol and rejects incomplete or mismatched run sets.</p></div>
+        <a className="text-link" href={`${repoUrl}/blob/main/docs/AGENT_STUDY.md`}>Read the frozen protocol <ArrowRight size={17} weight="bold" aria-hidden /></a>
+      </section>
+
       <section className="section table-section">
         <div className="page-shell">
           <div className="section-heading split-heading"><div><p className="eyebrow">Held-out results</p><h2>Every case, not just the wins.</h2></div><p>The expected path is the file changed by the merged fix. “Top 3” means that path appeared in FixMap&apos;s first three results.</p></div>

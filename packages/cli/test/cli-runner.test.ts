@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { parseArgs, runCli } from "../src/cli-runner.js";
 import { installAgentCommands } from "../src/agent-setup.js";
 import type { FixMapReport } from "@aryam/fixmap-core";
+import type { RepositoryBenchmark } from "../src/benchmark.js";
 
 const exec = promisify(execFile);
 
@@ -95,6 +96,35 @@ describe("CLI argument handling", () => {
     expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({ issueText: url }));
   });
 
+  it("renders the compact agent format with stable workflow headings", async () => {
+    const io = capture();
+    const impactReport: FixMapReport = {
+      ...report,
+      impact: {
+        seeds: ["README.md"],
+        files: [{
+          path: "docs/guide.md",
+          score: 6,
+          confidence: "medium",
+          evidence: [{ kind: "imported-by", seed: "README.md", reason: "this file imports README.md" }]
+        }],
+        inspectionOrder: ["README.md", "docs/guide.md"],
+        history: { available: false, eligibleCommits: 0, shallow: false, truncated: false }
+      }
+    };
+
+    expect(await runCli(["plan", "--issue", "improve docs", "--format", "agent"], {
+      ...io.dependencies,
+      buildReport: vi.fn(async () => impactReport)
+    })).toBe(0);
+
+    const output = io.stdout.join("");
+    for (const heading of ["EDIT CANDIDATE:", "INSPECT:", "TEST:", "RISK:", "AVOID:", "UNCERTAINTY:"]) {
+      expect(output).toContain(heading);
+    }
+    expect(output).toContain("docs/guide.md");
+  });
+
   it.each([
     ["--version"],
     ["-v"],
@@ -136,6 +166,42 @@ describe("CLI argument handling", () => {
     const io = capture();
     expect(await runCli(["features", "--help"], io.dependencies)).toBe(0);
     expect(io.stdout.join("")).toContain("Usage: fixmap features [--format markdown|json]");
+  });
+
+  it("runs the repository benchmark through its isolated command surface", async () => {
+    const io = capture();
+    const result = {
+      benchmarkVersion: 1,
+      generatedAt: "2026-08-12T00:00:00.000Z",
+      repository: "C:/repo",
+      requestedCommits: 5,
+      eligibleCases: 1,
+      skipped: {},
+      safeguards: { parentSnapshots: true, historyCutoff: "target-parent", maxChangedFiles: 30, sameScannedCorpus: true, repositoryCodeExecuted: false },
+      cohorts: {},
+      impactSecondary: { hits: 0, of: 0, recall: null },
+      cases: []
+    } as unknown as RepositoryBenchmark;
+    const benchmarkRepository = vi.fn(async () => result);
+
+    expect(await runCli(["benchmark", "--repo", "C:/repo", "--last", "5", "--format", "json"], {
+      ...io.dependencies,
+      benchmarkRepository,
+      renderBenchmark: () => "unused"
+    })).toBe(0);
+
+    expect(benchmarkRepository).toHaveBeenCalledWith(expect.objectContaining({ repoRoot: "C:/repo", last: 5 }));
+    expect(JSON.parse(io.stdout.join(""))).toMatchObject({ benchmarkVersion: 1, eligibleCases: 1 });
+  });
+
+  it("rejects remote and out-of-range benchmark inputs before touching history", async () => {
+    const remote = capture();
+    const invalid = capture();
+    const benchmarkRepository = vi.fn(async () => { throw new Error("must not run"); });
+
+    expect(await runCli(["benchmark", "--repo", "https://github.com/o/r"], { ...remote.dependencies, benchmarkRepository })).toBe(1);
+    expect(await runCli(["benchmark", "--last", "101"], { ...invalid.dependencies, benchmarkRepository })).toBe(1);
+    expect(benchmarkRepository).not.toHaveBeenCalled();
   });
 
   it("keeps the npm package README aligned with the complete public feature catalog", async () => {
@@ -386,7 +452,7 @@ describe("CLI argument handling", () => {
     const exitCode = await runCli(["plan", "--issue", "test", "--format", "yaml", "--mystery"], io.dependencies);
 
     expect(exitCode).toBe(1);
-    expect(io.stderr.join("")).toContain('--format received "yaml"; expected "markdown" or "json"');
+    expect(io.stderr.join("")).toContain('--format received "yaml"; expected "markdown", "json", or "agent"');
     expect(io.stderr.join("")).toContain("Unknown option(s): --mystery");
     expect(io.stderr.join("")).not.toContain("Unknown option(s): yaml");
   });

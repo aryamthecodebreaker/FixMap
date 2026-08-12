@@ -10,7 +10,7 @@ import type { FixMapInput, FixMapReport } from "./types.js";
 export async function buildFixMapReport(
   input: Pick<
     FixMapInput,
-    "repoRoot" | "issueText" | "diffSpec" | "baseRef" | "headRef" | "workingTree" | "includeUntracked" | "useCache"
+    "repoRoot" | "issueText" | "diffSpec" | "baseRef" | "headRef" | "workingTree" | "includeUntracked" | "useCache" | "includeHistory"
   > & {
     limit?: number | undefined;
     exclude?: string[] | undefined;
@@ -18,7 +18,7 @@ export async function buildFixMapReport(
     internalExclude?: string[] | undefined;
   }
 ): Promise<FixMapReport> {
-  const repo = await scanRepo(input);
+  const repo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
   const requestedExclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
   const internalExclude = buildPathExcluder(
     (input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern))

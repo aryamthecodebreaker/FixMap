@@ -15,10 +15,12 @@ export {
   buildRankingShape
 } from "./grounding.js";
 export { buildImportGraph, findImportProximity } from "./import-graph.js";
+export { buildImpactMap } from "./impact.js";
 export { detectPrimaryLanguage } from "./languages.js";
 export type { LanguageDetection, PrimaryLanguage } from "./languages.js";
 export { rankContextFiles } from "./rank.js";
-export { buildReportFromRepo, buildRiskNotes, buildSummary, buildTestRoutes, pathsForRiskArea, renderJsonReport, renderMarkdownReport } from "./report.js";
+export { rankByBm25, retrievalQueryTerms, retrievalTokens, taskMentionsExpectedPath } from "./retrieval.js";
+export { buildReportFromRepo, buildRiskNotes, buildSummary, buildTestRoutes, pathsForRiskArea, renderAgentReport, renderJsonReport, renderMarkdownReport } from "./report.js";
 export { scanRepo } from "./repo-scan.js";
 export { validateFixMapReport } from "./validate.js";
 export type { ValidatedFixMapReport } from "./validate.js";
@@ -27,11 +29,16 @@ export { stripByteOrderMark } from "./text.js";
 export type {
   FixMapInput,
   FixMapReport,
+  HistoryCommit,
+  ImpactEvidence,
+  ImpactFile,
+  ImpactMap,
   IdentifierGrounding,
   PackageScript,
   RankedFile,
   RepoFile,
   RepoMap,
+  RepositoryHistory,
   RiskNote,
   ScanDiagnostic,
   TaskAnalysis,

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight,
+  ChartLineUp,
   CheckCircle,
   Eye,
   FileMagnifyingGlass,
@@ -31,8 +32,8 @@ const stages = [
     icon: FileMagnifyingGlass,
     eyebrow: "Before the edit",
     title: "Plan: find the few places that matter.",
-    body: "FixMap reads the task and the repository together. It ranks likely context files, attaches the evidence behind each score, and routes the nearest tests it can actually reach.",
-    details: ["Ranked source files with reasons", "Workspace-aware test commands", "Risk areas and scan diagnostics"]
+    body: "FixMap reads the task and repository together. It ranks primary context, then builds a separate Impact Graph from imports, reverse dependents, routed tests, and repeated Git co-change evidence.",
+    details: ["Ranked source files with reasons", "Impact files to inspect, not assumed edits", "Workspace-aware tests, risks, and diagnostics"]
   },
   {
     id: "explain",
@@ -58,8 +59,8 @@ const stages = [
     icon: GitDiff,
     eyebrow: "After the edit",
     title: "Verify: compare the plan with the real change.",
-    body: "FixMap checks the saved plan against a git diff. It points out unplanned files, untouched leading context, missing tests, risky areas, and edits in generated or retired locations.",
-    details: ["Plan versus diff", "Advisory findings by default", "Non-zero only for discarded generated edits"]
+    body: "FixMap checks the saved plan against a git diff. It points out unplanned files, untouched leading context, missing tests, risky areas, and recalculated impact around the files that actually changed.",
+    details: ["Plan versus diff", "Recalculated impact", "Advisory findings by default"]
   }
 ];
 
@@ -68,7 +69,7 @@ export default function ProductPage() {
     <main>
       <section className="subpage-hero page-shell">
         <p className="eyebrow">The product</p>
-        <h1>One problem.{" "}<br /><em>Three useful answers.</em></h1>
+        <h1>One problem.{" "}<br /><em>Four useful answers.</em></h1>
         <p>
           FixMap narrows the first step, explains its reasoning, and checks the work that followed.
           It is a map you can inspect—not a promise that the map is always right.
@@ -76,6 +77,19 @@ export default function ProductPage() {
         <div className="button-row">
           <Link className="button primary" href="/demo">Try a live example <ArrowRight size={18} weight="bold" aria-hidden /></Link>
           <Link className="button secondary" href="/get-started">Get started</Link>
+        </div>
+      </section>
+
+      <section className="section page-shell" id="benchmark">
+        <div className="section-heading split-heading">
+          <div><p className="eyebrow">Measure it locally</p><h2>Backtest the map on your own history.</h2></div>
+          <p><code>fixmap benchmark --repo . --last 50</code> compares BM25-over-code, ordinary FixMap context, and FixMap with Impact Graph against historical parent snapshots.</p>
+        </div>
+        <div className="principle-grid">
+          <article><ChartLineUp size={27} aria-hidden /><h3>One candidate corpus</h3><p>Every arm sees the same scanned files, so a weaker baseline is never manufactured by changing the search space.</p></article>
+          <article><Gauge size={27} aria-hidden /><h3>Pre-change cutoff</h3><p>Each case is evaluated on its parent snapshot. The target change and later Git history cannot leak into its evidence.</p></article>
+          <article><Eye size={27} aria-hidden /><h3>Raw cases included</h3><p>All, mentioned, and unmentioned cohorts plus Wilson intervals make misses and small samples visible.</p></article>
+          <article><LockKey size={27} aria-hidden /><h3>No repository code runs</h3><p>The benchmark reads Git and source text in temporary worktrees without installing dependencies, running hooks, or executing tests.</p></article>
         </div>
       </section>
 

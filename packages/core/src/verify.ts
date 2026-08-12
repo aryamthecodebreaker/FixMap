@@ -8,6 +8,7 @@
 // say which. The output says what differs and leaves that judgement alone.
 
 import { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
+import { buildImpactMap } from "./impact.js";
 import { buildRiskNotes, pathsForRiskArea } from "./report.js";
 import type { FixMapReport, RepoMap, VerifyFinding, VerifyResult } from "./types.js";
 import { markdownCode } from "./markdown.js";
@@ -170,7 +171,24 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
     });
   }
 
-  // 5. Risk the plan never mentioned, because the change reached further than the map did.
+  // 5. Recompute relationships from what actually changed. This is deliberately an
+  // informational inspection prompt, not a claim that every dependent must be edited.
+  const impact = buildImpactMap(repo, changed, report.testRoutes);
+  const highImpactOutsidePlan = impact.files.filter((entry) =>
+    entry.confidence === "high" && !planned.has(entry.path) && !changed.includes(entry.path) && !isTest(entry.path)
+  );
+  if (highImpactOutsidePlan.length > 0) {
+    findings.push({
+      code: "impact-file-unreviewed",
+      severity: "info",
+      paths: highImpactOutsidePlan.slice(0, 8).map((entry) => entry.path),
+      message:
+        `${highImpactOutsidePlan.length === 1 ? "One high-evidence impact file is" : `${highImpactOutsidePlan.length} high-evidence impact files are`} ` +
+        "outside both the original plan and this diff. They are not required edits, but inspect the recorded import/history evidence before finishing."
+    });
+  }
+
+  // 6. Risk the plan never mentioned, because the change reached further than the map did.
   const plannedAreas = new Set(report.risks.map((risk) => risk.area));
   const newRisks = buildRiskNotes(changed, changed).filter((risk) => !plannedAreas.has(risk.area));
   for (const risk of newRisks) {
@@ -186,7 +204,8 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
     summary: buildVerifySummary(changed.length, findings),
     changedFiles: changed,
     findings,
-    diagnostics: repo.diagnostics
+    diagnostics: repo.diagnostics,
+    impact
   };
 }
 
@@ -234,5 +253,13 @@ export function renderVerifyMarkdown(result: VerifyResult): string {
   }
   lines.push("", "## Changed Files", "");
   lines.push(...(result.changedFiles.length > 0 ? result.changedFiles.map((path) => `- ${markdownCode(path)}`) : ["- None found"]));
+  if (result.impact) {
+    lines.push("", "## Recalculated Impact", "");
+    lines.push(...(result.impact.files.length > 0
+      ? result.impact.files.map((file) =>
+          `- ${markdownCode(file.path)} (${file.confidence} confidence): ${file.evidence.map((entry) => entry.reason).join("; ")}`
+        )
+      : ["- None found"]));
+  }
   return `${lines.join("\n")}\n`;
 }

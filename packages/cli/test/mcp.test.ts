@@ -40,7 +40,7 @@ describe("fixmap mcp server", () => {
     });
     expect(parsePlanArguments({ issue: "task", format: "yaml" })).toEqual({
       success: false,
-      message: '"format" must be either "markdown" or "json".'
+      message: '"format" must be "markdown", "json", or "agent".'
     });
     expect(parsePlanArguments({ issue: "task", surprise: true })).toEqual({
       success: false,
@@ -433,6 +433,22 @@ describe("fixmap mcp server", () => {
     const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
     const report = JSON.parse(text) as { contextFiles: Array<{ path: string }> };
     expect(report.contextFiles[0]?.path).toBe("src/auth/reset-password.ts");
+  });
+
+  it("returns compact agent output when asked", async () => {
+    const root = await createAuthFixture();
+    const client = await connectClient();
+
+    const result = await client.callTool({
+      name: "fixmap_plan",
+      arguments: { issue: "password reset emails fail", repo: root, format: "agent" }
+    });
+
+    const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
+    expect(result.isError).toBeFalsy();
+    expect(text).toContain("EDIT CANDIDATE:");
+    expect(text).toContain("INSPECT:");
+    expect(text).toContain("src/auth/reset-password.ts");
   });
 
   it("analyzes a public GitHub URL through an isolated temporary checkout", async () => {

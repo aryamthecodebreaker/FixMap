@@ -5,6 +5,7 @@ import {
 import type { RankingShape, TaskGrounding } from "./grounding.js";
 import type { PathExcluder } from "./exclude.js";
 import { detectPrimaryLanguage, manifestTestCommand, suggestedRunner } from "./languages.js";
+import { buildImpactMap } from "./impact.js";
 import { DEFAULT_CONTEXT_FILE_LIMIT, rankContextFiles, rankContextFilesDetailed } from "./rank.js";
 import { extractTaskSignals, tokenizePath } from "./signals.js";
 import { findGatedTestDiagnostics } from "./test-gates.js";
@@ -44,13 +45,15 @@ export function buildReportFromRepo(
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
+  const impact = buildImpactMap(repo, contextPaths, testRoutes);
 
   return {
     reportVersion: 1,
-    summary: buildSummary(contextFiles.length, testRoutes.length),
+    summary: buildSummary(contextFiles.length, testRoutes.length, impact.files.length),
     contextFiles,
     testRoutes,
     risks: buildRiskNotes(contextPaths, repo.changedFiles),
+    impact,
     changedFiles: repo.changedFiles,
     diagnostics: [
       ...repo.diagnostics,
@@ -540,10 +543,11 @@ function findRelatedTests(repo: RepoMap, contextPaths: string[]): string[] {
   return [...changedTests, ...overlapping].slice(0, 8);
 }
 
-export function buildSummary(contextFileCount: number, testRouteCount: number): string {
+export function buildSummary(contextFileCount: number, testRouteCount: number, impactFileCount = 0): string {
   const files = contextFileCount === 1 ? "context file" : "context files";
   const routes = testRouteCount === 1 ? "test route" : "test routes";
-  return `FixMap found ${contextFileCount} ${files} and generated ${testRouteCount} ${routes}.`;
+  const impact = impactFileCount === 1 ? "impact file" : "impact files";
+  return `FixMap found ${contextFileCount} ${files}, ${impactFileCount} ${impact}, and generated ${testRouteCount} ${routes}.`;
 }
 
 export function renderMarkdownReport(report: FixMapReport): string {
@@ -555,6 +559,19 @@ export function renderMarkdownReport(report: FixMapReport): string {
     "## Context Files",
     "",
     ...listOrEmpty(report.contextFiles.map((file) => `- ${markdownCode(file.path)} (${file.confidence} confidence, score ${file.score}): ${file.reasons.join("; ")}`)),
+    "",
+    "## Impact Graph",
+    "",
+    ...listOrEmpty((report.impact?.files ?? []).map((file) =>
+      `- ${markdownCode(file.path)} (${file.confidence} confidence, impact ${file.score}): ${file.evidence.map((entry) => entry.reason).join("; ")}`
+    )),
+    ...(report.impact ? [
+      "",
+      `Inspection order: ${report.impact.inspectionOrder.map(markdownCode).join(" → ") || "None"}.`,
+      `History evidence: ${report.impact.history.available
+        ? `${report.impact.history.eligibleCommits.toLocaleString()} eligible commits${report.impact.history.shallow ? " (shallow)" : ""}${report.impact.history.truncated ? " (bounded)" : ""}`
+        : "not available; import and test evidence only"}.`
+    ] : []),
     "",
     "## Test Routes",
     "",
@@ -593,6 +610,47 @@ export function renderMarkdownReport(report: FixMapReport): string {
 
 export function renderJsonReport(report: FixMapReport): string {
   return `${JSON.stringify(report, null, 2)}\n`;
+}
+
+/** Compact, stable headings for an agent context window. Evidence stays attached to each path. */
+export function renderAgentReport(report: FixMapReport): string {
+  const editCandidate = report.contextFiles[0];
+  const inspectByPath = new Map<string, string>();
+  for (const file of report.contextFiles.slice(1, 4)) {
+    inspectByPath.set(file.path, `context: ${file.reasons[0] ?? "ranked evidence"}`);
+  }
+  for (const file of (report.impact?.files ?? []).slice(0, 5)) {
+    if (!inspectByPath.has(file.path)) {
+      inspectByPath.set(file.path, `impact: ${file.evidence[0]?.reason ?? "related repository evidence"}`);
+    }
+  }
+  const avoided = [...new Set(report.diagnostics
+    .filter((entry) => entry.code === "generated-paths-dominant" || entry.code === "paths-excluded")
+    .flatMap((entry) => entry.paths ?? []))];
+  const uncertainty = report.diagnostics
+    .filter((entry) => entry.severity !== "info" || entry.code.startsWith("impact-history-"))
+    .slice(0, 3)
+    .map((entry) => entry.message);
+  const lines = [
+    "EDIT CANDIDATE:",
+    editCandidate ? `${editCandidate.path}  # ${editCandidate.confidence}; ${editCandidate.reasons[0] ?? "ranked evidence"}` : "none",
+    "",
+    "INSPECT:",
+    ...listOrEmpty([...inspectByPath].map(([path, reason]) => `${path}  # ${reason}`)),
+    "",
+    "TEST:",
+    ...listOrEmpty(report.testRoutes.map((route) => `${route.command}${route.relatedFiles[0] ? `  # ${route.relatedFiles[0]}` : ""}`)),
+    "",
+    "RISK:",
+    ...listOrEmpty(report.risks.map((risk) => `${risk.severity} ${risk.area}  # ${risk.reason}`)),
+    "",
+    "AVOID:",
+    ...listOrEmpty(avoided),
+    "",
+    "UNCERTAINTY:",
+    ...listOrEmpty(uncertainty)
+  ];
+  return `${lines.join("\n")}\n`;
 }
 
 function listOrEmpty(lines: string[]): string[] {

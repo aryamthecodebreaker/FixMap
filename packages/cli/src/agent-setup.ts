@@ -7,6 +7,7 @@ export type AgentTarget = "claude" | "cursor" | "copilot" | "agents";
 
 export const FIXMAP_FEATURES = [
   { name: "Plan", command: "fixmap plan", detail: "Rank context files, test routes, risks, changed files, and uncertainty from a task, issue URL, diff, or working tree." },
+  { name: "Impact Graph", command: "fixmap plan", detail: "Map likely dependents, dependencies, tests, and repeated Git co-change relationships around the primary context, with explicit evidence." },
   { name: "Explain", command: "fixmap plan --explain <path>", detail: "Show whether a path ranked, tied below the limit, was excluded, or was never scanned." },
   { name: "Compare", command: "fixmap plan --compare <report.json>", detail: "Compare a refined task and current plan with an earlier JSON report." },
   { name: "Verify", command: "fixmap verify --report <report.json>", detail: "Compare the completed diff or working tree with the saved plan; add --fail-on warning for a strict CI gate." },
@@ -20,6 +21,8 @@ export const FIXMAP_FEATURES = [
   { name: "Live changes", command: "--working-tree --include-untracked", detail: "Map staged, unstaged, and optionally untracked work against HEAD." },
   { name: "Fresh scan", command: "--no-cache", detail: "Bypass the exact git-state cache with CLI --no-cache, MCP noCache: true, or Action no-cache: true, and report that a fresh scan was used." },
   { name: "Machine output", command: "--format json --output <file>", detail: "Emit a versioned JSON contract or readable Markdown without executing repository code." },
+  { name: "Compact agent output", command: "--format agent", detail: "Emit EDIT CANDIDATE, INSPECT, TEST, RISK, AVOID, and UNCERTAINTY sections for a small context window." },
+  { name: "Repository benchmark", command: "fixmap benchmark --repo . --last 50", detail: "Backtest BM25, FixMap, and Impact Graph on historical parent snapshots with history cut off before each target change." },
   { name: "Test routing", command: "fixmap plan", detail: "Detect package, workspace, and language test commands, related tests, and skipped or gated suites." },
   { name: "Risk and diagnostics", command: "fixmap plan", detail: "Report bounded risk areas, grounding quality, unread content, scan limits, package-manager conflicts, and unresolved diffs." },
   { name: "GitHub Action", command: "uses: aryamthecodebreaker/FixMap@<version>", detail: "Plan or verify pull requests with bounded summaries, outputs, and one updated comment." },
@@ -49,8 +52,10 @@ When the invocation includes a task, issue URL, diff, file path, or workflow nam
 
 1. Run \`fixmap features\` if the requested capability is ambiguous.
 2. Use the matching local command: Plan, Explain, Compare, Verify, Validate, Doctor, or MCP.
-3. Preserve the user's repository and never imply that FixMap ran tests or proved correctness; it produces a starting map and verification findings.
-4. Report the exact command used and summarize files, checks, risks, and diagnostics.
+3. Read the Impact Graph as files to inspect, not a claim that each file must change. Preserve each relationship's evidence.
+4. Prefer \`--format agent\` when context is constrained, and \`fixmap benchmark\` when the user asks whether FixMap works on this repository.
+5. Preserve the user's repository and never imply that FixMap ran tests or proved correctness; it produces a starting map and verification findings.
+6. Report the exact command used and summarize files, impact, checks, risks, and diagnostics.
 
 Prefer \`fixmap plan --issue "$ARGUMENTS" --repo .\` for task text. Use a canonical public GitHub issue URL directly when one is provided.`;
 

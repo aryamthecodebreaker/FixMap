@@ -11,6 +11,8 @@ export type FixMapInput = {
   includeUntracked?: boolean | undefined;
   /** Reuse an exact git-state scan from the OS cache. Non-git directories never cache. */
   useCache?: boolean | undefined;
+  /** Read bounded Git history for impact evidence. Disable only when latency matters more than historical coverage. */
+  includeHistory?: boolean | undefined;
 };
 
 export type TextSampleSkipReason = "too-large" | "not-text" | "unreadable";
@@ -72,7 +74,10 @@ export type ScanDiagnostic = {
     | "cache-bypass"
     | "cache-skip"
     | "task-checklist-filtered"
-    | "package-manager-conflict";
+    | "package-manager-conflict"
+    | "impact-history-unavailable"
+    | "impact-history-shallow"
+    | "impact-history-truncated";
   message: string;
   severity: "info" | "warning" | "error";
   /**
@@ -93,6 +98,22 @@ export type RepoMap = {
   diffText: string;
   packageManager: "npm" | "pnpm" | "yarn" | "bun";
   diagnostics: ScanDiagnostic[];
+  /** Bounded, pre-HEAD history used only as evidence. It never contains file contents. */
+  history?: RepositoryHistory;
+};
+
+export type HistoryCommit = {
+  hash: string;
+  committedAt: number;
+  files: string[];
+};
+
+export type RepositoryHistory = {
+  commits: HistoryCommit[];
+  inspectedCommits: number;
+  skippedLargeCommits: number;
+  shallow: boolean;
+  truncated: boolean;
 };
 
 export type RankedFile = {
@@ -121,6 +142,33 @@ export type RiskNote = {
   area: string;
   reason: string;
   severity: "low" | "medium" | "high";
+};
+
+export type ImpactEvidence = {
+  kind: "imports" | "imported-by" | "co-change" | "test-route";
+  seed: string;
+  reason: string;
+  occurrences?: number;
+  seedChanges?: number;
+};
+
+export type ImpactFile = {
+  path: string;
+  score: number;
+  confidence: "high" | "medium" | "low";
+  evidence: ImpactEvidence[];
+};
+
+export type ImpactMap = {
+  seeds: string[];
+  files: ImpactFile[];
+  inspectionOrder: string[];
+  history: {
+    available: boolean;
+    eligibleCommits: number;
+    shallow: boolean;
+    truncated: boolean;
+  };
 };
 
 export type IdentifierGrounding = {
@@ -159,6 +207,8 @@ export type FixMapReport = {
   contextFiles: RankedFile[];
   testRoutes: TestRoute[];
   risks: RiskNote[];
+  /** Additive v1 field: evidence-backed files likely worth inspecting after the primary context. */
+  impact?: ImpactMap;
   changedFiles: string[];
   diagnostics: ScanDiagnostic[];
   analysis?: TaskAnalysis;
@@ -172,6 +222,7 @@ export type VerifyFinding = {
     | "leading-file-untouched"
     | "no-test-changed"
     | "new-risk-area"
+    | "impact-file-unreviewed"
     | "plan-partially-stale"
     | "planned-file-deleted"
     | "plan-repository-mismatch";
@@ -191,4 +242,5 @@ export type VerifyResult = {
    * comparison; `diagnostics` are what FixMap noticed while looking.
    */
   diagnostics: ScanDiagnostic[];
+  impact?: ImpactMap;
 };

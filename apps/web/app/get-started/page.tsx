@@ -45,6 +45,11 @@ export default function GetStartedPage() {
           <h3>Or work inside a local repository</h3>
           <CopyCommand command={commands.localTask} />
           <CopyCommand command={commands.diff} />
+          <h3>Compact agent handoff</h3>
+          <CopyCommand command={'fixmap plan --issue "reset links fail" --format agent'} />
+          <h3>Benchmark this repository</h3>
+          <p>Backtest BM25, FixMap, and Impact Graph on historical parent snapshots without running repository code:</p>
+          <CopyCommand command="fixmap benchmark --repo . --last 50" />
 
           <h3>Pin it to a project instead</h3>
           <p>Use a project dependency when everyone working on that repository should get the same version:</p>

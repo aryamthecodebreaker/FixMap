@@ -115,6 +115,33 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     };
   }
 
+  if (record.impact !== undefined) {
+    const impact = record.impact;
+    const history = isRecord(impact) ? impact.history : undefined;
+    if (!isRecord(impact) || !isRepositoryRelativePathArray(impact.seeds) ||
+      !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) ||
+      !isRecord(history) || typeof history.available !== "boolean" ||
+      typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 ||
+      typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
+      return { success: false, message: `${label} has an invalid impact graph envelope.` };
+    }
+    const invalidImpact = impact.files.findIndex((file) => {
+      if (!isRecord(file) || !isRepositoryRelativePath(file.path) ||
+        typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 ||
+        (file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low") ||
+        !Array.isArray(file.evidence)) return true;
+      return file.evidence.some((evidence) => !isRecord(evidence) ||
+        !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) ||
+        !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() ||
+        (evidence.occurrences !== undefined && (!Number.isSafeInteger(evidence.occurrences) || (evidence.occurrences as number) < 0)) ||
+        (evidence.seedChanges !== undefined && (!Number.isSafeInteger(evidence.seedChanges) || (evidence.seedChanges as number) < 0))
+      );
+    });
+    if (invalidImpact !== -1) {
+      return { success: false, message: `${label} has an invalid impact.files entry at index ${invalidImpact}.` };
+    }
+  }
+
   if (!isRepositoryRelativePathArray(record.changedFiles)) {
     return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
   }

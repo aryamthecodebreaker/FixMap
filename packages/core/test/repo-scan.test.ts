@@ -940,3 +940,47 @@ describe("scanRepo", () => {
     expect(diagnostic?.paths).toEqual(["packages/shared"]);
   });
 });
+
+describe("repository impact history", () => {
+  it("reads bounded pre-HEAD co-change evidence and excludes oversized commits", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-history-"));
+    try {
+      await exec("git", ["init"], { cwd: root });
+      await exec("git", ["config", "user.name", "FixMap Test"], { cwd: root });
+      await exec("git", ["config", "user.email", "fixmap@example.invalid"], { cwd: root });
+      await mkdir(join(root, "src"), { recursive: true });
+      await writeFile(join(root, "src", "seed.ts"), "export const seed = 1;\n");
+      await writeFile(join(root, "src", "peer.ts"), "export const peer = 1;\n");
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "add seed and peer"], { cwd: root });
+
+      await writeFile(join(root, "src", "seed.ts"), "export const seed = 2;\n");
+      await writeFile(join(root, "src", "peer.ts"), "export const peer = 2;\n");
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "update seed and peer"], { cwd: root });
+
+      await mkdir(join(root, "bulk"), { recursive: true });
+      await Promise.all(Array.from({ length: 31 }, (_, index) =>
+        writeFile(join(root, "bulk", `file-${index}.ts`), `export const value${index} = ${index};\n`)
+      ));
+      await writeFile(join(root, "src", "seed.ts"), "export const seed = 3;\n");
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "large generated sweep"], { cwd: root });
+
+      const repo = await scanRepo({ repoRoot: root, includeHistory: true });
+
+      expect(repo.history).toMatchObject({
+        inspectedCommits: 3,
+        skippedLargeCommits: 1,
+        shallow: false,
+        truncated: false
+      });
+      expect(repo.history?.commits).toHaveLength(2);
+      expect(repo.history?.commits.every((commit) =>
+        commit.files.includes("src/seed.ts") && commit.files.includes("src/peer.ts")
+      )).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});

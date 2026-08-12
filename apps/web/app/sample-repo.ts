@@ -245,7 +245,23 @@ export const sampleRepo: RepoMap = {
   changedFiles: [],
   diffText: "",
   packageManager: "npm",
-  diagnostics: []
+  diagnostics: [],
+  history: {
+    inspectedCommits: 8,
+    skippedLargeCommits: 1,
+    shallow: false,
+    truncated: false,
+    commits: [
+      { hash: "1".repeat(40), committedAt: 8, files: ["src/auth/reset-password.ts", "src/auth/token-store.ts", "test/auth/reset-password.test.ts"] },
+      { hash: "2".repeat(40), committedAt: 7, files: ["src/auth/reset-password.ts", "src/auth/token-store.ts", "src/http/routes.ts"] },
+      { hash: "3".repeat(40), committedAt: 6, files: ["src/auth/reset-password.ts", "test/auth/reset-password.test.ts", "docs/configuration.md"] },
+      { hash: "4".repeat(40), committedAt: 5, files: ["src/auth/reset-password.ts", "src/http/routes.ts", "test/auth/reset-password.test.ts"] },
+      { hash: "5".repeat(40), committedAt: 4, files: ["src/email/transport.ts", "src/config.ts"] },
+      { hash: "6".repeat(40), committedAt: 3, files: ["src/email/transport.ts", "src/config.ts", "test/auth/reset-password.test.ts"] },
+      { hash: "7".repeat(40), committedAt: 2, files: ["src/billing/invoice.ts", "src/config.ts"] },
+      { hash: "8".repeat(40), committedAt: 1, files: ["README.md"] }
+    ]
+  }
 };
 
 export const samplePaths: string[] = files.map((file) => file.path);

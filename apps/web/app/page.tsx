@@ -14,7 +14,7 @@ import { InteractiveMapStage } from "./_components/interactive-map-stage";
 import { commands, repoUrl, siteStats } from "./_lib/site-data";
 
 const workflow = [
-  { number: "01", name: "Plan", detail: "Rank the files, tests, and risks that matter before the first edit.", href: "/product#plan" },
+  { number: "01", name: "Plan", detail: "Rank primary context, then map likely impact without pretending every related file must change.", href: "/product#plan" },
   { number: "02", name: "Explain", detail: "Ask why a file ranked, missed the cutoff, was excluded, or was never scanned.", href: "/product#explain" },
   { number: "03", name: "Compare", detail: "Measure whether a clearer task produced a better context map.", href: "/product#compare" },
   { number: "04", name: "Verify", detail: "Check the completed diff against the plan that guided the work.", href: "/product#verify" }
@@ -35,8 +35,8 @@ export default function HomePage() {
           <p className="eyebrow">FixMap v{siteStats.version} · open source repo intelligence</p>
           <h1>Start the change with evidence.</h1>
           <p className="pro-hero-lede">
-            Give FixMap a task, issue, or diff. It returns the files to inspect, the checks to run,
-            and the risks to review—with every recommendation tied to repository evidence.
+            Give FixMap a task, issue, or diff. It returns primary context, likely impact, reachable
+            checks, and risks—with every recommendation tied to repository evidence.
           </p>
           <CopyCommand command={commands.publicIssue} />
           <div className="button-row">
@@ -75,7 +75,7 @@ export default function HomePage() {
           <div>
             <p className="eyebrow">Measured in public</p>
             <h2>Useful without pretending to be certain.</h2>
-            <p>FixMap publishes the misses, the cohort boundaries, and the baseline comparison. A map narrows the search; it does not replace reading, tests, or review.</p>
+            <p>FixMap publishes the misses, cohort boundaries, and baseline comparisons. You can also backtest BM25, FixMap, and Impact Graph against your own repository history.</p>
             <Link className="text-link" href="/evidence">Read the benchmark methodology <ArrowRight size={17} weight="bold" aria-hidden /></Link>
           </div>
           <dl className="pro-proof-metrics">

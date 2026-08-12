@@ -1,10 +1,17 @@
 # FixMap Report
 
-FixMap found 1 context file and generated 2 test routes.
+FixMap found 1 context file, 1 impact file, and generated 2 test routes.
 
 ## Context Files
 
 - `packages/utils/src/currency.ts` (high confidence, score 37): path matches task terms: currency; content matches task terms: round, cent; defines task identifiers: roundToCents; task identifier is defined in maintained implementation source
+
+## Impact Graph
+
+- `packages/utils/test/currency.test.ts` (high confidence, impact 13): this file imports packages/utils/src/currency.ts; routed test for packages/utils/src/currency.ts via pnpm --dir packages/utils run test
+
+Inspection order: `packages/utils/src/currency.ts` → `packages/utils/test/currency.test.ts`.
+History evidence: 63 eligible commits.
 
 ## Test Routes
 

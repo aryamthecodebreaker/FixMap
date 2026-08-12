@@ -9,6 +9,7 @@ import {
   explainFile,
   renderComparisonMarkdown,
   renderExplanationMarkdown,
+  renderAgentReport,
   renderJsonReport,
   renderMarkdownReport,
   renderVerifyMarkdown,
@@ -37,7 +38,7 @@ type PlanArguments = {
   head?: string;
   repo?: string;
   ref?: string;
-  format?: "markdown" | "json";
+  format?: "markdown" | "json" | "agent";
   limit?: number;
   exclude?: string[];
   workingTree?: boolean;
@@ -116,7 +117,7 @@ const PLAN_TOOL = {
       ref: { type: "string", description: "Branch or tag to scan when repo is a remote GitHub URL" },
       format: {
         type: "string",
-        description: "Output format: markdown (default) or json, case-insensitive"
+        description: "Output format: markdown (default), json, or compact agent, case-insensitive"
       },
       limit: {
         type: "number",
@@ -313,6 +314,7 @@ export function createFixMapMcpServer(
           workingTree: args.workingTree,
           includeUntracked: args.includeUntracked,
           useCache: !args.noCache,
+          includeHistory: true,
           internalExclude: args.reportPath ? [resolve(args.reportPath)] : undefined
         });
         const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
@@ -442,7 +444,11 @@ export function createFixMapMcpServer(
       }
     }
 
-    const text = args.format === "json" ? renderJsonReport(report) : renderMarkdownReport(report);
+    const text = args.format === "json"
+      ? renderJsonReport(report)
+      : args.format === "agent"
+        ? renderAgentReport(report)
+        : renderMarkdownReport(report);
     return { content: [{ type: "text", text }] };
   });
 
@@ -478,7 +484,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
   if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
   if (record.head && !record.base) return { success: false, message: '"head" requires "base".' };
-  const format = normalizeFormat(record.format); if (!format.success) return format;
+  const format = normalizePlanFormat(record.format); if (!format.success) return format;
   const limit = validateLimit(record.limit);
   if (!limit.success) {
     return limit;
@@ -657,11 +663,22 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
   };
 }
 
+function normalizePlanFormat(candidate: unknown): { success: true; value: "markdown" | "json" | "agent" | undefined } | { success: false; message: string } {
+  if (candidate === undefined) return { success: true, value: undefined };
+  if (typeof candidate !== "string") return { success: false, message: '"format" must be "markdown", "json", or "agent".' };
+  const value = candidate.trim().toLowerCase();
+  return value === "markdown" || value === "json" || value === "agent"
+    ? { success: true, value }
+    : { success: false, message: '"format" must be "markdown", "json", or "agent".' };
+}
+
 function normalizeFormat(candidate: unknown): { success: true; value: "markdown" | "json" | undefined } | { success: false; message: string } {
   if (candidate === undefined) return { success: true, value: undefined };
   if (typeof candidate !== "string") return { success: false, message: '"format" must be either "markdown" or "json".' };
   const value = candidate.trim().toLowerCase();
-  return value === "markdown" || value === "json" ? { success: true, value } : { success: false, message: '"format" must be either "markdown" or "json".' };
+  return value === "markdown" || value === "json"
+    ? { success: true, value }
+    : { success: false, message: '"format" must be either "markdown" or "json".' };
 }
 
 type LoadedReport =

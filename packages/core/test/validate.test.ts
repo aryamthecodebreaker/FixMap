@@ -148,6 +148,34 @@ describe("validateFixMapReport", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts a valid additive impact graph and rejects unsafe impact paths", () => {
+    const impact = {
+      seeds: ["src/reset.ts"],
+      files: [{
+        path: "src/session.ts",
+        score: 8,
+        confidence: "high",
+        evidence: [{
+          kind: "co-change",
+          seed: "src/reset.ts",
+          reason: "changed alongside src/reset.ts in 3 of its 4 eligible changes",
+          occurrences: 3,
+          seedChanges: 4
+        }]
+      }],
+      inspectionOrder: ["src/reset.ts", "src/session.ts"],
+      history: { available: true, eligibleCommits: 20, shallow: false, truncated: false }
+    };
+
+    expect(validateFixMapReport({ ...envelope, impact }, "report").success).toBe(true);
+    const invalid = validateFixMapReport({
+      ...envelope,
+      impact: { ...impact, files: [{ ...impact.files[0], path: "../outside.ts" }] }
+    }, "report");
+    expect(invalid.success).toBe(false);
+    if (!invalid.success) expect(invalid.message).toContain("impact.files entry");
+  });
+
   it("rejects an unknown identifier grounding status", () => {
     const result = validateFixMapReport({
       ...envelope,

@@ -6,6 +6,26 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://usefixmap.vercel.app/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.0 - 2026-08-12
+
+### Added
+
+- Every plan now contains a separate Impact Graph built from direct imports, reverse dependents, routed tests, and repeated Git co-change relationships. Each relationship carries its evidence, confidence, and inspection order; generated and backup artifacts stay excluded.
+- `fixmap benchmark --repo . --last 50` backtests BM25-over-code, FixMap context, and FixMap with Impact Graph on identical historical parent-snapshot corpora. It reports all, path-mentioned, and unmentioned cohorts, Wilson intervals, raw cases, skip counts, and secondary-file recall without executing repository code.
+- `fixmap plan --format agent` emits a compact, stable handoff organized as EDIT CANDIDATE, INSPECT, TEST, RISK, AVOID, and UNCERTAINTY.
+- A frozen four-arm agent-study protocol and validator are checked in for future controlled measurements. No agent-effectiveness or time-saved claim is made without completed, auditable runs.
+
+### Improved
+
+- Verify recalculates impact around the files actually changed and adds advisory findings for high-evidence related paths outside the original plan.
+- Plan, MCP, the GitHub Action, slash-command discovery, the live demo, package documentation, and the website all expose the new impact evidence consistently.
+- Git-history collection is bounded, cached, non-executing, and explicit about shallow, truncated, missing, or unreadable history. Import and test relationships continue to work when history is unavailable.
+
+### Evidence and release engineering
+
+- The original held-out benchmark and its honest BM25 comparison remain unchanged. The repository benchmark is a separate local backtest and does not rewrite frozen evidence.
+- The release candidate must pass workspace typechecking, all automated tests, lint, dependency audits, production builds, metadata and generated-artifact checks, package and Action smoke tests, evaluation gates, the agent-study protocol check, scanner performance checks, and desktop/mobile browser verification before any release or deployment action.
+
 ## 0.8.9 - 2026-08-11
 
 ### Added
