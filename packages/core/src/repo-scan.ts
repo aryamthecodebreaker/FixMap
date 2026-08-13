@@ -6,7 +6,7 @@ import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node
 import { promisify } from "node:util";
 import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS, SOURCE_FILE_EXTENSIONS, isGeneratedPath } from "./paths.js";
 import { DIAGNOSTIC_SPEC_LIMIT, truncateForDiagnostic } from "./text.js";
-import type { FixMapInput, PackageScript, RepoFile, RepoMap } from "./types.js";
+import type { FixMapInput, HistoryCommit, PackageScript, RepoFile, RepoMap, RepositoryHistory } from "./types.js";
 
 // Vendored source is intentionally scannable and receives a ranking penalty. Git mode has
 // always kept tracked vendor/ files; walk mode must not silently use a smaller corpus.
@@ -46,9 +46,12 @@ const MAX_TEXT_SAMPLE_BYTES = 64_000;
 const MAX_DIFF_TEXT_CHARS = 200_000;
 const MAX_SCANNED_FILES = 25_000;
 const GIT_MAX_BUFFER = 10 * 1024 * 1024;
+const GIT_HISTORY_MAX_BUFFER = 24 * 1024 * 1024;
+const MAX_HISTORY_COMMITS = 1_000;
+const MAX_HISTORY_FILES_PER_COMMIT = 30;
 const exec = promisify(execFile);
 type ScanState = { count: number; limitReported: boolean };
-const SCAN_CACHE_VERSION = 3;
+const SCAN_CACHE_VERSION = 4;
 const SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 const SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
@@ -63,12 +66,13 @@ type CachedScan = {
   packageScripts: PackageScript[];
   packageManager: RepoMap["packageManager"];
   diagnostics: RepoMap["diagnostics"];
+  history: RepositoryHistory | null;
 };
 
 export async function scanRepo(
   input: Pick<
     FixMapInput,
-    "repoRoot" | "baseRef" | "headRef" | "diffSpec" | "workingTree" | "includeUntracked" | "useCache"
+    "repoRoot" | "baseRef" | "headRef" | "diffSpec" | "workingTree" | "includeUntracked" | "useCache" | "includeHistory"
   > & { internalExclude?: string[] | undefined }
 ): Promise<RepoMap> {
   const repoRoot = resolve(input.repoRoot);
@@ -95,7 +99,7 @@ export async function scanRepo(
     ? cacheRoot
     : undefined;
   const cacheDecision = input.useCache === true
-    ? await buildScanCacheLocation(repoRoot, cacheRoot, internalPaths)
+    ? await buildScanCacheLocation(repoRoot, cacheRoot, internalPaths, input.includeHistory === true)
     : undefined;
   const cacheLocation = cacheDecision?.location;
   if (input.useCache === false) {
@@ -116,11 +120,13 @@ export async function scanRepo(
   let trackedFiles: string[];
   let packageScripts: PackageScript[];
   let packageManager: RepoMap["packageManager"];
+  let history: RepositoryHistory | undefined;
   if (cached) {
     files = cached.files;
     trackedFiles = cached.trackedFiles;
     packageScripts = cached.packageScripts;
     packageManager = cached.packageManager;
+    history = cached.history ?? undefined;
     diagnostics.push(...cached.diagnostics, {
       code: "cache-hit",
       severity: "info",
@@ -131,6 +137,9 @@ export async function scanRepo(
     trackedFiles = await listTrackedPaths(repoRoot, internalPaths);
     packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
     packageManager = detectPackageManager(files, diagnostics);
+    history = input.includeHistory === true
+      ? await readRepositoryHistory(repoRoot, new Set(files.map((file) => file.path)), diagnostics)
+      : undefined;
     if (cacheLocation) {
       await writeScanCache(cacheLocation, {
         version: SCAN_CACHE_VERSION,
@@ -140,7 +149,8 @@ export async function scanRepo(
         trackedFiles,
         packageScripts,
         packageManager,
-        diagnostics: [...diagnostics]
+        diagnostics: [...diagnostics],
+        history: history ?? null
       });
     }
   }
@@ -148,6 +158,10 @@ export async function scanRepo(
   const diff = input.workingTree
     ? await readWorkingTree(repoRoot, input.includeUntracked === true, diagnostics, internalPaths)
     : await readDiff(repoRoot, diffSpec, diagnostics, internalPaths);
+  const orderedDiagnostics = [
+    ...diagnostics.filter((entry) => !entry.code.startsWith("impact-history-")),
+    ...diagnostics.filter((entry) => entry.code.startsWith("impact-history-"))
+  ];
 
   return {
     root: repoRoot,
@@ -157,7 +171,8 @@ export async function scanRepo(
     changedFiles: diff.changedFiles,
     diffText: diff.diffText,
     packageManager,
-    diagnostics
+    diagnostics: orderedDiagnostics,
+    ...(history ? { history } : {})
   };
 }
 
@@ -217,7 +232,8 @@ function gitPathspec(internalPaths: ReadonlySet<string>): string[] {
 async function buildScanCacheLocation(
   root: string,
   cacheRoot: string,
-  internalPaths: ReadonlySet<string>
+  internalPaths: ReadonlySet<string>,
+  includeHistory: boolean
 ): Promise<ScanCacheDecision> {
   if (sameFilesystemPath(cacheRoot, root) || containedPath(root, cacheRoot) !== undefined) {
     return {
@@ -253,6 +269,7 @@ async function buildScanCacheLocation(
       head.trim(),
       status,
       dirtyDiff,
+      includeHistory ? "history" : "no-history",
       ...[...internalPaths].sort((a, b) => a.localeCompare(b))
     ].join("\0"));
     return { location: {
@@ -286,12 +303,28 @@ async function readScanCache(location: ScanCacheLocation): Promise<CachedScan | 
       !cached.packageScripts.every(isCachedPackageScript) ||
       !Array.isArray(cached.diagnostics) ||
       !cached.diagnostics.every(isCachedDiagnostic) ||
+      !(cached.history === null || isCachedHistory(cached.history)) ||
       !["npm", "pnpm", "yarn", "bun"].includes(cached.packageManager ?? "")
     ) return undefined;
     return cached as CachedScan;
   } catch {
     return undefined;
   }
+}
+
+function isCachedHistory(candidate: unknown): candidate is RepositoryHistory {
+  if (!isRecord(candidate) || !Array.isArray(candidate.commits) ||
+    typeof candidate.inspectedCommits !== "number" || !Number.isSafeInteger(candidate.inspectedCommits) || candidate.inspectedCommits < 0 ||
+    typeof candidate.skippedLargeCommits !== "number" || !Number.isSafeInteger(candidate.skippedLargeCommits) || candidate.skippedLargeCommits < 0 ||
+    typeof candidate.shallow !== "boolean" || typeof candidate.truncated !== "boolean") {
+    return false;
+  }
+  return candidate.commits.every((commit) => {
+    if (!isRecord(commit) || typeof commit.hash !== "string" || !/^[a-f0-9]{40}$/i.test(commit.hash) ||
+      typeof commit.committedAt !== "number" || !Number.isSafeInteger(commit.committedAt) || commit.committedAt < 0 ||
+      !Array.isArray(commit.files)) return false;
+    return commit.files.every(isCachedRelativePath);
+  });
 }
 
 function isCachedRepoFile(candidate: unknown): candidate is RepoFile {
@@ -1101,6 +1134,108 @@ const NOT_A_GIT_CHECKOUT =
 const NO_GIT_HISTORY =
   "this repository has no commits yet, so there is nothing to diff against. " +
   "Commit the initial work first, or run with --issue alone to rank from the task text.";
+
+async function readRepositoryHistory(
+  root: string,
+  repositoryPaths: ReadonlySet<string>,
+  diagnostics: RepoMap["diagnostics"]
+): Promise<RepositoryHistory | undefined> {
+  try {
+    const [{ stdout: shallowText }, { stdout: countText }, { stdout: logText }] = await Promise.all([
+      exec("git", ["rev-parse", "--is-shallow-repository"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["rev-list", "--count", "--no-merges", "HEAD"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", [
+        "-c", "core.quotepath=false",
+        "log",
+        "--no-merges",
+        "-n", String(MAX_HISTORY_COMMITS),
+        "--format=%x1e%H%x1f%ct",
+        "--name-only",
+        "-z",
+        "HEAD"
+      ], { cwd: root, maxBuffer: GIT_HISTORY_MAX_BUFFER })
+    ]);
+
+    const parsed = parseHistoryLog(logText, repositoryPaths);
+    const totalCommits = Number.parseInt(countText.trim(), 10);
+    const shallow = shallowText.trim() === "true";
+    const truncated = Number.isFinite(totalCommits) && totalCommits > parsed.inspectedCommits;
+    const history: RepositoryHistory = {
+      commits: parsed.commits,
+      inspectedCommits: parsed.inspectedCommits,
+      skippedLargeCommits: parsed.skippedLargeCommits,
+      shallow,
+      truncated
+    };
+
+    if (shallow) {
+      diagnostics.push({
+        code: "impact-history-shallow",
+        severity: "info",
+        message:
+          `Impact history is shallow (${parsed.inspectedCommits.toLocaleString()} visible non-merge ` +
+          `${parsed.inspectedCommits === 1 ? "commit" : "commits"}). Import and test relationships remain available, ` +
+          "but co-change evidence may be incomplete."
+      });
+    }
+    if (truncated) {
+      diagnostics.push({
+        code: "impact-history-truncated",
+        severity: "info",
+        message:
+          `Impact history inspected the newest ${parsed.inspectedCommits.toLocaleString()} of ${totalCommits.toLocaleString()} ` +
+          `non-merge commits. Commits touching more than ${MAX_HISTORY_FILES_PER_COMMIT} files were excluded from co-change evidence.`
+      });
+    }
+    return history;
+  } catch (error) {
+    const checkoutState = isMissingGit(error) ? undefined : await describeGitCheckout(root);
+    diagnostics.push({
+      code: "impact-history-unavailable",
+      severity: "info",
+      message: checkoutState === "not-repository"
+        ? "Impact history is unavailable because this directory is not a Git checkout; import and test relationships are still reported."
+        : checkoutState === "no-history"
+          ? "Impact history is unavailable because this repository has no commits; import and test relationships are still reported."
+          : `Impact history could not be read (${truncateForDiagnostic(gitErrorDetail(error), DIAGNOSTIC_SPEC_LIMIT * 2)}); import and test relationships are still reported.`
+    });
+    return undefined;
+  }
+}
+
+function parseHistoryLog(
+  logText: string,
+  repositoryPaths: ReadonlySet<string>
+): { commits: HistoryCommit[]; inspectedCommits: number; skippedLargeCommits: number } {
+  const commits: HistoryCommit[] = [];
+  let inspectedCommits = 0;
+  let skippedLargeCommits = 0;
+
+  for (const record of logText.split("\x1e")) {
+    if (!record) continue;
+    const fields = record.split("\0");
+    const header = fields.shift()?.replace(/^\r?\n/, "") ?? "";
+    const separator = header.indexOf("\x1f");
+    if (separator === -1) continue;
+    const hash = header.slice(0, separator).trim();
+    const committedAt = Number.parseInt(header.slice(separator + 1).trim(), 10);
+    if (!/^[a-f0-9]{40}$/i.test(hash) || !Number.isSafeInteger(committedAt) || committedAt < 0) continue;
+
+    inspectedCommits += 1;
+    const allFiles = [...new Set(fields
+      .map((path) => path.replace(/^\r?\n/, ""))
+      .filter(Boolean)
+      .map(normalizePath))];
+    if (allFiles.length > MAX_HISTORY_FILES_PER_COMMIT) {
+      skippedLargeCommits += 1;
+      continue;
+    }
+    const currentFiles = allFiles.filter((path) => repositoryPaths.has(path));
+    if (currentFiles.length === 0) continue;
+    commits.push({ hash, committedAt, files: currentFiles });
+  }
+  return { commits, inspectedCommits, skippedLargeCommits };
+}
 
 /**
  * `execFile` puts "Command failed: git ..." in `message` and git's own explanation in

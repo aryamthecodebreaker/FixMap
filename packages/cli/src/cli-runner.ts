@@ -9,6 +9,7 @@ import {
   quoteCliValue as formatCliValue,
   renderComparisonMarkdown,
   renderExplanationMarkdown,
+  renderAgentReport,
   renderJsonReport,
   renderVerifyMarkdown,
   resolveExclusions,
@@ -22,6 +23,8 @@ import {
 import { runDoctorChecks, renderDoctorReport, type DoctorReport } from "./doctor.js";
 import { installAgentCommands, renderFeatureCatalog, type AgentTarget } from "./agent-setup.js";
 import { clarifyMissingPath } from "./explain-path.js";
+import type { RepositoryBenchmark } from "./benchmark.js";
+import type { WatchRepositoryInput, WatchUpdate } from "./watch.js";
 import {
   buildReportForRepository,
   isSafeGitRefName,
@@ -40,7 +43,7 @@ export type CliOptions = {
   baseRef?: string | undefined;
   headRef?: string | undefined;
   checkoutRef?: string | undefined;
-  format: "markdown" | "json";
+  format: "markdown" | "json" | "agent";
   output?: string | undefined;
   explainPath?: string | undefined;
   reportPath?: string | undefined;
@@ -64,6 +67,10 @@ export type CliDependencies = {
   stdout?: (text: string) => void;
   writeReport?: (path: string, contents: string) => Promise<void>;
   readIssueFile?: (path: string | number) => string | Buffer;
+  benchmarkRepository?: (input: { repoRoot: string; last?: number; progress?: (message: string) => void }) => Promise<RepositoryBenchmark>;
+  renderBenchmark?: (result: RepositoryBenchmark) => string;
+  watchRepository?: (input: WatchRepositoryInput) => Promise<WatchUpdate | undefined>;
+  renderWatchUpdate?: (update: WatchUpdate, format: "markdown" | "json") => string;
 };
 
 export const USAGE = `FixMap maps an issue, prompt, or diff to context files, test routes, and review risks.
@@ -82,6 +89,7 @@ Usage:
   fixmap plan --working-tree --include-untracked --limit 12 --exclude "docs/**"
   fixmap plan --no-cache --issue "Fix login" --repo .
   fixmap plan --issue "Fix login" --format json --output plan.json
+  fixmap plan --issue "Fix login" --format agent
   fixmap plan --issue "Fix login in auth middleware" --compare plan.json
   fixmap plan --base main --head HEAD --format json
   fixmap verify --report plan.json --diff main...HEAD
@@ -89,6 +97,10 @@ Usage:
   fixmap verify --report plan.json --working-tree --fail-on warning
   fixmap doctor --format json
   fixmap validate plan.json
+  fixmap benchmark --repo . --last 50
+  fixmap context --issue "Fix login" --budget 10000
+  fixmap graph --issue "Fix login" --format mermaid
+  fixmap watch --report plan.json --repo .
   fixmap features
   fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>]
   fixmap mcp [--repo <path>]
@@ -98,6 +110,10 @@ Commands:
   verify              Compare a saved report against the diff that followed it
   doctor              Check the FixMap install for stale global or npx shadows
   validate            Validate a saved FixMap JSON report
+  benchmark           Backtest BM25, FixMap, and Impact Graph on pre-change snapshots
+  context             Package the highest-value source ranges within a token budget
+  graph               Export the evidence-backed Impact Graph as Mermaid or JSON
+  watch               Recheck working-tree drift and impact whenever edits change
   features            List every FixMap capability and its command
   setup               Install a discoverable /fixmap command for coding agents
   mcp                 Run FixMap as an MCP server over stdio for AI coding agents
@@ -115,7 +131,7 @@ Options:
   --ref <branch|tag>  Branch or tag to scan when --repo is a remote GitHub URL
   --limit <n>         Maximum context files to report (default 8, max 20)
   --exclude <glob>    Path pattern to leave out of ranking (repeatable)
-  --format <fmt>      Output format: markdown (default) or json
+  --format <fmt>      Output format: markdown (default), json, or compact agent
   --output <file>     Write the report or verification to a file instead of stdout
   --explain <path>    Explain why one file was ranked where it was, or left out
   --compare <file>    Compare this plan against an earlier JSON report
@@ -136,6 +152,7 @@ const MCP_USAGE = `Usage: fixmap mcp [--repo <path>]\n\nRuns the FixMap MCP serv
 const FEATURES_USAGE = `Usage: fixmap features [--format markdown|json]\n\nLists every FixMap capability and the command that exposes it.\n`;
 const SETUP_USAGE = `Usage: fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>] [--force]\n\nInstalls a /fixmap command that lists and runs FixMap workflows.\n`;
 const VALIDATE_USAGE = `Usage: fixmap validate <report.json> [--format markdown|json]\n\nChecks a saved report against FixMap's structural compatibility contract.\n`;
+const BENCHMARK_USAGE = `Usage: fixmap benchmark [--repo <local-path>] [--last <1-100>] [--format markdown|json] [--output <file>]\n\nBacktests BM25, FixMap, and Impact Graph against historical parent snapshots without executing repository code.\n`;
 
 export async function runCli(args: string[], dependencies: CliDependencies = {}): Promise<number> {
   const stdout = dependencies.stdout ?? ((text: string) => process.stdout.write(text));
@@ -318,6 +335,100 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       stderr(`Could not validate "${reportPath}": ${error instanceof Error ? error.message : String(error)}\n`);
       return 1;
     }
+  }
+
+  if (args[0] === "benchmark") {
+    if (args[1] === "--help" || args[1] === "-h") { stdout(BENCHMARK_USAGE); return 0; }
+    let repoRoot = process.cwd();
+    let last: number | undefined;
+    let format: "markdown" | "json" = "markdown";
+    let output: string | undefined;
+    const seen = new Set<string>();
+    for (let index = 1; index < args.length; index += 1) {
+      const raw = args[index]!;
+      const separator = raw.indexOf("=");
+      const flag = separator === -1 ? raw : raw.slice(0, separator);
+      const inline = separator === -1 ? undefined : raw.slice(separator + 1);
+      if (!new Set(["--repo", "--last", "--format", "--output"]).has(flag) || seen.has(flag)) {
+        stderr(`${seen.has(flag) ? `Pass ${flag} only once.` : `Unknown benchmark option: ${raw}`}\n\n${BENCHMARK_USAGE}`);
+        return 1;
+      }
+      seen.add(flag);
+      const following = args[index + 1];
+      const value = inline ?? (following && !following.startsWith("-") ? following : undefined);
+      if (inline === undefined && value !== undefined) index += 1;
+      if (!value?.trim()) { stderr(`${flag} requires a value.\n\n${BENCHMARK_USAGE}`); return 1; }
+      if (flag === "--repo") repoRoot = expandHomePath(value.trim());
+      else if (flag === "--output") output = expandHomePath(value.trim());
+      else if (flag === "--format") {
+        const normalized = value.trim().toLowerCase();
+        if (normalized !== "markdown" && normalized !== "json") {
+          stderr(`--format must be markdown or json.\n\n${BENCHMARK_USAGE}`);
+          return 1;
+        }
+        format = normalized;
+      } else {
+        const parsed = Number(value);
+        if (!/^\d+$/.test(value) || !Number.isSafeInteger(parsed) || parsed < 1 || parsed > 100) {
+          stderr(`--last must be a whole number from 1 to 100.\n\n${BENCHMARK_USAGE}`);
+          return 1;
+        }
+        last = parsed;
+      }
+    }
+    if (/^https?:\/\//i.test(repoRoot)) {
+      stderr(`benchmark --repo needs a local Git checkout so history cutoffs can be enforced.\n\n${BENCHMARK_USAGE}`);
+      return 1;
+    }
+    try {
+      const benchmarkModule = dependencies.benchmarkRepository && dependencies.renderBenchmark
+        ? undefined
+        : await import("./benchmark.js");
+      const result = await (dependencies.benchmarkRepository ?? benchmarkModule!.benchmarkRepository)({
+        repoRoot,
+        ...(last === undefined ? {} : { last }),
+        progress: (message) => {
+          if (progressRequested(process.env.FIXMAP_PROGRESS) || process.stderr.isTTY) stderr(`${message}\n`);
+        }
+      });
+      const rendered = format === "json"
+        ? `${JSON.stringify(result, null, 2)}\n`
+        : (dependencies.renderBenchmark ?? benchmarkModule!.renderRepositoryBenchmark)(result);
+      if (output) await (dependencies.writeReport ?? ((path, contents) => writeFile(path, contents, "utf8")))(output, rendered);
+      else stdout(rendered);
+      return 0;
+    } catch (error) {
+      stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
+
+  if (args[0] === "context") {
+    const { runContextCommand } = await import("./analysis-commands.js");
+    return runContextCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "graph") {
+    const { runGraphCommand } = await import("./analysis-commands.js");
+    return runGraphCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "watch") {
+    const { runWatchCommand } = await import("./watch-command.js");
+    return runWatchCommand(args.slice(1), {
+      stdout,
+      stderr,
+      watchRepository: dependencies.watchRepository,
+      renderWatchUpdate: dependencies.renderWatchUpdate
+    });
   }
 
   if (args[0] === "doctor") {
@@ -625,7 +736,11 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return unresolvedChangeRequest ? 1 : 0;
   }
 
-  const rendered = options.format === "json" ? renderJsonReport(report) : renderMarkdownReport(report);
+  const rendered = options.format === "json"
+    ? renderJsonReport(report)
+    : options.format === "agent"
+      ? renderAgentReport(report)
+      : renderMarkdownReport(report);
   if (options.output) {
     try {
       await (dependencies.writeReport ?? ((path, contents) => writeFile(path, contents, "utf8")))(
@@ -794,7 +909,7 @@ export function parseArgs(args: string[]): CliOptions {
   let baseRef: string | undefined;
   let headRef: string | undefined;
   let checkoutRef: string | undefined;
-  let format: "markdown" | "json" = "markdown";
+  let format: "markdown" | "json" | "agent" = "markdown";
   let output: string | undefined;
   let explainPath: string | undefined;
   let reportPath: string | undefined;
@@ -881,10 +996,10 @@ export function parseArgs(args: string[]): CliOptions {
     } else if (arg === "--format") {
       consumeValue();
       const normalized = value?.trim().toLowerCase();
-      if (normalized === "markdown" || normalized === "json") {
+      if (normalized === "markdown" || normalized === "json" || normalized === "agent") {
         format = normalized;
       } else {
-        invalidValues.push(`--format received ${JSON.stringify(value ?? "(missing)")}; expected "markdown" or "json"`);
+        invalidValues.push(`--format received ${JSON.stringify(value ?? "(missing)")}; expected "markdown", "json", or "agent"`);
       }
     } else if (arg === "--report") {
       consumeValue();
@@ -1244,6 +1359,7 @@ async function runVerify(
       workingTree: options.workingTree,
       includeUntracked: options.includeUntracked,
       useCache: !options.noCache,
+      includeHistory: true,
       internalExclude: localPlanArtifactExclusions(options)
     });
     const unresolvedDiff = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");

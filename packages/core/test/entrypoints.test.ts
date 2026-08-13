@@ -7,6 +7,8 @@ describe("public entrypoint parity", () => {
     "buildReportFromRepo",
     "renderJsonReport",
     "renderMarkdownReport",
+    "renderAgentReport",
+    "buildImpactMap",
     "validateFixMapReport",
     "quoteCliValue"
   ])("exports deterministic API %s from both node and browser entries", (name) => {
@@ -15,7 +17,9 @@ describe("public entrypoint parity", () => {
   });
 
   it("keeps filesystem scanning node-only", () => {
+    expect(nodeEntry).toHaveProperty("buildFixMapAnalysis");
     expect(nodeEntry).toHaveProperty("scanRepo");
     expect(browserEntry).not.toHaveProperty("scanRepo");
+    expect(browserEntry).not.toHaveProperty("buildFixMapAnalysis");
   });
 });

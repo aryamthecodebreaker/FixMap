@@ -28,7 +28,7 @@ export default function GetStartedPage() {
       <section className="setup-section page-shell" id="slash-command">
         <div className="setup-heading"><span>01</span><Command size={34} aria-hidden /><div><p className="eyebrow">Slash command</p><h2>Type /fixmap. See every workflow.</h2></div></div>
         <div className="setup-content">
-          <p className="setup-lede">Install project-level discovery for Claude Code, Cursor, GitHub Copilot, and Agent Skills. Invoking <code>/fixmap</code> without a task opens the complete Plan, Explain, Compare, Verify, Validate, Doctor, MCP, focus, working-tree, and fresh-scan menu.</p>
+          <p className="setup-lede">Install project-level discovery for Claude Code, Cursor, GitHub Copilot, and Agent Skills. Invoking <code>/fixmap</code> without a task opens the complete Plan, Context, Graph, Explain, Compare, Watch, Verify, Benchmark, Validate, Doctor, MCP, focus, working-tree, and fresh-scan menu.</p>
           <CopyCommand command={commands.setup} />
           <p>The installer is idempotent and refuses to overwrite an existing customized command. Target one integration with <code>--agent claude</code>, <code>cursor</code>, <code>copilot</code>, or <code>agents</code>. Use <code>--force</code> only after reviewing the file.</p>
           <h3>See the same menu in a terminal</h3>
@@ -45,6 +45,18 @@ export default function GetStartedPage() {
           <h3>Or work inside a local repository</h3>
           <CopyCommand command={commands.localTask} />
           <CopyCommand command={commands.diff} />
+          <h3>Compact agent handoff</h3>
+          <CopyCommand command={'fixmap plan --issue "reset links fail" --format agent'} />
+          <h3>Budgeted source context</h3>
+          <CopyCommand command={commands.context} />
+          <h3>Portable Impact Graph</h3>
+          <CopyCommand command={commands.graph} />
+          <h3>Watch an agent&apos;s edits</h3>
+          <p>Save the JSON plan, then stream drift and recalculated-impact updates whenever the local working tree changes:</p>
+          <CopyCommand command={'fixmap watch --report plan.json --repo . --include-untracked'} />
+          <h3>Benchmark this repository</h3>
+          <p>Backtest BM25, FixMap, and Impact Graph on historical parent snapshots without running repository code:</p>
+          <CopyCommand command="fixmap benchmark --repo . --last 50" />
 
           <h3>Pin it to a project instead</h3>
           <p>Use a project dependency when everyone working on that repository should get the same version:</p>
@@ -84,7 +96,7 @@ npx fixmap plan --issue "password reset emails fail"`} />
       <section className="setup-section page-shell" id="mcp">
         <div className="setup-heading"><span>03</span><Robot size={34} aria-hidden /><div><p className="eyebrow">MCP</p><h2>Let the agent ask.</h2></div></div>
         <div className="setup-content">
-          <p className="setup-lede">FixMap exposes five local stdio tools: <code>fixmap_plan</code> before editing, <code>fixmap_explain</code> when a file is missing, <code>fixmap_compare</code> to measure a refined plan, <code>fixmap_verify</code> after the diff exists, and <code>fixmap_doctor</code> to diagnose install shadows.</p>
+          <p className="setup-lede">FixMap exposes seven local stdio tools: <code>fixmap_plan</code>, <code>fixmap_context</code>, <code>fixmap_graph</code>, <code>fixmap_explain</code>, <code>fixmap_compare</code>, <code>fixmap_verify</code>, and <code>fixmap_doctor</code>.</p>
           <h3>Claude Code</h3>
           <CopyCommand command="claude mcp add fixmap -- fixmap mcp" />
           <h3>Cursor, Windsurf, and other MCP clients</h3>
@@ -96,7 +108,7 @@ npx fixmap plan --issue "password reset emails fail"`} />
     }
   }
 }`}</code></pre>
-          <p className="small-note">Analysis runs locally over stdio. FixMap does not send repository source to a hosted model or service. Plan, Explain, and Verify accept <code>noCache: true</code> for an explicit fresh scan.</p>
+          <p className="small-note">Analysis runs locally over stdio. FixMap does not send repository source to a hosted model or service. Plan, Context, Graph, Explain, and Verify accept <code>noCache: true</code> for an explicit fresh scan.</p>
         </div>
       </section>
 

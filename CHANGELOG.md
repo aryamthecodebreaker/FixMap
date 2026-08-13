@@ -6,6 +6,30 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://usefixmap.vercel.app/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.0 - 2026-08-13
+
+### Added
+
+- Every plan now contains a separate Impact Graph built from direct imports, reverse dependents, routed tests, and repeated Git co-change relationships. Each relationship carries its evidence, confidence, and inspection order; generated and backup artifacts stay excluded.
+- `fixmap context` builds a deterministic Markdown or JSON source pack from primary and impact files. It selects line ranges within an estimated source-token budget and records roles, reasons, confidence, truncation, and omissions.
+- `fixmap graph` exports the Impact Graph as portable Mermaid or versioned JSON while preserving relationship direction and evidence.
+- `fixmap watch --report plan.json --repo .` emits verification and recalculated impact only when the local working tree changes, with Markdown or JSON Lines output.
+- `fixmap benchmark --repo . --last 50` backtests BM25-over-code, FixMap context, and FixMap with Impact Graph on identical historical parent-snapshot corpora. It reports all, path-mentioned, and unmentioned cohorts, Wilson intervals, raw cases, skip counts, and secondary-file recall without executing repository code or scoring generated twins as primary answers.
+- `fixmap plan --format agent` emits a compact, stable handoff organized as EDIT CANDIDATE, INSPECT, TEST, RISK, AVOID, and UNCERTAINTY.
+- A frozen four-arm agent-study protocol and validator are checked in for future controlled measurements. No agent-effectiveness or time-saved claim is made without completed, auditable runs.
+- A 32-second motion-first agent comparison is available on the README and website in animated-preview and 1080p H.264/AAC formats, with original no-vocals music and no unsupported savings claim.
+
+### Improved
+
+- Verify recalculates impact around the files actually changed and adds advisory findings for high-evidence related paths outside the original plan.
+- Plan, Context, Graph, MCP, the GitHub Action, slash-command discovery, the live demo, package documentation, and the website expose the new evidence consistently.
+- Git-history collection is bounded, cached, non-executing, and explicit about shallow, truncated, missing, or unreadable history. Import and test relationships continue to work when history is unavailable.
+
+### Evidence and release engineering
+
+- The original held-out benchmark and its honest BM25 comparison remain unchanged. The repository benchmark is a separate local backtest and does not rewrite frozen evidence.
+- The release candidate must pass workspace typechecking, all automated tests, lint, dependency audits, production builds, metadata and generated-artifact checks, package and Action smoke tests, evaluation gates, the agent-study protocol check, scanner performance checks, and desktop/mobile browser verification before any release or deployment action.
+
 ## 0.8.9 - 2026-08-11
 
 ### Added

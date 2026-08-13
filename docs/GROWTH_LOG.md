@@ -125,3 +125,7 @@ An audit found that 3 of the 12 held-out tasks name their expected fixing file i
 The same scanned corpora were then ranked with literal keyword retrieval and BM25. On the held-out unmentioned cohort, BM25-over-code ties FixMap at Top-1 and Top-3 and leads 9/9 to 6/9 at Top-5. The paired Top-1 and Top-3 comparisons are exact ties; at this sample size none establishes a stable effect size.
 
 **Decision gate:** FixMap does not currently beat the naive retrieval baseline on unseen repositories. Pause distribution built on a “better than search” claim and do not add workflow surface area on that premise. The next evidence work is to expand the mechanically selected unmentioned cohort and improve recall without tuning against cases that remain held out.
+
+### Recorded-results refresh — 2026-08-13
+
+The frozen held-out artifacts now record FixMap at 3/9 Top-1, 5/9 Top-3, and 5/9 Top-5 on the unmentioned cohort. BM25-over-code records 4/9, 5/9, and 9/9 on the identical corpora. Current docs and launch copy use those values; the August 4 paragraphs above remain the historical snapshot from that audit day.

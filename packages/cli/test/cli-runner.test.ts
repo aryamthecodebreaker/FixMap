@@ -7,6 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 import { parseArgs, runCli } from "../src/cli-runner.js";
 import { installAgentCommands } from "../src/agent-setup.js";
 import type { FixMapReport } from "@aryam/fixmap-core";
+import type { RepositoryBenchmark } from "../src/benchmark.js";
+import type { WatchUpdate } from "../src/watch.js";
 
 const exec = promisify(execFile);
 
@@ -95,6 +97,35 @@ describe("CLI argument handling", () => {
     expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({ issueText: url }));
   });
 
+  it("renders the compact agent format with stable workflow headings", async () => {
+    const io = capture();
+    const impactReport: FixMapReport = {
+      ...report,
+      impact: {
+        seeds: ["README.md"],
+        files: [{
+          path: "docs/guide.md",
+          score: 6,
+          confidence: "medium",
+          evidence: [{ kind: "imported-by", seed: "README.md", reason: "this file imports README.md" }]
+        }],
+        inspectionOrder: ["README.md", "docs/guide.md"],
+        history: { available: false, eligibleCommits: 0, shallow: false, truncated: false }
+      }
+    };
+
+    expect(await runCli(["plan", "--issue", "improve docs", "--format", "agent"], {
+      ...io.dependencies,
+      buildReport: vi.fn(async () => impactReport)
+    })).toBe(0);
+
+    const output = io.stdout.join("");
+    for (const heading of ["EDIT CANDIDATE:", "INSPECT:", "TEST:", "RISK:", "AVOID:", "UNCERTAINTY:"]) {
+      expect(output).toContain(heading);
+    }
+    expect(output).toContain("docs/guide.md");
+  });
+
   it.each([
     ["--version"],
     ["-v"],
@@ -126,7 +157,7 @@ describe("CLI argument handling", () => {
     const io = capture();
 
     expect(await runCli(["features"], io.dependencies)).toBe(0);
-    for (const feature of ["Plan", "Explain", "Compare", "Verify", "Validate", "Doctor", "MCP", "Focus", "Live changes", "Fresh scan"]) {
+    for (const feature of ["Plan", "Context Pack", "Graph export", "Explain", "Compare", "Verify", "Watch", "Validate", "Doctor", "MCP", "Focus", "Live changes", "Fresh scan"]) {
       expect(io.stdout.join("")).toContain(`**${feature}**`);
     }
     expect(io.stdout.join("")).toContain("fixmap setup");
@@ -138,15 +169,85 @@ describe("CLI argument handling", () => {
     expect(io.stdout.join("")).toContain("Usage: fixmap features [--format markdown|json]");
   });
 
+  it("runs the repository benchmark through its isolated command surface", async () => {
+    const io = capture();
+    const result = {
+      benchmarkVersion: 1,
+      generatedAt: "2026-08-12T00:00:00.000Z",
+      repository: "C:/repo",
+      requestedCommits: 5,
+      eligibleCases: 1,
+      skipped: {},
+      safeguards: { parentSnapshots: true, historyCutoff: "target-parent", maxChangedFiles: 30, sameScannedCorpus: true, repositoryCodeExecuted: false },
+      cohorts: {},
+      impactSecondary: { hits: 0, of: 0, recall: null },
+      cases: []
+    } as unknown as RepositoryBenchmark;
+    const benchmarkRepository = vi.fn(async () => result);
+
+    expect(await runCli(["benchmark", "--repo", "C:/repo", "--last", "5", "--format", "json"], {
+      ...io.dependencies,
+      benchmarkRepository,
+      renderBenchmark: () => "unused"
+    })).toBe(0);
+
+    expect(benchmarkRepository).toHaveBeenCalledWith(expect.objectContaining({ repoRoot: "C:/repo", last: 5 }));
+    expect(JSON.parse(io.stdout.join(""))).toMatchObject({ benchmarkVersion: 1, eligibleCases: 1 });
+  });
+
+  it("rejects remote and out-of-range benchmark inputs before touching history", async () => {
+    const remote = capture();
+    const invalid = capture();
+    const benchmarkRepository = vi.fn(async () => { throw new Error("must not run"); });
+
+    expect(await runCli(["benchmark", "--repo", "https://github.com/o/r"], { ...remote.dependencies, benchmarkRepository })).toBe(1);
+    expect(await runCli(["benchmark", "--last", "101"], { ...invalid.dependencies, benchmarkRepository })).toBe(1);
+    expect(benchmarkRepository).not.toHaveBeenCalled();
+  });
+
+  it("runs watch once through its bounded command surface", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-watch-command-"));
+    const reportPath = join(root, "plan.json");
+    await writeFile(reportPath, JSON.stringify(report));
+    const io = capture();
+    const update: WatchUpdate = {
+      watchVersion: 1,
+      sequence: 1,
+      observedAt: "2026-08-12T00:00:00.000Z",
+      verification: { summary: "No drift.", changedFiles: [], findings: [], diagnostics: [] }
+    };
+    const watchRepository = vi.fn(async (input: Parameters<NonNullable<Parameters<typeof runCli>[1]["watchRepository"]>>[0]) => {
+      await input.onUpdate(update);
+      return update;
+    });
+
+    expect(await runCli(["watch", "--report", reportPath, "--repo", root, "--once", "--format", "json"], {
+      ...io.dependencies,
+      watchRepository,
+      renderWatchUpdate: (value) => `${JSON.stringify(value)}\n`
+    })).toBe(0);
+    expect(watchRepository).toHaveBeenCalledWith(expect.objectContaining({ repoRoot: root, once: true }));
+    expect(JSON.parse(io.stdout.join(""))).toMatchObject({ watchVersion: 1, sequence: 1 });
+  });
+
+  it("rejects unsafe watch inputs before starting a monitor", async () => {
+    const missing = capture();
+    const remote = capture();
+    const watchRepository = vi.fn(async () => undefined);
+    expect(await runCli(["watch", "--once"], { ...missing.dependencies, watchRepository })).toBe(1);
+    expect(await runCli(["watch", "--report", "plan.json", "--repo", "https://github.com/o/r"], { ...remote.dependencies, watchRepository })).toBe(1);
+    expect(watchRepository).not.toHaveBeenCalled();
+  });
+
   it("keeps the npm package README aligned with the complete public feature catalog", async () => {
     const npmReadme = await readFile(new URL("../README.md", import.meta.url), "utf8");
     for (const feature of [
-      "Plan", "Explain", "Compare", "Verify", "Validate", "Doctor", "MCP",
+      "Plan", "Context Pack", "Graph export", "Explain", "Compare", "Verify", "Watch", "Validate", "Doctor", "MCP",
       "Focus controls", "Live changes", "Exact-state cache", "Slash-command discovery"
     ]) {
       expect(npmReadme).toContain(`**${feature}**`);
     }
-    for (const command of ["fixmap setup", "fixmap features", "fixmap validate", "--no-cache"]) {
+    for (const command of ["fixmap setup", "fixmap features", "fixmap validate", "fixmap context", "fixmap graph", "fixmap watch", "--no-cache"]) {
       expect(npmReadme).toContain(command);
     }
   });
@@ -386,7 +487,7 @@ describe("CLI argument handling", () => {
     const exitCode = await runCli(["plan", "--issue", "test", "--format", "yaml", "--mystery"], io.dependencies);
 
     expect(exitCode).toBe(1);
-    expect(io.stderr.join("")).toContain('--format received "yaml"; expected "markdown" or "json"');
+    expect(io.stderr.join("")).toContain('--format received "yaml"; expected "markdown", "json", or "agent"');
     expect(io.stderr.join("")).toContain("Unknown option(s): --mystery");
     expect(io.stderr.join("")).not.toContain("Unknown option(s): yaml");
   });

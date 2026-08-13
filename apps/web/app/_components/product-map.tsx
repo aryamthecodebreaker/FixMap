@@ -13,8 +13,8 @@ const outputs = [
   },
   {
     icon: CheckCircle,
-    title: "Checks to run",
-    items: report.testRoutes.map((route) => route.command)
+    title: "Likely impact",
+    items: report.impact?.files.slice(0, 3).map((file) => `${file.path} · ${file.evidence[0]?.kind}`) ?? []
   },
   {
     icon: Warning,

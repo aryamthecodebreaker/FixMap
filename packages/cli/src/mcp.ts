@@ -6,9 +6,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
   compareReports,
+  buildFixMapGraph,
   explainFile,
   renderComparisonMarkdown,
   renderExplanationMarkdown,
+  renderAgentReport,
+  renderContextPackMarkdown,
+  renderFixMapGraphMermaid,
   renderJsonReport,
   renderMarkdownReport,
   renderVerifyMarkdown,
@@ -21,6 +25,7 @@ import {
 } from "@aryam/fixmap-core";
 import { renderDoctorReport, runDoctorChecks } from "./doctor.js";
 import { clarifyMissingPath } from "./explain-path.js";
+import { analyzeRepository, contextFromAnalysis } from "./analysis-source.js";
 import {
   buildReportForRepository,
   isSafeGitRefName,
@@ -37,7 +42,7 @@ type PlanArguments = {
   head?: string;
   repo?: string;
   ref?: string;
-  format?: "markdown" | "json";
+  format?: "markdown" | "json" | "agent";
   limit?: number;
   exclude?: string[];
   workingTree?: boolean;
@@ -63,6 +68,11 @@ type ExplainArguments = {
 type PlanArgumentsValidation =
   | { success: true; value: PlanArguments }
   | { success: false; message: string };
+
+type AnalysisToolArguments = Omit<PlanArguments, "format"> & {
+  format?: "markdown" | "json" | "mermaid";
+  budget?: number;
+};
 
 type VerifyArguments = {
   report: FixMapReport;
@@ -116,7 +126,7 @@ const PLAN_TOOL = {
       ref: { type: "string", description: "Branch or tag to scan when repo is a remote GitHub URL" },
       format: {
         type: "string",
-        description: "Output format: markdown (default) or json, case-insensitive"
+        description: "Output format: markdown (default), json, or compact agent, case-insensitive"
       },
       limit: {
         type: "number",
@@ -178,6 +188,35 @@ const EXPLAIN_TOOL = {
       noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" }
     },
     required: ["path"],
+    additionalProperties: false
+  }
+};
+
+const CONTEXT_TOOL = {
+  name: "fixmap_context",
+  title: "FixMap context",
+  description: "Select task-aware source ranges from FixMap's primary and impact files within a deterministic source-token budget. Use this after Plan and before editing; it does not call a model or execute repository code.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      ...PLAN_TOOL.inputSchema.properties,
+      budget: { type: "number", description: "Estimated source-token budget, a whole number from 256 to 200000; default 10000" },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    additionalProperties: false
+  }
+};
+
+const GRAPH_TOOL = {
+  name: "fixmap_graph",
+  title: "FixMap graph",
+  description: "Export FixMap's evidence-backed Impact Graph, including import direction, routed tests, and repeated co-change relationships, as Mermaid or JSON.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      ...PLAN_TOOL.inputSchema.properties,
+      format: { type: "string", description: "Output format: mermaid (default) or json, case-insensitive" }
+    },
     additionalProperties: false
   }
 };
@@ -251,10 +290,41 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (request.params.name === CONTEXT_TOOL.name || request.params.name === GRAPH_TOOL.name) {
+      const kind = request.params.name === CONTEXT_TOOL.name ? "context" : "graph";
+      const parsed = parseAnalysisToolArguments(request.params.arguments ?? {}, kind);
+      if (!parsed.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${parsed.message}` }] };
+      const args = parsed.value;
+      try {
+        const analysis = await analyzeRepository({
+          repo: args.repo ?? (tryParseGitHubIssueSource(args.issue ?? "") ? undefined : defaultRepo),
+          checkoutRef: args.ref,
+          issueText: args.issue,
+          diffSpec: args.diff,
+          baseRef: args.base,
+          headRef: args.head,
+          workingTree: args.workingTree,
+          includeUntracked: args.includeUntracked,
+          useCache: !args.noCache,
+          limit: args.limit,
+          exclude: args.exclude
+        }, repositorySourceDependencies);
+        if (kind === "context") {
+          const pack = contextFromAnalysis(analysis, args.budget ?? 10_000);
+          const text = args.format === "json" ? `${JSON.stringify(pack, null, 2)}\n` : renderContextPackMarkdown(pack);
+          return { ...(pack.snippets.length === 0 ? { isError: true } : {}), content: [{ type: "text", text }] };
+        }
+        const graph = buildFixMapGraph(analysis.report);
+        const text = args.format === "json" ? `${JSON.stringify(graph, null, 2)}\n` : renderFixMapGraphMermaid(graph);
+        return { ...(graph.nodes.length === 0 ? { isError: true } : {}), content: [{ type: "text", text }] };
+      } catch (error) {
+        return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }] };
+      }
+    }
     if (request.params.name === COMPARE_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;
       const unknown = Object.keys(record ?? {}).filter((key) => !["previous", "current", "format"].includes(key));
@@ -313,6 +383,7 @@ export function createFixMapMcpServer(
           workingTree: args.workingTree,
           includeUntracked: args.includeUntracked,
           useCache: !args.noCache,
+          includeHistory: true,
           internalExclude: args.reportPath ? [resolve(args.reportPath)] : undefined
         });
         const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
@@ -442,7 +513,11 @@ export function createFixMapMcpServer(
       }
     }
 
-    const text = args.format === "json" ? renderJsonReport(report) : renderMarkdownReport(report);
+    const text = args.format === "json"
+      ? renderJsonReport(report)
+      : args.format === "agent"
+        ? renderAgentReport(report)
+        : renderMarkdownReport(report);
     return { content: [{ type: "text", text }] };
   });
 
@@ -478,7 +553,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
   if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
   if (record.head && !record.base) return { success: false, message: '"head" requires "base".' };
-  const format = normalizeFormat(record.format); if (!format.success) return format;
+  const format = normalizePlanFormat(record.format); if (!format.success) return format;
   const limit = validateLimit(record.limit);
   if (!limit.success) {
     return limit;
@@ -513,6 +588,47 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
   if (value.issue && /^https?:\/\/\S+$/i.test(value.issue) && !tryParseGitHubIssueSource(value.issue)) return { success: false, message: '"issue" URL must be a canonical public GitHub issue or pull request URL.' };
   return { success: true, value };
+}
+
+function parseAnalysisToolArguments(
+  input: unknown,
+  kind: "context" | "graph"
+): { success: true; value: AnalysisToolArguments } | { success: false; message: string } {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return { success: false, message: "tool arguments must be an object." };
+  }
+  const record = input as Record<string, unknown>;
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", ...(kind === "context" ? ["budget"] : [])]);
+  const unknown = Object.keys(record).filter((key) => !allowed.has(key));
+  if (unknown.length > 0) return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
+
+  const format = record.format === undefined ? undefined : typeof record.format === "string" ? record.format.trim().toLowerCase() : "";
+  const formats = kind === "context" ? ["markdown", "json"] : ["mermaid", "json"];
+  if (record.format !== undefined && (typeof format !== "string" || !formats.includes(format))) return { success: false, message: `"format" must be "${formats.join('" or "')}".` };
+  const normalizedFormat: "markdown" | "json" | "mermaid" | undefined =
+    format === "markdown" || format === "json" || format === "mermaid" ? format : undefined;
+  if (record.budget !== undefined && (
+    typeof record.budget !== "number" || !Number.isSafeInteger(record.budget) || record.budget < 256 || record.budget > 200_000
+  )) return { success: false, message: '"budget" must be a whole number from 256 to 200000.' };
+
+  const baseRecord = { ...record };
+  delete baseRecord.format;
+  delete baseRecord.budget;
+  const parsed = parsePlanArguments(baseRecord);
+  if (!parsed.success) return parsed;
+  if (!parsed.value.issue && !parsed.value.diff && !parsed.value.base && !parsed.value.workingTree) {
+    return { success: false, message: "provide issue, diff, base/head, or workingTree so FixMap has a task signal." };
+  }
+  const { format: _planFormat, ...baseValue } = parsed.value;
+  void _planFormat;
+  return {
+    success: true,
+    value: {
+      ...baseValue,
+      ...(normalizedFormat !== undefined ? { format: normalizedFormat } : {}),
+      ...(typeof record.budget === "number" ? { budget: record.budget } : {})
+    }
+  };
 }
 
 function validateLimit(
@@ -657,11 +773,22 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
   };
 }
 
+function normalizePlanFormat(candidate: unknown): { success: true; value: "markdown" | "json" | "agent" | undefined } | { success: false; message: string } {
+  if (candidate === undefined) return { success: true, value: undefined };
+  if (typeof candidate !== "string") return { success: false, message: '"format" must be "markdown", "json", or "agent".' };
+  const value = candidate.trim().toLowerCase();
+  return value === "markdown" || value === "json" || value === "agent"
+    ? { success: true, value }
+    : { success: false, message: '"format" must be "markdown", "json", or "agent".' };
+}
+
 function normalizeFormat(candidate: unknown): { success: true; value: "markdown" | "json" | undefined } | { success: false; message: string } {
   if (candidate === undefined) return { success: true, value: undefined };
   if (typeof candidate !== "string") return { success: false, message: '"format" must be either "markdown" or "json".' };
   const value = candidate.trim().toLowerCase();
-  return value === "markdown" || value === "json" ? { success: true, value } : { success: false, message: '"format" must be either "markdown" or "json".' };
+  return value === "markdown" || value === "json"
+    ? { success: true, value }
+    : { success: false, message: '"format" must be either "markdown" or "json".' };
 }
 
 type LoadedReport =

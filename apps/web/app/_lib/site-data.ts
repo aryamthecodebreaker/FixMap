@@ -101,6 +101,8 @@ export const commands = {
   publicIssue:
     "fixmap plan --issue https://github.com/chalk/chalk/issues/624",
   localTask: "fixmap plan --issue \"password reset emails fail\"",
+  context: "fixmap context --issue \"password reset emails fail\" --budget 10000",
+  graph: "fixmap graph --issue \"password reset emails fail\" --format mermaid",
   diff: "fixmap plan --diff main...HEAD",
   verify: "fixmap verify --report plan.json --diff main...HEAD",
   validate: "fixmap validate plan.json",

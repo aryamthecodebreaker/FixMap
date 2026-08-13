@@ -575,7 +575,7 @@ export async function buildReportForRepository(
   );
 }
 
-async function findLocalGitHubRepositoryUrl(repoRoot: string): Promise<string | undefined> {
+export async function findLocalGitHubRepositoryUrl(repoRoot: string): Promise<string | undefined> {
   try {
     const { stdout } = await exec(
       "git",

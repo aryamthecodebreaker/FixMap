@@ -2,17 +2,17 @@
 
 ## Cross-repository ranking and efficiency
 
-![FixMap evidence audit: on nine held-out tasks that did not name the fixing file, FixMap and BM25 both ranked it in the top three for five cases, while BM25 led six to nine at Top-5.](assets/fixmap-benchmark.svg)
+![FixMap evidence audit: on nine held-out tasks that did not name the fixing file, FixMap and BM25 both ranked it in the top three for five cases, while BM25 led five to nine at Top-5.](assets/fixmap-benchmark.svg)
 
 Two suites answer two different questions. The [regression suite](../benchmarks/external/README.md) uses 16 repositories whose cases have guided ranking work, so it measures fit rather than generalization. The [held-out suite](../benchmarks/heldout/README.md) uses 12 further repositories selected by the identical frozen rule and rotates any case that informs a ranking change, so it remains unseen evidence. Each case in both pins the repository state before the fix and freezes the fixing source paths before FixMap ranks anything.
 
-Ranking outputs refreshed 2026-08-04 on Node v24.13.0, Windows 11 (10.0.26200), Intel Core i5-8350U; the scan-time measurement remains from 2026-07-26:
+Ranking outputs verified 2026-08-13 on Node v24, Windows 11, Intel Core i5-8350U; the scan-time measurement remains from 2026-07-26:
 
 | Quantity | Held-out (12) | Regression (16) | Evidence type |
 | --- | ---: | ---: | --- |
-| Expected fixing file in Top-1 | 7/12 (58%) | 11/16 (69%) | Measured, **pooled — see cohorts below** |
+| Expected fixing file in Top-1 | 6/12 (50%) | 11/16 (69%) | Measured, **pooled — see cohorts below** |
 | Expected fixing file in Top-3 | 8/12 (67%) | 16/16 (100%) | Measured, **pooled — see cohorts below** |
-| Expected fixing file in Top-5 | 9/12 (75%) | 16/16 (100%) | Measured, **pooled — see cohorts below** |
+| Expected fixing file in Top-5 | 8/12 (67%) | 16/16 (100%) | Measured, **pooled — see cohorts below** |
 | Median scan + rank time | — | 1,747.7 ms | Measured, three warm runs per pinned repository |
 
 **The held-out, unmentioned cohort below is the one to plan around.** The pooled held-out column includes three tasks that name their fixing file, while the regression column describes performance on cases that shaped the ranker.
@@ -35,9 +35,9 @@ named; a bare `index.ts` is ordinary prose in an issue and does not.
 
 | Suite | Cohort | Cases | Top-1 | Top-3 | Top-5 |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Held-out | Task did not name the file | 9 | **44.4%** (95% CI 19–73%) | **55.6%** (95% CI 27–81%) | 66.7% |
+| Held-out | Task did not name the file | 9 | **33.3%** (95% CI 12–65%) | **55.6%** (95% CI 27–81%) | 55.6% |
 | Held-out | Task named the file | 3 | 100% | 100% | 100% |
-| Held-out | Pooled | 12 | 58.3% | 66.7% | 75.0% |
+| Held-out | Pooled | 12 | 50.0% | 66.7% | 66.7% |
 | Regression | Task did not name the file | 13 | 69.2% | 100% | 100% |
 | Regression | Task named the file | 3 | 66.7% | 100% | 100% |
 | Regression | Pooled | 16 | 68.8% | 100% | 100% |
@@ -93,14 +93,14 @@ Both keyword arms are case-insensitive and expand camelCase, which favours the b
 | `bm25:raw` | 11.1% | 22.2% | 33.3% |
 | `bm25:source` | 11.1% | 22.2% | 44.4% |
 | **`bm25:code`** | **44.4%** | **55.6%** | **100%** |
-| `fixmap` | 44.4% | 55.6% | 66.7% |
+| `fixmap` | 33.3% | 55.6% | 55.6% |
 
-**FixMap does not beat BM25-over-code on repositories it was never tuned against.** Top-1 and Top-3
-are exact ties (McNemar p = 1.0, two disagreements each way). At Top-5 the baseline wins three cases
-FixMap misses and FixMap wins none — BM25 has the fixing file in its top five for 9 of 9 cases,
-FixMap for 6 of 9.
+**FixMap does not beat BM25-over-code on repositories it was never tuned against.** BM25 leads the
+Top-1 point estimate 4/9 to 3/9, while Top-3 is tied at 5/9; both paired comparisons have McNemar
+p = 1.0. At Top-5 the baseline wins four cases FixMap misses and FixMap wins none — BM25 has the
+fixing file in its top five for 9 of 9 cases, FixMap for 5 of 9 (McNemar p = 0.125).
 
-The three FixMap misses BM25 catches are `socketio/socket.io`, `vitejs/vite` and `vuejs/core`.
+The four FixMap misses BM25 catches are `jestjs/jest`, `knex/knex`, `vitejs/vite`, and `vuejs/core`.
 
 ### Regression, tasks that did not name the file (13)
 

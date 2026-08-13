@@ -225,6 +225,7 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
     workingTree: context.workingTree,
     includeUntracked: context.includeUntracked,
     useCache: !context.noCache,
+    includeHistory: true,
     internalExclude: [resolve(repoRoot, reportPath)]
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");

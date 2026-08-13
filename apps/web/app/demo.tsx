@@ -240,6 +240,18 @@ function PlanPanel({ report }: { report: ReturnType<typeof buildReportFromRepo> 
           <code>{report.testRoutes[0]!.command}</code>
         </div>
       ) : null}
+
+      {report.impact?.files.length ? (
+        <div className="panel-block">
+          <p className="panel-heading">Likely impact · inspect, not assumed edits</p>
+          {report.impact.files.slice(0, 5).map((file) => (
+            <p key={file.path}>
+              <span className={`severity ${file.confidence === "high" ? "warning" : "info"}`}>{file.confidence}</span>
+              <code>{file.path}</code> — {file.evidence.map((entry) => entry.reason).join("; ")}
+            </p>
+          ))}
+        </div>
+      ) : null}
       {report.testRoutes[0]?.relatedFiles.length ? (
         <p className="route-related">
           Nearest test: <code>{report.testRoutes[0]!.relatedFiles[0]}</code>

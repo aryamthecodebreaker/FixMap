@@ -31,17 +31,17 @@ These 12 repositories were selected by the same frozen rule. When a case informs
 
 ## Results
 
-Measured 2026-08-04 (Node v24, `rankContextFiles` with a top-5 window):
+Verified 2026-08-13 (Node v24, `rankContextFiles` with a top-5 window):
 
 Three tasks name their expected fixing file in the issue text. They legitimately test FixMap's explicit-file-mention signal, but they do not test whether it can locate a file the task did not name. The evaluator therefore derives and reports both cohorts every run:
 
 | Cohort | Cases | Top-1 | Top-3 | Top-5 |
 | --- | ---: | ---: | ---: | ---: |
-| Task did not name the file | 9 | **4/9 (44.4%)** | **5/9 (55.6%)** | **6/9 (66.7%)** |
+| Task did not name the file | 9 | **3/9 (33.3%)** | **5/9 (55.6%)** | **5/9 (55.6%)** |
 | Task named the file | 3 | 3/3 (100%) | 3/3 (100%) | 3/3 (100%) |
-| Pooled, previously published | 12 | 7/12 (58.3%) | 8/12 (66.7%) | 9/12 (75.0%) |
+| Pooled | 12 | 6/12 (50.0%) | 8/12 (66.7%) | 8/12 (66.7%) |
 
-**Plan around the unmentioned cohort.** At nine cases its Top-3 95% Wilson interval is 27–81%, so the point estimate is exploratory rather than a precise success probability. The three Top-5 misses — `socketio/socket.io`, `vitejs/vite`, and `vuejs/core` — remain recorded in [`results.json`](results.json) with their actual rankings. The Jest answer is fourth, so it also misses Top-3.
+**Plan around the unmentioned cohort.** At nine cases its Top-3 95% Wilson interval is 27–81%, so the point estimate is exploratory rather than a precise success probability. The four Top-5 misses — `jestjs/jest`, `knex/knex`, `vitejs/vite`, and `vuejs/core` — remain recorded in [`results.json`](results.json) with their actual rankings.
 
 ## Baseline-relative result
 
@@ -51,9 +51,9 @@ Three tasks name their expected fixing file in the issue text. They legitimately
 | --- | ---: | ---: | ---: |
 | Literal keyword retrieval, code files | 2/9 | 4/9 | 6/9 |
 | BM25 retrieval, code files | **4/9** | **5/9** | **9/9** |
-| FixMap | 4/9 | 5/9 | 6/9 |
+| FixMap | 3/9 | 5/9 | 5/9 |
 
-FixMap does not beat BM25-over-code on this unseen cohort: Top-1 and Top-3 tie, while BM25 leads 9/9 to 6/9 at Top-5. With nine cases this is not a stable effect-size estimate, but the previously published advantage does not survive the baseline comparison.
+FixMap does not beat BM25-over-code on this unseen cohort: BM25 leads Top-1 4/9 to 3/9, Top-3 ties at 5/9, and BM25 leads Top-5 9/9 to 5/9. With nine cases this is not a stable effect-size estimate, but an advantage over naive retrieval is not established.
 
 ## Confidence calibration
 
@@ -61,9 +61,9 @@ Both suites record the confidence label on the top-ranked file, so the label can
 
 | Top result labeled | Correct | Accuracy |
 | --- | ---: | ---: |
-| high | 7 / 13 | 54% |
-| medium | 9 / 11 | 82% |
-| low | 2 / 4 | 50% |
+| high | 5 / 6 | 83% |
+| medium | 11 / 19 | 58% |
+| low | 1 / 3 | 33% |
 
 The ordering is not monotonic in this small sample, so the labels must not be read as calibrated probabilities. Counts are published so readers can weigh that limitation themselves. Per-suite figures are in each `results.json` under `calibration`.
 

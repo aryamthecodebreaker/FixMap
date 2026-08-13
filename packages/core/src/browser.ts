@@ -10,7 +10,11 @@ export { compareReports, renderComparisonMarkdown } from "./compare.js";
 export { quoteCliValue } from "./cli-quote.js";
 export type { CliShell } from "./cli-quote.js";
 export { rankContextFiles } from "./rank.js";
-export { buildReportFromRepo, buildRiskNotes, buildTestRoutes, renderJsonReport, renderMarkdownReport } from "./report.js";
+export { rankByBm25, retrievalQueryTerms, retrievalTokens, taskMentionsExpectedPath } from "./retrieval.js";
+export { buildReportFromRepo, buildRiskNotes, buildTestRoutes, renderAgentReport, renderJsonReport, renderMarkdownReport } from "./report.js";
+export { buildContextPack, estimateContextTokens, renderContextPackMarkdown, type ContextPack, type ContextSnippet } from "./context.js";
+export { buildFixMapGraph, renderFixMapGraphMermaid, type FixMapGraph } from "./graph.js";
+export { buildImpactMap } from "./impact.js";
 export { tokenizePath, tokenizeText } from "./signals.js";
 export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
 export { validateFixMapReport } from "./validate.js";
@@ -20,6 +24,9 @@ export type { PathExcluder } from "./exclude.js";
 export type { ReportComparison } from "./compare.js";
 export type {
   FixMapReport,
+  ImpactEvidence,
+  ImpactFile,
+  ImpactMap,
   RankedFile,
   RepoFile,
   RepoMap,

@@ -1,0 +1,35 @@
+{
+  "protocolVersion": 1,
+  "status": "protocol-only",
+  "suite": "navigation-focused pinned tasks",
+  "arms": [
+    "baseline",
+    "fixmap-available",
+    "fixmap-instructed",
+    "fixmap-impact"
+  ],
+  "requirements": {
+    "sameModelVersion": true,
+    "sameTaskText": true,
+    "sameRepositoryRevision": true,
+    "freshContextPerRun": true,
+    "randomizedArmOrder": true,
+    "fixedTimeoutAndBudget": true,
+    "noFixMapChangesMidStudy": true,
+    "rawTranscriptsRequired": true
+  },
+  "metrics": [
+    "taskResolved",
+    "correctFileInFirstThreeOpened",
+    "toolCallsToFirstRelevantFile",
+    "filesOpenedBeforeFirstEdit",
+    "incorrectFilesEdited",
+    "totalToolCalls",
+    "inputTokens",
+    "outputTokens",
+    "testsSelectedCorrectly",
+    "finalPatchAccepted",
+    "fixmapPlanUsed",
+    "verifyUsefulWarnings"
+  ]
+}

@@ -21,8 +21,8 @@ The report ranks likely files with reasons, suggests test routes, and names risk
 - CLI, MCP server, and GitHub Action share the same core ranker.
 - Public GitHub issue URLs supply both task context and the repository in one input; source is scanned in an isolated anonymous shallow checkout that is removed after analysis.
 - Two frozen evaluations use real fixed issues at pinned pre-fix commits, selected by a mechanical rule.
-- **Held-out tasks that did not name the fixing file (9 repositories, never tuned against): top-1 `4/9` (44%), top-3 `5/9` (56%), top-5 `6/9` (67%).** Three further cases named their answer and are reported separately.
-- On that same cohort and scanned corpus, BM25-over-code ties FixMap at Top-1 and Top-3 and leads `9/9` to `6/9` at Top-5. FixMap's advantage over naive retrieval is unproven.
+- **Held-out tasks that did not name the fixing file (9 repositories, never tuned against): top-1 `3/9` (33%), top-3 `5/9` (56%), top-5 `5/9` (56%).** Three further cases named their answer and are reported separately.
+- On that same cohort and scanned corpus, BM25-over-code leads `4/9` to `3/9` at Top-1, ties `5/9` at Top-3, and leads `9/9` to `5/9` at Top-5. FixMap's advantage over naive retrieval is unproven.
 - Regression (16 repositories, guided development): top-1 `11/16` (69%), top-3 and top-5 `16/16` (100%).
 - Confidence labels are directional heuristics, not calibrated probabilities; all per-band counts remain public.
 - An adversarial suite measures false confidence on fabricated identifiers, vague tasks, and absent features: `0.0` across 9 cases.
@@ -125,7 +125,7 @@ Points for the maintainer to explain personally:
 2. The one-sentence solution: deterministic repo context—ranked files, test routes, risks, and diagnostics.
 3. The fastest trial: include the one-input public GitHub issue URL command.
 4. The technical mechanism: path/content signals, real git diff signals, bounded static import proximity, file-kind priors, and workspace boundaries.
-5. The honest evidence: on nine held-out tasks that did not name their fixing file, FixMap scores `4/9` Top-1 and `5/9` Top-3, exactly tied with BM25-over-code; BM25 leads at Top-5. Link every per-case ranking.
+5. The honest evidence: on nine held-out tasks that did not name their fixing file, FixMap scores `3/9` Top-1 and `5/9` Top-3; BM25 scores `4/9` and `5/9`, then leads at Top-5. Link every per-case ranking.
 6. The scope: JavaScript/TypeScript today; remote URLs are issue-only; suggested tests are not executed.
 7. What the benchmarks did not catch: both suites passed while FixMap could not find chalk's own color-detection code, because a directory blocklist ran after git had already applied `.gitignore` and a frequency cutoff suppressed the word "color" in a library about color. Pointing it at a repository it had never been run on found that; the benchmark never would have.
 8. Ask for technical criticism of the evaluation and useful next signals.
@@ -146,7 +146,7 @@ These are angles and evidence, not identical copy to syndicate.
 
 - Problem: agents spend context and tokens discovering where to start.
 - Demo: run FixMap first on a public repository, then hand the report to the agent.
-- Evidence: deterministic, zero model calls, and inspectable reasons; on nine held-out tasks that did not name the file, FixMap ties BM25-over-code at Top-1 and Top-3 and trails it at Top-5.
+- Evidence: deterministic, zero model calls, and inspectable reasons; on nine held-out tasks that did not name the file, FixMap trails BM25-over-code at Top-1 and Top-5 and ties it at Top-3.
 - Honest caveat: it is a routing aid, not semantic code understanding or a correctness oracle.
 
 ### Claude Code and Cursor communities
@@ -173,12 +173,14 @@ claude mcp add fixmap -- npx -y @aryam/fixmap@latest mcp
 1. One pain sentence.
 2. The public repository command.
 3. A screenshot or short terminal video of the real output.
-4. One evidence sentence: nine held-out pinned bugs whose tasks did not name the file, FixMap tied with BM25-over-code at `4/9` Top-1 and `5/9` Top-3, with every ranking public.
+4. One evidence sentence: nine held-out pinned bugs whose tasks did not name the file, FixMap scored `3/9` Top-1 and `5/9` Top-3 versus BM25's `4/9` and `5/9`, with every ranking public.
 5. Repository link and a specific feedback question.
 
 Avoid generic feature lists and unsupported superlatives.
 
-## Ready-to-post LinkedIn update
+## Historical LinkedIn draft (superseded)
+
+Do not publish the copy below. Use `docs/releases/v0.9.0-social-posts.md`, which contains the reviewed X, LinkedIn, and Show HN drafts for the current release candidate.
 
 Coding agents are fast once they know where to work. The expensive mistakes happen before the first edit: opening the wrong module, missing the owning test, or overlooking a risky change.
 
@@ -197,8 +199,8 @@ The latest work includes:
 - a shared CLI, MCP server, and GitHub Action workflow
 - a GitHub Marketplace listing for the Action
 - a production dependency audit gate with no high or critical findings
-- 234 automated tests, production builds, smoke tests, and frozen cross-repository and adversarial evaluation gates
-- a new 24-second product film on the README and live site
+- 727 automated tests, production builds, smoke tests, and frozen cross-repository and adversarial evaluation gates
+- a new 32-second product film on the README and live site
 
 The evaluation is intentionally public and modest. Across 12 pinned real bugs in repositories the ranker was never tuned against, FixMap ranks an expected file in the top 1 for 7 and in the top 3 for 9. Every per-case ranking is published, including the three misses, and 12 cases are not a general accuracy claim.
 
@@ -210,7 +212,7 @@ Marketplace: https://github.com/marketplace/actions/fixmap
 
 npm: https://www.npmjs.com/package/@aryam/fixmap
 
-Release: https://github.com/aryamthecodebreaker/FixMap/releases/tag/v0.7.4
+Release: publish the v0.9.0 URL only after the release exists and is verified
 
 I would especially value feedback on the ranking explanations and which repository signals would make FixMap more useful before an agent starts editing.
 

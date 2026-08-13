@@ -1180,6 +1180,116 @@ function addEdge(edges, from, to) {
   }
 }
 
+// packages/core/dist/impact.js
+var DEFAULT_IMPACT_LIMIT = 12;
+var MAX_IMPACT_SEEDS = 3;
+var MIN_CO_CHANGE_OCCURRENCES = 2;
+function buildImpactMap(repo, requestedSeeds, testRoutes = [], limit = DEFAULT_IMPACT_LIMIT) {
+  const repositoryPaths = new Set(repo.files.map((file) => file.path));
+  const seeds = [...new Set(requestedSeeds)].filter((path) => repositoryPaths.has(path)).slice(0, MAX_IMPACT_SEEDS);
+  const seedSet = new Set(seeds);
+  const candidates = /* @__PURE__ */ new Map();
+  const addEvidence = (path, score, evidence) => {
+    if (seedSet.has(path) || !repositoryPaths.has(path) || isGeneratedPath(path) || isBackupPath(path))
+      return;
+    const current = candidates.get(path) ?? { path, score: 0, evidence: [] };
+    if (!current.evidence.some((entry) => entry.kind === evidence.kind && entry.seed === evidence.seed)) {
+      current.evidence.push(evidence);
+      current.score += score;
+    }
+    candidates.set(path, current);
+  };
+  const graph = buildImportGraph(repo.files);
+  for (const seed of seeds) {
+    for (const imported of [...graph.imports.get(seed) ?? []].sort((a, b) => a.localeCompare(b))) {
+      addEvidence(imported, 4, {
+        kind: "imports",
+        seed,
+        reason: `${seed} imports this file`
+      });
+    }
+    for (const importer of [...graph.importedBy.get(seed) ?? []].sort((a, b) => a.localeCompare(b))) {
+      addEvidence(importer, 6, {
+        kind: "imported-by",
+        seed,
+        reason: `this file imports ${seed}`
+      });
+    }
+  }
+  for (const route of testRoutes.filter((entry) => entry.kind === "test")) {
+    for (const path of route.relatedFiles) {
+      const seed = nearestSeed(path, seeds) ?? seeds[0];
+      if (!seed)
+        continue;
+      addEvidence(path, 7, {
+        kind: "test-route",
+        seed,
+        reason: `routed test for ${seed} via ${route.command}`
+      });
+    }
+  }
+  const history = repo.history;
+  if (history) {
+    for (const seed of seeds) {
+      const seedCommits = history.commits.filter((commit) => commit.files.includes(seed));
+      const coOccurrences = /* @__PURE__ */ new Map();
+      for (const commit of seedCommits) {
+        for (const path of commit.files) {
+          if (path !== seed && repositoryPaths.has(path)) {
+            coOccurrences.set(path, (coOccurrences.get(path) ?? 0) + 1);
+          }
+        }
+      }
+      for (const [path, occurrences] of coOccurrences) {
+        if (occurrences < MIN_CO_CHANGE_OCCURRENCES)
+          continue;
+        const strength = occurrences / Math.max(seedCommits.length, 1);
+        const score = Math.min(8, 2 + Math.round(strength * 6));
+        addEvidence(path, score, {
+          kind: "co-change",
+          seed,
+          reason: `changed alongside ${seed} in ${occurrences} of its ${seedCommits.length} eligible ${seedCommits.length === 1 ? "change" : "changes"}`,
+          occurrences,
+          seedChanges: seedCommits.length
+        });
+      }
+    }
+  }
+  const files = [...candidates.values()].map(toImpactFile).sort((left, right) => right.score - left.score || left.path.localeCompare(right.path)).slice(0, Math.max(0, limit));
+  return {
+    seeds,
+    files,
+    inspectionOrder: [...seeds, ...files.map((file) => file.path)],
+    history: {
+      available: Boolean(history),
+      eligibleCommits: history?.commits.length ?? 0,
+      shallow: history?.shallow ?? false,
+      truncated: history?.truncated ?? false
+    }
+  };
+}
+function toImpactFile(candidate) {
+  const kinds = new Set(candidate.evidence.map((entry) => entry.kind));
+  const strongestCoChange = candidate.evidence.filter((entry) => entry.kind === "co-change").reduce((best, entry) => Math.max(best, (entry.occurrences ?? 0) / Math.max(entry.seedChanges ?? 1, 1)), 0);
+  const confidence = kinds.has("test-route") || kinds.size >= 2 || strongestCoChange >= 0.6 ? "high" : kinds.has("imported-by") || kinds.has("imports") || strongestCoChange >= 0.3 ? "medium" : "low";
+  return {
+    path: candidate.path,
+    score: candidate.score,
+    confidence,
+    evidence: candidate.evidence.sort((left, right) => left.kind.localeCompare(right.kind) || left.seed.localeCompare(right.seed))
+  };
+}
+function nearestSeed(path, seeds) {
+  const pathParts = path.split("/");
+  return [...seeds].map((seed) => {
+    const seedParts = seed.split("/");
+    let common = 0;
+    while (common < pathParts.length && common < seedParts.length && pathParts[common] === seedParts[common])
+      common += 1;
+    return { seed, common };
+  }).sort((left, right) => right.common - left.common || left.seed.localeCompare(right.seed))[0]?.seed;
+}
+
 // packages/core/dist/rank.js
 var DEPLOYMENT_TERMS = [
   "deploy",
@@ -1812,12 +1922,14 @@ function buildReportFromRepo(repo, input) {
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
+  const impact = buildImpactMap(repo, contextPaths, testRoutes);
   return {
     reportVersion: 1,
-    summary: buildSummary(contextFiles.length, testRoutes.length),
+    summary: buildSummary(contextFiles.length, testRoutes.length, impact.files.length),
     contextFiles,
     testRoutes,
     risks: buildRiskNotes(contextPaths, repo.changedFiles),
+    impact,
     changedFiles: repo.changedFiles,
     diagnostics: [
       ...repo.diagnostics,
@@ -2123,10 +2235,11 @@ function findRelatedTests(repo, contextPaths) {
   }).filter((file) => file.score > 0).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).map((file) => file.path);
   return [...changedTests, ...overlapping].slice(0, 8);
 }
-function buildSummary(contextFileCount, testRouteCount) {
+function buildSummary(contextFileCount, testRouteCount, impactFileCount = 0) {
   const files = contextFileCount === 1 ? "context file" : "context files";
   const routes = testRouteCount === 1 ? "test route" : "test routes";
-  return `FixMap found ${contextFileCount} ${files} and generated ${testRouteCount} ${routes}.`;
+  const impact = impactFileCount === 1 ? "impact file" : "impact files";
+  return `FixMap found ${contextFileCount} ${files}, ${impactFileCount} ${impact}, and generated ${testRouteCount} ${routes}.`;
 }
 function renderMarkdownReport(report) {
   const lines = [
@@ -2137,6 +2250,15 @@ function renderMarkdownReport(report) {
     "## Context Files",
     "",
     ...listOrEmpty(report.contextFiles.map((file) => `- ${markdownCode(file.path)} (${file.confidence} confidence, score ${file.score}): ${file.reasons.join("; ")}`)),
+    "",
+    "## Impact Graph",
+    "",
+    ...listOrEmpty((report.impact?.files ?? []).map((file) => `- ${markdownCode(file.path)} (${file.confidence} confidence, impact ${file.score}): ${file.evidence.map((entry) => entry.reason).join("; ")}`)),
+    ...report.impact ? [
+      "",
+      `Inspection order: ${report.impact.inspectionOrder.map(markdownCode).join(" \u2192 ") || "None"}.`,
+      `History evidence: ${report.impact.history.available ? `${report.impact.history.eligibleCommits.toLocaleString()} eligible commits${report.impact.history.shallow ? " (shallow)" : ""}${report.impact.history.truncated ? " (bounded)" : ""}` : "not available; import and test evidence only"}.`
+    ] : [],
     "",
     "## Test Routes",
     "",
@@ -2237,8 +2359,11 @@ var MAX_TEXT_SAMPLE_BYTES = 64e3;
 var MAX_DIFF_TEXT_CHARS = 2e5;
 var MAX_SCANNED_FILES = 25e3;
 var GIT_MAX_BUFFER = 10 * 1024 * 1024;
+var GIT_HISTORY_MAX_BUFFER = 24 * 1024 * 1024;
+var MAX_HISTORY_COMMITS = 1e3;
+var MAX_HISTORY_FILES_PER_COMMIT = 30;
 var exec = promisify(execFile);
-var SCAN_CACHE_VERSION = 3;
+var SCAN_CACHE_VERSION = 4;
 var SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
 var SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1e3;
 var SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
@@ -2264,7 +2389,7 @@ async function scanRepo(input) {
   const internalPaths = await resolveInternalPaths(repoRoot, input.internalExclude ?? []);
   const cacheRoot = configuredScanCacheRoot();
   const internalCacheRoot = sameFilesystemPath(cacheRoot, repoRoot) || containedPath(repoRoot, cacheRoot) !== void 0 ? cacheRoot : void 0;
-  const cacheDecision = input.useCache === true ? await buildScanCacheLocation(repoRoot, cacheRoot, internalPaths) : void 0;
+  const cacheDecision = input.useCache === true ? await buildScanCacheLocation(repoRoot, cacheRoot, internalPaths, input.includeHistory === true) : void 0;
   const cacheLocation = cacheDecision?.location;
   if (input.useCache === false) {
     diagnostics.push({
@@ -2284,11 +2409,13 @@ async function scanRepo(input) {
   let trackedFiles;
   let packageScripts;
   let packageManager;
+  let history;
   if (cached) {
     files = cached.files;
     trackedFiles = cached.trackedFiles;
     packageScripts = cached.packageScripts;
     packageManager = cached.packageManager;
+    history = cached.history ?? void 0;
     diagnostics.push(...cached.diagnostics, {
       code: "cache-hit",
       severity: "info",
@@ -2299,6 +2426,7 @@ async function scanRepo(input) {
     trackedFiles = await listTrackedPaths(repoRoot, internalPaths);
     packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
     packageManager = detectPackageManager(files, diagnostics);
+    history = input.includeHistory === true ? await readRepositoryHistory(repoRoot, new Set(files.map((file) => file.path)), diagnostics) : void 0;
     if (cacheLocation) {
       await writeScanCache(cacheLocation, {
         version: SCAN_CACHE_VERSION,
@@ -2308,12 +2436,17 @@ async function scanRepo(input) {
         trackedFiles,
         packageScripts,
         packageManager,
-        diagnostics: [...diagnostics]
+        diagnostics: [...diagnostics],
+        history: history ?? null
       });
     }
   }
   const diffSpec = resolveDiffSpec(input);
   const diff = input.workingTree ? await readWorkingTree(repoRoot, input.includeUntracked === true, diagnostics, internalPaths) : await readDiff(repoRoot, diffSpec, diagnostics, internalPaths);
+  const orderedDiagnostics = [
+    ...diagnostics.filter((entry) => !entry.code.startsWith("impact-history-")),
+    ...diagnostics.filter((entry) => entry.code.startsWith("impact-history-"))
+  ];
   return {
     root: repoRoot,
     files,
@@ -2322,7 +2455,8 @@ async function scanRepo(input) {
     changedFiles: diff.changedFiles,
     diffText: diff.diffText,
     packageManager,
-    diagnostics
+    diagnostics: orderedDiagnostics,
+    ...history ? { history } : {}
   };
 }
 function configuredScanCacheRoot() {
@@ -2353,7 +2487,7 @@ function hasInternalPath(paths, path) {
 function gitPathspec(internalPaths) {
   return ["--", ".", ...[...internalPaths].sort((a, b) => a.localeCompare(b)).map((path) => `:(exclude,literal)${path}`)];
 }
-async function buildScanCacheLocation(root, cacheRoot, internalPaths) {
+async function buildScanCacheLocation(root, cacheRoot, internalPaths, includeHistory) {
   if (sameFilesystemPath(cacheRoot, root) || containedPath(root, cacheRoot) !== void 0) {
     return {
       skipReason: "Repository scan caching was skipped because FIXMAP_CACHE_DIR is inside the scanned repository. Move the cache outside the repository to enable exact-state reuse."
@@ -2382,6 +2516,7 @@ async function buildScanCacheLocation(root, cacheRoot, internalPaths) {
       head.trim(),
       status,
       dirtyDiff,
+      includeHistory ? "history" : "no-history",
       ...[...internalPaths].sort((a, b) => a.localeCompare(b))
     ].join("\0"));
     return { location: {
@@ -2398,12 +2533,22 @@ async function readScanCache(location) {
   try {
     const cached = JSON.parse(await readFile(location.path, "utf8"));
     const createdAt = typeof cached.createdAt === "string" ? Date.parse(cached.createdAt) : Number.NaN;
-    if (cached.version !== SCAN_CACHE_VERSION || cached.stateKey !== location.stateKey || typeof cached.createdAt !== "string" || !Number.isFinite(createdAt) || Date.now() - createdAt > SCAN_CACHE_MAX_AGE_MS || createdAt - Date.now() > SCAN_CACHE_MAX_FUTURE_SKEW_MS || !Array.isArray(cached.files) || !cached.files.every(isCachedRepoFile) || !Array.isArray(cached.trackedFiles) || !cached.trackedFiles.every(isCachedRelativePath) || !Array.isArray(cached.packageScripts) || !cached.packageScripts.every(isCachedPackageScript) || !Array.isArray(cached.diagnostics) || !cached.diagnostics.every(isCachedDiagnostic) || !["npm", "pnpm", "yarn", "bun"].includes(cached.packageManager ?? ""))
+    if (cached.version !== SCAN_CACHE_VERSION || cached.stateKey !== location.stateKey || typeof cached.createdAt !== "string" || !Number.isFinite(createdAt) || Date.now() - createdAt > SCAN_CACHE_MAX_AGE_MS || createdAt - Date.now() > SCAN_CACHE_MAX_FUTURE_SKEW_MS || !Array.isArray(cached.files) || !cached.files.every(isCachedRepoFile) || !Array.isArray(cached.trackedFiles) || !cached.trackedFiles.every(isCachedRelativePath) || !Array.isArray(cached.packageScripts) || !cached.packageScripts.every(isCachedPackageScript) || !Array.isArray(cached.diagnostics) || !cached.diagnostics.every(isCachedDiagnostic) || !(cached.history === null || isCachedHistory(cached.history)) || !["npm", "pnpm", "yarn", "bun"].includes(cached.packageManager ?? ""))
       return void 0;
     return cached;
   } catch {
     return void 0;
   }
+}
+function isCachedHistory(candidate) {
+  if (!isRecord(candidate) || !Array.isArray(candidate.commits) || typeof candidate.inspectedCommits !== "number" || !Number.isSafeInteger(candidate.inspectedCommits) || candidate.inspectedCommits < 0 || typeof candidate.skippedLargeCommits !== "number" || !Number.isSafeInteger(candidate.skippedLargeCommits) || candidate.skippedLargeCommits < 0 || typeof candidate.shallow !== "boolean" || typeof candidate.truncated !== "boolean") {
+    return false;
+  }
+  return candidate.commits.every((commit) => {
+    if (!isRecord(commit) || typeof commit.hash !== "string" || !/^[a-f0-9]{40}$/i.test(commit.hash) || typeof commit.committedAt !== "number" || !Number.isSafeInteger(commit.committedAt) || commit.committedAt < 0 || !Array.isArray(commit.files))
+      return false;
+    return commit.files.every(isCachedRelativePath);
+  });
 }
 function isCachedRepoFile(candidate) {
   if (!isRecord(candidate))
@@ -2923,6 +3068,89 @@ async function readWorkingTree(repoRoot, includeUntracked, diagnostics, internal
 }
 var NOT_A_GIT_CHECKOUT = "this directory is not a git checkout. Ranking still works from the task text; --diff, --base/--head and --working-tree need a repository with history.";
 var NO_GIT_HISTORY = "this repository has no commits yet, so there is nothing to diff against. Commit the initial work first, or run with --issue alone to rank from the task text.";
+async function readRepositoryHistory(root, repositoryPaths, diagnostics) {
+  try {
+    const [{ stdout: shallowText }, { stdout: countText }, { stdout: logText }] = await Promise.all([
+      exec("git", ["rev-parse", "--is-shallow-repository"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["rev-list", "--count", "--no-merges", "HEAD"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", [
+        "-c",
+        "core.quotepath=false",
+        "log",
+        "--no-merges",
+        "-n",
+        String(MAX_HISTORY_COMMITS),
+        "--format=%x1e%H%x1f%ct",
+        "--name-only",
+        "-z",
+        "HEAD"
+      ], { cwd: root, maxBuffer: GIT_HISTORY_MAX_BUFFER })
+    ]);
+    const parsed = parseHistoryLog(logText, repositoryPaths);
+    const totalCommits = Number.parseInt(countText.trim(), 10);
+    const shallow = shallowText.trim() === "true";
+    const truncated = Number.isFinite(totalCommits) && totalCommits > parsed.inspectedCommits;
+    const history = {
+      commits: parsed.commits,
+      inspectedCommits: parsed.inspectedCommits,
+      skippedLargeCommits: parsed.skippedLargeCommits,
+      shallow,
+      truncated
+    };
+    if (shallow) {
+      diagnostics.push({
+        code: "impact-history-shallow",
+        severity: "info",
+        message: `Impact history is shallow (${parsed.inspectedCommits.toLocaleString()} visible non-merge ${parsed.inspectedCommits === 1 ? "commit" : "commits"}). Import and test relationships remain available, but co-change evidence may be incomplete.`
+      });
+    }
+    if (truncated) {
+      diagnostics.push({
+        code: "impact-history-truncated",
+        severity: "info",
+        message: `Impact history inspected the newest ${parsed.inspectedCommits.toLocaleString()} of ${totalCommits.toLocaleString()} non-merge commits. Commits touching more than ${MAX_HISTORY_FILES_PER_COMMIT} files were excluded from co-change evidence.`
+      });
+    }
+    return history;
+  } catch (error) {
+    const checkoutState = isMissingGit(error) ? void 0 : await describeGitCheckout(root);
+    diagnostics.push({
+      code: "impact-history-unavailable",
+      severity: "info",
+      message: checkoutState === "not-repository" ? "Impact history is unavailable because this directory is not a Git checkout; import and test relationships are still reported." : checkoutState === "no-history" ? "Impact history is unavailable because this repository has no commits; import and test relationships are still reported." : `Impact history could not be read (${truncateForDiagnostic(gitErrorDetail(error), DIAGNOSTIC_SPEC_LIMIT * 2)}); import and test relationships are still reported.`
+    });
+    return void 0;
+  }
+}
+function parseHistoryLog(logText, repositoryPaths) {
+  const commits = [];
+  let inspectedCommits = 0;
+  let skippedLargeCommits = 0;
+  for (const record of logText.split("")) {
+    if (!record)
+      continue;
+    const fields = record.split("\0");
+    const header = fields.shift()?.replace(/^\r?\n/, "") ?? "";
+    const separator = header.indexOf("");
+    if (separator === -1)
+      continue;
+    const hash = header.slice(0, separator).trim();
+    const committedAt = Number.parseInt(header.slice(separator + 1).trim(), 10);
+    if (!/^[a-f0-9]{40}$/i.test(hash) || !Number.isSafeInteger(committedAt) || committedAt < 0)
+      continue;
+    inspectedCommits += 1;
+    const allFiles = [...new Set(fields.map((path) => path.replace(/^\r?\n/, "")).filter(Boolean).map(normalizePath))];
+    if (allFiles.length > MAX_HISTORY_FILES_PER_COMMIT) {
+      skippedLargeCommits += 1;
+      continue;
+    }
+    const currentFiles = allFiles.filter((path) => repositoryPaths.has(path));
+    if (currentFiles.length === 0)
+      continue;
+    commits.push({ hash, committedAt, files: currentFiles });
+  }
+  return { commits, inspectedCommits, skippedLargeCommits };
+}
 async function describeGitCheckout(root) {
   try {
     const { stdout } = await exec("git", ["rev-parse", "--is-inside-work-tree"], { cwd: root, maxBuffer: GIT_MAX_BUFFER });
@@ -3043,7 +3271,10 @@ function normalizePath(path) {
 
 // packages/core/dist/plan.js
 async function buildFixMapReport(input) {
-  const repo = await scanRepo(input);
+  return (await buildFixMapAnalysis(input)).report;
+}
+async function buildFixMapAnalysis(input) {
+  const repo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
   const requestedExclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
   const internalExclude = buildPathExcluder((input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern)));
   const exclude = combineExclusions(requestedExclude, internalExclude);
@@ -3072,7 +3303,7 @@ async function buildFixMapReport(input) {
       });
     }
   }
-  return report;
+  return { report, repo };
 }
 function combineExclusions(primary, internal) {
   if (internal.patterns.length === 0)
@@ -3209,6 +3440,16 @@ function verifyPlan(report, repo) {
       message: suggested.length > 0 ? `Code changed but no test did. The plan routed ${suggested.length === 1 ? "this test" : "these tests"} as most related.` : report.testRoutes.length > 0 ? `Code changed but no test did. Run the routed ${report.testRoutes.length === 1 ? "command" : "commands"}: ${report.testRoutes.map((route) => route.command).join(", ")}.` : "Code changed but no test did, and the plan found no related test to point at."
     });
   }
+  const impact = buildImpactMap(repo, changed, report.testRoutes);
+  const highImpactOutsidePlan = impact.files.filter((entry) => entry.confidence === "high" && !planned.has(entry.path) && !changed.includes(entry.path) && !isTest(entry.path));
+  if (highImpactOutsidePlan.length > 0) {
+    findings.push({
+      code: "impact-file-unreviewed",
+      severity: "info",
+      paths: highImpactOutsidePlan.slice(0, 8).map((entry) => entry.path),
+      message: `${highImpactOutsidePlan.length === 1 ? "One high-evidence impact file is" : `${highImpactOutsidePlan.length} high-evidence impact files are`} outside both the original plan and this diff. They are not required edits, but inspect the recorded import/history evidence before finishing.`
+    });
+  }
   const plannedAreas = new Set(report.risks.map((risk) => risk.area));
   const newRisks = buildRiskNotes(changed, changed).filter((risk) => !plannedAreas.has(risk.area));
   for (const risk of newRisks) {
@@ -3223,7 +3464,8 @@ function verifyPlan(report, repo) {
     summary: buildVerifySummary(changed.length, findings),
     changedFiles: changed,
     findings,
-    diagnostics: repo.diagnostics
+    diagnostics: repo.diagnostics,
+    impact
   };
 }
 function buildVerifySummary(changedCount, findings) {
@@ -3264,9 +3506,23 @@ function renderVerifyMarkdown(result) {
   }
   lines.push("", "## Changed Files", "");
   lines.push(...result.changedFiles.length > 0 ? result.changedFiles.map((path) => `- ${markdownCode(path)}`) : ["- None found"]);
+  if (result.impact) {
+    lines.push("", "## Recalculated Impact", "");
+    lines.push(...result.impact.files.length > 0 ? result.impact.files.map((file) => `- ${markdownCode(file.path)} (${file.confidence} confidence): ${file.evidence.map((entry) => entry.reason).join("; ")}`) : ["- None found"]);
+  }
   return `${lines.join("\n")}
 `;
 }
+
+// packages/core/dist/retrieval.js
+var STOPWORDS = new Set(`a about above after again against all am an and any are as at be because been before being
+below between both but by can cannot could did do does doing down during each few for from further had has have having
+he her here hers him his how i if in into is it its itself just me more most my no nor not of off on once only or other
+ought our out over own same she should so some such than that the their them then there these they this those through
+to too under until up very was we were what when where which while who whom why with would you your
+bug issue issues error errors expected actual behavior behaviour reproduce reproduction steps version versions node npm
+report repo repository description example code please thanks title type severity confidence location line lines
+following above below see also would should could may might must will can also using used use uses`.split(/\s+/));
 
 // packages/core/dist/validate.js
 function validateFixMapReport(candidate, label) {
@@ -3359,6 +3615,21 @@ function validateFixMapReport(candidate, label) {
       success: false,
       message: `${label} has an invalid risks entry at index ${invalidRisk}; each risk needs a non-empty string "area", and optional reason and severity fields must use their documented types.`
     };
+  }
+  if (record.impact !== void 0) {
+    const impact = record.impact;
+    const history = isRecord2(impact) ? impact.history : void 0;
+    if (!isRecord2(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord2(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
+      return { success: false, message: `${label} has an invalid impact graph envelope.` };
+    }
+    const invalidImpact = impact.files.findIndex((file) => {
+      if (!isRecord2(file) || !isRepositoryRelativePath(file.path) || typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 || file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low" || !Array.isArray(file.evidence))
+        return true;
+      return file.evidence.some((evidence) => !isRecord2(evidence) || !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) || !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() || evidence.occurrences !== void 0 && (!Number.isSafeInteger(evidence.occurrences) || evidence.occurrences < 0) || evidence.seedChanges !== void 0 && (!Number.isSafeInteger(evidence.seedChanges) || evidence.seedChanges < 0));
+    });
+    if (invalidImpact !== -1) {
+      return { success: false, message: `${label} has an invalid impact.files entry at index ${invalidImpact}.` };
+    }
   }
   if (!isRepositoryRelativePathArray(record.changedFiles)) {
     return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
@@ -3794,6 +4065,7 @@ async function runVerifyMode(context) {
     workingTree: context.workingTree,
     includeUntracked: context.includeUntracked,
     useCache: !context.noCache,
+    includeHistory: true,
     internalExclude: [resolve3(repoRoot, reportPath)]
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");

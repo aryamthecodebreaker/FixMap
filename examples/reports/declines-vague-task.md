@@ -8,11 +8,18 @@ npx -y @aryam/fixmap@latest plan --repo examples/tiny-auth-app \
 
 # FixMap Report
 
-FixMap found 0 context files and generated 0 test routes.
+FixMap found 0 context files, 0 impact files, and generated 0 test routes.
 
 ## Context Files
 
 - None found
+
+## Impact Graph
+
+- None found
+
+Inspection order: None.
+History evidence: 28 eligible commits.
 
 ## Test Routes
 

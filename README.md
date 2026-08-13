@@ -4,7 +4,7 @@
 
 Know where to edit before the first edit.
 
-Paste a GitHub issue URL, describe a task, or point at a diff. FixMap returns ranked context files, reachable test commands, risk notes, and explicit diagnostics—without an account, API key, or model call.
+Paste a GitHub issue URL, describe a task, or point at a diff. FixMap returns ranked context, an evidence-backed Impact Graph, reachable test commands, risks, and explicit uncertainty—without an account, API key, or model call.
 
 [![CI](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml/badge.svg)](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/%40aryam%2Ffixmap)](https://www.npmjs.com/package/@aryam/fixmap)
@@ -15,6 +15,10 @@ Paste a GitHub issue URL, describe a task, or point at a diff. FixMap returns ra
 [Website](https://usefixmap.vercel.app) · [Live demo](https://usefixmap.vercel.app/demo) · [Documentation](https://usefixmap.vercel.app/docs) · [Evidence](https://usefixmap.vercel.app/evidence) · [Changelog](CHANGELOG.md)
 
 </div>
+
+[![FixMap v0.9.0: two coding agents work the same issue, with FixMap supplying ranked context, an Impact Graph, Watch feedback, and Verify evidence](docs/assets/fixmap-v0.9.0-agent-comparison.gif)](https://usefixmap.vercel.app/fixmap-launch.mp4)
+
+<p align="center"><a href="https://usefixmap.vercel.app/fixmap-launch.mp4">Watch the 32-second launch film with sound</a></p>
 
 ![A generated FixMap CLI report showing ranked context files, test routes, risks, analysis, and diagnostics](docs/assets/fixmap-cli-demo.svg)
 
@@ -49,6 +53,38 @@ Save a plan before editing:
 
 ```bash
 fixmap plan --issue "password reset emails fail" --format json --output plan.json
+```
+
+The plan separates primary context from likely impact: imports, reverse dependents, routed tests, and repeated Git co-change relationships. Impact files are places to inspect, not assumed edits.
+
+Measure BM25, FixMap, and Impact Graph on your own repository's history:
+
+```bash
+fixmap benchmark --repo . --last 50
+```
+
+Keep the saved plan beside an agent while it edits. Watch emits a new verification only when the working tree changes and recalculates impact around the actual diff:
+
+```bash
+fixmap watch --report plan.json --repo . --include-untracked
+```
+
+Give an agent the relevant source ranges instead of only file names. Context draws from primary and impact files and stays within an estimated source-token budget:
+
+```bash
+fixmap context --issue "password reset emails fail" --budget 10000
+```
+
+Export the evidence graph for a pull request, issue, or design note:
+
+```bash
+fixmap graph --issue "password reset emails fail" --format mermaid
+```
+
+Use compact headings in an agent context window:
+
+```bash
+fixmap plan --issue "password reset emails fail" --format agent
 ```
 
 Ask why an expected path is missing:
@@ -99,17 +135,33 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 - Explains task grounding, ranking shape, unresolved or partially matched identifiers, exclusions, scan limits, unread content, skipped submodules, empty diffs, and Git failures.
 - Supports a strict decimal `--limit`, repeatable `--exclude`, and ordered `.fixmapignore` patterns with negation. Root-leading patterns are repository-relative, pasted absolute paths inside the repository are normalized, and patterns that match nothing produce a warning. Limits change only how many rows are shown, never confidence or ranking-shape analysis.
 
+### Impact Graph and repository benchmark
+
+- Builds a separate likely-impact view from direct imports, reverse dependents, routed tests, and Git files that repeatedly changed with a primary ranked file.
+- Reads at most 1,000 non-merge commits, excludes commits touching more than 30 files, requires at least two co-occurrences, and marks shallow or unavailable history instead of inventing evidence.
+- Recalculates impact around files actually changed during Verify and identifies high-evidence dependents outside the original plan as inspection notes, never mandatory edits.
+- `fixmap benchmark --repo . --last 50` evaluates BM25-over-code, ordinary FixMap context, and Impact Graph against historical parent snapshots. Every case's history stops before its target change, all arms see one scanned corpus, generated twins are not scored as primary answers, and mentioned/unmentioned tasks are reported separately.
+- `fixmap watch --report plan.json --repo .` monitors a local working tree, re-runs Verify, and recalculates impact only when edits change. It never executes repository code; `--format json` produces one JSON object per update.
+- Benchmark Markdown and versioned JSON include Wilson intervals, excluded-case counts, secondary-file recall, safeguards, and raw per-case outcomes. Historical commit messages are a repository-specific backtest, never proof of agent savings.
+
+### Context packs and graph export
+
+- `fixmap context` selects deterministic line ranges from primary and impact files, labels each snippet as primary or impact, and records its reason, confidence, line range, estimated token cost, source truncation, and omitted-file reason.
+- The budget counts source using the stable estimate `ceil(UTF-8 bytes / 4)`; metadata is excluded. This is a reproducible planning estimate, not a tokenizer-specific exact count.
+- Context may use FixMap's bounded scanner sample rather than an entire large file. `sourceTruncated` makes that boundary explicit in JSON and Markdown.
+- `fixmap graph` exports the same Impact Graph as Mermaid or versioned JSON, preserving imports, imported-by, test-route, and co-change direction and evidence.
+
 ### Exclusion pattern syntax
 
 `--exclude` and `.fixmapignore` use repository-relative gitignore-style patterns. `/docs/**` anchors at the repository root, `docs/**` matches the same root directory and nested occurrences, `!docs/keep.md` re-includes a path after an earlier exclusion, and trailing `/` targets a directory. `*`, `?`, and `**` are supported; brace groups such as `{src,test}` are literal text, not alternation. Pass repeated `--exclude` flags or put one pattern per `.fixmapignore` line so commas in literal names stay unambiguous.
 
-- Produces Markdown for people or versioned JSON for tools, writes to `--output`, and gives one grounded next action.
+- Produces Markdown for people, versioned JSON for tools, or `--format agent` for compact `EDIT CANDIDATE`/`INSPECT`/`TEST`/`RISK`/`AVOID`/`UNCERTAINTY` sections; writes any format with `--output`.
 
 ### Explain, Compare, Verify, Validate, and Doctor
 
 - **Explain** tells you whether a path ranked, fell below the cutoff, was excluded, resolves through a submodule, or was never scanned—and uses the same task and diff evidence as Plan.
 - **Compare** shows files that entered, left, moved, or changed confidence after the task was refined, plus changes in task grounding.
-- **Verify** compares a saved JSON plan with a diff or working tree and flags generated edits, unmapped changes, an untouched leading file, source changes without tests, newly reached risk areas, and plan/repository mismatches. It fails on errors by default; `--fail-on warning` and the Action's `fail-on: warning` turn advisory findings into an opt-in CI gate.
+- **Verify** compares a saved JSON plan with a diff or working tree, recalculates impact, and flags generated edits, unmapped changes, an untouched leading file, source changes without tests, newly reached risk areas, and plan/repository mismatches. It fails on errors by default; `--fail-on warning` and the Action's `fail-on: warning` turn advisory findings into an opt-in CI gate.
 - **Validate** checks any saved JSON report with the structural compatibility validator shared by Compare, Verify, the Action, and MCP.
 - **Doctor** prints the running version and executable path and diagnoses project, global, PATH, and npm-exec version shadows.
 - `FIXMAP_PROGRESS` controls remote clone/scan progress, and `FIXMAP_VERBOSE_USAGE` restores full usage text after argument errors.
@@ -117,14 +169,14 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 ### Agent and automation interfaces
 
 - `fixmap setup` installs `/fixmap` discovery for Claude Code, Cursor, GitHub Copilot prompt files, and the open Agent Skills layout; the no-argument command lists every FixMap workflow before making changes.
-- The MCP server exposes `fixmap_plan`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor` over local stdio and is published in the official MCP Registry.
+- The MCP server exposes `fixmap_plan`, `fixmap_context`, `fixmap_graph`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor` over local stdio and is published in the official MCP Registry.
 - The GitHub Action runs Plan or Verify on pull requests, appends within the job summary's remaining 1 MiB budget, bounds its report output and comment, and creates or updates one FixMap comment instead of posting duplicates.
 - The Action accepts explicit task input or pull-request context, uses the same report validator as the CLI and MCP server, and fails clearly when a requested diff cannot be resolved.
 - The browser demo runs the real core Plan, Explain, Compare, and Verify logic against a sample repository without uploading the task.
 
 ### TypeScript library
 
-- `@aryam/fixmap-core` exposes repository scanning, exclusion resolution, ranking, task grounding, language and import-proximity analysis, test/risk routing, report validation, and Markdown/JSON rendering.
+- `@aryam/fixmap-core` exposes repository scanning, exclusion resolution, ranking, Context Pack and Impact Graph construction, BM25 retrieval, task grounding, language/import analysis, test/risk routing, report validation, and Markdown/JSON/agent/Mermaid rendering.
 - Its public API also exposes Explain, Compare, and Verify builders and result types, so another tool can compose the same workflow without shelling out to the CLI.
 - The `@aryam/fixmap-core/browser` entry runs the filesystem-free report, comparison, explanation, verification, and rendering logic in a browser bundle.
 
@@ -139,6 +191,7 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 ## What the report contains
 
 - Ranked context files with scores, confidence, and evidence.
+- Likely impact files with relationship-specific evidence, confidence, history coverage, and inspection order.
 - Test routes that correspond to commands the repository actually declares.
 - Six bounded risk areas: authentication, billing, automation, data, public API, and dependencies.
 - Diagnostics for uncertainty, unread content, scan boundaries, excluded matches, and unresolved diffs.
@@ -148,7 +201,7 @@ FixMap is deterministic. It narrows investigation; it does not prove that a rank
 
 ## MCP server
 
-Expose Plan, Explain, Compare, Verify, and Doctor over local stdio:
+Expose Plan, Context, Graph, Explain, Compare, Verify, and Doctor over local stdio:
 
 ```bash
 fixmap mcp
@@ -187,7 +240,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: aryamthecodebreaker/FixMap@v0.8.9
+      - uses: aryamthecodebreaker/FixMap@v0.9.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
