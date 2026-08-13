@@ -3271,6 +3271,9 @@ function normalizePath(path) {
 
 // packages/core/dist/plan.js
 async function buildFixMapReport(input) {
+  return (await buildFixMapAnalysis(input)).report;
+}
+async function buildFixMapAnalysis(input) {
   const repo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
   const requestedExclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
   const internalExclude = buildPathExcluder((input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern)));
@@ -3300,7 +3303,7 @@ async function buildFixMapReport(input) {
       });
     }
   }
-  return report;
+  return { report, repo };
 }
 function combineExclusions(primary, internal) {
   if (internal.patterns.length === 0)

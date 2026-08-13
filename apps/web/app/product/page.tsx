@@ -36,8 +36,26 @@ const stages = [
     details: ["Ranked source files with reasons", "Impact files to inspect, not assumed edits", "Workspace-aware tests, risks, and diagnostics"]
   },
   {
-    id: "explain",
+    id: "context",
     number: "02",
+    icon: FileMagnifyingGlass,
+    eyebrow: "Before the agent reads",
+    title: "Context: send the source, not just its address.",
+    body: "Context packages deterministic line ranges from primary and impact files inside an estimated source-token budget. Every snippet keeps its role, reason, confidence, range, and truncation state.",
+    details: ["Markdown or structured JSON", "Visible UTF-8 byte estimate", "Explicit omissions and scanner bounds"]
+  },
+  {
+    id: "graph",
+    number: "03",
+    icon: Path,
+    eyebrow: "When relationships matter",
+    title: "Graph: make the evidence portable.",
+    body: "Graph exports the Impact Graph as Mermaid for review documents or versioned JSON for tools, preserving the direction and reason for every import, dependent, test, and co-change edge.",
+    details: ["Mermaid or versioned JSON", "Directional relationships", "No invented dependencies"]
+  },
+  {
+    id: "explain",
+    number: "04",
     icon: Eye,
     eyebrow: "When the map surprises you",
     title: "Explain: ask why a file is missing.",
@@ -46,7 +64,7 @@ const stages = [
   },
   {
     id: "compare",
-    number: "03",
+    number: "05",
     icon: Gauge,
     eyebrow: "When you refine the task",
     title: "Compare: check whether a better task moved the answer.",
@@ -55,7 +73,7 @@ const stages = [
   },
   {
     id: "verify",
-    number: "04",
+    number: "07",
     icon: GitDiff,
     eyebrow: "After the edit",
     title: "Verify: compare the plan with the real change.",
@@ -69,7 +87,7 @@ export default function ProductPage() {
     <main>
       <section className="subpage-hero page-shell">
         <p className="eyebrow">The product</p>
-        <h1>One problem.{" "}<br /><em>Four useful answers.</em></h1>
+        <h1>One problem.{" "}<br /><em>A map that stays useful.</em></h1>
         <p>
           FixMap narrows the first step, explains its reasoning, and checks the work that followed.
           It is a map you can inspect—not a promise that the map is always right.
@@ -90,6 +108,19 @@ export default function ProductPage() {
           <article><Gauge size={27} aria-hidden /><h3>Pre-change cutoff</h3><p>Each case is evaluated on its parent snapshot. The target change and later Git history cannot leak into its evidence.</p></article>
           <article><Eye size={27} aria-hidden /><h3>Raw cases included</h3><p>All, mentioned, and unmentioned cohorts plus Wilson intervals make misses and small samples visible.</p></article>
           <article><LockKey size={27} aria-hidden /><h3>No repository code runs</h3><p>The benchmark reads Git and source text in temporary worktrees without installing dependencies, running hooks, or executing tests.</p></article>
+        </div>
+      </section>
+
+      <section className="section page-shell" id="watch">
+        <div className="section-heading split-heading">
+          <div><p className="eyebrow">While the agent edits</p><h2>Watch the implementation drift—or stay aligned.</h2></div>
+          <p><code>fixmap watch --report plan.json --repo .</code> emits only when the working tree changes, then re-runs Verify and recalculates the Impact Graph around the real diff.</p>
+        </div>
+        <div className="principle-grid">
+          <article><GitDiff size={27} aria-hidden /><h3>Changed states only</h3><p>A lightweight fingerprint avoids repeating full scans when nothing moved.</p></article>
+          <article><Path size={27} aria-hidden /><h3>Drift made visible</h3><p>Unmapped edits, untouched leading context, and new impact relationships appear as evidence, not verdicts.</p></article>
+          <article><CheckCircle size={27} aria-hidden /><h3>Agent-ready stream</h3><p>Markdown stays readable; JSON Lines gives automation one complete record per update.</p></article>
+          <article><LockKey size={27} aria-hidden /><h3>Still local-only</h3><p>Watch reads Git and source text without running repository code, installing dependencies, or calling a model.</p></article>
         </div>
       </section>
 

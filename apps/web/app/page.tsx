@@ -15,15 +15,18 @@ import { commands, repoUrl, siteStats } from "./_lib/site-data";
 
 const workflow = [
   { number: "01", name: "Plan", detail: "Rank primary context, then map likely impact without pretending every related file must change.", href: "/product#plan" },
-  { number: "02", name: "Explain", detail: "Ask why a file ranked, missed the cutoff, was excluded, or was never scanned.", href: "/product#explain" },
-  { number: "03", name: "Compare", detail: "Measure whether a clearer task produced a better context map.", href: "/product#compare" },
-  { number: "04", name: "Verify", detail: "Check the completed diff against the plan that guided the work.", href: "/product#verify" }
+  { number: "02", name: "Context", detail: "Package relevant source ranges inside a visible estimated-token budget.", href: "/product#context" },
+  { number: "03", name: "Graph", detail: "Export the impact relationships as Mermaid or structured JSON.", href: "/product#graph" },
+  { number: "04", name: "Explain", detail: "Ask why a file ranked, missed the cutoff, was excluded, or was never scanned.", href: "/product#explain" },
+  { number: "05", name: "Compare", detail: "Measure whether a clearer task produced a better context map.", href: "/product#compare" },
+  { number: "06", name: "Watch", detail: "See drift and recalculated impact while the working tree changes.", href: "/product#watch" },
+  { number: "07", name: "Verify", detail: "Check the completed diff against the plan that guided the work.", href: "/product#verify" }
 ];
 
 const surfaces = [
   { icon: Command, name: "Slash command", detail: "Install /fixmap in supported coding agents and open the complete workflow menu.", href: "/get-started#slash-command" },
   { icon: Laptop, name: "CLI", detail: "Run locally in a terminal with no account or API key.", href: "/get-started#cli" },
-  { icon: ShieldCheck, name: "MCP", detail: "Expose Plan, Explain, Compare, Verify, and Doctor to an agent.", href: "/get-started#mcp" },
+  { icon: ShieldCheck, name: "MCP", detail: "Expose all seven Plan, Context, Graph, Explain, Compare, Verify, and Doctor tools.", href: "/get-started#mcp" },
   { icon: GithubLogo, name: "GitHub Action", detail: "Post the map or verify a saved plan on every pull request.", href: "/get-started#action" }
 ];
 
@@ -52,11 +55,23 @@ export default function HomePage() {
         <InteractiveMapStage />
       </section>
 
+      <section className="pro-film page-shell" aria-labelledby="pro-film-title">
+        <div className="pro-section-heading">
+          <p className="eyebrow">FixMap in 32 seconds</p>
+          <h2 id="pro-film-title">Same issue. Better first move.</h2>
+          <p>Watch two coding agents approach the same task as ranked context, impact evidence, Watch, and Verify change the feedback loop.</p>
+        </div>
+        <video controls playsInline preload="metadata" poster="/fixmap-launch-poster.jpg" aria-label="FixMap agent comparison launch film">
+          <source src="/fixmap-launch.mp4" type="video/mp4" />
+          <a href="/fixmap-launch.mp4">Download the FixMap launch film.</a>
+        </video>
+      </section>
+
       <section className="pro-workflow page-shell">
         <div className="pro-section-heading">
           <p className="eyebrow">One workflow</p>
           <h2>From task to verified diff.</h2>
-          <p>Four focused steps, each inspectable on its own.</p>
+          <p>Seven focused steps, each inspectable on its own.</p>
         </div>
         <div className="pro-workflow-list">
           {workflow.map((item) => (

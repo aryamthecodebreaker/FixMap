@@ -17,7 +17,9 @@ describe("public entrypoint parity", () => {
   });
 
   it("keeps filesystem scanning node-only", () => {
+    expect(nodeEntry).toHaveProperty("buildFixMapAnalysis");
     expect(nodeEntry).toHaveProperty("scanRepo");
     expect(browserEntry).not.toHaveProperty("scanRepo");
+    expect(browserEntry).not.toHaveProperty("buildFixMapAnalysis");
   });
 });

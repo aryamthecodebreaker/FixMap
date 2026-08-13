@@ -1,5 +1,7 @@
 # I audited FixMap's benchmark and found it was leaking answers
 
+> **Update, 2026-08-13:** this article preserves the numbers measured when the audit was published. The current frozen artifacts record the unmentioned cohort at 3/9 Top-1, 5/9 Top-3, and 5/9 Top-5 for FixMap versus 4/9, 5/9, and 9/9 for BM25-over-code. See [`docs/BENCHMARKS.md`](../BENCHMARKS.md) for the current evidence.
+
 FixMap's held-out benchmark was meant to answer one question: when a task does not tell you where to look, does FixMap surface the file that later fixed it?
 
 Three of its twelve tasks did tell FixMap where to look. Mongoose named `lib/document.js` with a line number; the Svelte and yargs tasks included the expected path in their text. All three ranked Top-1. They remain valid tests of explicit-file-mention handling, but they cannot count as evidence that FixMap located an unnamed file.

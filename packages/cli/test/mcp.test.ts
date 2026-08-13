@@ -149,13 +149,13 @@ describe("fixmap mcp server", () => {
     expect(report.contextFiles).toHaveLength(1);
   });
 
-  it("advertises the complete plan, explain, compare, verify, and doctor workflow", async () => {
+  it("advertises the complete plan, context, graph, explain, compare, verify, and doctor workflow", async () => {
     const client = await connectClient();
 
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
@@ -167,6 +167,12 @@ describe("fixmap mcp server", () => {
     expect(plan?.inputSchema.additionalProperties).toBe(false);
     expect(plan?.inputSchema.properties?.repo?.description).toContain("public GitHub HTTPS");
     expect(plan?.inputSchema.properties?.issue?.description).toContain("GitHub issue URL");
+    const context = tools.tools.find((tool) => tool.name === "fixmap_context");
+    expect(context?.inputSchema.properties?.budget).toBeDefined();
+    expect(context?.inputSchema.additionalProperties).toBe(false);
+    const graph = tools.tools.find((tool) => tool.name === "fixmap_graph");
+    expect(graph?.inputSchema.properties?.format?.description).toContain("mermaid");
+    expect(graph?.inputSchema.additionalProperties).toBe(false);
     expect(verify).toBeDefined();
     expect(Object.keys(verify?.inputSchema.properties ?? {}).sort()).toEqual(
       ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache"].sort()
@@ -187,6 +193,24 @@ describe("fixmap mcp server", () => {
     const doctor = tools.tools.find((tool) => tool.name === "fixmap_doctor");
     expect(Object.keys(doctor?.inputSchema.properties ?? {})).toEqual(["format"]);
     expect(doctor?.inputSchema.additionalProperties).toBe(false);
+  });
+
+  it("returns bounded Context Packs and Mermaid graphs through MCP", async () => {
+    const root = await createAuthFixture();
+    const client = await connectClient();
+    const context = await client.callTool({
+      name: "fixmap_context",
+      arguments: { issue: "password reset emails fail", repo: root, budget: 512, format: "json" }
+    });
+    expect(context.isError).toBeFalsy();
+    expect(JSON.parse((context.content as Array<{ text: string }>)[0]!.text)).toMatchObject({ contextVersion: 1, budgetTokens: 512 });
+
+    const graph = await client.callTool({
+      name: "fixmap_graph",
+      arguments: { issue: "password reset emails fail", repo: root, format: "mermaid" }
+    });
+    expect(graph.isError).toBeFalsy();
+    expect((graph.content as Array<{ text: string }>)[0]!.text).toContain("flowchart TD");
   });
 
   it("compares two reports through MCP", async () => {

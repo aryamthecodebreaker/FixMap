@@ -18,6 +18,24 @@ export async function buildFixMapReport(
     internalExclude?: string[] | undefined;
   }
 ): Promise<FixMapReport> {
+  return (await buildFixMapAnalysis(input)).report;
+}
+
+/**
+ * Builds a report and returns the exact repository snapshot that produced it. Consumers such as
+ * Context Packs must not rescan between ranking paths and selecting their source ranges: an active
+ * working tree could change between those reads and produce a mixed-state result.
+ */
+export async function buildFixMapAnalysis(
+  input: Pick<
+    FixMapInput,
+    "repoRoot" | "issueText" | "diffSpec" | "baseRef" | "headRef" | "workingTree" | "includeUntracked" | "useCache" | "includeHistory"
+  > & {
+    limit?: number | undefined;
+    exclude?: string[] | undefined;
+    internalExclude?: string[] | undefined;
+  }
+): Promise<{ report: FixMapReport; repo: Awaited<ReturnType<typeof scanRepo>> }> {
   const repo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
   const requestedExclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
   const internalExclude = buildPathExcluder(
@@ -59,7 +77,7 @@ export async function buildFixMapReport(
     }
   }
 
-  return report;
+  return { report, repo };
 }
 
 function combineExclusions(primary: PathExcluder, internal: PathExcluder): PathExcluder {

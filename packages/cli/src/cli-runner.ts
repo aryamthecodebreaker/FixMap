@@ -24,6 +24,7 @@ import { runDoctorChecks, renderDoctorReport, type DoctorReport } from "./doctor
 import { installAgentCommands, renderFeatureCatalog, type AgentTarget } from "./agent-setup.js";
 import { clarifyMissingPath } from "./explain-path.js";
 import type { RepositoryBenchmark } from "./benchmark.js";
+import type { WatchRepositoryInput, WatchUpdate } from "./watch.js";
 import {
   buildReportForRepository,
   isSafeGitRefName,
@@ -68,6 +69,8 @@ export type CliDependencies = {
   readIssueFile?: (path: string | number) => string | Buffer;
   benchmarkRepository?: (input: { repoRoot: string; last?: number; progress?: (message: string) => void }) => Promise<RepositoryBenchmark>;
   renderBenchmark?: (result: RepositoryBenchmark) => string;
+  watchRepository?: (input: WatchRepositoryInput) => Promise<WatchUpdate | undefined>;
+  renderWatchUpdate?: (update: WatchUpdate, format: "markdown" | "json") => string;
 };
 
 export const USAGE = `FixMap maps an issue, prompt, or diff to context files, test routes, and review risks.
@@ -95,6 +98,9 @@ Usage:
   fixmap doctor --format json
   fixmap validate plan.json
   fixmap benchmark --repo . --last 50
+  fixmap context --issue "Fix login" --budget 10000
+  fixmap graph --issue "Fix login" --format mermaid
+  fixmap watch --report plan.json --repo .
   fixmap features
   fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>]
   fixmap mcp [--repo <path>]
@@ -105,6 +111,9 @@ Commands:
   doctor              Check the FixMap install for stale global or npx shadows
   validate            Validate a saved FixMap JSON report
   benchmark           Backtest BM25, FixMap, and Impact Graph on pre-change snapshots
+  context             Package the highest-value source ranges within a token budget
+  graph               Export the evidence-backed Impact Graph as Mermaid or JSON
+  watch               Recheck working-tree drift and impact whenever edits change
   features            List every FixMap capability and its command
   setup               Install a discoverable /fixmap command for coding agents
   mcp                 Run FixMap as an MCP server over stdio for AI coding agents
@@ -392,6 +401,34 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       stderr(`${error instanceof Error ? error.message : String(error)}\n`);
       return 1;
     }
+  }
+
+  if (args[0] === "context") {
+    const { runContextCommand } = await import("./analysis-commands.js");
+    return runContextCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "graph") {
+    const { runGraphCommand } = await import("./analysis-commands.js");
+    return runGraphCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "watch") {
+    const { runWatchCommand } = await import("./watch-command.js");
+    return runWatchCommand(args.slice(1), {
+      stdout,
+      stderr,
+      watchRepository: dependencies.watchRepository,
+      renderWatchUpdate: dependencies.renderWatchUpdate
+    });
   }
 
   if (args[0] === "doctor") {

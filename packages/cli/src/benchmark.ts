@@ -5,6 +5,9 @@ import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
   buildReportFromRepo,
+  isBackupPath,
+  isGeneratedPath,
+  moduleStem,
   rankByBm25,
   retrievalQueryTerms,
   scanRepo,
@@ -43,7 +46,7 @@ export type RepositoryBenchmark = {
     parentSnapshots: true;
     historyCutoff: "target-parent";
     maxChangedFiles: number;
-    primaryTargets: "changed-non-test-code";
+    primaryTargets: "changed-maintained-non-test-code";
     sameScannedCorpus: true;
     checkoutFiltersDisabled: true;
     repositoryCodeExecuted: false;
@@ -113,7 +116,7 @@ export async function benchmarkRepository(input: {
       parentSnapshots: true,
       historyCutoff: "target-parent",
       maxChangedFiles: MAX_CHANGED_FILES,
-      primaryTargets: "changed-non-test-code",
+      primaryTargets: "changed-maintained-non-test-code",
       sameScannedCorpus: true,
       checkoutFiltersDisabled: true,
       repositoryCodeExecuted: false
@@ -152,11 +155,18 @@ async function benchmarkCommit(
     const repo = await scanRepo({ repoRoot: snapshot, includeHistory: true, useCache: false });
     const fileByPath = new Map(repo.files.map((file) => [file.path, file]));
     const changedExisting = candidate.changedFiles.filter((path) => fileByPath.has(path));
-    // Primary retrieval compares like with like: changed implementation code, excluding tests.
-    // Config, docs, lockfiles, and tests cannot become free extra answers for one arm.
+    const maintainedStems = new Set(repo.files
+      .filter((file) => !isGeneratedPath(file.path) && !isBackupPath(file.path))
+      .map((file) => moduleStem(file.path)));
+    // Primary retrieval compares like with like: changed maintained implementation code,
+    // excluding tests. Generated twins cannot become impossible expected answers when all
+    // three retrieval arms deliberately prefer their maintained source.
     const expected = changedExisting.filter((path) => {
       const file = fileByPath.get(path);
-      return file?.kind === "code" && !file.isTest;
+      return file?.kind === "code" &&
+        !file.isTest &&
+        !isBackupPath(path) &&
+        !(isGeneratedPath(path) && maintainedStems.has(moduleStem(path)));
     });
     if (expected.length === 0) return undefined;
 
@@ -354,7 +364,7 @@ export function renderRepositoryBenchmark(result: RepositoryBenchmark): string {
     "- Co-change history stopped at that parent revision.",
     `- Merges and commits touching more than ${result.safeguards.maxChangedFiles} files were excluded.`,
     "- BM25, FixMap, and Impact Graph saw the same scanned files.",
-    "- Primary hits were scored only against changed non-test code; secondary impact recall may include changed tests.",
+    "- Primary hits were scored only against changed maintained non-test code; generated twins, backups, and tests were excluded. Secondary impact recall may include changed tests.",
     "- Repository code, dependencies, scripts, and hooks were not executed.",
     "",
     "A historical commit message is not the same input as its original issue. Treat this as a repository-specific backtest, not proof of agent savings.",

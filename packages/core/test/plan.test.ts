@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildFixMapReport } from "../src/plan.js";
+import { buildFixMapAnalysis, buildFixMapReport } from "../src/plan.js";
 import { renderMarkdownReport } from "../src/report.js";
 
 async function createAuthFixture(): Promise<string> {
@@ -20,6 +20,16 @@ async function createAuthFixture(): Promise<string> {
 }
 
 describe("buildFixMapReport", () => {
+  it("returns the exact scanned repository snapshot with an analysis", async () => {
+    const root = await createAuthFixture();
+
+    const analysis = await buildFixMapAnalysis({ repoRoot: root, issueText: "password reset emails fail" });
+
+    expect(analysis.report.contextFiles[0]?.path).toBe("src/auth/reset-password.ts");
+    expect(analysis.repo.files.find((file) => file.path === "src/auth/reset-password.ts")?.textSample)
+      .toContain("sendResetEmail");
+  });
+
   it("produces a full report from a task description", async () => {
     const root = await createAuthFixture();
 
