@@ -7,11 +7,11 @@ import { sampleRepo, sampleRepoWithChanges } from "../sample-repo";
 
 export const metadata: Metadata = {
   title: "Live demo",
-  description: "Try FixMap Plan, Explain, Compare, focus controls, and Verify on a sample repository in your browser.",
+  description: "Give FixMap a sample task and see the files, tests, impact, and risks it surfaces before a change begins.",
   alternates: { canonical: "/demo" },
   openGraph: {
     title: "Live FixMap demo",
-    description: "Run the real FixMap ranking and verification engine in your browser.",
+    description: "See the real FixMap engine choose files, tests, impact, and risks in your browser.",
     url: "/demo"
   }
 };
@@ -30,15 +30,15 @@ export default function DemoPage() {
     <main>
       <section className="subpage-hero compact-hero page-shell">
         <p className="eyebrow">Live demo</p>
-        <h1>See the map form <em>in real time.</em></h1>
+        <h1>See FixMap choose <em>where to start.</em></h1>
         <p>
-          Try Plan, Explain, Compare, exclusions, limits, and Verify against a small sample repository. This is the same core
-          logic used by the CLI, running locally in your browser—not a recording or staged result.
+          Pick a sample software problem. FixMap will show the files to inspect first, the checks that can prove the change,
+          nearby impact, and risks worth reviewing. The real engine runs below—not a recording or staged result.
         </p>
         <div className="inline-facts">
-          <span><Browser size={20} aria-hidden /> Runs in this tab</span>
+          <span><Browser size={20} aria-hidden /> Real FixMap engine</span>
           <span><LockKey size={20} aria-hidden /> Nothing is uploaded</span>
-          <span><Sparkle size={20} aria-hidden /> Start with the first preset</span>
+          <span><Sparkle size={20} aria-hidden /> Choose an example below</span>
         </div>
       </section>
 
@@ -48,12 +48,14 @@ export default function DemoPage() {
 
       <section className="section page-shell">
         <div className="premium-section-intro compact">
-          <p className="eyebrow">Example agent conversation</p>
-          <h2>Plan → edit carefully → verify.</h2>
-          <p>The FixMap turns below are generated from this page&rsquo;s sample repository at build time, using the same renderer as the CLI.</p>
+          <p className="eyebrow">Optional technical detail</p>
+          <h2>See the complete agent conversation.</h2>
+          <p>Open the transcript to follow the exact Plan → edit → Verify workflow generated from this sample repository.</p>
         </div>
 
-        <div className="doc-layout">
+        <details className="demo-transcript">
+          <summary>Open the complete Plan → edit → Verify example</summary>
+          <div className="doc-layout">
           <article className="doc-section">
             <h3>User</h3>
             <p>{agentTask}. Can you fix it?</p>
@@ -106,12 +108,13 @@ const transport = createTransport({
               <li><strong>Run tests:</strong> FixMap routes checks; it does not pretend to execute them.</li>
             </ol>
           </aside>
-        </div>
+          </div>
+        </details>
       </section>
 
       <section className="section page-shell demo-next">
-        <div><p className="eyebrow">Ready for your repository?</p><h2>Take the same workflow to the terminal.</h2></div>
-        <div><p>Run one command for a public GitHub issue, or use FixMap locally for private source and working-tree diffs.</p><Link className="button primary" href="/get-started">Choose a setup <ArrowRight size={18} weight="bold" aria-hidden /></Link></div>
+        <div><p className="eyebrow">Ready for your repository?</p><h2>Give the next task a better starting point.</h2></div>
+        <div><p>Try FixMap once, add <code>/fixmap</code> to a coding agent, or run it automatically on pull requests.</p><Link className="button primary" href="/get-started">Choose how to use FixMap <ArrowRight size={18} weight="bold" aria-hidden /></Link></div>
       </section>
     </main>
   );

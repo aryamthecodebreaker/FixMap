@@ -85,8 +85,8 @@ function resultForIssue(issue: string): { example: Example; index: number } {
 
 const stageMeta: Array<{ key: StageKey; label: string; hint: string }> = [
   { key: "files", label: "Files", hint: "Finding relevant code" },
-  { key: "checks", label: "Checks", hint: "Building validations" },
-  { key: "risks", label: "Risks", hint: "Assessing impact" }
+  { key: "checks", label: "Tests", hint: "Finding checks" },
+  { key: "risks", label: "Risks", hint: "Reviewing impact" }
 ];
 
 function OutputCard({
@@ -103,9 +103,9 @@ function OutputCard({
   onSelect: () => void;
 }) {
   const config = {
-    files: { icon: FileText, title: "Files to inspect", count: "7 files", metric: "Confidence", value: "High" },
-    checks: { icon: CheckCircle, title: "Checks to run", count: "8 checks", metric: "Confidence", value: "High" },
-    risks: { icon: Warning, title: "Risks to review", count: "6 risks", metric: "Impact", value: "Medium" }
+    files: { icon: FileText, title: "Files to open first", count: "7 files", metric: "Match", value: "Strong" },
+    checks: { icon: CheckCircle, title: "Tests and checks", count: "8 checks", metric: "Support", value: "Found" },
+    risks: { icon: Warning, title: "Risks worth reviewing", count: "6 risks", metric: "Impact", value: "Medium" }
   }[stage];
   const Icon = config.icon;
 
@@ -125,7 +125,7 @@ function OutputCard({
       <span className="stage-card-rows">
         {items.map((item, index) => (
           <span key={item} style={{ "--row-index": index } as CSSProperties}>
-            <b>{index + 1}</b><code>{ready ? item : "Scanning repository signals…"}</code><small>{stage === "files" ? (index === 0 ? "Exact match" : "High signal") : stage === "checks" ? "Evidence" : "Why"}</small>
+            <b>{index + 1}</b><code>{ready ? item : "Scanning the repository…"}</code><small>{stage === "files" ? (index === 0 ? "Strong match" : "Connected") : stage === "checks" ? "Suggested" : "Why it matters"}</small>
           </span>
         ))}
       </span>
@@ -195,12 +195,12 @@ export function InteractiveMapStage() {
           </select>
           <CaretDown size={14} weight="bold" aria-hidden />
         </label>
-        <span className="stage-local-status"><i /> Local demo</span>
+        <span className="stage-local-status"><i /> Runs here</span>
       </div>
 
       <div className="stage-body">
         <div className="stage-input-column">
-          <div className="stage-input-heading"><span>1</span><strong>Describe the issue<br />in plain English</strong></div>
+          <div className="stage-input-heading"><span>1</span><strong>Describe what needs fixing</strong></div>
           <div className="stage-issue-field">
             <label className="sr-only" htmlFor="fixmap-hero-issue">Software issue</label>
             <textarea id="fixmap-hero-issue" value={issue} maxLength={500} onChange={(event) => setIssue(event.target.value)} />
@@ -209,7 +209,7 @@ export function InteractiveMapStage() {
               <ArrowRight size={19} weight="bold" aria-hidden />
             </button>
           </div>
-          <div className="stage-trust-note"><ShieldCheck size={19} weight="duotone" aria-hidden /><span><strong>Starting map, not proof.</strong>Review results before making changes.</span></div>
+          <div className="stage-trust-note"><ShieldCheck size={19} weight="duotone" aria-hidden /><span><strong>A starting point, not a verdict.</strong>Open the files and run the checks before changing code.</span></div>
         </div>
 
         <div className="stage-output-column">

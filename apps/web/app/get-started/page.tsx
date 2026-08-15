@@ -6,11 +6,11 @@ import { commands, marketplaceUrl, repoUrl, siteStats } from "../_lib/site-data"
 
 export const metadata: Metadata = {
   title: "Get started",
-  description: "Install the /fixmap command, run the CLI, connect MCP, or add FixMap to pull requests with the GitHub Action.",
+  description: "Try FixMap once, add /fixmap to a coding agent, run it in a terminal, or add it to pull requests.",
   alternates: { canonical: "/get-started" },
   openGraph: {
     title: "Get started with FixMap",
-    description: "Install /fixmap, use the CLI, connect MCP, or add the GitHub Action.",
+    description: "Try FixMap once, add it to a coding agent, or run it automatically on pull requests.",
     url: "/get-started"
   }
 };
@@ -19,57 +19,66 @@ export default function GetStartedPage() {
   return (
     <main>
       <section className="subpage-hero page-shell">
-        <p className="eyebrow">Get started</p>
-        <h1>Choose where the map <em>should appear.</em></h1>
-        <p>Install the CLI once, add a discoverable slash command to a coding agent, connect the MCP tools, or publish a map automatically on pull requests.</p>
-        <div className="jump-links"><a href="#slash-command">/fixmap</a><a href="#cli">CLI</a><a href="#mcp">MCP</a><a href="#action">GitHub Action</a></div>
+        <p className="eyebrow">Fastest way to try FixMap</p>
+        <h1>Run it once. <em>Install it only if it helps.</em></h1>
+        <p>Paste this command into a terminal. FixMap will inspect a public GitHub issue, scan a temporary checkout, show where to start, and remove the checkout when it finishes.</p>
+        <div className="setup-quick-try">
+          <CopyCommand command="npx -y @aryam/fixmap@latest plan --issue https://github.com/chalk/chalk/issues/624" />
+          <p>Requires Node.js 20.11 or newer. No account, API key, model call, or global installation.</p>
+        </div>
+        <div className="jump-links" aria-label="Choose a FixMap setup"><a href="#agent">Coding agent</a><a href="#terminal">Terminal</a><a href="#pull-requests">Pull requests</a><a href="#mcp">Advanced MCP</a></div>
       </section>
 
-      <section className="setup-section page-shell" id="slash-command">
-        <div className="setup-heading"><span>01</span><Command size={34} aria-hidden /><div><p className="eyebrow">Slash command</p><h2>Type /fixmap. See every workflow.</h2></div></div>
+      <section className="setup-section page-shell" id="agent">
+        <div className="setup-heading"><span>01</span><Command size={34} aria-hidden /><div><p className="eyebrow">Recommended for coding agents</p><h2>Add /fixmap to your agent.</h2></div></div>
         <div className="setup-content">
-          <p className="setup-lede">Install project-level discovery for Claude Code, Cursor, GitHub Copilot, and Agent Skills. Invoking <code>/fixmap</code> without a task opens the complete Plan, Context, Graph, Explain, Compare, Watch, Verify, Benchmark, Validate, Doctor, MCP, focus, working-tree, and fresh-scan menu.</p>
-          <CopyCommand command={commands.setup} />
-          <p>The installer is idempotent and refuses to overwrite an existing customized command. Target one integration with <code>--agent claude</code>, <code>cursor</code>, <code>copilot</code>, or <code>agents</code>. Use <code>--force</code> only after reviewing the file.</p>
-          <h3>See the same menu in a terminal</h3>
-          <CopyCommand command={commands.features} />
+          <p className="setup-lede">Choose this path if you use Claude Code, Cursor, GitHub Copilot, or Agent Skills. Two commands install FixMap and make <code>/fixmap</code> discoverable in the current project.</p>
+          <ol className="setup-steps">
+            <li><strong>Install FixMap</strong><CopyCommand command="npm install --global @aryam/fixmap@latest" /></li>
+            <li><strong>Add the agent command</strong><CopyCommand command={commands.setup} /></li>
+            <li><strong>Use it</strong><p>Type <code>/fixmap</code> in your coding agent, then choose Plan before editing or Verify after the change.</p></li>
+          </ol>
+          <details className="setup-advanced">
+            <summary>Choose one specific agent or inspect every workflow</summary>
+            <p>Target one integration with <code>--agent claude</code>, <code>cursor</code>, <code>copilot</code>, or <code>agents</code>. The installer will not overwrite a customized command unless you explicitly use <code>--force</code>.</p>
+            <CopyCommand command={commands.features} />
+          </details>
         </div>
       </section>
 
-      <section className="setup-section page-shell" id="cli">
-        <div className="setup-heading"><span>02</span><TerminalWindow size={34} aria-hidden /><div><p className="eyebrow">CLI</p><h2>Install once. Keep the command short.</h2></div></div>
+      <section className="setup-section page-shell" id="terminal">
+        <div className="setup-heading"><span>02</span><TerminalWindow size={34} aria-hidden /><div><p className="eyebrow">Terminal</p><h2>Install once. Describe the task.</h2></div></div>
         <div className="setup-content">
-          <p className="setup-lede">Install FixMap globally, then paste a public GitHub issue URL. FixMap fetches the task, infers the repository, scans a temporary checkout, and removes it when the report is done.</p>
+          <p className="setup-lede">Install FixMap globally, then give it a public issue URL or describe a problem inside a local repository.</p>
           <CopyCommand command="npm install --global @aryam/fixmap@latest" />
           <CopyCommand command={commands.publicIssue} />
-          <h3>Or work inside a local repository</h3>
-          <CopyCommand command={commands.localTask} />
-          <CopyCommand command={commands.diff} />
-          <h3>Compact agent handoff</h3>
-          <CopyCommand command={'fixmap plan --issue "reset links fail" --format agent'} />
-          <h3>Budgeted source context</h3>
-          <CopyCommand command={commands.context} />
-          <h3>Portable Impact Graph</h3>
-          <CopyCommand command={commands.graph} />
-          <h3>Watch an agent&apos;s edits</h3>
-          <p>Save the JSON plan, then stream drift and recalculated-impact updates whenever the local working tree changes:</p>
-          <CopyCommand command={'fixmap watch --report plan.json --repo . --include-untracked'} />
-          <h3>Benchmark this repository</h3>
-          <p>Backtest BM25, FixMap, and Impact Graph on historical parent snapshots without running repository code:</p>
-          <CopyCommand command="fixmap benchmark --repo . --last 50" />
+          <p className="setup-result"><strong>What you get:</strong> a short list of files to inspect first, tests and checks to run, nearby impact, and risks worth reviewing.</p>
+          <details className="setup-advanced">
+            <summary>Show local repository and advanced commands</summary>
+            <h3>Work inside a local repository</h3>
+            <CopyCommand command={commands.localTask} />
+            <CopyCommand command={commands.diff} />
+            <h3>Prepare a compact handoff for an agent</h3>
+            <CopyCommand command={'fixmap plan --issue "reset links fail" --format agent'} />
+            <h3>Package source context within a budget</h3>
+            <CopyCommand command={commands.context} />
+            <h3>Export the impact relationships</h3>
+            <CopyCommand command={commands.graph} />
+            <h3>Watch an agent&apos;s edits</h3>
+            <CopyCommand command={'fixmap watch --report plan.json --repo . --include-untracked'} />
+            <h3>Benchmark this repository</h3>
+            <CopyCommand command="fixmap benchmark --repo . --last 50" />
+            <h3>Pin FixMap to a project</h3>
+            <CopyCommand command="npm install --save-dev @aryam/fixmap" />
+            <p>Use <code>npx fixmap</code> inside that repository or call it from an npm script.</p>
+          </details>
 
-          <h3>Pin it to a project instead</h3>
-          <p>Use a project dependency when everyone working on that repository should get the same version:</p>
-          <CopyCommand command="npm install --save-dev @aryam/fixmap" />
-          <p>A project install is reached with <code>npx fixmap</code> inside the repository, or from an npm script.</p>
-
-          <h3>One-off trial without installing</h3>
-          <CopyCommand command="npx -y @aryam/fixmap@latest plan --issue https://github.com/chalk/chalk/issues/624" />
-          <p>If the current directory or one of its parents already contains FixMap, npm may deliberately choose that project-local binary. Check <code>--version</code>, or use the isolated-prefix test below when the exact package version matters.</p>
-
-          <h3>Safe PowerShell test project</h3>
-          <p>Create the directory before changing into it. If <code>cd</code> fails, PowerShell stays in the previous directory and a project-scoped npm install will go there instead.</p>
-          <CopyCommand command={`$fixmapTestPath = Join-Path $env:USERPROFILE "fixmaptesting"
+          <details className="setup-advanced">
+            <summary>Troubleshoot versions and make an isolated PowerShell test</summary>
+            <p>Run <code>fixmap doctor</code> when an older project or global install may be shadowing the version you expected.</p>
+            <CopyCommand command="fixmap doctor" />
+            <p>For an exact clean test on Windows, create the directory before changing into it:</p>
+            <CopyCommand command={`$fixmapTestPath = Join-Path $env:USERPROFILE "fixmaptesting"
 New-Item -ItemType Directory -Path $fixmapTestPath -Force -ErrorAction Stop | Out-Null
 Set-Location $fixmapTestPath -ErrorAction Stop
 npm init -y
@@ -82,21 +91,16 @@ export async function resetPassword(email: string) {
 }
 '@
 npx fixmap plan --issue "password reset emails fail"`} />
-          <p>Use <code>Get-Location</code> before installing whenever a directory command reports an error.</p>
-
-          <h3>Check what you are actually running</h3>
-          <p>An older global install can shadow the version <code>npx</code> was asked for, which makes a feature that shipped look like it never existed. <code>doctor</code> reports the version in use, where it resolved from, and any conflicting global — and exits non-zero when it finds one:</p>
-          <CopyCommand command="fixmap doctor" />
-          <p>Doctor 0.8.4 and newer compares an exact npm-requested version when that newer Doctor is the process npm starts. An older project-local binary can win before the newer code starts, so treat the printed running version as authoritative. For an exact clean test, use the isolated-prefix/direct-shim procedure in the repository README.</p>
-
-          <p className="small-note">Requires Node.js 20.11 or newer. No account, API key, or model call at any point.</p>
+            <p>Use <code>Get-Location</code> before installing whenever a directory command reports an error. Treat the version printed by Doctor as the version actually running.</p>
+          </details>
+          <p className="small-note">Requires Node.js 20.11 or newer. FixMap runs locally with no account, API key, or model call.</p>
         </div>
       </section>
 
       <section className="setup-section page-shell" id="mcp">
-        <div className="setup-heading"><span>03</span><Robot size={34} aria-hidden /><div><p className="eyebrow">MCP</p><h2>Let the agent ask.</h2></div></div>
+        <div className="setup-heading"><span>03</span><Robot size={34} aria-hidden /><div><p className="eyebrow">Advanced agent setup</p><h2>Connect FixMap as tools your agent can call.</h2></div></div>
         <div className="setup-content">
-          <p className="setup-lede">FixMap exposes seven local stdio tools: <code>fixmap_plan</code>, <code>fixmap_context</code>, <code>fixmap_graph</code>, <code>fixmap_explain</code>, <code>fixmap_compare</code>, <code>fixmap_verify</code>, and <code>fixmap_doctor</code>.</p>
+          <p className="setup-lede">Use MCP when you want a compatible agent to request a plan, ask why a file was included or missed, package source context, inspect impact relationships, or verify a completed change.</p>
           <h3>Claude Code</h3>
           <CopyCommand command="claude mcp add fixmap -- fixmap mcp" />
           <h3>Cursor, Windsurf, and other MCP clients</h3>
@@ -112,10 +116,10 @@ npx fixmap plan --issue "password reset emails fail"`} />
         </div>
       </section>
 
-      <section className="setup-section page-shell" id="action">
-        <div className="setup-heading"><span>04</span><GithubLogo size={34} weight="fill" aria-hidden /><div><p className="eyebrow">GitHub Action</p><h2>Map every pull request.</h2></div></div>
+      <section className="setup-section page-shell" id="pull-requests">
+        <div className="setup-heading"><span>04</span><GithubLogo size={34} weight="fill" aria-hidden /><div><p className="eyebrow">Pull requests</p><h2>Post a FixMap report automatically.</h2></div></div>
         <div className="setup-content">
-          <p className="setup-lede">The Action posts one report as a pull-request comment and writes the complete result to the job summary. Set <code>no-cache: true</code> when a workflow needs an explicit fresh scan.</p>
+          <p className="setup-lede">The GitHub Action comments with the map on each pull request and writes the complete result to the job summary.</p>
           <pre className="code-block" tabIndex={0}><code>{`name: FixMap
 on:
   pull_request:
