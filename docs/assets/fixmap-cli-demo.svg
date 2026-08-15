@@ -26,7 +26,7 @@
   <text class="l" style="animation-delay:5.75s" x="22" y="352" fill="#e6edf3"><tspan>- </tspan><tspan fill="#79c0ff">test/auth/reset-password.test.ts</tspan><tspan> (high confidence, impact 13): this file imports</tspan></text>
   <text class="l" style="animation-delay:6.00s" x="22" y="373" fill="#e6edf3"><tspan>    src/auth/reset-password.ts; routed test for src/auth/reset-password.ts via npm run test</tspan></text>
   <text class="l" style="animation-delay:6.25s" x="22" y="415" fill="#e6edf3"><tspan>Inspection order: </tspan><tspan fill="#79c0ff">src/auth/reset-password.ts</tspan><tspan> → </tspan><tspan fill="#79c0ff">test/auth/reset-password.test.ts</tspan><tspan>.</tspan></text>
-  <text class="l" style="animation-delay:6.50s" x="22" y="436" fill="#e6edf3"><tspan>History evidence: 28 eligible commits.</tspan></text>
+  <text class="l" style="animation-delay:6.50s" x="22" y="436" fill="#e6edf3"><tspan>History evidence: 29 eligible commits.</tspan></text>
   <text class="l" style="animation-delay:7.65s" x="22" y="478" fill="#e6edf3"><tspan fill="#74f0ba" font-weight="bold">## Test Routes</tspan></text>
   <text class="l" style="animation-delay:7.90s" x="22" y="520" fill="#e6edf3"><tspan>- </tspan><tspan fill="#79c0ff">npm run test</tspan><tspan>: repository root script named test. Related:</tspan></text>
   <text class="l" style="animation-delay:8.15s" x="22" y="541" fill="#e6edf3"><tspan>    </tspan><tspan fill="#79c0ff">test/auth/reset-password.test.ts</tspan><tspan>.</tspan></text>
