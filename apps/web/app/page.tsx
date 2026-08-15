@@ -2,32 +2,25 @@ import Link from "next/link";
 import {
   ArrowRight,
   CheckCircle,
-  Command,
   GithubLogo,
   Laptop,
   LockKey,
   Path,
-  ShieldCheck
+  Robot
 } from "@phosphor-icons/react/ssr";
-import { CopyCommand } from "./_components/copy-command";
 import { InteractiveMapStage } from "./_components/interactive-map-stage";
-import { commands, repoUrl, siteStats } from "./_lib/site-data";
+import { repoUrl, siteStats } from "./_lib/site-data";
 
-const workflow = [
-  { number: "01", name: "Plan", detail: "Rank primary context, then map likely impact without pretending every related file must change.", href: "/product#plan" },
-  { number: "02", name: "Context", detail: "Package relevant source ranges inside a visible estimated-token budget.", href: "/product#context" },
-  { number: "03", name: "Graph", detail: "Export the impact relationships as Mermaid or structured JSON.", href: "/product#graph" },
-  { number: "04", name: "Explain", detail: "Ask why a file ranked, missed the cutoff, was excluded, or was never scanned.", href: "/product#explain" },
-  { number: "05", name: "Compare", detail: "Measure whether a clearer task produced a better context map.", href: "/product#compare" },
-  { number: "06", name: "Watch", detail: "See drift and recalculated impact while the working tree changes.", href: "/product#watch" },
-  { number: "07", name: "Verify", detail: "Check the completed diff against the plan that guided the work.", href: "/product#verify" }
+const outcomes = [
+  { number: "01", name: "Files to inspect first", detail: "See the source files most connected to the task, with a plain reason for every suggestion.", href: "/product#plan" },
+  { number: "02", name: "Tests and checks to run", detail: "Find the nearest tests and package commands that can prove the change works.", href: "/product#tests" },
+  { number: "03", name: "Risks worth reviewing", detail: "Spot sensitive areas and nearby files before a focused edit becomes an unexpected regression.", href: "/product#risks" }
 ];
 
 const surfaces = [
-  { icon: Command, name: "Slash command", detail: "Install /fixmap in supported coding agents and open the complete workflow menu.", href: "/get-started#slash-command" },
-  { icon: Laptop, name: "CLI", detail: "Run locally in a terminal with no account or API key.", href: "/get-started#cli" },
-  { icon: ShieldCheck, name: "MCP", detail: "Expose all seven Plan, Context, Graph, Explain, Compare, Verify, and Doctor tools.", href: "/get-started#mcp" },
-  { icon: GithubLogo, name: "GitHub Action", detail: "Post the map or verify a saved plan on every pull request.", href: "/get-started#action" }
+  { icon: Robot, name: "Coding agent", detail: "Add /fixmap to Claude Code, Cursor, GitHub Copilot, or another supported agent.", href: "/get-started#agent" },
+  { icon: Laptop, name: "Terminal", detail: "Run FixMap locally with one command and no account or API key.", href: "/get-started#terminal" },
+  { icon: GithubLogo, name: "Pull requests", detail: "Post a FixMap report automatically whenever a pull request changes.", href: "/get-started#pull-requests" }
 ];
 
 export default function HomePage() {
@@ -35,16 +28,15 @@ export default function HomePage() {
     <main className="pro-home">
       <section className="pro-hero page-shell">
         <div className="pro-hero-copy">
-          <p className="eyebrow">FixMap v{siteStats.version} · open source repo intelligence</p>
-          <h1>Start the change with evidence.</h1>
+          <p className="eyebrow">For developers and coding agents · FixMap v{siteStats.version}</p>
+          <h1>Stop searching the repository blindly.</h1>
           <p className="pro-hero-lede">
-            Give FixMap a task, issue, or diff. It returns primary context, likely impact, reachable
-            checks, and risks—with every recommendation tied to repository evidence.
+            Give FixMap a task. It shows you and your coding agent the files to inspect, the tests
+            to run, and the risks to review before anything is edited.
           </p>
-          <CopyCommand command={commands.publicIssue} />
           <div className="button-row">
-            <Link className="button primary" href="/get-started">Install FixMap <ArrowRight size={17} weight="bold" aria-hidden /></Link>
-            <Link className="button secondary" href="/demo">Open the live demo</Link>
+            <a className="button primary" href="#comparison">Watch the 32-second comparison <ArrowRight size={17} weight="bold" aria-hidden /></a>
+            <Link className="button secondary" href="/demo">Try the live demo</Link>
           </div>
           <div className="pro-trust-line" role="group" aria-label="FixMap trust facts">
             <span><LockKey size={16} aria-hidden /> Local-first</span>
@@ -55,11 +47,12 @@ export default function HomePage() {
         <InteractiveMapStage />
       </section>
 
-      <section className="pro-film page-shell" aria-labelledby="pro-film-title">
+      <section className="pro-film page-shell" id="comparison" aria-labelledby="pro-film-title">
         <div className="pro-section-heading">
           <p className="eyebrow">FixMap in 32 seconds</p>
           <h2 id="pro-film-title">Same issue. Better first move.</h2>
-          <p>Watch two coding agents approach the same task as ranked context, impact evidence, Watch, and Verify change the feedback loop.</p>
+          <p>Watch one coding agent start with the right files and checks while the other searches the repository from scratch.</p>
+          <Link className="text-link" href="/get-started">Install after the film <ArrowRight size={17} weight="bold" aria-hidden /></Link>
         </div>
         <video controls playsInline preload="metadata" poster="/fixmap-launch-poster.jpg" aria-label="FixMap agent comparison launch film">
           <source src="/fixmap-launch.mp4" type="video/mp4" />
@@ -69,12 +62,12 @@ export default function HomePage() {
 
       <section className="pro-workflow page-shell">
         <div className="pro-section-heading">
-          <p className="eyebrow">One workflow</p>
-          <h2>From task to verified diff.</h2>
-          <p>Seven focused steps, each inspectable on its own.</p>
+          <p className="eyebrow">One task. Three useful answers.</p>
+          <h2>Know what to open, run, and review.</h2>
+          <p>FixMap narrows the first investigation without pretending it already knows the fix.</p>
         </div>
         <div className="pro-workflow-list">
-          {workflow.map((item) => (
+          {outcomes.map((item) => (
             <Link href={item.href} key={item.number}>
               <span>{item.number}</span>
               <strong>{item.name}</strong>
@@ -89,22 +82,22 @@ export default function HomePage() {
         <div className="page-shell pro-proof-inner">
           <div>
             <p className="eyebrow">Measured in public</p>
-            <h2>Useful without pretending to be certain.</h2>
-            <p>FixMap publishes the misses, cohort boundaries, and baseline comparisons. You can also backtest BM25, FixMap, and Impact Graph against your own repository history.</p>
-            <Link className="text-link" href="/evidence">Read the benchmark methodology <ArrowRight size={17} weight="bold" aria-hidden /></Link>
+            <h2>See the wins, the misses, and the limits.</h2>
+            <p>FixMap publishes every benchmark case, explains what each number means, and makes uncertainty visible instead of hiding it behind a confidence label.</p>
+            <Link className="text-link" href="/evidence">See every benchmark case <ArrowRight size={17} weight="bold" aria-hidden /></Link>
           </div>
           <dl className="pro-proof-metrics">
-            <div><dt>Held-out Top 3</dt><dd>{siteStats.heldout.top3}/{siteStats.heldout.cases}</dd></div>
-            <div><dt>Adversarial gate</dt><dd>{siteStats.adversarial.passed}/{siteStats.adversarial.cases}</dd></div>
-            <div><dt>Median scan</dt><dd>{siteStats.medianSeconds}s</dd></div>
+            <div><dt>Relevant fix surfaced in the first three suggestions</dt><dd>{siteStats.heldout.top3}/{siteStats.heldout.cases}</dd></div>
+            <div><dt>Misleading or vague tasks handled without false confidence</dt><dd>{siteStats.adversarial.passed}/{siteStats.adversarial.cases}</dd></div>
+            <div><dt>Median time to scan and rank the sample repositories</dt><dd>{siteStats.medianSeconds}s</dd></div>
           </dl>
         </div>
       </section>
 
       <section className="pro-surfaces page-shell">
         <div className="pro-section-heading">
-          <p className="eyebrow">Use it where work starts</p>
-          <h2>One engine. Four entry points.</h2>
+          <p className="eyebrow">Choose your setup</p>
+          <h2>Use FixMap where your work already starts.</h2>
         </div>
         <div className="pro-surface-grid">
           {surfaces.map(({ icon: Icon, ...surface }) => (
@@ -119,7 +112,7 @@ export default function HomePage() {
       </section>
 
       <section className="pro-final page-shell">
-        <div><Path size={22} aria-hidden /><strong>Ready to map a real task?</strong><span>No signup, cloud upload, or API key.</span></div>
+        <div><Path size={22} aria-hidden /><strong>Ready to give the next change a better start?</strong><span>Try it once or install it for your coding agent.</span></div>
         <div className="button-row">
           <Link className="button primary" href="/get-started">Get started <ArrowRight size={17} weight="bold" aria-hidden /></Link>
           <a className="text-link" href={repoUrl}><GithubLogo size={17} weight="fill" aria-hidden /> View source</a>

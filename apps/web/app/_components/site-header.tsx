@@ -23,9 +23,9 @@ function NavLinks() {
           Get started <CaretDown size={14} weight="bold" aria-hidden />
         </summary>
         <div className="nav-dropdown-panel">
-          <Link href="/get-started#cli"><strong>CLI</strong><span>Run FixMap from a terminal</span></Link>
-          <Link href="/get-started#mcp"><strong>MCP</strong><span>Connect a coding agent</span></Link>
-          <Link href="/get-started#action"><strong>GitHub Action</strong><span>Map every pull request</span></Link>
+          <Link href="/get-started#agent"><strong>Coding agent</strong><span>Add the /fixmap command</span></Link>
+          <Link href="/get-started#terminal"><strong>Terminal</strong><span>Try or install the CLI</span></Link>
+          <Link href="/get-started#pull-requests"><strong>Pull requests</strong><span>Post a map automatically</span></Link>
         </div>
       </details>
       <a className="nav-github" href={repoUrl}>

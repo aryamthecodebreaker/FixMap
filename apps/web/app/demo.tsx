@@ -10,15 +10,15 @@ type Stage = "plan" | "explain" | "compare" | "verify";
 const presets = [
   {
     label: "Password reset emails never arrive",
-    note: "A symptom with no symbol. This is where a lexical ranker is weakest — watch what happens in the next preset."
+    note: "Start here. The task describes a symptom without naming a file or code symbol, so FixMap has to find the strongest repository signals."
   },
   {
     label: "sendMail throws and password reset emails never arrive",
-    note: "The same bug with one symbol named. The transport rises into the top three, and its reason says why: it defines sendMail."
+    note: "The same problem now names sendMail. Watch the email transport move to the top because that file defines the symbol."
   },
   {
     label: "TOKEN_TTL_MINUTES is ignored, reset links expire immediately",
-    note: "A named constant is the strongest anchor there is. The file that defines it wins outright."
+    note: "A named constant gives FixMap a strong anchor. The file that defines it moves to the top."
   },
   {
     label: "Invoices are created twice for the same customer",
@@ -26,7 +26,7 @@ const presets = [
   },
   {
     label: "make it better",
-    note: "No searchable anchor. FixMap reports nothing and says so, instead of ranking something plausible."
+    note: "This task is too vague to ground. FixMap returns no suggestions instead of presenting a plausible guess as evidence."
   }
 ];
 
@@ -126,10 +126,10 @@ export function Demo() {
       <div className="stage-tabs" role="group" aria-label="FixMap stages">
         {(
           [
-            ["plan", "1 · Plan", "Where do I start?"],
-            ["explain", "2 · Ask why", "Why not this file?"],
-            ["compare", "3 · Compare", "Did better context move?"],
-            ["verify", "4 · Verify", "Did the change match?"]
+            ["plan", "1 · Find files", "Where should I start?"],
+            ["explain", "2 · Ask why", "Why this file?"],
+            ["compare", "3 · Refine task", "Did the result improve?"],
+            ["verify", "4 · Check change", "Did the work drift?"]
           ] as const
         ).map(([value, label, hint]) => (
           <button
@@ -147,9 +147,9 @@ export function Demo() {
 
       <div className="demo-shell">
         <div className="demo-input">
-          <label htmlFor="task">The task</label>
+          <label htmlFor="task">Describe the software problem</label>
           <textarea id="task" value={task} onChange={(event) => setTask(event.target.value)} rows={3} />
-          <div className="preset-list" role="group" aria-label="Example tasks">
+          <div className="preset-list" role="group" aria-label="Example software problems">
             {presets.map((preset) => (
               <button
                 key={preset.label}
@@ -163,22 +163,23 @@ export function Demo() {
           </div>
           {activePreset ? <p className="preset-note">{activePreset.note}</p> : null}
 
-          <label className="picker-label" htmlFor="context-limit">Context limit: {limit}</label>
-          <input id="context-limit" type="range" min="1" max="8" value={limit} onChange={(event) => setLimit(Number(event.target.value))} />
-          <label className="picker-label"><input type="checkbox" checked={excludeBuild} onChange={(event) => setExcludeBuild(event.target.checked)} /> Exclude generated <code>dist/**</code></label>
-          <label className="picker-label"><input type="checkbox" checked={workingTree} onChange={(event) => setWorkingTree(event.target.checked)} /> Include the selected scenario as a working-tree change set</label>
-
-          <p className="demo-command">
-            <span>Same result from the CLI</span>
-            <code>{command}</code>
-          </p>
+          <details className="demo-advanced">
+            <summary>Adjust limits, exclusions, and CLI output</summary>
+            <label className="picker-label" htmlFor="context-limit">Maximum file suggestions: {limit}</label>
+            <input id="context-limit" type="range" min="1" max="8" value={limit} onChange={(event) => setLimit(Number(event.target.value))} />
+            <label className="picker-label"><input type="checkbox" checked={excludeBuild} onChange={(event) => setExcludeBuild(event.target.checked)} /> Ignore generated <code>dist/**</code> files</label>
+            <label className="picker-label"><input type="checkbox" checked={workingTree} onChange={(event) => setWorkingTree(event.target.checked)} /> Include unsaved working-tree changes</label>
+            <p className="demo-command">
+              <span>Run the same example from a terminal</span>
+              <code>{command}</code>
+            </p>
+          </details>
 
           <div className="privacy-note">
             <span aria-hidden="true">●</span>
             <p>
-              <strong>This is FixMap itself, not a mockup.</strong> The page imports the same
-              ranking, explanation, and verification code the CLI runs, and executes it on a
-              sample repository in your browser. Nothing you type is sent anywhere.
+              <strong>This is the real FixMap engine.</strong> It runs on a sample repository in
+              this tab. Nothing you type is uploaded.
             </p>
           </div>
         </div>
@@ -210,8 +211,8 @@ function PlanPanel({ report }: { report: ReturnType<typeof buildReportFromRepo> 
   return (
     <>
       <div className="results-head">
-        <span>Context files</span>
-        <small>{report.contextFiles.length} ranked</small>
+        <span>Files to inspect first</span>
+        <small>{report.contextFiles.length} suggestions</small>
       </div>
 
       {report.contextFiles.length > 0 ? (
@@ -220,30 +221,34 @@ function PlanPanel({ report }: { report: ReturnType<typeof buildReportFromRepo> 
             <span className="result-number">{String(index + 1).padStart(2, "0")}</span>
             <div>
               <code>{file.path}</code>
-              <p>{file.reasons.join("; ")}</p>
+              <details className="result-reasons">
+                <summary>Why FixMap suggested this file</summary>
+                <p>{file.reasons.join("; ")}</p>
+                <small>Ranking score: {file.score}</small>
+              </details>
             </div>
             <span className={`confidence ${file.confidence}`}>
-              {file.confidence} · {file.score}
+              {file.confidence} match
             </span>
           </article>
         ))
       ) : (
         <div className="empty-result">
-          <strong>Nothing ranked.</strong>
-          <p>FixMap returns an empty report rather than a plausible guess.</p>
+          <strong>FixMap could not ground this task.</strong>
+          <p>Add a symptom, file name, or code symbol. FixMap will not invent a confident-looking result for a vague request.</p>
         </div>
       )}
 
       {report.testRoutes.length > 0 ? (
         <div className="route-preview">
-          <span>Run this</span>
+          <span>Test or check to run</span>
           <code>{report.testRoutes[0]!.command}</code>
         </div>
       ) : null}
 
       {report.impact?.files.length ? (
         <div className="panel-block">
-          <p className="panel-heading">Likely impact · inspect, not assumed edits</p>
+          <p className="panel-heading">Other files this change may affect</p>
           {report.impact.files.slice(0, 5).map((file) => (
             <p key={file.path}>
               <span className={`severity ${file.confidence === "high" ? "warning" : "info"}`}>{file.confidence}</span>
@@ -260,7 +265,7 @@ function PlanPanel({ report }: { report: ReturnType<typeof buildReportFromRepo> 
 
       {report.risks.length > 0 ? (
         <div className="panel-block">
-          <p className="panel-heading">Risk</p>
+          <p className="panel-heading">Risks worth reviewing</p>
           {report.risks.map((risk) => (
             <p key={risk.area}>
               <span className={`severity ${risk.severity}`}>{risk.severity}</span>
@@ -331,10 +336,8 @@ function ExplainPanel({
       ) : null}
 
       <p className="panel-footnote">
-        A ranked list explains what it chose. This answers the question it cannot: why the file
-        you expected is missing. The four answers are genuinely different — it ranked lower than
-        you thought, it scored below the cutoff, it was excluded on purpose, or the scan never
-        saw it.
+        This tells you whether the file ranked lower, fell below the cutoff, was excluded on
+        purpose, or was never scanned.
       </p>
     </>
   );
@@ -351,7 +354,7 @@ function ComparePanel({ comparison }: { comparison: ReturnType<typeof compareRep
   ];
   return (
     <>
-      <div className="results-head"><span>Earlier plan vs. current task</span><small>{changes.length} changed</small></div>
+      <div className="results-head"><span>What changed after you clarified the task</span><small>{changes.length} changes</small></div>
       <p className="explain-summary">{comparison.summary}</p>
       {changes.map((delta) => (
         <article className="finding" key={`${delta.status}-${delta.path}`}>
@@ -359,7 +362,7 @@ function ComparePanel({ comparison }: { comparison: ReturnType<typeof compareRep
           <div><code>{delta.path}</code><p>rank {delta.previousRank ?? "—"} → {delta.currentRank ?? "—"}; score {delta.previousScore ?? "—"} → {delta.currentScore ?? "—"}</p></div>
         </article>
       ))}
-      <p className="panel-footnote">Compare makes task refinement measurable: save a JSON plan, add the missing symbol or path, and confirm the real fix site rises.</p>
+      <p className="panel-footnote">A clearer task should move the real fix site closer to the top. Compare shows whether it actually did.</p>
     </>
   );
 }
@@ -378,9 +381,9 @@ function VerifyPanel({
   return (
     <>
       <div className="results-head">
-        <span>Plan vs. diff</span>
+        <span>Planned work vs. changed files</span>
         <small className={hasError ? "status-excluded" : "status-ranked"}>
-          exit {hasError ? 1 : 0}
+          {hasError ? "Needs review" : "No blocking errors"}
         </small>
       </div>
 
