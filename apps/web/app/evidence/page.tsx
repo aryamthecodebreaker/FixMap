@@ -45,6 +45,18 @@ export default function EvidencePage() {
         <div className="button-row"><a className="button primary" href={`${repoUrl}/tree/main/benchmarks`}>Open benchmark data <ArrowRight size={18} weight="bold" aria-hidden /></a></div>
       </section>
 
+      <section className="section page-shell evidence-boundaries" aria-labelledby="evidence-boundaries-title">
+        <div className="section-heading split-heading">
+          <div><p className="eyebrow">Claim boundary</p><h2 id="evidence-boundaries-title">Three different questions need three different answers.</h2></div>
+          <p>Retrieval measurements can show whether FixMap surfaced a known fixing file. They cannot, by themselves, show whether a coding agent used fewer tokens or completed the task better.</p>
+        </div>
+        <div className="evidence-boundary-list">
+          <article><span>Measured</span><h3>Repository retrieval, calibration, adversarial behavior, and scan time</h3><p>The checked-in suites below contain the cases, baselines, misses, and confidence intervals.</p></article>
+          <article><span>Mechanism</span><h3>Focused context, test routes, impact candidates, and explicit uncertainty</h3><p>These are product behaviors produced from repository evidence. They are not downstream outcome claims.</p></article>
+          <article><span>Not yet measured</span><h3>Agent tokens, cost, time, tool calls, and task success</h3><p>The controlled protocol and evaluator are ready for real runs; no result is published until a complete run set exists.</p></article>
+        </div>
+      </section>
+
       <section className="section page-shell">
         <div className="section-heading split-heading">
           <div><p className="eyebrow">Confidence calibration</p><h2>Labels are evidence bands, not probabilities.</h2></div>

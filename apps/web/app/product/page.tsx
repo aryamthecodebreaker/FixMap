@@ -73,7 +73,7 @@ const stages = [
   },
   {
     id: "verify",
-    number: "07",
+    number: "06",
     icon: GitDiff,
     eyebrow: "After the edit",
     title: "Verify: compare the plan with the real change.",
@@ -157,7 +157,7 @@ export default function ProductPage() {
         <div className="page-shell product-boundary">
           <div><p className="eyebrow">The boundary matters</p><h2>A starting map, not proof.</h2></div>
           <div>
-            <p>FixMap can help an agent search less and review more deliberately. It cannot prove a change is correct, complete, or safe.</p>
+            <p>FixMap gives an agent a focused, evidence-backed starting set for more deliberate review. It cannot prove a change is correct, complete, or safe.</p>
             <p>That is why every score has reasons, Verify is mostly advisory, and the benchmark page publishes failures alongside hits.</p>
             <Link className="button light" href="/evidence">See the evidence <ArrowRight size={18} weight="bold" aria-hidden /></Link>
           </div>

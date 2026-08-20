@@ -17,7 +17,7 @@ which is generated from the recorded results rather than transcribed by hand.
 - `fixmap benchmark --repo . --last 50` backtests BM25-over-code, FixMap context, and FixMap with Impact Graph on identical historical parent-snapshot corpora. It reports all, path-mentioned, and unmentioned cohorts, Wilson intervals, raw cases, skip counts, and secondary-file recall without executing repository code or scoring generated twins as primary answers.
 - `fixmap plan --format agent` emits a compact, stable handoff organized as EDIT CANDIDATE, INSPECT, TEST, RISK, AVOID, and UNCERTAINTY.
 - A frozen four-arm agent-study protocol and validator are checked in for future controlled measurements. No agent-effectiveness or time-saved claim is made without completed, auditable runs.
-- A 32-second motion-first agent comparison is available on the README and website in animated-preview and 1080p H.264/AAC formats, with original no-vocals music and no unsupported savings claim.
+- A 32-second motion-first agent comparison is available on the README and website in animated-preview and 1080p H.264/AAC formats, with original no-vocals music and no claim of measured agent efficiency.
 
 ### Improved
 
@@ -58,7 +58,7 @@ which is generated from the recorded results rather than transcribed by hand.
 ### Evidence
 
 - The release ledger maps all 126 open GitHub issues in #500-#627 (excluding already-closed #542 and #599) plus every item in the attached 30-finding review to a resolution and verification source.
-- External, held-out, adversarial, BM25/lexical/path baselines, savings, rendered examples, package smoke tests, and the 1,000-file scan gate were regenerated and checked. The held-out evidence continues to state plainly where BM25 leads FixMap.
+- External, held-out, adversarial, BM25/lexical/path baselines, context-size proxy, scan-performance, rendered examples, package smoke tests, and the 1,000-file scan gate were regenerated and checked. The held-out evidence continues to state plainly where BM25 leads FixMap.
 
 ### Installation
 
