@@ -11,7 +11,7 @@ FixMap found 1 context file, 1 impact file, and generated 2 test routes.
 - `packages/utils/test/currency.test.ts` (high confidence, impact 13): this file imports packages/utils/src/currency.ts; routed test for packages/utils/src/currency.ts via pnpm --dir packages/utils run test
 
 Inspection order: `packages/utils/src/currency.ts` → `packages/utils/test/currency.test.ts`.
-History evidence: 64 eligible commits.
+History evidence: 65 eligible commits.
 
 ## Test Routes
 
