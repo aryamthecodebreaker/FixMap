@@ -12,6 +12,7 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

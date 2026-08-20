@@ -2,9 +2,9 @@
 
 # FixMap
 
-Know where to edit before the first edit.
+Tell AI coding tools which files to check first.
 
-Paste a GitHub issue URL, describe a task, or point at a diff. FixMap returns ranked context, an evidence-backed Impact Graph, reachable test commands, risks, and explicit uncertainty—without an account, API key, or model call.
+Describe what is broken. FixMap checks the project and gives tools like Codex, Claude Code, and Cursor a short list of files to open, tests to run, and other code to review. It includes reasons and says when it is unsure—without an account, API key, or model call.
 
 [![CI](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml/badge.svg)](https://github.com/aryamthecodebreaker/FixMap/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/%40aryam%2Ffixmap)](https://www.npmjs.com/package/@aryam/fixmap)
@@ -12,13 +12,15 @@ Paste a GitHub issue URL, describe a task, or point at a diff. FixMap returns ra
 [![Marketplace](https://img.shields.io/badge/GitHub_Marketplace-FixMap-2ea44f?logo=github)](https://github.com/marketplace/actions/fixmap)
 [![MIT](https://img.shields.io/badge/license-MIT-74f0ba)](LICENSE)
 
-[Website](https://usefixmap.vercel.app) · [Live demo](https://usefixmap.vercel.app/demo) · [Documentation](https://usefixmap.vercel.app/docs) · [Evidence](https://usefixmap.vercel.app/evidence) · [Changelog](CHANGELOG.md)
+[Website](https://usefixmap.vercel.app) · [Use cases](https://usefixmap.vercel.app/use-cases) · [Live demo](https://usefixmap.vercel.app/demo) · [Documentation](https://usefixmap.vercel.app/docs) · [Evidence](https://usefixmap.vercel.app/evidence) · [Changelog](CHANGELOG.md)
 
 </div>
 
-[![FixMap v0.9.0: two coding agents work the same issue, with FixMap supplying ranked context, an Impact Graph, Watch feedback, and Verify evidence](docs/assets/fixmap-v0.9.0-agent-comparison.gif)](https://usefixmap.vercel.app/fixmap-launch.mp4)
+[![FixMap workflow video opening frame: req.fresh returns false for QUERY requests, so 304 Not Modified is never set](apps/web/public/fixmap-launch-poster.jpg)](https://usefixmap.vercel.app/fixmap-launch.mp4)
 
-<p align="center"><a href="https://usefixmap.vercel.app/fixmap-launch.mp4">Watch the 32-second launch film with sound</a></p>
+<p align="center"><a href="https://usefixmap.vercel.app/fixmap-launch.mp4">Watch the 31-second FixMap workflow video with sound</a></p>
+
+Try a task in the [homepage sample](https://usefixmap.vercel.app). It runs the real FixMap Plan engine in the tab against the bundled `sample-api` project. It does not inspect your repository or upload the task text. Use [Get started](https://usefixmap.vercel.app/get-started) for your own repository, or open the [full browser demo](https://usefixmap.vercel.app/demo) for advanced workflows.
 
 ![A generated FixMap CLI report showing ranked context files, test routes, risks, analysis, and diagnostics](docs/assets/fixmap-cli-demo.svg)
 
@@ -172,7 +174,8 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 - The MCP server exposes `fixmap_plan`, `fixmap_context`, `fixmap_graph`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor` over local stdio and is published in the official MCP Registry.
 - The GitHub Action runs Plan or Verify on pull requests, appends within the job summary's remaining 1 MiB budget, bounds its report output and comment, and creates or updates one FixMap comment instead of posting duplicates.
 - The Action accepts explicit task input or pull-request context, uses the same report validator as the CLI and MCP server, and fails clearly when a requested diff cannot be resolved.
-- The browser demo runs the real core Plan, Explain, Compare, and Verify logic against a sample repository without uploading the task.
+- The homepage task mapper runs real Plan logic against the bundled `sample-api` repository and preserves the engine's uncertainty state instead of inventing fallback results.
+- The full browser demo runs the real core Plan, Explain, Compare, and Verify logic against the same sample repository without uploading the task.
 
 ### TypeScript library
 

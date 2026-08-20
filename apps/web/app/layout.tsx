@@ -11,9 +11,9 @@ const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://usefixmap.vercel.app"),
-  title: { default: "FixMap — Know where to start", template: "%s | FixMap" },
+  title: { default: "FixMap — Tell AI coding tools which files to check", template: "%s | FixMap" },
   description:
-    "Give FixMap a software problem. It finds the files most likely to matter, the checks to run, and the risks to review before anything changes.",
+    "Describe what is broken. FixMap tells AI coding tools which files to open, which tests to run, and what other code to review.",
   keywords: [
     "AI coding agents",
     "developer tools",
@@ -25,16 +25,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   robots: { index: true, follow: true },
   openGraph: {
-    title: "FixMap — Know where to start",
-    description: "A practical map for coding agents and the people who review their work.",
+    title: "FixMap — Tell AI coding tools which files to check",
+    description: "Describe what is broken. FixMap tells AI coding tools which files to open, which tests to run, and what other code to review.",
     siteName: "FixMap",
     url: "/",
     type: "website"
   },
   twitter: {
     card: "summary_large_image",
-    title: "FixMap — Know where to start",
-    description: "A practical map for coding agents and the people who review their work."
+    title: "FixMap — Tell AI coding tools which files to check",
+    description: "Describe what is broken. FixMap tells AI coding tools which files to open, which tests to run, and what other code to review."
   },
   icons: { icon: "/fixmap-mark.png", apple: "/fixmap-mark.png" }
 };

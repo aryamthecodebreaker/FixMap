@@ -9,10 +9,10 @@ export function SiteFooter() {
       <div className="footer-main">
         <div className="footer-brand">
           <Logo inverse />
-          <p>A practical map before the first edit. Free, local-first, and open source.</p>
+          <p>Tells AI coding tools which files and tests to check first. Free, local-first, and open source.</p>
         </div>
         <div className="footer-links">
-          <div><strong>Explore</strong><Link href="/product">Product</Link><Link href="/demo">Live demo</Link><Link href="/evidence">Evidence</Link><Link href="/changelog">Changelog</Link></div>
+          <div><strong>Explore</strong><Link href="/product">Product</Link><Link href="/use-cases">Use cases</Link><Link href="/demo">Live demo</Link><Link href="/evidence">Evidence</Link><Link href="/changelog">Changelog</Link></div>
           <div><strong>Use FixMap</strong><Link href="/get-started">Get started</Link><Link href="/docs">Docs</Link><a href={marketplaceUrl}>GitHub Action</a></div>
           <div><strong>Project</strong><a href={repoUrl}><GithubLogo size={16} weight="fill" aria-hidden /> GitHub</a><a href={npmUrl}>npm</a><a href={`${repoUrl}/issues`}>Issues</a></div>
         </div>
