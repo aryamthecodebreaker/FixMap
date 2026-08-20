@@ -1,0 +1,122 @@
+{
+  "manifestVersion": 1,
+  "protocolVersion": 3,
+  "studyId": "fixmap-navigation-heldout-v1",
+  "status": "frozen",
+  "frozenAt": "2026-08-20",
+  "taskSelection": {
+    "source": "All cases in benchmarks/heldout/dataset.json at FixMap commit bbc8469c937397fecac787c71c04521a6eb1a87d.",
+    "rule": "Use the complete pre-existing 12-case held-out suite in its frozen order; no task may be added, removed, or rewritten after controlled runs begin.",
+    "rationale": "These public MIT-licensed issue tasks and pinned pre-fix revisions were selected mechanically before any controlled agent-study outcome existed."
+  },
+  "tasks": [
+    {
+      "taskId": "heldout-automattic-mongoose-16379",
+      "taskText": "Document.isModified(path) rebuilds the full modifiedPaths() set on every call — O(N^2) when checked per-path in loops (including mongoose's own validation)\n\n## Document.isModified(path) rebuilds the full modifiedPaths() set on every call — O(N^2) when checked per-path in loops (including mongoose's own validation)\n\n**Repo:** `Automattic/mongoose`\n**Location:** lib/document.js:2339 (isModified -> modifiedPaths rebuild) called per-path from lib/document.js:2965 (_getPathsToValidate) and user hooks\n**Severity:** medium · **Confidence:** 0.8\n**Type:** complexity-at-a-distance\n\n### Description\n\nDocument.prototype.isModified in lib/document.js (line ~2321): when `path` is not directly modified, it falls through to `this[documentModifiedPaths]()` (line ~",
+      "taskTextSha256": "abab98df3c8461269aa9250a9cd3938adcd80765679b54afc3c9e9384740dfc9",
+      "repository": "https://github.com/Automattic/mongoose.git",
+      "revision": "0c3034d2886b5ff11eac8f3749cb33a896f53a57",
+      "sourceIssue": "https://github.com/Automattic/mongoose/issues/16379",
+      "selectionRationale": "Included by the pre-existing mechanical held-out selection rule before any controlled agent-study run; public issue 16379 in MIT-licensed Automattic/mongoose at the pinned pre-fix revision."
+    },
+    {
+      "taskId": "heldout-immerjs-immer-1045",
+      "taskText": "`produceWithPatches` wrong return type\n\n## 🐛 Bug Report\r\n\r\nThe curried form of `produceWithPatches` returns the wrong type, while `produce` does.\r\n\r\n## Link to repro\r\n\r\n[https://codesandbox.io/s/producewithpatches-wrong-return-type-mr5hdp?file=/src/index.ts](https://codesandbox.io/s/producewithpatches-wrong-return-type-mr5hdp?file=/src/index.ts)\r\n\r\n## Observed behavior\r\n\r\nThe state returned by `produceWithPatches((draft: Draft<N>, m: number) => { ... })` is of type `WritableDraft<N>` but should be of type `N`.\r\n\r\nThe type of `produceWithPatches<N, [number]>((draft, m) => { ... })` is `never` while the type of `produce<N, [number]>(",
+      "taskTextSha256": "0cff254c49c2db9178c3251b4ffb920258042dfaec273c2302c8a639762d53ba",
+      "repository": "https://github.com/immerjs/immer.git",
+      "revision": "bf2d15439259887f98f2737cf7ebde4234d5adea",
+      "sourceIssue": "https://github.com/immerjs/immer/issues/1045",
+      "selectionRationale": "Included by the pre-existing mechanical held-out selection rule before any controlled agent-study run; public issue 1045 in MIT-licensed immerjs/immer at the pinned pre-fix revision."
+    },
+    {
+      "taskId": "heldout-jestjs-jest-16174",
+      "taskText": "[Bug]: Spurious type error when calling `mockRejectedValue` on mocks of certain overloaded functions\n\n### Version\n\n30.4\n\n### Steps to reproduce\n\nConsider a method like [`pg.Client.end`](https://github.com/DefinitelyTyped/DefinitelyTyped/blob/5b8b3cdc7c82f3b424e9cbb18c229f40b6497cec/types/pg/index.d.ts#L307-L308). It has two overloads:\n\n```\n    end(): Promise<void>;\n    end(callback: (err: Error) => void): void;\n```\n\nWhen using a mocked instance, one might want to mock resolved or rejected values:\n\n```\ntest('mock pg', async () => {\n  const client: jest.Mocked<pg.Client> = setUpMockClient();\n  client.end.mockRejectedValueOnce(new Error('test error when closing client')) // Type error\n  await exp",
+      "taskTextSha256": "e2d59db074a767feac25c1c2cbf3800f6f661ed4fea2fe951b07c10b369a9106",
+      "repository": "https://github.com/jestjs/jest.git",
+      "revision": "4c3091b4204d703f4ebe343b8ac9d8a28ac4388e",
+      "sourceIssue": "https://github.com/jestjs/jest/issues/16174",
+      "selectionRationale": "Included by the pre-existing mechanical held-out selection rule before any controlled agent-study run; public issue 16174 in MIT-licensed jestjs/jest at the pinned pre-fix revision."
+    },
+    {
+      "taskId": "heldout-knex-knex-5053",
+      "taskText": "BUG - FOR UPDATE must specify unqualified relation names\n\n# Environment\r\n\r\nKnex version: 1.0.3\r\nDatabase + version: PostgreSQL 13\r\nOS: Node 14\r\n\r\n# Bug\r\n\r\nThe error comes up when you build a query like knex('users').withSchema('myschema').where('id','xyz').forUpdate('users')\r\nIt seems incompatible to use withSchema and forUpdate in the same query because withSchema add the schema also in front of the forUpdate table name, but should not.\r\n\r\nError message: \"FOR UPDATE must specify unqualified relation names\"\r\n\r\nPs.: the above query works if I do not specify table name in forUpdate, but in query with joins you must specify the table name otherwise you ",
+      "taskTextSha256": "c17185088d4cc6080774013036641447ee39ecee9f807ccf687e24f2b0e9e754",
+      "repository": "https://github.com/knex/knex.git",
+      "revision": "6f42421e595e47653b131a621c2bd20fcb3337a4",
+      "sourceIssue": "https://github.com/knex/knex/issues/5053",
+      "selectionRationale": "Included by the pre-existing mechanical held-out selection rule before any controlled agent-study run; public issue 5053 in MIT-licensed knex/knex at the pinned pre-fix revision."
+    },
+    {
+      "taskId": "heldout-mochajs-mocha-4526",
+      "taskText": "🐛 Bug: xunit reporter does not strip ansi escape sequences, leading to invalid XML\n\n<!--\r\nHave you read Mocha's Code of Conduct? By filing an Issue, you are expected to comply with it, including treating everyone with respect: https://github.com/mochajs/mocha/blob/master/.github/CODE_OF_CONDUCT.md\r\nFor more, check out the Mocha Gitter chat room: https://gitter.im/mochajs/mocha\r\n\r\nDetail the steps necessary to reproduce the problem. To get the fastest support, create an MCVE and upload it to GitHub.\r\ncreate an [MCVE](https://stackoverflow.com/help/mcve) and upload it to GitHub.\r\n-->\r\n\r\n### Prerequisites\r\n\r\n<!--\r\nPlace an `x` between the square brackets on the lines below for e",
+      "taskTextSha256": "a8366216fe4f1ca018817c98282b318d0d758c8868735f34ad8352c60ab03163",
+      "repository": "https://github.com/mochajs/mocha.git",
+      "revision": "d602cc7ab9b93169916d267e19071fbeb6cd0468",
+      "sourceIssue": "https://github.com/mochajs/mocha/issues/4526",
+      "selectionRationale": "Included by the pre-existing mechanical held-out selection rule before any controlled agent-study run; public issue 4526 in MIT-licensed mochajs/mocha at the pinned pre-fix revision."
+    },
+    {
+      "taskId": "heldout-react-hook-form-react-hook-form-13608",
+      "taskText": "[7.76.0 regression] setValue rebuilds the entire dirtyFields object every call, breaking referential stability (incl. proposed fix)\n\n### Version Number\n\n7.76.0 – 7.81.0 (regression introduced in 7.76.0; still present on `main`)\n\n### Codesandbox/Expo snack\n\nRunnable with no UI — the regression is in `createFormControl`'s dirty-tracking. Node snippet below (also reproducible in any sandbox).\n\nChange the version between 7.81.0 and 7.75.0 to see the differences:\nhttps://codesandbox.io/p/devbox/suspicious-joliot-flkj2p \n\n### Steps to reproduce\n\n`setValue(field, value, { shouldDirty: true })` on an already-dirty field, repeatedly, and observe the **object identity** of `formState.dirtyFields`:\n\n```js\nconst { createFormControl } =",
+      "taskTextSha256": "1983080a5b6f7ff579b1ae4525f845005a85c05021a0b1e68269982faea39c42",
+      "repository": "https://github.com/react-hook-form/react-hook-form.git",
+      "revision": "ee7593ec554c7f2cb74a8ace5984bcb8cb136633",
+      "sourceIssue": "https://github.com/react-hook-form/react-hook-form/issues/13608",
+      "selectionRationale": "Included by the pre-existing mechanical held-out selection rule before any controlled agent-study run; public issue 13608 in MIT-licensed react-hook-form/react-hook-form at the pinned pre-fix revision."
+    },
+    {
+      "taskId": "heldout-socketio-socket-io-5462",
+      "taskText": "socket.io-client - transports options array modified from [string] to [object] by io constructor\n\n**Describe the bug**\n\n```\nconst options = {transports: [\"websocket\",\"polling\"]};\nconst s = io(<URL>, options);\n```\noptions object is modified, and transports is set to  [ class WS, class XHR ]\nNot really a big issue, but quite unexpected and an unusual behaviour. Especially when you need to serialize the options object after connection.\n\n**Expected behavior**\noptions object should not be mutated.",
+      "taskTextSha256": "c3029cb8a565a9d8c3bc807a5493a9f683882d69126e5fc758aa56a13209d0b2",
+      "repository": "https://github.com/socketio/socket.io.git",
+      "revision": "0e591b92d727b1ca84e530d4ab65fa21cfdc4ae6",
+      "sourceIssue": "https://github.com/socketio/socket.io/issues/5462",
+      "selectionRationale": "Included by the pre-existing mechanical held-out selection rule before any controlled agent-study run; public issue 5462 in MIT-licensed socketio/socket.io at the pinned pre-fix revision."
+    },
+    {
+      "taskId": "heldout-sveltejs-svelte-18555",
+      "taskText": "A `<svelte:boundary>` hydrated in the failed state can never be reset\n\n### Describe the bug\n\nA boundary that fails during SSR renders its `failed` snippet and hydrates back into the failed state from the serialized marker. During that hydration `onerror` is never called, and the `reset` handed to the `failed` snippet is a no-op ([boundary.js#L200-L210](https://github.com/sveltejs/svelte/blob/4a6a85b5f149cc96514ed3bf5e59083b9246d394/packages/svelte/src/internal/client/dom/blocks/boundary.js#L200-L210)). Once a boundary hydrates as failed there is no way to leave that state short of destroying the component, even when its children would render fine on the client.\n\n",
+      "taskTextSha256": "8cce4f73d0cc0378d6921361207d65a94c1827b64a29e5934a38cf0b31d48bf8",
+      "repository": "https://github.com/sveltejs/svelte.git",
+      "revision": "2bace308e37ac1def958be750bd699ed302bb715",
+      "sourceIssue": "https://github.com/sveltejs/svelte/issues/18555",
+      "selectionRationale": "Included by the pre-existing mechanical held-out selection rule before any controlled agent-study run; public issue 18555 in MIT-licensed sveltejs/svelte at the pinned pre-fix revision."
+    },
+    {
+      "taskId": "heldout-vitejs-vite-10136",
+      "taskText": "[Panic]: thread 'rolldown-worker' (11046093) panicked at crates/rolldown_common/src/types/hybrid_index_vec.rs:76:28\n\n### Panic message\n\n```Shell\nRolldown panicked. This is a bug in Rolldown, not your code.\n\nthread 'rolldown-worker' (11046093) panicked at crates/rolldown_common/src/types/hybrid_index_vec.rs:76:28:\nHybridIndexVec::Map missing idx 2 (len=1)\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\nPlease report this issue at: https://github.com/rolldown/rolldown/issues/new?template=panic_report.yml\n```\n\n### Reproduction\n\nhttps://github.com/btea/rolldown-panic\n\n1. Running `pnpm dev` works perfectly.\n2. The following changes were made to line 2 of the `src/App.vue` file, and ",
+      "taskTextSha256": "27a0f764d5375ce57c1f5ca128701520c5078fdbfae97c477d6c88572b9dcdec",
+      "repository": "https://github.com/vitejs/vite.git",
+      "revision": "791843e1591ec2d65a401560bc1fc0a85b32ee32",
+      "sourceIssue": "https://github.com/vitejs/vite/issues/10136",
+      "selectionRationale": "Included by the pre-existing mechanical held-out selection rule before any controlled agent-study run; public issue 10136 in MIT-licensed vitejs/vite at the pinned pre-fix revision."
+    },
+    {
+      "taskId": "heldout-vuejs-core-11564",
+      "taskText": "Missing support TS 5.5, without `DOM` lib in tsconfig\n\n### Vue version\n\nsince 3.0.0, to 3.5 alpha\n\n### Link to minimal reproduction\n\nhttps://github.com/sxzz/vue-ref-issue\n\n### Steps to reproduce\n\n- Install TS 5.5.4\r\n- Ensure there is no `DOM` lib in the `tsconfig.json`\r\n- Define `ref(100)` with its type as `Ref<any>`\n\n### What is expected?\n\n`Ref<number>`\n\n### What is actually happening?\n\n`Ref<any>`\n\n### System Info\n\n_No response_\n\n### Any additional comments?\n\nWorks on TS 5.4",
+      "taskTextSha256": "0c7bc999814525f02df677118328d63f32e5d43ab2185811fe8434943d21ee9f",
+      "repository": "https://github.com/vuejs/core.git",
+      "revision": "b555f02eede06f500deb25d3ba5ee44217ce1265",
+      "sourceIssue": "https://github.com/vuejs/core/issues/11564",
+      "selectionRationale": "Included by the pre-existing mechanical held-out selection rule before any controlled agent-study run; public issue 11564 in MIT-licensed vuejs/core at the pinned pre-fix revision."
+    },
+    {
+      "taskId": "heldout-winstonjs-winston-2610",
+      "taskText": "[Bug]: DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead (DEP0176)\n\n### 🔎 Search Terms\n\nfs.F_OK\n\n### The problem\n\nRunning winston on Node ≥ 22 emits:\n\n(node:55907) [DEP0176] DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead\n\nThe warning comes from FileTransport._tail, which still reads F_OK directly off the fs module.\n\nNode 22 deprecated fs.F_OK / fs.R_OK / fs.W_OK / fs.X_OK as direct properties on fs — see DEP0176. Replacement is fs.constants.F_OK.\n\nHappy to send a PR if it helps.\n\n### What version of Winston presents the issue?\n\nv3.13.0\n\n### What version of Node are you using?\n\nv24.8.0\n\n### If this worked in a previous version of Wins",
+      "taskTextSha256": "1da88d4efb3fa63a9f524e4e8dff58d9e799f9ca43d8072ff5e67237e93c9fdf",
+      "repository": "https://github.com/winstonjs/winston.git",
+      "revision": "1f89222a796225923b87f0462497b92e274915ce",
+      "sourceIssue": "https://github.com/winstonjs/winston/issues/2610",
+      "selectionRationale": "Included by the pre-existing mechanical held-out selection rule before any controlled agent-study run; public issue 2610 in MIT-licensed winstonjs/winston at the pinned pre-fix revision."
+    },
+    {
+      "taskId": "heldout-yargs-yargs-2497",
+      "taskText": "Vulnerability Report: Prototype Pollution in `apply-extends`\n\n\n## Summary\nA prototype pollution vulnerability was identified in the `apply-extends` helper function within `lib/utils/apply-extends.ts`. This function is responsible for merging configuration objects, including those loaded via the `extends` keyword. The vulnerability allowed an attacker to inject properties into `Object.prototype` by including a `__proto__` key in a configuration file.\n\n## Technical Details\n\n### Vulnerability Location\nThe vulnerability existed in the `mergeDeep` function within `lib/utils/apply-extends.ts`. This function recursively merged two objects without checking if th",
+      "taskTextSha256": "fef7a6f78bb4b43585ba1dc390979b6d0413bee60e69527cf3299524b38d6216",
+      "repository": "https://github.com/yargs/yargs.git",
+      "revision": "971e351705f0fbc5566c6ed1dfd707fa65e11c0d",
+      "sourceIssue": "https://github.com/yargs/yargs/issues/2497",
+      "selectionRationale": "Included by the pre-existing mechanical held-out selection rule before any controlled agent-study run; public issue 2497 in MIT-licensed yargs/yargs at the pinned pre-fix revision."
+    }
+  ]
+}

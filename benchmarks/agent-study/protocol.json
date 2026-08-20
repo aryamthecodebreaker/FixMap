@@ -1,25 +1,35 @@
 {
-  "protocolVersion": 2,
-  "status": "protocol-only",
+  "protocolVersion": 3,
+  "status": "frozen-no-runs",
   "suite": "navigation-focused pinned tasks",
+  "taskManifest": "benchmarks/agent-study/tasks.json",
   "arms": [
     "baseline",
     "fixmap-available",
     "fixmap-instructed",
     "fixmap-impact"
   ],
+  "aggregationPolicy": {
+    "publishableOnlyWhenComplete": true,
+    "modelGrouping": "single-global-model-version",
+    "failedAndTimedOutRuns": "retained"
+  },
   "requirements": {
-    "sameModelVersion": true,
+    "sameGlobalModelVersion": true,
     "sameTaskText": true,
     "sameRepositoryRevision": true,
-    "freshContextPerRun": true,
-    "randomizedArmOrder": true,
+    "uniqueContextIdPerRun": true,
+    "uniqueArmOrderPerTask": true,
     "fixedTimeoutAndBudget": true,
     "noFixMapChangesMidStudy": true,
     "rawTranscriptsRequired": true,
-    "taskSuccessRubricFrozen": true,
-    "tokenAccountingSourceRecorded": true,
-    "costRateCardRecorded": true,
+    "transcriptContentHashVerified": true,
+    "taskManifestFrozen": true,
+    "completeTaskArmCrossProduct": true,
+    "taskTextMatchesManifest": true,
+    "taskSuccessRubricIdRecorded": true,
+    "providerReportedTokenCountersOnly": true,
+    "priceSheetIdRecorded": true,
     "failuresRetained": true
   },
   "metrics": [
