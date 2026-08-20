@@ -1,0 +1,243 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-20T20:23:55.4435764+05:30",
+  "title": "Design System: FixMap",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Warm Paper",
+        "canonical": "#f7f4ec",
+        "tonalRamp": ["#0d1117", "#111821", "#161d26", "#405064", "#736e66", "#d9d3c6", "#eee9dc", "#fffdf8"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Navy Ink",
+        "canonical": "#0a213b",
+        "tonalRamp": ["#071523", "#071d35", "#0a213b", "#405064", "#656e79", "#aab5bf", "#c4ced6", "#edf3f7"]
+      },
+      "navy": {
+        "role": "secondary",
+        "displayName": "Evidence Navy",
+        "canonical": "#071d35",
+        "tonalRamp": ["#071523", "#071d35", "#0a213b", "#23394d", "#405064", "#74818c", "#aab5bf", "#edf3f7"]
+      },
+      "green": {
+        "role": "primary",
+        "displayName": "Repository Green",
+        "canonical": "#0a5a43",
+        "tonalRamp": ["#04261d", "#074433", "#0a5a43", "#2f805d", "#589774", "#75c99a", "#9bddb7", "#dff2e7"]
+      },
+      "mint": {
+        "role": "tertiary",
+        "displayName": "Signal Mint",
+        "canonical": "#75c99a",
+        "tonalRamp": ["#074433", "#0a5a43", "#2f805d", "#589774", "#75c99a", "#9bddb7", "#dff2e7", "#f0f3e8"]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "#d9d3c6",
+        "tonalRamp": ["#161d26", "#394651", "#656e79", "#736e66", "#aab5bf", "#d9d3c6", "#eee9dc", "#fffdf8"]
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Review Amber",
+        "canonical": "#9b521b",
+        "tonalRamp": ["#2f1708", "#5b2d0d", "#794014", "#9b521b", "#bd7138", "#db9562", "#ffc184", "#ffe8d1"]
+      },
+      "dark-paper": {
+        "role": "neutral",
+        "displayName": "Night Paper",
+        "canonical": "#0d1117",
+        "tonalRamp": ["#071523", "#0d1117", "#111821", "#161d26", "#394651", "#74818c", "#c4ced6", "#edf3f7"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Plain-language homepage and subpage statements."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section claims and featured use-case headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Explanations and supporting prose."
+      },
+      "label": {
+        "displayName": "Evidence Label",
+        "purpose": "Compact capability, step, and proof labels."
+      },
+      "technical": {
+        "displayName": "Technical Evidence",
+        "purpose": "Paths, commands, ranks, and report metadata."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ambient-panel",
+        "value": "0 14px 38px rgba(10, 33, 59, 0.08)",
+        "purpose": "Dropdowns and established raised containers."
+      },
+      {
+        "name": "live-report",
+        "value": "0 18px 50px rgba(10, 33, 59, 0.08)",
+        "purpose": "The homepage interactive sample report only."
+      },
+      {
+        "name": "dark-ambient-panel",
+        "value": "0 20px 55px rgba(0, 0, 0, 0.36)",
+        "purpose": "Theme-equivalent lift on dark surfaces."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-standard",
+        "value": "180ms ease",
+        "purpose": "Color and border changes on buttons, links, and compact controls."
+      },
+      {
+        "name": "progress-reveal",
+        "value": "450ms cubic-bezier(0.2, 0.75, 0.25, 1)",
+        "purpose": "A short directional reveal for report progress only."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0.01ms",
+        "purpose": "Near-instant fallback for animations and transitions when reduced motion is requested."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone",
+        "value": "620px"
+      },
+      {
+        "name": "compact-editorial",
+        "value": "820px"
+      },
+      {
+        "name": "mobile-navigation",
+        "value": "900px"
+      },
+      {
+        "name": "stacked-feature",
+        "value": "1120px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single strongest action in a section.",
+      "html": "<button class=\"ds-btn-primary\">Try the sample</button>",
+      "css": ".ds-btn-primary { min-height: 44px; padding: 0 18px; border: 1px solid transparent; border-radius: 6px; background: var(--green); color: var(--paper-light); font: 620 14px/1 var(--font-body), Arial, sans-serif; cursor: pointer; transition: background 180ms ease, border-color 180ms ease; } .ds-btn-primary:hover { background: var(--green-dark); } .ds-btn-primary:active { background: var(--ink); } .ds-btn-primary:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A bounded alternative action that remains visually subordinate.",
+      "html": "<button class=\"ds-btn-secondary\">Use it on my project</button>",
+      "css": ".ds-btn-secondary { min-height: 44px; padding: 0 18px; border: 1px solid var(--ink); border-radius: 6px; background: transparent; color: var(--ink); font: 620 14px/1 var(--font-body), Arial, sans-serif; cursor: pointer; transition: background 180ms ease, color 180ms ease; } .ds-btn-secondary:hover, .ds-btn-secondary:active { background: var(--ink); color: var(--paper-light); } .ds-btn-secondary:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }"
+    },
+    {
+      "name": "Task Input",
+      "kind": "input",
+      "refersTo": "task-input",
+      "description": "A readable task-description field for the interactive report.",
+      "html": "<label class=\"ds-task-field\"><span>Describe the problem</span><textarea rows=\"3\">TOKEN_TTL_MINUTES is ignored.</textarea><small>Change the text, then run FixMap.</small></label>",
+      "css": ".ds-task-field { display: grid; gap: 6px; color: var(--ink-soft); font: 680 11px/1.4 var(--font-body), Arial, sans-serif; } .ds-task-field textarea { min-height: 82px; padding: 11px 12px; resize: vertical; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); color: var(--ink); font: 600 16px/1.38 var(--font-body), Arial, sans-serif; } .ds-task-field small { color: var(--ink-faint); font-size: 10.5px; font-weight: 400; } .ds-task-field textarea:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; border-color: var(--green); }"
+    },
+    {
+      "name": "Preset Chip",
+      "kind": "chip",
+      "refersTo": "preset-chip",
+      "description": "A compact example-task selector with an explicit pressed state.",
+      "html": "<button class=\"ds-preset-chip\" aria-pressed=\"true\">Password reset</button>",
+      "css": ".ds-preset-chip { min-height: 31px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 5px; background: transparent; color: var(--ink-soft); font: 620 10.5px/1.3 var(--font-body), Arial, sans-serif; cursor: pointer; } .ds-preset-chip:hover, .ds-preset-chip[aria-pressed=\"true\"] { border-color: var(--green); background: var(--mint-soft); color: var(--green-dark); } .ds-preset-chip:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }"
+    },
+    {
+      "name": "Primary Navigation",
+      "kind": "nav",
+      "description": "Compact text navigation with green interaction states.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Primary navigation\"><a href=\"#\">Product</a><a href=\"#\" aria-current=\"page\">Use cases</a><a href=\"#\">Evidence</a></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 26px; color: var(--ink); font: 560 13px/1.4 var(--font-body), Arial, sans-serif; } .ds-nav a { color: inherit; text-decoration: none; transition: color 180ms ease; } .ds-nav a:hover, .ds-nav a[aria-current=\"page\"] { color: var(--green); } .ds-nav a:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }"
+    },
+    {
+      "name": "Live Report",
+      "kind": "custom",
+      "description": "The signature task-to-evidence product preview.",
+      "html": "<section class=\"ds-live-report\"><header>Try FixMap on a sample project</header><div><span>3. FIXMAP SHOWS</span><strong>Where to start</strong><dl><div><dt>File to check first</dt><dd><code>src/auth/reset.ts</code><small>Defines the task identifier.</small></dd></div><div><dt>Test to run</dt><dd><code>npm test -- reset</code></dd></div></dl></div><footer>Nothing you type is uploaded.</footer></section>",
+      "css": ".ds-live-report { overflow: hidden; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--paper-light); color: var(--ink); box-shadow: 0 18px 50px rgba(10, 33, 59, 0.08); font-family: var(--font-body), Arial, sans-serif; } .ds-live-report header, .ds-live-report footer { padding: 12px 16px; background: var(--paper-deep); color: var(--ink-faint); font-size: 11px; } .ds-live-report > div { padding: 24px 26px; } .ds-live-report > div > span { color: var(--green-dark); font: 650 10px/1.3 var(--font-mono), monospace; letter-spacing: 0.08em; } .ds-live-report strong { display: block; margin-top: 4px; font-size: 18px; } .ds-live-report dl { margin: 18px 0 0; border-top: 1px solid var(--line); } .ds-live-report dl > div { padding: 15px 0; display: grid; grid-template-columns: 124px 1fr; gap: 16px; border-bottom: 1px solid var(--line); } .ds-live-report dt { color: var(--green-dark); font-size: 12px; font-weight: 720; } .ds-live-report dd { margin: 0; } .ds-live-report code { color: var(--ink); font: 680 12.5px/1.4 var(--font-mono), monospace; } .ds-live-report small { display: block; margin-top: 3px; color: var(--ink-faint); font-size: 10.5px; } .ds-live-report:focus-within { outline: 3px solid var(--focus-ring); outline-offset: 3px; }"
+    },
+    {
+      "name": "Use-Case Output Panel",
+      "kind": "custom",
+      "description": "A dark proof panel for genuine sample output.",
+      "html": "<section class=\"ds-use-case-output\"><p>Real output from the sample project</p><dl><div><dt>File to check first</dt><dd><code>src/auth/reset.ts</code></dd></div><div><dt>Test to run</dt><dd><code>npm test -- reset</code></dd></div></dl><small>This is genuine FixMap output.</small></section>",
+      "css": ".ds-use-case-output { padding: 28px 30px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--navy); color: var(--on-dark); font-family: var(--font-body), Arial, sans-serif; } .ds-use-case-output > p { margin: 0 0 18px; color: var(--mint); font-size: 13px; font-weight: 700; } .ds-use-case-output dl { margin: 0; border-top: 1px solid rgba(255, 255, 255, 0.2); } .ds-use-case-output dl > div { padding: 14px 0; display: grid; grid-template-columns: 180px 1fr; gap: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.15); } .ds-use-case-output dt { color: var(--mint); font-size: 12px; font-weight: 680; } .ds-use-case-output dd { margin: 0; } .ds-use-case-output code { color: var(--on-dark); font: 600 13px/1.45 var(--font-mono), monospace; } .ds-use-case-output small { display: block; margin-top: 17px; color: #adbac5; font-size: 11px; line-height: 1.5; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Evidence Ledger",
+    "overview": "FixMap feels like a clear technical record, not an abstract AI promise. Warm paper surfaces, dark navy proof bands, disciplined rules, and compact report artifacts make the product approachable while keeping its repository-grounded character visible.\n\nThe visual system is restrained, legible, and evidence-first. Large plain-language headings establish the story; genuine files, tests, commands, and uncertainty appear in denser mono-set structures. Decoration stays subordinate to comprehension, and every expressive treatment should strengthen trust in what FixMap can actually show.",
+    "keyCharacteristics": [
+      "Warm paper foundation with a navy-and-mint identity.",
+      "Editorial hierarchy paired with compact technical evidence.",
+      "Rules and tonal bands organize content more often than floating cards.",
+      "Real product output is the signature visual proof.",
+      "Light and dark themes preserve the same semantic roles and contrast hierarchy."
+    ],
+    "rules": [
+      {
+        "name": "The Proof Band Rule",
+        "body": "Use navy as a deliberate evidence surface, not as a general decorative background.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mint Signal Rule",
+        "body": "Mint marks confirmed structure, progress, or action; it does not become a broad page wash.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two-Voice Rule",
+        "body": "Use Geist for the explanation and Geist Mono for the evidence; do not set long explanatory paragraphs in mono.",
+        "section": "typography"
+      },
+      {
+        "name": "The Explanation-Then-Evidence Rule",
+        "body": "Lead with the plain-language claim, then place the denser report or proof beside it on wide screens and immediately after it on narrow screens.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "A new section begins with rules, spacing, and tonal contrast; add shadow only when the surface is interactive, transient, or meaningfully raised.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Bounded Utility Rule",
+        "body": "Rounded shapes identify controls and discrete evidence surfaces; editorial rows remain mostly open and are separated by rules.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do explain the product in plain Geist copy before introducing compact mono-set evidence.",
+      "Do use genuine paths, tests, commands, and uncertainty as the primary visual proof.",
+      "Do use ruled editorial lists for repeated workflows and use cases.",
+      "Do preserve visible focus, reduced-motion behavior, semantic headings, and a no-overflow layout at a 390px viewport.",
+      "Do keep light and dark themes semantically aligned: paper, ink, green action, mint signal, and structural rules."
+    ],
+    "donts": [
+      "Don't turn every section into a floating card or add shadow to static editorial content.",
+      "Don't use navy or mint as unbounded decoration; both colors carry specific proof and signal roles.",
+      "Don't present unmeasured outcomes, invented customers, or generic AI imagery as product evidence.",
+      "Don't let technical vocabulary or mono typography precede the plain-language explanation on first-contact surfaces.",
+      "Don't replace honest empty or uncertain states with fabricated confident output."
+    ]
+  }
+}

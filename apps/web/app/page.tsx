@@ -12,15 +12,15 @@ import { InteractiveMapStage } from "./_components/interactive-map-stage";
 import { repoUrl, siteStats } from "./_lib/site-data";
 
 const outcomes = [
-  { number: "01", name: "Files to inspect first", detail: "See the source files most connected to the task, with a plain reason for every suggestion.", href: "/product#plan" },
-  { number: "02", name: "Tests and checks to run", detail: "Find the nearest tests and package commands that can prove the change works.", href: "/product#tests" },
-  { number: "03", name: "Risks worth reviewing", detail: "Spot sensitive areas and nearby files before a focused edit becomes an unexpected regression.", href: "/product#risks" }
+  { number: "01", name: "Files to check first", detail: "See which files best match the problem and why FixMap picked them.", href: "/product#plan" },
+  { number: "02", name: "Tests to run", detail: "See the closest tests and the commands that run them.", href: "/product#tests" },
+  { number: "03", name: "Other code to review", detail: "See nearby code and sensitive areas that may need a careful look.", href: "/product#risks" }
 ];
 
 const surfaces = [
-  { icon: Robot, name: "Coding agent", detail: "Add /fixmap to Claude Code, Cursor, GitHub Copilot, or another supported agent.", href: "/get-started#agent" },
-  { icon: Laptop, name: "Terminal", detail: "Run FixMap locally with one command and no account or API key.", href: "/get-started#terminal" },
-  { icon: GithubLogo, name: "Pull requests", detail: "Post a FixMap report automatically whenever a pull request changes.", href: "/get-started#pull-requests" }
+  { icon: Robot, name: "Inside your AI coding tool", detail: "Type /fixmap in Claude Code, Cursor, GitHub Copilot, or another supported tool.", href: "/get-started#agent" },
+  { icon: Laptop, name: "In your terminal", detail: "Run one command on your computer. No account or API key is needed.", href: "/get-started#terminal" },
+  { icon: GithubLogo, name: "On pull requests", detail: "Add a FixMap report whenever a pull request changes.", href: "/get-started#pull-requests" }
 ];
 
 const heldoutUnmentioned = siteStats.heldout.cohorts.unmentioned;
@@ -32,31 +32,29 @@ export default function HomePage() {
     <main className="pro-home">
       <section className="pro-hero page-shell">
         <div className="pro-hero-copy">
-          <p className="eyebrow">Repository context for coding agents · FixMap v{siteStats.version}</p>
-          <h1>Give your coding agent a map before it edits.</h1>
+          <h1>FixMap tells AI coding tools which files to check first.</h1>
           <p className="pro-hero-lede">
-            Give FixMap a coding task and a repository. It returns focused files to inspect,
-            relevant tests and checks, and nearby impact or risks—before the agent starts changing code.
+            You describe what is broken. FixMap checks the project and gives Codex, Claude Code,
+            or Cursor a short list: files to open, tests to run, and other code to review.
           </p>
           <div className="button-row">
-            <Link className="button primary" href="/demo">Try a real example <ArrowRight size={17} weight="bold" aria-hidden /></Link>
-            <Link className="button secondary" href="/get-started">Install for your agent</Link>
+            <Link className="button primary" href="/demo">Try it with a sample project <ArrowRight size={17} weight="bold" aria-hidden /></Link>
+            <Link className="button secondary" href="/get-started">Use it on my project</Link>
           </div>
           <div className="pro-trust-line" role="group" aria-label="FixMap trust facts">
-            <span><LockKey size={16} aria-hidden /> Local-first</span>
+            <span><LockKey size={16} aria-hidden /> Runs on your computer</span>
             <span><CheckCircle size={16} aria-hidden /> No API key</span>
-            <span><GithubLogo size={16} aria-hidden /> MIT licensed</span>
+            <span><GithubLogo size={16} aria-hidden /> Free and open source</span>
           </div>
-          <a className="pro-overview-link" href="#overview">Prefer a walkthrough? Watch the 32-second overview.</a>
+          <a className="pro-overview-link" href="#overview">Want to see it once? Watch the 31-second video.</a>
         </div>
         <InteractiveMapStage />
       </section>
 
       <section className="pro-workflow page-shell">
         <div className="pro-section-heading">
-          <p className="eyebrow">One task. Three useful answers.</p>
-          <h2>Know what to open, run, and review.</h2>
-          <p>FixMap narrows the first investigation without pretending it already knows the fix.</p>
+          <h2>FixMap makes a simple starting list.</h2>
+          <p>It does not write the fix. It helps the AI tool know where to look first.</p>
         </div>
         <div className="pro-workflow-list">
           {outcomes.map((item) => (
@@ -73,26 +71,25 @@ export default function HomePage() {
       <section className="pro-proof">
         <div className="page-shell pro-proof-inner">
           <div>
-            <p className="eyebrow">Evidence, with boundaries</p>
-            <h2>What FixMap has—and has not—proven.</h2>
-            <p>Repository retrieval is measured. Agent efficiency is not. The site keeps those claims separate.</p>
-            <Link className="text-link" href="/evidence">See every benchmark case <ArrowRight size={17} weight="bold" aria-hidden /></Link>
+            <h2>What we know. What we do not know yet.</h2>
+            <p>We tested whether FixMap finds the right files. We have not proved that coding agents finish faster or use fewer tokens.</p>
+            <Link className="text-link" href="/evidence">See every test case <ArrowRight size={17} weight="bold" aria-hidden /></Link>
           </div>
           <div className="pro-proof-boundaries">
             <article>
-              <span>Measured</span>
-              <strong>{count(heldoutUnmentioned.top3HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases} held-out tasks surfaced the fixing file in the top 3.</strong>
-              <p>BM25 over the same code corpus tied Top-3 and reached {count(heldoutBaseline.bm25.top5HitRate, heldoutBaseline.bm25.cases)}/{heldoutBaseline.bm25.cases} at Top-5 versus {count(heldoutBaseline.fixmap.top5HitRate, heldoutBaseline.fixmap.cases)}/{heldoutBaseline.fixmap.cases} for FixMap.</p>
+              <span>Tested</span>
+              <strong>{count(heldoutUnmentioned.top3HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases} held-out tasks put the fixing file in the first 3 results.</strong>
+              <p>A simpler BM25 search tied FixMap in the Top-3 test. At Top-5, BM25 found {count(heldoutBaseline.bm25.top5HitRate, heldoutBaseline.bm25.cases)}/{heldoutBaseline.bm25.cases}; FixMap found {count(heldoutBaseline.fixmap.top5HitRate, heldoutBaseline.fixmap.cases)}/{heldoutBaseline.fixmap.cases}.</p>
             </article>
             <article>
-              <span>Mechanism</span>
-              <strong>FixMap ranks files, routes checks, and maps likely impact.</strong>
-              <p>Its evidence comes from repository paths, symbols, imports, related tests, and bounded Git co-change history.</p>
+              <span>How it works</span>
+              <strong>FixMap looks for clues in the project, then builds the list.</strong>
+              <p>It uses file names, code words, imports, nearby tests, and a limited amount of Git history.</p>
             </article>
             <article>
-              <span>Not yet measured</span>
-              <strong>Token, cost, time, tool-call, and task-success improvements.</strong>
-              <p>A controlled agent-study protocol exists, but there are no completed runs to support those outcome claims.</p>
+              <span>Not tested yet</span>
+              <strong>Whether FixMap saves time, tokens, money, or tool calls—or improves task success.</strong>
+              <p>The study plan exists, but no completed runs support those claims yet.</p>
             </article>
           </div>
         </div>
@@ -100,8 +97,7 @@ export default function HomePage() {
 
       <section className="pro-surfaces page-shell">
         <div className="pro-section-heading">
-          <p className="eyebrow">Choose your setup</p>
-          <h2>Use FixMap where your work already starts.</h2>
+          <h2>Pick the easiest way to use FixMap.</h2>
         </div>
         <div className="pro-surface-grid">
           {surfaces.map(({ icon: Icon, ...surface }) => (
@@ -117,12 +113,11 @@ export default function HomePage() {
 
       <section className="pro-overview page-shell" id="overview" aria-labelledby="pro-overview-title">
         <div className="pro-section-heading">
-          <p className="eyebrow">Optional overview</p>
-          <h2 id="pro-overview-title">See FixMap in a full workflow.</h2>
-          <p>A short walkthrough from task to focused repository context.</p>
+          <h2 id="pro-overview-title">Watch one full example.</h2>
+          <p>See a coding problem turn into a short list of files, tests, and related code.</p>
         </div>
         <details>
-          <summary>Watch the 32-second overview <ArrowRight size={17} weight="bold" aria-hidden /></summary>
+          <summary>Play the 31-second video <ArrowRight size={17} weight="bold" aria-hidden /></summary>
           <video controls playsInline preload="metadata" poster="/fixmap-launch-poster.jpg" aria-label="FixMap product overview film">
             <source src="/fixmap-launch.mp4" type="video/mp4" />
             <a href="/fixmap-launch.mp4">Download the FixMap product overview film.</a>
@@ -131,7 +126,7 @@ export default function HomePage() {
       </section>
 
       <section className="pro-final page-shell">
-        <div><Path size={22} aria-hidden /><strong>Ready to give the next change a better start?</strong><span>Try it once or install it for your coding agent.</span></div>
+        <div><Path size={22} aria-hidden /><strong>Want your AI coding tool to know where to start?</strong><span>Try the sample or use FixMap on your project.</span></div>
         <div className="button-row">
           <Link className="button primary" href="/get-started">Get started <ArrowRight size={17} weight="bold" aria-hidden /></Link>
           <a className="text-link" href={repoUrl}><GithubLogo size={17} weight="fill" aria-hidden /> View source</a>

@@ -3,32 +3,10 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { buildPathExcluder, buildReportFromRepo, compareReports, explainFile, quoteCliValue, verifyPlan } from "@aryam/fixmap-core/browser";
 import type { CliShell } from "@aryam/fixmap-core/browser";
+import { demoPresets } from "./demo-presets";
 import { sampleRepo, sampleRepoWithChanges, samplePaths } from "./sample-repo";
 
 type Stage = "plan" | "explain" | "compare" | "verify";
-
-const presets = [
-  {
-    label: "Password reset emails never arrive",
-    note: "Start here. The task describes a symptom without naming a file or code symbol, so FixMap has to find the strongest repository signals."
-  },
-  {
-    label: "sendMail throws and password reset emails never arrive",
-    note: "The same problem now names sendMail. Watch the email transport move to the top because that file defines the symbol."
-  },
-  {
-    label: "TOKEN_TTL_MINUTES is ignored, reset links expire immediately",
-    note: "A named constant gives FixMap a strong anchor. The file that defines it moves to the top."
-  },
-  {
-    label: "Invoices are created twice for the same customer",
-    note: "A different subsystem, no overlap with the auth files, no drift into them."
-  },
-  {
-    label: "make it better",
-    note: "This task is too vague to ground. FixMap returns no suggestions instead of presenting a plausible guess as evidence."
-  }
-];
 
 const scenarios = [
   { label: "Edited the build output", changed: ["dist/auth/reset-password.js"] },
@@ -55,7 +33,7 @@ function serverShell(): CliShell {
 }
 
 export function Demo() {
-  const [task, setTask] = useState(presets[0]!.label);
+  const [task, setTask] = useState<string>(demoPresets[0].label);
   const [stage, setStage] = useState<Stage>("plan");
   const [explainTarget, setExplainTarget] = useState("dist/auth/reset-password.js");
   const [scenario, setScenario] = useState(0);
@@ -68,8 +46,8 @@ export function Demo() {
   // first preset. `settled` tracks the last wording that stopped changing, and only a genuine
   // edit promotes it to the baseline, so the delta survives instead of collapsing to empty as
   // soon as typing stops. The ref is read inside the effect, never during render.
-  const [baselineTask, setBaselineTask] = useState(presets[0]!.label);
-  const settled = useRef(presets[0]!.label);
+  const [baselineTask, setBaselineTask] = useState<string>(demoPresets[0].label);
+  const settled = useRef<string>(demoPresets[0].label);
   useEffect(() => {
     const timer = setTimeout(() => {
       if (task !== settled.current) {
@@ -104,7 +82,7 @@ export function Demo() {
   );
   const verification = useMemo(() => verifyPlan(report, verifyRepo), [report, verifyRepo]);
 
-  const activePreset = presets.find((preset) => preset.label === task);
+  const activePreset = demoPresets.find((preset) => preset.label === task);
   // Every control on screen has to appear here, or the command someone copies produces a
   // different ranking from the one they are looking at — which is the one thing a live demo
   // must not do.
@@ -150,7 +128,7 @@ export function Demo() {
           <label htmlFor="task">Describe the software problem</label>
           <textarea id="task" value={task} onChange={(event) => setTask(event.target.value)} rows={3} />
           <div className="preset-list" role="group" aria-label="Example software problems">
-            {presets.map((preset) => (
+            {demoPresets.map((preset) => (
               <button
                 key={preset.label}
                 type="button"
