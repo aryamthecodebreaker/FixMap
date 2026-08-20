@@ -58,7 +58,7 @@ const releases: Release[] = [
           "fixmap benchmark compares BM25, FixMap, and Impact Graph on identical historical parent snapshots without executing repository code.",
           "fixmap watch streams working-tree drift findings and recalculated impact as an agent edits, with Markdown or JSON Lines output.",
           "Compact agent output provides a stable edit, inspect, test, risk, avoid, and uncertainty handoff.",
-          "A 32-second motion-first comparison shows two agents handling the same issue, with an original no-vocals soundtrack and no unsupported savings claim."
+          "A 32-second motion-first comparison shows two agents handling the same issue, with an original no-vocals soundtrack and no claim of measured agent efficiency."
         ]
       },
       {
@@ -109,7 +109,7 @@ const releases: Release[] = [
         label: "Evidence",
         items: [
           "The release ledger maps 126 GitHub issues plus the complete attached 30-finding review to fixes and verification.",
-          "External, held-out, adversarial, baseline, savings, package, generated-output, and 1,000-file scan gates are recorded and reproducible."
+          "External, held-out, adversarial, baseline, context-size proxy, scan-performance, package, generated-output, and 1,000-file scan gates are recorded and reproducible."
         ]
       }
     ]

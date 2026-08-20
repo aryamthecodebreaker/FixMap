@@ -1,5 +1,5 @@
 {
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "status": "protocol-only",
   "suite": "navigation-focused pinned tasks",
   "arms": [
@@ -16,9 +16,15 @@
     "randomizedArmOrder": true,
     "fixedTimeoutAndBudget": true,
     "noFixMapChangesMidStudy": true,
-    "rawTranscriptsRequired": true
+    "rawTranscriptsRequired": true,
+    "taskSuccessRubricFrozen": true,
+    "tokenAccountingSourceRecorded": true,
+    "costRateCardRecorded": true,
+    "failuresRetained": true
   },
   "metrics": [
+    "runStatus",
+    "failureReason",
     "taskResolved",
     "correctFileInFirstThreeOpened",
     "toolCallsToFirstRelevantFile",
@@ -26,7 +32,16 @@
     "incorrectFilesEdited",
     "totalToolCalls",
     "inputTokens",
+    "cachedInputTokens",
     "outputTokens",
+    "reasoningTokens",
+    "totalTokens",
+    "modelCostUsd",
+    "turns",
+    "repositorySearchCalls",
+    "filesRead",
+    "sourceBytesRead",
+    "wallClockMs",
     "testsSelectedCorrectly",
     "finalPatchAccepted",
     "fixmapPlanUsed",
