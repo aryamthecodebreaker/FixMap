@@ -75,6 +75,8 @@ Historical CI evidence is normalized by `validateTestHistoryBundle`, classified 
 
 Editor integrations share `createEditorProtocolSnapshot` and `handleEditorProtocolRequest` rather than reinterpreting reports independently. The v1 snapshot is a deep-frozen, content-fingerprinted projection of one explicit `reportVersion: 1`; local-only capabilities, plan, file, and annotation methods return stable errors and repeat the snapshot fingerprint. File views join context, impact, tests, annotations, authored decisions, policy, and clearly labeled repository risks without source upload or mutation.
 
+`answerFixMapQuestion` provides a deterministic no-model path for structural plan, impact, test, risk, and authored-rationale questions using a bounded `buildAskEvidence` pack. An optional provider sees report evidence rather than source content, must cite only supplied IDs and expose unknowns, and falls back safely on invalid or failed output. Remote providers require explicit consent before receiving evidence; provider locality remains a caller-declared claim, and model text is never marked independently verified.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.

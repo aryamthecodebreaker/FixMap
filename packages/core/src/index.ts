@@ -56,6 +56,8 @@ export { rankIncidentSuspects } from "./incident.js";
 export type { IncidentRegressionInput, IncidentRegressionResult } from "./incident.js";
 export { createEditorProtocolSnapshot, handleEditorProtocolRequest } from "./editor-protocol.js";
 export type { EditorProtocolMethod, EditorProtocolRequest, EditorProtocolResponse, EditorProtocolSnapshot } from "./editor-protocol.js";
+export { answerFixMapQuestion, buildAskEvidence } from "./ask.js";
+export type { AskEvidence, AskModelProvider, FixMapAnswer } from "./ask.js";
 export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
 export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
 export { createSupplyChainEvidenceProvider, validateSupplyChainEvidenceBundle } from "./supply-chain.js";
