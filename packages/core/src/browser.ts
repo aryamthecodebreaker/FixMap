@@ -63,6 +63,23 @@ export type {
 export { tokenizePath, tokenizeText } from "./signals.js";
 export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
 export { validateFixMapReport } from "./validate.js";
+export {
+  addAnnotation,
+  annotationsForPath,
+  assessAnnotations,
+  createAnnotation,
+  emptyAnnotationStore,
+  removeAnnotation,
+  validateAnnotationStore
+} from "./annotations.js";
+export type {
+  AnnotationAssessment,
+  AnnotationRename,
+  AnnotationScope,
+  AnnotationStore,
+  CreateAnnotationInput,
+  FixMapAnnotation
+} from "./annotations.js";
 export { compareContractInventories, contractGraphNodes, inventoryContracts, renderContractComparisonMarkdown } from "./contracts.js";
 export type {
   ContractChange,

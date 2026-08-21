@@ -81,6 +81,13 @@ Continuously compare agent edits with a saved plan and recalculate impact:
 fixmap watch --report plan.json --repo . --include-untracked
 ```
 
+Attach durable, reviewable knowledge to a file (symbol, service, and contract scopes are also supported):
+
+```bash
+fixmap annotate src/auth/token.ts --note "Do not refactor; external contract" --owner platform-team
+fixmap annotate --list
+```
+
 Public GitHub issue, pull request, and repository URL modes are available in the CLI and MCP server for issue-only analysis. FixMap fetches task context anonymously, shallow-clones the default branch into an isolated temporary directory, disables credentials and repository execution surfaces, and removes the checkout before returning. Clone locally to use `--diff`, `--base`, `--head`, or working-tree inputs.
 
 For long task text, use `--issue-file task.md` or pipe text to `--issue -`. A leading `@` in `--issue` is ordinary task text; only the explicit file flag reads from disk. A one-off `npx -y @aryam/fixmap@latest ...` run is also available, but npm may choose an existing project-local FixMap first. Run `fixmap doctor`, treat its printed running version as authoritative, and update or remove a stale install. For a reproducible clean test, install the exact version into an isolated npm prefix and invoke that prefix's `fixmap` shim directly; the repository README includes complete PowerShell and POSIX commands.
@@ -95,6 +102,7 @@ For long task text, use `--issue-file task.md` or pipe text to `--issue -`. A le
 - **Verify** — compare a saved plan with the completed diff or working tree and recalculate impact around the files actually changed; errors fail by default and `--fail-on warning` provides an opt-in strict CI gate without pretending FixMap ran tests or proved correctness.
 - **Repository benchmark** — use `fixmap benchmark --repo . --last 50` to compare BM25, FixMap, and Impact Graph on identical parent-snapshot corpora. Primary hits use maintained source rather than generated twins, and repository code is never executed.
 - **Watch** — use `fixmap watch --report plan.json --repo .` to emit drift findings and a recalculated Impact Graph whenever the working tree changes. JSON format is newline-delimited for agent consumers.
+- **Annotations** — use `fixmap annotate` to maintain atomic `.fixmap/annotations.json` records for files, symbols, services, and contracts. Relevant notes, expiry, and rename/missing-target state surface in plans with the exact store fingerprint.
 - **Validate** — run `fixmap validate <report.json>` to check report compatibility without writing custom JavaScript.
 - **Focus controls** — cap output with `--limit`, repeat `--exclude`, or use ordered `.fixmapignore` patterns with negation. Pasted absolute paths inside the repository are normalized, and unmatched patterns produce a warning.
 - **Live changes** — `--working-tree` maps staged and unstaged tracked edits; `--include-untracked` opts new files into the changed-file set.
@@ -141,6 +149,7 @@ fixmap graph           Export the Impact Graph as Mermaid or JSON
 fixmap verify          Compare a saved plan with the diff that followed
 fixmap benchmark       Backtest BM25, FixMap, and Impact Graph on local Git history
 fixmap watch           Recheck working-tree drift and impact whenever edits change
+fixmap annotate        Add, list, or remove reviewable repository knowledge
 fixmap doctor          Report the resolved version and any shadowing install
 fixmap validate        Validate a saved FixMap JSON report
 fixmap features        List every FixMap capability in Markdown or JSON

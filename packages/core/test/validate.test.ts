@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateFixMapReport } from "../src/validate.js";
+import { createAnnotation } from "../src/annotations.js";
 
 const envelope = {
   reportVersion: 1,
@@ -29,6 +30,28 @@ describe("validateFixMapReport", () => {
       risks: [{ area: "authentication" }]
     };
     expect(validateFixMapReport(legacy, "report").success).toBe(true);
+  });
+
+  it("validates additive annotation assessments", () => {
+    const annotation = createAnnotation({
+      scope: { kind: "file", path: "src/reset.ts" },
+      note: "Keep stable",
+      createdAt: "2026-08-21T10:00:00Z"
+    });
+    expect(validateFixMapReport({
+      ...envelope,
+      annotations: {
+        asOf: "2026-08-22T00:00:00Z",
+        sourcePath: ".fixmap/annotations.json",
+        sourceFingerprint: `worktree:${"a".repeat(64)}`,
+        entries: [{ annotation, status: "active", message: `Annotation ${annotation.id} is active.` }]
+      }
+    }, "report").success).toBe(true);
+    const invalid = validateFixMapReport({
+      ...envelope,
+      annotations: { asOf: "not-a-date", entries: [] }
+    }, "report");
+    expect(invalid.success).toBe(false);
   });
 
   it("requires all existing version 1 entry fields while leaving legacy entries compatible", () => {

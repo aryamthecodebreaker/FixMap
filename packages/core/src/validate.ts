@@ -1,4 +1,5 @@
 import type { FixMapReport } from "./types.js";
+import { validateAnnotationStore } from "./annotations.js";
 
 export type ValidatedFixMapReport =
   | { success: true; report: FixMapReport }
@@ -146,6 +147,30 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
 
   if (!isRepositoryRelativePathArray(record.changedFiles)) {
     return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
+  }
+
+  if (record.annotations !== undefined) {
+    const annotations = record.annotations;
+    if (!isRecord(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) ||
+      !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" ||
+      !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) ||
+      !Array.isArray(annotations.entries)) {
+      return { success: false, message: `${label} has an invalid annotations envelope.` };
+    }
+    const invalidAnnotation = annotations.entries.findIndex((assessment) => {
+      if (!isRecord(assessment) || !isRecord(assessment.annotation) || typeof assessment.message !== "string" ||
+        !["active", "expired", "missing-target", "renamed-target"].includes(String(assessment.status)) ||
+        (assessment.suggestedPath !== undefined && !isRepositoryRelativePath(assessment.suggestedPath))) return true;
+      try {
+        validateAnnotationStore({ annotationStoreVersion: 1, annotations: [assessment.annotation] });
+        return false;
+      } catch {
+        return true;
+      }
+    });
+    if (invalidAnnotation !== -1) {
+      return { success: false, message: `${label} has an invalid annotations entry at index ${invalidAnnotation}.` };
+    }
   }
 
   const diagnostics = record.diagnostics as unknown[];

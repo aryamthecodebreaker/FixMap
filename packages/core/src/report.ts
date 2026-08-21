@@ -14,6 +14,8 @@ import { DIAGNOSTIC_TERM_LIMIT, truncateForDiagnostic } from "./text.js";
 import { rankContextFilesHybrid } from "./semantic.js";
 import type { EmbeddingProvider, HybridRankingResult } from "./semantic.js";
 import type { FixMapReport, PackageScript, RankedFile, RepoFile, RepoMap, ReportRetrieval, RiskNote, ScanDiagnostic, TestRoute } from "./types.js";
+import { assessAnnotations, validateAnnotationStore } from "./annotations.js";
+import type { AnnotationAssessment, AnnotationRename } from "./annotations.js";
 
 const MAX_REPORTED_TERMS = 8;
 
@@ -27,6 +29,7 @@ export function buildReportFromRepo(
     issueText?: string | undefined;
     limit?: number | undefined;
     exclude?: PathExcluder | undefined;
+    annotationAsOf?: string | undefined;
   }
 ): FixMapReport {
   const grounding = analyzeTaskGrounding(repo, {
@@ -56,6 +59,7 @@ export async function buildHybridReportFromRepo(
     exclude?: PathExcluder | undefined;
     embeddingProvider: EmbeddingProvider;
     allowRemoteEmbeddings?: boolean;
+    annotationAsOf?: string | undefined;
   }
 ): Promise<FixMapReport> {
   const grounding = analyzeTaskGrounding(repo, { issueText: input.issueText, diffText: repo.diffText });
@@ -94,7 +98,7 @@ export async function buildHybridReportFromRepo(
 
 function assembleReport(
   repo: RepoMap,
-  input: { issueText?: string | undefined; exclude?: PathExcluder | undefined },
+  input: { issueText?: string | undefined; exclude?: PathExcluder | undefined; annotationAsOf?: string | undefined },
   grounding: TaskGrounding,
   contextFiles: RankedFile[],
   ranking: RankingShape,
@@ -106,6 +110,9 @@ function assembleReport(
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
   const impact = buildImpactMap(repo, contextPaths, testRoutes);
+  const annotations = input.annotationAsOf
+    ? buildReportAnnotations(repo, [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles], input.issueText ?? "", input.annotationAsOf)
+    : undefined;
 
   return {
     reportVersion: 1,
@@ -122,6 +129,7 @@ function assembleReport(
       ...findTaskDiagnostics(repo, grounding, ranking),
       ...findTaskPreprocessingDiagnostics(input.issueText ?? ""),
       ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude),
+      ...(annotations?.diagnostics ?? []),
       ...extraDiagnostics
     ],
     analysis: {
@@ -138,8 +146,88 @@ function assembleReport(
         testRoutes.some((route) => route.kind === "test" && route.relatedFiles.length > 0)
       )
     },
-    ...(retrieval ? { retrieval } : {})
+    ...(retrieval ? { retrieval } : {}),
+    ...(annotations && annotations.entries.length > 0
+      ? { annotations: {
+          asOf: input.annotationAsOf!,
+          sourcePath: ".fixmap/annotations.json",
+          sourceFingerprint: repo.files.find((file) => file.path === ".fixmap/annotations.json")!.contentFingerprint!,
+          entries: annotations.entries
+        } }
+      : {})
   };
+}
+
+function buildReportAnnotations(
+  repo: RepoMap,
+  relevantPaths: readonly string[],
+  issueText: string,
+  asOf: string
+): { entries: AnnotationAssessment[]; diagnostics: ScanDiagnostic[] } | undefined {
+  const source = repo.files.find((file) => file.path === ".fixmap/annotations.json");
+  if (!source) return undefined;
+  if (source.textSampleComplete === false || !source.contentFingerprint) {
+    return { entries: [], diagnostics: [{
+      code: "annotation-source-incomplete",
+      severity: "warning",
+      paths: [source.path],
+      message: ".fixmap/annotations.json exceeded the scanner content bound or could not be read; human-intent notes were not applied."
+    }] };
+  }
+  let assessments: AnnotationAssessment[];
+  try {
+    const store = validateAnnotationStore(JSON.parse(source.textSample) as unknown);
+    assessments = assessAnnotations(store, repo, { now: asOf, renames: diffRenames(repo.diffText) });
+  } catch (error) {
+    return { entries: [], diagnostics: [{
+      code: "annotation-store-invalid",
+      severity: "warning",
+      paths: [source.path],
+      message: `.fixmap/annotations.json was not applied: ${error instanceof Error ? error.message : String(error)}`
+    }] };
+  }
+  const paths = new Set(relevantPaths);
+  const lowerIssue = issueText.toLowerCase();
+  const entries = assessments.filter((assessment) => {
+    const scope = assessment.annotation.scope;
+    if (scope.kind === "file" || scope.kind === "symbol") return paths.has(scope.path);
+    if (scope.kind === "contract") return Boolean(scope.path && paths.has(scope.path)) || lowerIssue.includes(scope.name.toLowerCase());
+    return lowerIssue.includes(scope.name.toLowerCase());
+  });
+  const diagnostics: ScanDiagnostic[] = entries.flatMap((assessment): ScanDiagnostic[] => {
+    const paths = annotationPaths(assessment);
+    if (assessment.status === "expired") return [{
+      code: "annotation-expired",
+      severity: "info",
+      message: assessment.message,
+      ...(paths ? { paths } : {})
+    }];
+    if (assessment.status === "missing-target" || assessment.status === "renamed-target") return [{
+      code: "annotation-target-stale",
+      severity: "warning",
+      message: assessment.message,
+      ...(paths ? { paths } : {})
+    }];
+    return [];
+  });
+  return { entries, diagnostics };
+}
+
+function annotationPaths(assessment: AnnotationAssessment): string[] | undefined {
+  const scope = assessment.annotation.scope;
+  const path = scope.kind === "file" || scope.kind === "symbol" || scope.kind === "contract" ? scope.path : undefined;
+  return path ? [path] : undefined;
+}
+
+function diffRenames(diffText: string): AnnotationRename[] {
+  const lines = diffText.split(/\r?\n/);
+  const renames: AnnotationRename[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const from = lines[index]?.match(/^rename from (.+)$/)?.[1];
+    const to = lines[index + 1]?.match(/^rename to (.+)$/)?.[1];
+    if (from && to) renames.push({ from, to });
+  }
+  return renames;
 }
 
 function hybridConfidence(file: import("./semantic.js").HybridRankedFile): RankedFile["confidence"] {
@@ -672,6 +760,14 @@ export function renderMarkdownReport(report: FixMapReport): string {
     "## Risk Map",
     "",
     ...listOrEmpty(report.risks.map((risk) => `- **${risk.severity}** ${risk.area}: ${risk.reason}`)),
+    ...(report.annotations ? [
+      "",
+      "## Human Intent",
+      "",
+      ...listOrEmpty(report.annotations.entries.map((assessment) =>
+        `- **${assessment.status}** ${describeAnnotationScope(assessment)}: ${assessment.annotation.note}`
+      ))
+    ] : []),
     "",
     "## Changed Files",
     "",
@@ -733,6 +829,11 @@ export function renderAgentReport(report: FixMapReport): string {
     "RISK:",
     ...listOrEmpty(report.risks.map((risk) => `${risk.severity} ${risk.area}  # ${risk.reason}`)),
     "",
+    "INTENT:",
+    ...listOrEmpty((report.annotations?.entries ?? []).map((assessment) =>
+      `${assessment.status} ${describeAnnotationScope(assessment)}  # ${assessment.annotation.note}`
+    )),
+    "",
     "AVOID:",
     ...listOrEmpty(avoided),
     "",
@@ -740,6 +841,14 @@ export function renderAgentReport(report: FixMapReport): string {
     ...listOrEmpty(uncertainty)
   ];
   return `${lines.join("\n")}\n`;
+}
+
+function describeAnnotationScope(assessment: AnnotationAssessment): string {
+  const scope = assessment.annotation.scope;
+  if (scope.kind === "file") return markdownCode(scope.path);
+  if (scope.kind === "symbol") return `${markdownCode(scope.symbol)} in ${markdownCode(scope.path)}`;
+  if (scope.kind === "service") return `service ${markdownCode(scope.name)}`;
+  return `contract ${markdownCode(scope.name)}${scope.path ? ` in ${markdownCode(scope.path)}` : ""}`;
 }
 
 function listOrEmpty(lines: string[]): string[] {

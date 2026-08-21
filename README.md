@@ -58,6 +58,9 @@ fixmap plan --issue "password reset emails fail" --format json --output plan.jso
 
 # Optional local semantic recall alongside structural and BM25 evidence
 fixmap plan --issue "keep signed-in users active" --semantic-model C:\models\all-MiniLM-L6-v2
+
+# Attach durable tribal knowledge that relevant future plans will surface
+fixmap annotate src/auth/token.ts --note "Do not refactor; external contract" --owner platform-team
 ```
 
 The plan separates primary context from likely impact: imports, reverse dependents, routed tests, and repeated Git co-change relationships. Impact files are places to inspect, not assumed edits.
@@ -187,6 +190,7 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 - `buildWorkspaceMap` composes already-scanned Node, Python, and Maven repositories into one identity graph with package versions, submodule provenance, manifest/import evidence, and optional explicitly reviewed service/catalog/runtime identities and relationships.
 - Contract Guardian inventories OpenAPI, AsyncAPI, GraphQL, Protobuf, JSON Schema, and SQL migration surfaces, compares exact before/after fingerprints, labels compatible/breaking/unknown deltas, and fails closed when a source is incomplete or cannot be parsed safely.
 - Its public API also exposes Explain, Compare, and Verify builders and result types, so another tool can compose the same workflow without shelling out to the CLI.
+- `fixmap annotate` writes a versioned `.fixmap/annotations.json` with stable content identities, file/symbol/service/contract scopes, optional owner and expiry, and rename/missing-target checks. Relevant notes retain the store fingerprint in Markdown, JSON, and compact agent reports.
 - The `@aryam/fixmap-core/browser` entry runs the filesystem-free report, comparison, explanation, verification, workspace/identity-graph, and rendering logic in a browser bundle.
 
 ### Trust, compatibility, and evidence

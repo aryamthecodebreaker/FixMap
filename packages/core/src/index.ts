@@ -112,6 +112,23 @@ export type { ValidatedFixMapReport } from "./validate.js";
 export { findGatedTestDiagnostics } from "./test-gates.js";
 export { stripByteOrderMark } from "./text.js";
 export {
+  addAnnotation,
+  annotationsForPath,
+  assessAnnotations,
+  createAnnotation,
+  emptyAnnotationStore,
+  removeAnnotation,
+  validateAnnotationStore
+} from "./annotations.js";
+export type {
+  AnnotationAssessment,
+  AnnotationRename,
+  AnnotationScope,
+  AnnotationStore,
+  CreateAnnotationInput,
+  FixMapAnnotation
+} from "./annotations.js";
+export {
   compareContractInventories,
   contractGraphNodes,
   contractSourcesFromRepo,

@@ -103,6 +103,7 @@ Usage:
   fixmap context --issue "Fix login" --budget 10000
   fixmap graph --issue "Fix login" --format mermaid
   fixmap watch --report plan.json --repo .
+  fixmap annotate src/auth/token.ts --note "Do not refactor; external contract"
   fixmap features
   fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>]
   fixmap mcp [--repo <path>]
@@ -116,6 +117,7 @@ Commands:
   context             Package the highest-value source ranges within a token budget
   graph               Export the evidence-backed Impact Graph as Mermaid or JSON
   watch               Recheck working-tree drift and impact whenever edits change
+  annotate            Attach reviewable tribal knowledge to files, symbols, services, or contracts
   features            List every FixMap capability and its command
   setup               Install a discoverable /fixmap command for coding agents
   mcp                 Run FixMap as an MCP server over stdio for AI coding agents
@@ -206,6 +208,11 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     });
     await runMcpServer(defaultRepo);
     return 0;
+  }
+
+  if (args[0] === "annotate") {
+    const module = await import("./annotation-command.js");
+    return module.runAnnotateCommand(args.slice(1), { stdout, stderr });
   }
 
   if (args[0] === "features") {

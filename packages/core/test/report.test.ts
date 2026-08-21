@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildReportFromRepo, buildRiskNotes, buildTestRoutes, renderJsonReport, renderMarkdownReport } from "../src/report.js";
+import { buildReportFromRepo, buildRiskNotes, buildTestRoutes, renderAgentReport, renderJsonReport, renderMarkdownReport } from "../src/report.js";
+import { addAnnotation, createAnnotation, emptyAnnotationStore } from "../src/annotations.js";
 import type { FixMapReport, RepoMap } from "../src/types.js";
 
 describe("report rendering", () => {
@@ -71,6 +72,42 @@ describe("report rendering", () => {
 
     expect(report.reportVersion).toBe(1);
     expect(renderMarkdownReport(report)).toContain("  - `src/large.ts`");
+  });
+
+  it("surfaces relevant repository annotations in Markdown and agent reports", () => {
+    const annotation = createAnnotation({
+      scope: { kind: "file", path: "src/auth.ts" },
+      note: "Do not refactor; external identity contract.",
+      createdAt: "2026-08-21T10:00:00Z"
+    });
+    const annotationText = JSON.stringify(addAnnotation(emptyAnnotationStore(), annotation));
+    const repo: RepoMap = {
+      root: "/repo",
+      files: [
+        {
+          path: "src/auth.ts", extension: ".ts", sizeBytes: 40, isSource: true, isTest: false,
+          kind: "code", textSample: "export function authenticate() {}"
+        },
+        {
+          path: ".fixmap/annotations.json", extension: ".json", sizeBytes: annotationText.length,
+          contentFingerprint: `worktree:${"a".repeat(64)}`,
+          isSource: true, isTest: false, kind: "config", textSample: annotationText, textSampleComplete: true
+        }
+      ],
+      packageScripts: [], changedFiles: [], diffText: "", packageManager: "npm", diagnostics: []
+    };
+    const report = buildReportFromRepo(repo, {
+      issueText: "authenticate users",
+      annotationAsOf: "2026-08-22T00:00:00Z"
+    });
+    expect(report.annotations?.entries).toContainEqual(expect.objectContaining({
+      status: "active",
+      annotation: expect.objectContaining({ note: "Do not refactor; external identity contract." })
+    }));
+    expect(report.annotations?.sourceFingerprint).toBe(`worktree:${"a".repeat(64)}`);
+    expect(renderMarkdownReport(report)).toContain("## Human Intent");
+    expect(renderAgentReport(report)).toContain("INTENT:");
+    expect(renderAgentReport(report)).toContain("external identity contract");
   });
 
   it("routes nearby tests by path overlap and adds risk notes", () => {

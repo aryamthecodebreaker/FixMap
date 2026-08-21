@@ -1,3 +1,5 @@
+import type { AnnotationAssessment } from "./annotations.js";
+
 export type FixMapInput = {
   repoRoot: string;
   issueText?: string | undefined;
@@ -84,7 +86,11 @@ export type ScanDiagnostic = {
     | "semantic-remote-disallowed"
     | "semantic-provider-invalid"
     | "semantic-provider-failed"
-    | "semantic-candidates-truncated";
+    | "semantic-candidates-truncated"
+    | "annotation-store-invalid"
+    | "annotation-source-incomplete"
+    | "annotation-target-stale"
+    | "annotation-expired";
   message: string;
   severity: "info" | "warning" | "error";
   /**
@@ -253,6 +259,13 @@ export type FixMapReport = {
   analysis?: TaskAnalysis;
   /** Additive provenance for an explicitly requested hybrid ranking. */
   retrieval?: ReportRetrieval;
+  /** Reviewable repository-local human intent relevant to ranked/impacted paths. */
+  annotations?: {
+    asOf: string;
+    sourcePath: string;
+    sourceFingerprint: string;
+    entries: AnnotationAssessment[];
+  };
 };
 
 export type VerifyFinding = {

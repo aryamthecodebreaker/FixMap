@@ -27,6 +27,7 @@ export const FIXMAP_FEATURES = [
   { name: "Compact agent output", command: "--format agent", detail: "Emit EDIT CANDIDATE, INSPECT, TEST, RISK, AVOID, and UNCERTAINTY sections for a small context window." },
   { name: "Repository benchmark", command: "fixmap benchmark --repo . --last 50", detail: "Backtest BM25, FixMap, and Impact Graph on historical parent snapshots with history cut off before each target change." },
   { name: "Watch", command: "fixmap watch --report plan.json --repo .", detail: "Continuously verify working-tree drift and recalculate impact as an agent edits." },
+  { name: "Annotations", command: "fixmap annotate <file> --note <text>", detail: "Attach reviewable file, symbol, service, or contract knowledge with optional ownership and expiry; relevant active or stale notes surface in plans." },
   { name: "Test routing", command: "fixmap plan", detail: "Detect package, workspace, and language test commands, related tests, and skipped or gated suites." },
   { name: "Risk and diagnostics", command: "fixmap plan", detail: "Report bounded risk areas, grounding quality, unread content, scan limits, package-manager conflicts, and unresolved diffs." },
   { name: "GitHub Action", command: "uses: aryamthecodebreaker/FixMap@<version>", detail: "Plan or verify pull requests with bounded summaries, outputs, and one updated comment." },
@@ -55,11 +56,11 @@ When this command is invoked without a task, run \`fixmap features\` and present
 When the invocation includes a task, issue URL, diff, file path, or workflow name:
 
 1. Run \`fixmap features\` if the requested capability is ambiguous.
-2. Use the matching local command: Plan, Context, Graph, Explain, Compare, Verify, Watch, Benchmark, Validate, Doctor, or MCP.
+2. Use the matching local command: Plan, Context, Graph, Explain, Compare, Verify, Watch, Annotate, Benchmark, Validate, Doctor, or MCP.
 3. Read the Impact Graph as files to inspect, not a claim that each file must change. Preserve each relationship's evidence.
 4. Prefer \`--format agent\` when context is constrained, \`fixmap watch\` while an agent is editing, and \`fixmap benchmark\` when the user asks whether FixMap works on this repository.
 5. Preserve the user's repository and never imply that FixMap ran tests or proved correctness; it produces a starting map and verification findings.
-6. Report the exact command used and summarize files, impact, checks, risks, and diagnostics.
+6. Report the exact command used and summarize files, impact, checks, risks, human intent, and diagnostics.
 
 Prefer \`fixmap plan --issue "$ARGUMENTS" --repo .\` for task text. Use a canonical public GitHub issue URL directly when one is provided.`;
 

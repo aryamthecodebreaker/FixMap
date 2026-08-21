@@ -49,7 +49,8 @@ export async function buildFixMapAnalysis(
   const reportInput = {
     issueText: input.issueText,
     limit: input.limit,
-    exclude
+    exclude,
+    annotationAsOf: new Date().toISOString()
   };
   const report = input.embeddingProvider
     ? await buildHybridReportFromRepo(repo, { ...reportInput, embeddingProvider: input.embeddingProvider })
