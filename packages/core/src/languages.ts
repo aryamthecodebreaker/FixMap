@@ -220,6 +220,12 @@ export function manifestTestCommand(
         reason: `${config.path} explicitly configures tox`
       };
     }
+    if (config.runner === "unittest") {
+      return {
+        command: directory ? `python -m unittest discover -s ${directory}` : "python -m unittest discover",
+        reason: `${config.path} uses Python's unittest framework`
+      };
+    }
     return {
       command: directory
         ? `python -m pytest -c ${config.path} ${directory}`
@@ -243,12 +249,20 @@ export function manifestTestCommand(
       const command = wrapper
         ? `${posixExecutable(wrapper)} test`
         : directory ? `mvn -f ${javaManifest.path} test` : "mvn test";
-      return { command, reason: `${javaManifest.path} declares a Maven project${wrapper ? " with a wrapper" : ""}` };
+      const framework = javaTestFramework(files, directory);
+      return {
+        command,
+        reason: `${javaManifest.path} declares a Maven project${wrapper ? " with a wrapper" : ""}${framework ? `; ${framework} tests detected` : ""}`
+      };
     }
     const wrapper = findWrapper(files, directory, ["gradlew", "gradlew.bat"]);
     const executable = wrapper ? posixExecutable(wrapper) : "gradle";
     const command = directory ? `${executable} -p ${directory} test` : `${executable} test`;
-    return { command, reason: `${javaManifest.path} declares a Gradle project${wrapper ? " with a wrapper" : ""}` };
+    const framework = javaTestFramework(files, directory);
+    return {
+      command,
+      reason: `${javaManifest.path} declares a Gradle project${wrapper ? " with a wrapper" : ""}${framework ? `; ${framework} tests detected` : ""}`
+    };
   }
   if (language === "dotnet") {
     return manifest
@@ -258,7 +272,7 @@ export function manifestTestCommand(
   return undefined;
 }
 
-type PythonTestRunner = "pytest" | "tox" | "nox";
+type PythonTestRunner = "pytest" | "tox" | "nox" | "unittest";
 
 function nearestPythonTestConfig(
   files: RepoFile[],
@@ -272,23 +286,41 @@ function nearestPythonTestConfig(
     else if (name === "pytest.ini" ||
       (name === "pyproject.toml" && /\[tool\.pytest\.ini_options\]/i.test(file.textSample)) ||
       (name === "setup.cfg" && /\[(?:tool:)?pytest\]/i.test(file.textSample))) runner = "pytest";
+    else if (file.isTest && /\b(?:import\s+unittest|unittest\.TestCase|from\s+unittest\s+import)\b/.test(file.textSample)) runner = "unittest";
     return runner ? [{ file, runner }] : [];
   });
   const inRequestedPackage = packageDir
-    ? candidates.filter(({ file }) => file.path === `${packageDir}/${file.path.split("/").pop()}`)
+    ? candidates.filter(({ file, runner }) =>
+      runner === "unittest"
+        ? file.path.startsWith(`${packageDir}/`)
+        : file.path === `${packageDir}/${file.path.split("/").pop()}`
+    )
     : [];
   const rootDeclaresPython = files.some((file) =>
     !file.path.includes("/") && languageForManifest(file.path) === "python"
   );
   const eligible = packageDir
     ? inRequestedPackage
-    : rootDeclaresPython ? candidates.filter(({ file }) => !file.path.includes("/")) : candidates;
+    : rootDeclaresPython
+      ? candidates.filter(({ file, runner }) => runner === "unittest" || !file.path.includes("/"))
+      : candidates;
   const selected = eligible
     .sort((a, b) =>
       a.file.path.split("/").length - b.file.path.split("/").length ||
       a.file.path.localeCompare(b.file.path)
     )[0];
   return selected ? { path: selected.file.path, runner: selected.runner } : undefined;
+}
+
+function javaTestFramework(files: RepoFile[], packageDir: string): "JUnit" | "TestNG" | undefined {
+  const scoped = packageDir ? files.filter((file) => file.path.startsWith(`${packageDir}/`)) : files;
+  const samples = scoped
+    .filter((file) => file.isTest || /(?:pom\.xml|build\.gradle(?:\.kts)?)$/i.test(file.path))
+    .map((file) => file.textSample)
+    .join("\n");
+  if (/\b(?:org\.testng|testng)\b/i.test(samples)) return "TestNG";
+  if (/\b(?:org\.junit|junit-jupiter|junit)\b/i.test(samples)) return "JUnit";
+  return undefined;
 }
 
 function requestedOrNearestManifest(

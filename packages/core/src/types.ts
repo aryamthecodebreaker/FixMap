@@ -19,6 +19,8 @@ export type TextSampleSkipReason = "too-large" | "not-text" | "unreadable";
 
 export type RepoFile = {
   path: string;
+  /** Exact blob/worktree identity used by the incremental index and derived graphs. */
+  contentFingerprint?: string;
   extension: string;
   sizeBytes: number;
   isTest: boolean;

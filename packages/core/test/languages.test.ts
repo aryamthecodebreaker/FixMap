@@ -182,6 +182,25 @@ describe("test routing beyond package scripts", () => {
       .toBe("tox -c services/api/tox.ini");
   });
 
+  it("routes explicit nox and stdlib unittest evidence without guessing from pyproject alone", () => {
+    const nox = repoOf([
+      file("pyproject.toml"),
+      file("noxfile.py", { textSample: "import nox\n@nox.session\ndef tests(session): pass\n" }),
+      file("src/app.py")
+    ]);
+    const unittest = repoOf([
+      file("pyproject.toml"),
+      file("src/app.py"),
+      file("tests/test_app.py", {
+        isTest: true,
+        textSample: "import unittest\nclass AppTest(unittest.TestCase): pass\n"
+      })
+    ]);
+
+    expect(buildTestRoutes(nox, ["src/app.py"])[0]?.command).toBe("nox");
+    expect(buildTestRoutes(unittest, ["src/app.py"])[0]?.command).toBe("python -m unittest discover -s tests");
+  });
+
   it("routes Maven and Gradle with wrappers and nested project scope", () => {
     const maven = repoOf([
       file("services/api/pom.xml"),
@@ -199,6 +218,22 @@ describe("test routing beyond package scripts", () => {
       .toBe("./services/api/mvnw test");
     expect(buildTestRoutes(gradle, ["services/payments/src/main/java/Payment.java"])[0]?.command)
       .toBe("./gradlew -p services/payments test");
+  });
+
+  it("records JUnit and TestNG evidence in Java route reasons", () => {
+    const junit = repoOf([
+      file("pom.xml", { textSample: "<dependency><artifactId>junit-jupiter</artifactId></dependency>" }),
+      file("src/main/java/App.java"),
+      file("src/test/java/AppTest.java", { isTest: true, textSample: "import org.junit.jupiter.api.Test;" })
+    ]);
+    const testng = repoOf([
+      file("build.gradle", { textSample: "testImplementation 'org.testng:testng:7.11.0'" }),
+      file("src/main/java/App.java"),
+      file("src/test/java/AppTest.java", { isTest: true, textSample: "import org.testng.annotations.Test;" })
+    ]);
+
+    expect(buildTestRoutes(junit, ["src/main/java/App.java"])[0]?.reason).toContain("JUnit tests detected");
+    expect(buildTestRoutes(testng, ["src/main/java/App.java"])[0]?.reason).toContain("TestNG tests detected");
   });
 
   it("uses installed Java tools when wrappers are absent", () => {

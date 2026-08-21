@@ -24,6 +24,42 @@ export { buildHybridReportFromRepo, buildReportFromRepo, buildRiskNotes, buildTe
 export { buildContextPack, estimateContextTokens, renderContextPackMarkdown, type ContextPack, type ContextSnippet } from "./context.js";
 export { buildFixMapGraph, renderFixMapGraphMermaid, type FixMapGraph } from "./graph.js";
 export { buildImpactMap } from "./impact.js";
+export { buildWorkspaceImpact, buildWorkspaceMap } from "./workspace.js";
+export type {
+  WorkspaceDependency,
+  WorkspaceDependencyEvidence,
+  WorkspaceDiagnostic,
+  WorkspaceImpact,
+  WorkspaceMap,
+  WorkspaceMapOptions,
+  WorkspacePackage,
+  WorkspaceRepository,
+  WorkspaceRepositoryInput
+} from "./workspace.js";
+export {
+  buildGraphDependencyIndex,
+  buildIdentityGraph,
+  createGraphEdgeIdentity,
+  createGraphEquivalence,
+  createGraphIdentity,
+  graphSourceFingerprint,
+  invalidateIdentityGraph
+} from "./identity-graph.js";
+export type {
+  GraphDependencyIndex,
+  GraphDerivation,
+  GraphElementDerivation,
+  GraphEntityKind,
+  GraphIdentityInput,
+  GraphInvalidation,
+  GraphRelationshipKind,
+  GraphSourceChange,
+  GraphSourceDerivation,
+  IdentityGraph,
+  IdentityGraphEdge,
+  IdentityGraphNode,
+  IdentityGraphVersion
+} from "./identity-graph.js";
 export { tokenizePath, tokenizeText } from "./signals.js";
 export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
 export { validateFixMapReport } from "./validate.js";

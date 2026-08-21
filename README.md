@@ -183,8 +183,10 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 ### TypeScript library
 
 - `@aryam/fixmap-core` exposes repository scanning, exclusion resolution, structural/BM25/optional local-semantic ranking, persistent model-isolated vector caching, Context Pack and Impact Graph construction, task grounding, language/import analysis, test/risk routing, report validation, and Markdown/JSON/agent/Mermaid rendering.
+- Its v0.10 graph primitives assign hierarchical identities from repository through service, package, module, file, symbol, contract, runtime component, and deployment. Equivalence is always an explicit edge, and exact scanner fingerprints drive versioned stale-node/stale-edge invalidation across derived relationships.
+- `buildWorkspaceMap` composes already-scanned Node, Python, and Maven repositories into one identity graph with package versions, submodule provenance, manifest/import evidence, and optional explicitly reviewed service/catalog/runtime identities and relationships.
 - Its public API also exposes Explain, Compare, and Verify builders and result types, so another tool can compose the same workflow without shelling out to the CLI.
-- The `@aryam/fixmap-core/browser` entry runs the filesystem-free report, comparison, explanation, verification, and rendering logic in a browser bundle.
+- The `@aryam/fixmap-core/browser` entry runs the filesystem-free report, comparison, explanation, verification, workspace/identity-graph, and rendering logic in a browser bundle.
 
 ### Trust, compatibility, and evidence
 

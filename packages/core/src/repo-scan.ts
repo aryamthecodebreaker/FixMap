@@ -54,7 +54,7 @@ const MAX_HISTORY_COMMITS = 1_000;
 const MAX_HISTORY_FILES_PER_COMMIT = 30;
 const exec = promisify(execFile);
 type ScanState = { count: number; limitReported: boolean };
-const SCAN_CACHE_VERSION = 4;
+const SCAN_CACHE_VERSION = 5;
 const SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 const SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
@@ -383,6 +383,8 @@ function isCachedRepoFile(candidate: unknown): candidate is RepoFile {
   const validSkipReason = candidate.textSampleSkipReason === "too-large" ||
     candidate.textSampleSkipReason === "not-text" || candidate.textSampleSkipReason === "unreadable";
   return isCachedRelativePath(candidate.path) &&
+    typeof candidate.contentFingerprint === "string" &&
+    /^(?:git|worktree):[a-f0-9]{40,64}$/i.test(candidate.contentFingerprint) &&
     typeof candidate.extension === "string" &&
     typeof candidate.sizeBytes === "number" && Number.isFinite(candidate.sizeBytes) && candidate.sizeBytes >= 0 &&
     typeof candidate.isTest === "boolean" &&
@@ -684,7 +686,7 @@ async function buildFilesFromPaths(
     const fingerprint = fingerprints.get(relativePath) ?? await hashWorktreeFile(absolutePath);
     const prior = fingerprint ? previous?.get(relativePath) : undefined;
     const reused = prior && prior.fingerprint === fingerprint ? prior.file : undefined;
-    const scanned = await toRepoFile(absolutePath, relativePath, reused);
+    const scanned = await toRepoFile(absolutePath, relativePath, fingerprint, reused);
     if (scanned.status === "absent") {
       absent.push(relativePath);
       continue;
@@ -926,7 +928,8 @@ async function walkFiles(
     const absolutePath = join(current, entry.name);
     const relativePath = normalizePath(relative(root, absolutePath));
     if (hasInternalPath(internalPaths, relativePath) || isInternalCachePath(root, relativePath, internalCacheRoot)) continue;
-    const scanned = await toRepoFile(absolutePath, relativePath);
+    const fingerprint = await hashWorktreeFile(absolutePath);
+    const scanned = await toRepoFile(absolutePath, relativePath, fingerprint);
     if (scanned.status === "ok") {
       results.push(scanned.file);
       state.count += 1;
@@ -945,6 +948,7 @@ type ScannedFile =
 async function toRepoFile(
   absolutePath: string,
   relativePath: string,
+  contentFingerprint: string | undefined,
   reusable?: RepoFile
 ): Promise<ScannedFile> {
   let fileStat;
@@ -957,11 +961,11 @@ async function toRepoFile(
     return { status: "not-a-file" };
   }
 
-  if (reusable?.path === relativePath) {
+  if (reusable?.path === relativePath && contentFingerprint) {
     return {
       status: "ok",
       realPath: await resolveRealPath(absolutePath),
-      file: { ...reusable, sizeBytes: fileStat.size }
+      file: { ...reusable, contentFingerprint, sizeBytes: fileStat.size }
     };
   }
 
@@ -980,6 +984,7 @@ async function toRepoFile(
     realPath: await resolveRealPath(absolutePath),
     file: {
       path: relativePath,
+      ...(contentFingerprint ? { contentFingerprint } : {}),
       extension,
       sizeBytes: fileStat.size,
       isTest: isLanguageTestPath(relativePath, extension) || TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),

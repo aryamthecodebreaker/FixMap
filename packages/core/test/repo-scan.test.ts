@@ -647,6 +647,9 @@ describe("scanRepo", () => {
       expect(added.diagnostics.find((entry) => entry.code === "incremental-index-hit")?.message)
         .toContain("Reused 2 unchanged file records");
       expect(added.files.find((file) => file.path === "untracked.ts")?.textSample).toContain("one");
+      const originalFingerprint = added.files.find((file) => file.path === "untracked.ts")?.contentFingerprint;
+      expect(originalFingerprint).toMatch(/^worktree:[a-f0-9]{64}$/);
+      expect(added.files.find((file) => file.path === "b.ts")?.contentFingerprint).toMatch(/^git:[a-f0-9]{40,64}$/);
 
       // The replacement has exactly the same byte length. A size/mtime-only index can serve
       // stale text on coarse filesystems; the worktree content fingerprint must not.
@@ -655,6 +658,7 @@ describe("scanRepo", () => {
       expect(changed.diagnostics.find((entry) => entry.code === "incremental-index-hit")?.message)
         .toContain("Reused 2 unchanged file records");
       expect(changed.files.find((file) => file.path === "untracked.ts")?.textSample).toContain("two");
+      expect(changed.files.find((file) => file.path === "untracked.ts")?.contentFingerprint).not.toBe(originalFingerprint);
     } finally {
       if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
       else process.env.FIXMAP_CACHE_DIR = previousCache;
