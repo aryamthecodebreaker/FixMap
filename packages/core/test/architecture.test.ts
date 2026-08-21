@@ -175,4 +175,11 @@ describe("architecture drift", () => {
     expect(() => buildArchitectureSnapshot(repo([unversioned])))
       .toThrow("require an exact content fingerprint for src/a.ts");
   });
+
+  it("reports source files whose imports could not be sampled", () => {
+    const incomplete = file("src/large.ts", "");
+    incomplete.textSampleComplete = false;
+    incomplete.textSampleSkipReason = "too-large";
+    expect(buildArchitectureSnapshot(repo([incomplete])).truncated.files).toBe(1);
+  });
 });

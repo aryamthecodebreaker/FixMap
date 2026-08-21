@@ -43,6 +43,8 @@ Human intent is represented by versioned annotations and authored decision recor
 
 Architecture policy is repository-owned in `.fixmap/policy.json`. `architecturePolicyFromRepo` and `evaluateArchitecturePolicy` apply bounded version-1 dependency boundaries, required test changes, reviewer routing, and breaking-contract constraints while retaining the exact policy fingerprint. `buildArchitectureSnapshot` and `compareArchitectureSnapshots` provide deterministic import edges, cyclic components, boundary violations, coupling, and drift; snapshots fail closed when a scanned file lacks an exact content identity.
 
+Historical graph queries use `scanRepoAtRef`, `buildArchitectureSnapshotAtRef`, and `compareArchitectureRefs`. Refs are first resolved to immutable commit IDs, then exact Git blobs are read in a bounded batch. The API never checks out a ref, moves `HEAD`, or writes into the worktree.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.

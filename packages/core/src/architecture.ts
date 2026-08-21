@@ -1,5 +1,6 @@
 import { buildPathExcluder } from "./exclude.js";
 import { buildImportGraph } from "./import-graph.js";
+import { languageAdapterForFile } from "./language-adapters.js";
 import type { ContractComparison } from "./contracts.js";
 import type { RepoMap } from "./types.js";
 
@@ -216,7 +217,16 @@ export function buildArchitectureSnapshot(repo: RepoMap, policy?: ArchitecturePo
           : []
       ).sort(violationOrder)
     : [];
-  const canonical = { edges, cycles, coupling, boundaryViolations, truncated: { files: graph.truncatedFiles, edges: graph.truncatedEdges } };
+  const incompleteFiles = repo.files.filter((file) =>
+    languageAdapterForFile(file) && file.textSampleComplete === false
+  ).length;
+  const canonical = {
+    edges,
+    cycles,
+    coupling,
+    boundaryViolations,
+    truncated: { files: graph.truncatedFiles + incompleteFiles, edges: graph.truncatedEdges }
+  };
   return {
     architectureSnapshotVersion: 1,
     fingerprint: `architecture:${stableHash(canonicalize(canonical))}`,

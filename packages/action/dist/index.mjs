@@ -5423,6 +5423,14 @@ function isPositiveFiniteNumber(candidate) {
   return typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0;
 }
 
+// packages/core/dist/architecture-history.js
+import { execFile as execFile2, spawn } from "node:child_process";
+import { promisify as promisify2 } from "node:util";
+var exec2 = promisify2(execFile2);
+var MAX_TREE_BYTES = 32 * 1024 * 1024;
+var MAX_BATCH_BYTES = 64 * 1024 * 1024;
+var MAX_BATCH_OUTPUT_BYTES = MAX_BATCH_BYTES + 2 * 1024 * 1024;
+
 // packages/action/src/github.ts
 var FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
 var MAX_COMMENT_BODY_CHARS = 65536;

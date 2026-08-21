@@ -125,6 +125,8 @@ export type {
   ArchitecturePolicyResult,
   ArchitectureSnapshot
 } from "./architecture.js";
+export { buildArchitectureSnapshotAtRef, compareArchitectureRefs, scanRepoAtRef } from "./architecture-history.js";
+export type { HistoricalArchitectureSnapshot, HistoricalRepoMap } from "./architecture-history.js";
 export { inventoryDecisionRecords, parseDecisionRecord, selectDecisionRecords } from "./decisions.js";
 export type {
   DecisionDiagnostic,
