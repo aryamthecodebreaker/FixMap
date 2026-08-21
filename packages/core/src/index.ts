@@ -34,6 +34,8 @@ export { detectChangeConflicts } from "./change-conflicts.js";
 export type { ChangeConflict, ChangeConflictAnalysis, ChangeIntent, ChangeZone } from "./change-conflicts.js";
 export { buildMigrationPlan } from "./migration.js";
 export type { MigrationCompatibility, MigrationPhase, MigrationPlan, MigrationStep } from "./migration.js";
+export { comparePlanAlternatives } from "./plan-alternatives.js";
+export type { AlternativePlanComparison, PlanAlternative, PlanAlternativeAssessment } from "./plan-alternatives.js";
 export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
 export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
 export { createSupplyChainEvidenceProvider, validateSupplyChainEvidenceBundle } from "./supply-chain.js";

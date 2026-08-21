@@ -53,6 +53,8 @@ Supply-chain data enters through `validateSupplyChainEvidenceBundle` and `create
 
 `buildMigrationPlan` validates explicit migration steps against one exact identity-graph snapshot and produces dependency-ordered phases. Each step must name intended edits, impacts, contracts, a compatibility strategy (with exit criteria when a window exists), verification commands with reasons, and rollback triggers/actions. Every phase reports its blast radius; cycles, unknown identities, missing safety fields, and undeclared parallel edit/contract overlap fail closed.
 
+`comparePlanAlternatives` requires every candidate to use the same exact graph fingerprint, then compares separate edit, impact, contract, policy, test-coverage, reversibility, and uncertainty axes. The output retains evidence and a non-dominated frontier. It intentionally has no winner field or scalar score: genuine tradeoffs remain visible instead of being hidden behind arbitrary weights.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.
