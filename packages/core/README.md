@@ -61,6 +61,8 @@ Outcome feedback uses `OutcomeRecord` and the pure `addOutcomeRecord`, `removeOu
 
 `routeReviewers` combines the highest-precedence CODEOWNERS file (with last matching rule semantics), active annotation owners, architecture-policy review rules, and bounded Git author history. Every suggestion keeps source fingerprints, paths and CODEOWNERS lines, confidence, and `availabilityInferred: false`. Historical authorship is low-confidence routing evidence only; FixMap never infers current employment or availability.
 
+The Node entry point exports `buildSandboxInvocation` and `runSandbox` for explicitly consented execution of one exact declared command. Images must already exist locally and be pinned by SHA-256 digest. Docker runs in the local default context with pulls disabled, network off by default, source and root filesystem read-only, non-root user, dropped capabilities, no-new-privileges, IPC isolation, bounded tmpfs/CPU/memory/PIDs/time/output, and no inherited container environment. Results distinguish pass, fail, timeout, crash/output-limit, and unavailable; browser builds do not expose the Node/Docker runner.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.

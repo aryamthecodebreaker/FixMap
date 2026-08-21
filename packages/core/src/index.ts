@@ -42,6 +42,8 @@ export { buildChangeDossier, validateChangeDossier } from "./dossier.js";
 export type { ChangeDossier, ChangeDossierInput, DossierAssumption } from "./dossier.js";
 export { routeReviewers } from "./ownership.js";
 export type { ReviewEvidence, ReviewRoutingResult, ReviewSuggestion } from "./ownership.js";
+export { buildSandboxInvocation, runSandbox } from "./sandbox.js";
+export type { SandboxInvocation, SandboxLimits, SandboxProcessAdapter, SandboxRawResult, SandboxRequest, SandboxResult } from "./sandbox.js";
 export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
 export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
 export { createSupplyChainEvidenceProvider, validateSupplyChainEvidenceBundle } from "./supply-chain.js";

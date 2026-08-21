@@ -5160,6 +5160,19 @@ function renderVerifyMarkdown(result) {
 `;
 }
 
+// packages/core/dist/sandbox.js
+import { execFile as execFile2, spawn } from "node:child_process";
+import { promisify as promisify2 } from "node:util";
+var exec2 = promisify2(execFile2);
+var DEFAULT_LIMITS = {
+  timeoutMs: 5 * 6e4,
+  outputBytes: 1e6,
+  cpus: 1,
+  memoryMb: 1024,
+  pids: 256,
+  tmpfsMb: 256
+};
+
 // packages/core/dist/validate.js
 function validateFixMapReport(candidate, label) {
   if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate) || !Array.isArray(candidate.contextFiles)) {
@@ -5427,9 +5440,9 @@ function isPositiveFiniteNumber(candidate) {
 }
 
 // packages/core/dist/architecture-history.js
-import { execFile as execFile2, spawn } from "node:child_process";
-import { promisify as promisify2 } from "node:util";
-var exec2 = promisify2(execFile2);
+import { execFile as execFile3, spawn as spawn2 } from "node:child_process";
+import { promisify as promisify3 } from "node:util";
+var exec3 = promisify3(execFile3);
 var MAX_TREE_BYTES = 32 * 1024 * 1024;
 var MAX_BATCH_BYTES = 64 * 1024 * 1024;
 var MAX_BATCH_OUTPUT_BYTES = MAX_BATCH_BYTES + 2 * 1024 * 1024;
