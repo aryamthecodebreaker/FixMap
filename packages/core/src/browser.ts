@@ -77,6 +77,8 @@ export { analyzeTestReliability, assessReliableCoverage, validateTestHistoryBund
 export type { ReliableCoverageResult, TestHistoryBundle, TestObservationStatus, TestReliabilityAssessment } from "./test-reliability.js";
 export { selectCIMatrix } from "./ci-matrix.js";
 export type { CIMatrixCandidate, CIMatrixDimension, CIMatrixEvidence, CIMatrixRequirement, CIMatrixSelection } from "./ci-matrix.js";
+export { proposeCharacterizationTests, renderCharacterizationProposalMarkdown, validateCharacterizationObservations } from "./characterization.js";
+export type { CharacterizationObservationBundle, CharacterizationTestProposal } from "./characterization.js";
 export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
 export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
 export { createSupplyChainEvidenceProvider, validateSupplyChainEvidenceBundle } from "./supply-chain.js";

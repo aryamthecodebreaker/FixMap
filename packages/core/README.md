@@ -67,6 +67,8 @@ Historical CI evidence is normalized by `validateTestHistoryBundle`, classified 
 
 `selectCIMatrix` chooses among caller-declared CI jobs without inventing commands or claiming that a job exercises an environment. OS, runtime, database, browser, feature-flag, and deployment requirements retain affected paths and exact repository/history/policy/runtime evidence; each candidate needs separate evidence for every coverage claim. Deterministic greedy set cover reduces the declared matrix, preserves all justifications, and reports uncovered requirements, omitted candidates, and `minimalityClaimed: false`.
 
+`proposeCharacterizationTests` turns redaction-reviewed sandbox, trace, CI, or manual observations into deterministic structured arrange/act/assert drafts. Each proposal retains source and observation provenance, distinguishes a single observation from repeated multi-environment behavior, and says it preserves what was observed rather than what is correct. Drafts always require review and explicitly authorize neither execution nor commit; `renderCharacterizationProposalMarkdown` makes those boundaries visible in review output.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.
