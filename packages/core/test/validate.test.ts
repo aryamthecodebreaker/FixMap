@@ -76,6 +76,34 @@ describe("validateFixMapReport", () => {
     expect(invalid.success).toBe(false);
   });
 
+  it("validates architecture policy findings and their evidence", () => {
+    const valid = validateFixMapReport({
+      ...envelope,
+      policy: {
+        policyFingerprint: `git:${"d".repeat(40)}`,
+        findings: [{
+          code: "boundary-violation",
+          severity: "error",
+          ruleId: "ui-no-data",
+          message: "UI imports data.",
+          paths: ["src/ui/view.ts", "src/data/query.ts"],
+          evidence: [{
+            kind: "import",
+            path: "src/ui/view.ts",
+            relatedPath: "src/data/query.ts",
+            detail: "src/ui/view.ts imports src/data/query.ts."
+          }]
+        }]
+      }
+    }, "report");
+    expect(valid.success).toBe(true);
+    const invalid = validateFixMapReport({
+      ...envelope,
+      policy: { policyFingerprint: "approximate", findings: [] }
+    }, "report");
+    expect(invalid.success).toBe(false);
+  });
+
   it("requires all existing version 1 entry fields while leaving legacy entries compatible", () => {
     const result = validateFixMapReport({
       ...envelope,

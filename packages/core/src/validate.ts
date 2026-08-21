@@ -197,6 +197,31 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     if (invalidDecision !== -1) return { success: false, message: `${label} has an invalid decisions entry at index ${invalidDecision}.` };
   }
 
+  if (record.policy !== undefined) {
+    const policy = record.policy;
+    if (!isRecord(policy) || typeof policy.policyFingerprint !== "string" ||
+      !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
+      return { success: false, message: `${label} has an invalid architecture policy envelope.` };
+    }
+    const invalidPolicyFinding = policy.findings.findIndex((finding) => {
+      if (!isRecord(finding) ||
+        !["boundary-violation", "required-test-missing", "review-required", "breaking-contract"].includes(String(finding.code)) ||
+        !["info", "warning", "error"].includes(String(finding.severity)) ||
+        typeof finding.ruleId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(finding.ruleId) ||
+        typeof finding.message !== "string" || !finding.message.trim() ||
+        !isRepositoryRelativePathArray(finding.paths) || !Array.isArray(finding.evidence)) return true;
+      return finding.evidence.some((evidence) => !isRecord(evidence) ||
+        !["import", "changed-file", "test-pattern", "reviewer", "contract-change", "decision-record"].includes(String(evidence.kind)) ||
+        typeof evidence.detail !== "string" || !evidence.detail.trim() ||
+        (evidence.path !== undefined && !isRepositoryRelativePath(evidence.path)) ||
+        (evidence.relatedPath !== undefined && !isRepositoryRelativePath(evidence.relatedPath))
+      );
+    });
+    if (invalidPolicyFinding !== -1) {
+      return { success: false, message: `${label} has an invalid architecture policy finding at index ${invalidPolicyFinding}.` };
+    }
+  }
+
   const diagnostics = record.diagnostics as unknown[];
   const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
     if (!isRecord(diagnostic)) return true;

@@ -1,5 +1,6 @@
 import type { AnnotationAssessment } from "./annotations.js";
 import type { DecisionRecord } from "./decisions.js";
+import type { ArchitecturePolicyResult } from "./architecture.js";
 
 export type FixMapInput = {
   repoRoot: string;
@@ -94,7 +95,12 @@ export type ScanDiagnostic = {
     | "annotation-expired"
     | "decision-source-incomplete"
     | "decision-parse-failed"
-    | "decision-target-missing";
+    | "decision-target-missing"
+    | "architecture-policy-invalid"
+    | "architecture-boundary-violation"
+    | "architecture-required-test"
+    | "architecture-review-required"
+    | "architecture-breaking-contract";
   message: string;
   severity: "info" | "warning" | "error";
   /**
@@ -272,6 +278,8 @@ export type FixMapReport = {
   };
   /** Authored ADR/rationale excerpts relevant to this plan; never generated summaries. */
   decisions?: DecisionRecord[];
+  /** Repository-owned architecture policy findings with exact policy provenance. */
+  policy?: ArchitecturePolicyResult;
 };
 
 export type VerifyFinding = {
@@ -285,7 +293,12 @@ export type VerifyFinding = {
     | "impact-file-unreviewed"
     | "plan-partially-stale"
     | "planned-file-deleted"
-    | "plan-repository-mismatch";
+    | "plan-repository-mismatch"
+    | "architecture-policy-invalid"
+    | "architecture-boundary-violation"
+    | "architecture-required-test"
+    | "architecture-review-required"
+    | "architecture-breaking-contract";
   severity: "info" | "warning" | "error";
   paths: string[];
   message: string;
@@ -307,7 +320,7 @@ export type VerifyResult = {
 };
 
 export type VerifyNarrativeEvidence = {
-  kind: "changed-file" | "impact-relationship" | "test-route" | "risk-rule" | "annotation" | "decision-record";
+  kind: "changed-file" | "impact-relationship" | "test-route" | "risk-rule" | "annotation" | "decision-record" | "architecture-policy";
   path?: string;
   relatedPath?: string;
   detail: string;

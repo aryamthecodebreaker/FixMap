@@ -123,6 +123,51 @@ describe("report rendering", () => {
     expect(renderAgentReport(report)).toContain("docs/adr/auth.md");
   });
 
+  it("surfaces repository architecture policy findings with exact provenance", () => {
+    const policyText = JSON.stringify({
+      architecturePolicyVersion: 1,
+      boundaries: [{
+        id: "ui-no-data",
+        from: ["src/ui/**"],
+        deny: ["src/data/**"],
+        reason: "UI must use the service layer.",
+        severity: "error"
+      }]
+    });
+    const fingerprint = `worktree:${"c".repeat(64)}`;
+    const repo: RepoMap = {
+      root: "/repo",
+      files: [
+        {
+          path: "src/ui/view.ts", extension: ".ts", sizeBytes: 70, isSource: true, isTest: false,
+          kind: "code", textSample: "import { query } from '../data/query'; export const view = query;"
+        },
+        {
+          path: "src/data/query.ts", extension: ".ts", sizeBytes: 30, isSource: true, isTest: false,
+          kind: "code", textSample: "export const query = true;"
+        },
+        {
+          path: ".fixmap/policy.json", extension: ".json", sizeBytes: policyText.length,
+          contentFingerprint: fingerprint, isSource: true, isTest: false, kind: "config",
+          textSample: policyText, textSampleComplete: true
+        }
+      ],
+      packageScripts: [], changedFiles: ["src/ui/view.ts"], diffText: "", packageManager: "npm", diagnostics: []
+    };
+
+    const report = buildReportFromRepo(repo, { issueText: "change the UI view" });
+    expect(report.policy?.policyFingerprint).toBe(fingerprint);
+    expect(report.policy?.findings).toContainEqual(expect.objectContaining({
+      code: "boundary-violation",
+      ruleId: "ui-no-data",
+      paths: ["src/ui/view.ts", "src/data/query.ts"]
+    }));
+    expect(renderMarkdownReport(report)).toContain("## Architecture Policy");
+    expect(renderMarkdownReport(report)).toContain("`ui-no-data`");
+    expect(renderAgentReport(report)).toContain("POLICY:");
+    expect(renderAgentReport(report)).toContain("ui-no-data");
+  });
+
   it("routes nearby tests by path overlap and adds risk notes", () => {
     const repo: RepoMap = {
       root: "/repo",

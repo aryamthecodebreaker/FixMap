@@ -263,6 +263,52 @@ describe("verifyPlan", () => {
     expect(result.narrative?.every((statement) => statement.evidence.length > 0)).toBe(true);
   });
 
+  it("enforces current architecture policy and narrates exact policy evidence", () => {
+    const policyText = JSON.stringify({
+      architecturePolicyVersion: 1,
+      boundaries: [{
+        id: "ui-no-data",
+        from: ["src/ui/**"],
+        deny: ["src/data/**"],
+        reason: "UI must use the service layer.",
+        severity: "error"
+      }],
+      requiredReviews: [{
+        id: "ui-review",
+        paths: ["src/ui/**"],
+        reviewers: ["frontend-team"],
+        reason: "UI ownership."
+      }]
+    });
+    const fingerprint = `worktree:${"e".repeat(64)}`;
+    const repo = repoWith(["src/ui/view.ts"]);
+    repo.files = [
+      source("src/ui/view.ts", { textSample: "import { query } from '../data/query'; export const view = query;" }),
+      source("src/data/query.ts"),
+      source(".fixmap/policy.json", {
+        contentFingerprint: fingerprint,
+        extension: ".json",
+        kind: "config",
+        textSample: policyText,
+        textSampleComplete: true
+      })
+    ];
+
+    const result = verifyPlan(planFor("src/ui/view.ts"), repo);
+    expect(result.findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "architecture-boundary-violation", severity: "error" }),
+      expect.objectContaining({ code: "architecture-review-required", severity: "info" })
+    ]));
+    expect(result.narrative).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        classification: "observation",
+        evidence: expect.arrayContaining([
+          expect.objectContaining({ kind: "architecture-policy", sourceFingerprint: fingerprint })
+        ])
+      })
+    ]));
+  });
+
   it("uses a longer code fence for paths containing backticks", () => {
     const result = verifyPlan(planFor("src/auth/reset-password.ts"), repoWith(["src/odd`name.ts"]));
     const markdown = renderVerifyMarkdown(result);

@@ -63,6 +63,20 @@ export type {
 export { tokenizePath, tokenizeText } from "./signals.js";
 export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
 export { validateFixMapReport } from "./validate.js";
+export {
+  architecturePolicyFromRepo,
+  buildArchitectureSnapshot,
+  compareArchitectureSnapshots,
+  evaluateArchitecturePolicy,
+  parseArchitecturePolicy
+} from "./architecture.js";
+export type {
+  ArchitectureDrift,
+  ArchitecturePolicy,
+  ArchitecturePolicyFinding,
+  ArchitecturePolicyResult,
+  ArchitectureSnapshot
+} from "./architecture.js";
 export { parseDecisionRecord, selectDecisionRecords } from "./decisions.js";
 export type {
   DecisionDiagnostic,

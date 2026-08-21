@@ -163,6 +163,49 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 
 `--exclude` and `.fixmapignore` use repository-relative gitignore-style patterns. `/docs/**` anchors at the repository root, `docs/**` matches the same root directory and nested occurrences, `!docs/keep.md` re-includes a path after an earlier exclusion, and trailing `/` targets a directory. `*`, `?`, and `**` are supported; brace groups such as `{src,test}` are literal text, not alternation. Pass repeated `--exclude` flags or put one pattern per `.fixmapignore` line so commas in literal names stay unambiguous.
 
+Architecture rules live in a reviewed `.fixmap/policy.json` file. Every rule has a stable ID, a reason, and bounded repository-relative patterns:
+
+```json
+{
+  "architecturePolicyVersion": 1,
+  "boundaries": [
+    {
+      "id": "ui-no-data",
+      "from": ["src/ui/**"],
+      "deny": ["src/data/**"],
+      "reason": "UI code must use the service layer.",
+      "severity": "error"
+    }
+  ],
+  "requiredTests": [
+    {
+      "id": "auth-tests",
+      "paths": ["src/auth/**"],
+      "tests": ["test/auth/**"],
+      "reason": "Authentication changes need regression coverage.",
+      "severity": "warning"
+    }
+  ],
+  "requiredReviews": [
+    {
+      "id": "billing-review",
+      "paths": ["src/billing/**"],
+      "reviewers": ["payments-team"],
+      "reason": "Billing changes need domain review."
+    }
+  ],
+  "contracts": [
+    {
+      "id": "public-api-compatible",
+      "paths": ["openapi.*"],
+      "forbidBreaking": true,
+      "reason": "Public API removals need a compatibility window.",
+      "severity": "error"
+    }
+  ]
+}
+```
+
 - Produces Markdown for people, versioned JSON for tools, or `--format agent` for compact `EDIT CANDIDATE`/`INSPECT`/`TEST`/`RISK`/`AVOID`/`UNCERTAINTY` sections; writes any format with `--output`.
 
 ### Explain, Compare, Verify, Validate, and Doctor
@@ -191,8 +234,9 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 - Contract Guardian inventories OpenAPI, AsyncAPI, GraphQL, Protobuf, JSON Schema, and SQL migration surfaces, compares exact before/after fingerprints, labels compatible/breaking/unknown deltas, and fails closed when a source is incomplete or cannot be parsed safely.
 - Its public API also exposes Explain, Compare, and Verify builders and result types, so another tool can compose the same workflow without shelling out to the CLI.
 - `fixmap annotate` writes a versioned `.fixmap/annotations.json` with stable content identities, file/symbol/service/contract scopes, optional owner and expiry, and rename/missing-target checks. Relevant notes retain the store fingerprint in Markdown, JSON, and compact agent reports.
+- `.fixmap/policy.json` defines bounded, repository-owned dependency boundaries, required test changes, reviewer routing, and breaking-contract rules. Plan and Verify use the same evaluator and retain the exact policy fingerprint; Core can also compare deterministic architecture snapshots for new edges, cyclic components, boundary violations, and coupling growth.
 - ADR/rationale ingestion preserves the repository author’s Context, Decision, and Consequences text with its exact file fingerprint. Plans attach explicit scopes and verified literal path mentions; malformed, incomplete, or stale-target records become diagnostics rather than invented intent.
-- Verify narrates why a diff needs attention and labels every sentence as observation or inference; JSON keeps the exact changed-file, relationship, test, risk-rule, annotation, or ADR evidence behind it.
+- Verify narrates why a diff needs attention and labels every sentence as observation or inference; JSON keeps the exact changed-file, relationship, test, risk-rule, annotation, ADR, or architecture-policy evidence behind it.
 - The `@aryam/fixmap-core/browser` entry runs the filesystem-free report, comparison, explanation, verification, workspace/identity-graph, and rendering logic in a browser bundle.
 
 ### Trust, compatibility, and evidence

@@ -111,6 +111,20 @@ export { validateFixMapReport } from "./validate.js";
 export type { ValidatedFixMapReport } from "./validate.js";
 export { findGatedTestDiagnostics } from "./test-gates.js";
 export { stripByteOrderMark } from "./text.js";
+export {
+  architecturePolicyFromRepo,
+  buildArchitectureSnapshot,
+  compareArchitectureSnapshots,
+  evaluateArchitecturePolicy,
+  parseArchitecturePolicy
+} from "./architecture.js";
+export type {
+  ArchitectureDrift,
+  ArchitecturePolicy,
+  ArchitecturePolicyFinding,
+  ArchitecturePolicyResult,
+  ArchitectureSnapshot
+} from "./architecture.js";
 export { inventoryDecisionRecords, parseDecisionRecord, selectDecisionRecords } from "./decisions.js";
 export type {
   DecisionDiagnostic,

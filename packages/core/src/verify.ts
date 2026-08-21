@@ -12,6 +12,8 @@ import { buildImpactMap } from "./impact.js";
 import { buildRiskNotes, pathsForRiskArea } from "./report.js";
 import type { FixMapReport, ImpactMap, RepoMap, VerifyFinding, VerifyNarrativeStatement, VerifyResult } from "./types.js";
 import { markdownCode } from "./markdown.js";
+import { architecturePolicyFromRepo, evaluateArchitecturePolicy } from "./architecture.js";
+import type { ArchitecturePolicyFinding, ArchitecturePolicyResult } from "./architecture.js";
 
 export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
   const changed = repo.changedFiles;
@@ -200,13 +202,44 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
     });
   }
 
+  let policy: ArchitecturePolicyResult | undefined;
+  try {
+    const architecturePolicy = architecturePolicyFromRepo(repo);
+    if (architecturePolicy) {
+      policy = evaluateArchitecturePolicy(architecturePolicy, { repo, focusPaths: changed });
+      findings.push(...policy.findings.map(policyVerifyFinding));
+    }
+  } catch (error) {
+    findings.push({
+      code: "architecture-policy-invalid",
+      severity: "error",
+      paths: [".fixmap/policy.json"],
+      message: `.fixmap/policy.json was not applied: ${error instanceof Error ? error.message : String(error)}`
+    });
+  }
+
   return {
     summary: buildVerifySummary(changed.length, findings),
     changedFiles: changed,
     findings,
     diagnostics: repo.diagnostics,
     impact,
-    narrative: buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks)
+    narrative: buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy)
+  };
+}
+
+function policyVerifyFinding(finding: ArchitecturePolicyFinding): VerifyFinding {
+  return {
+    code: finding.code === "boundary-violation"
+      ? "architecture-boundary-violation"
+      : finding.code === "required-test-missing"
+        ? "architecture-required-test"
+        : finding.code === "review-required"
+          ? "architecture-review-required"
+          : "architecture-breaking-contract",
+    severity: finding.severity,
+    paths: finding.paths,
+    message: finding.message
   };
 }
 
@@ -216,7 +249,8 @@ function buildVerifyNarrative(
   changedSource: readonly string[],
   changedTests: readonly string[],
   impact: ImpactMap,
-  newRisks: readonly { area: string; reason: string; severity: "low" | "medium" | "high" }[]
+  newRisks: readonly { area: string; reason: string; severity: "low" | "medium" | "high" }[],
+  policy?: ArchitecturePolicyResult
 ): VerifyNarrativeStatement[] {
   const narrative: VerifyNarrativeStatement[] = [];
   if (changed.length > 0) narrative.push({
@@ -224,6 +258,19 @@ function buildVerifyNarrative(
     text: `${changed.length} file${changed.length === 1 ? "" : "s"} changed: ${changed.slice(0, 8).join(", ")}${changed.length > 8 ? ", ..." : ""}.`,
     evidence: changed.map((path) => ({ kind: "changed-file", path, detail: "Present in the resolved verification diff." }))
   });
+  for (const finding of policy?.findings ?? []) {
+    narrative.push({
+      classification: "observation",
+      text: `Architecture policy ${finding.ruleId} reports ${finding.code}: ${finding.message}`,
+      evidence: finding.evidence.map((entry) => ({
+        kind: "architecture-policy",
+        ...(entry.path ? { path: entry.path } : {}),
+        ...(entry.relatedPath ? { relatedPath: entry.relatedPath } : {}),
+        detail: `${finding.ruleId}: ${entry.kind}: ${entry.detail}`,
+        sourceFingerprint: policy!.policyFingerprint
+      }))
+    });
+  }
   for (const file of impact.files.slice(0, 8)) {
     const relationship = file.evidence[0];
     if (!relationship) continue;

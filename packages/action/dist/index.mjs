@@ -17,8 +17,8 @@ var NO_EXCLUSIONS = {
   patterns: [],
   matchedPatterns: /* @__PURE__ */ new Set()
 };
-function buildPathExcluder(patterns) {
-  const cleaned = [...new Set(patterns.map((pattern) => normalizeSeparators(pattern.trim())).filter((pattern) => pattern.length > 0 && !COMMENT.test(pattern)))];
+function buildPathExcluder(patterns2) {
+  const cleaned = [...new Set(patterns2.map((pattern) => normalizeSeparators(pattern.trim())).filter((pattern) => pattern.length > 0 && !COMMENT.test(pattern)))];
   if (cleaned.length === 0) {
     return NO_EXCLUSIONS;
   }
@@ -98,6 +98,166 @@ function markdownCode(value) {
   const fence = "`".repeat(longestRun + 1);
   const needsPadding = value.startsWith("`") || value.endsWith("`") || value.startsWith(" ") || value.endsWith(" ");
   return `${fence}${needsPadding ? " " : ""}${value}${needsPadding ? " " : ""}${fence}`;
+}
+
+// packages/core/dist/language-adapters.js
+var IDENTIFIER = "[A-Za-z_$][A-Za-z0-9_$]*";
+var JAVA_CONTROL_WORDS = /* @__PURE__ */ new Set(["catch", "do", "else", "for", "if", "new", "return", "switch", "synchronized", "throw", "while"]);
+var javascriptAdapter = {
+  id: "javascript-typescript",
+  extensions: [".cjs", ".cts", ".js", ".jsx", ".mjs", ".mts", ".svelte", ".ts", ".tsx", ".vue"],
+  extractImports(text) {
+    const patterns2 = [
+      /\bimport\s+[^'"()]*?from\s*["']([^"'\n]+)["']/g,
+      /\bimport\s*["']([^"'\n]+)["']/g,
+      /\bexport\s+[^'"()]*?from\s*["']([^"'\n]+)["']/g,
+      /\brequire\s*\(\s*["']([^"'\n]+)["']\s*\)/g,
+      /\bimport\s*\(\s*["']([^"'\n]+)["']\s*\)/g
+    ];
+    return uniqueImports(patterns2.flatMap((pattern) => [...text.matchAll(pattern)].flatMap((match) => match[1] ? [{ adapter: "javascript-typescript", specifier: match[1], importedNames: [], wildcard: false }] : [])));
+  },
+  extractDefinitions(text) {
+    const definitions = [];
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}_$])(?:export\\s+)?(?:default\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|(?:(?:const|let|var)\\s+)|(class|interface|type|enum)\\s+)(${IDENTIFIER})(?![\\p{L}\\p{N}_$])`, "gu");
+    for (const match of text.matchAll(pattern)) {
+      const name = match[2];
+      if (!name)
+        continue;
+      const declaration = match[1];
+      const kind = declaration === "class" ? "class" : declaration === "interface" ? "interface" : declaration === "type" || declaration === "enum" ? "type" : match[0].includes("function") ? "function" : "variable";
+      definitions.push({ adapter: "javascript-typescript", name, kind });
+    }
+    return uniqueDefinitions(definitions);
+  },
+  isTestPath(path) {
+    return /(?:\.test(?:\.|-d\.)|\.spec\.|(?:^|\/)__tests__\/|(?:^|\/)tests?\/)/i.test(path);
+  }
+};
+var pythonAdapter = {
+  id: "python",
+  extensions: [".py", ".pyi"],
+  extractImports(text) {
+    const imports = [];
+    for (const match of text.matchAll(/^\s*from\s+([.A-Za-z_][.A-Za-z0-9_]*)\s+import\s+([^#\n]+)/gm)) {
+      const specifier = match[1];
+      if (!specifier)
+        continue;
+      const importedNames = splitImportedNames(match[2] ?? "");
+      imports.push({ adapter: "python", specifier, importedNames, wildcard: importedNames.includes("*") });
+    }
+    for (const match of text.matchAll(/^\s*import\s+([^#\n]+)/gm)) {
+      for (const entry of (match[1] ?? "").split(",")) {
+        const specifier = entry.trim().split(/\s+as\s+/i)[0]?.trim();
+        if (specifier && /^[A-Za-z_][A-Za-z0-9_.]*$/.test(specifier)) {
+          imports.push({ adapter: "python", specifier, importedNames: [], wildcard: false });
+        }
+      }
+    }
+    return uniqueImports(imports);
+  },
+  extractDefinitions(text) {
+    const definitions = [];
+    for (const match of text.matchAll(/^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm)) {
+      if (match[1])
+        definitions.push({ adapter: "python", name: match[1], kind: "function" });
+    }
+    for (const match of text.matchAll(/^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm)) {
+      if (match[1])
+        definitions.push({ adapter: "python", name: match[1], kind: "class" });
+    }
+    return uniqueDefinitions(definitions);
+  },
+  isTestPath(path) {
+    return /(?:^|\/)(?:tests?\/|test_[^/]+\.py$|[^/]+_test\.py$)/i.test(path);
+  }
+};
+var javaAdapter = {
+  id: "java",
+  extensions: [".java"],
+  extractImports(text) {
+    const imports = [];
+    for (const match of text.matchAll(/^\s*import\s+(static\s+)?([A-Za-z_][A-Za-z0-9_.]*?)(\.\*)?\s*;/gm)) {
+      let specifier = match[2];
+      if (!specifier)
+        continue;
+      if (match[1]) {
+        const segments = specifier.split(".");
+        if (segments.length > 1)
+          segments.pop();
+        specifier = segments.join(".");
+      }
+      imports.push({ adapter: "java", specifier, importedNames: [], wildcard: Boolean(match[3]) });
+    }
+    return uniqueImports(imports);
+  },
+  extractDefinitions(text) {
+    const definitions = [];
+    for (const match of text.matchAll(/\b(class|interface|enum|record)\s+([A-Za-z_$][A-Za-z0-9_$]*)/g)) {
+      const name = match[2];
+      if (!name)
+        continue;
+      definitions.push({
+        adapter: "java",
+        name,
+        kind: match[1] === "interface" ? "interface" : match[1] === "class" || match[1] === "record" ? "class" : "type"
+      });
+    }
+    const methodPattern = /(?:^|[;{}]\s*)(?:(?:public|protected|private|static|final|abstract|synchronized|native|default|strictfp)\s+)*(?:<[A-Za-z0-9_?,.\s]+>\s*)?(?:[A-Za-z_$][A-Za-z0-9_$<>,.?\[\]]*\s+)?([A-Za-z_$][A-Za-z0-9_$]*)\s*\([^;{}]*\)\s*(?:throws\s+[^{]+)?\{/gm;
+    for (const match of text.matchAll(methodPattern)) {
+      const name = match[1];
+      if (name && !JAVA_CONTROL_WORDS.has(name)) {
+        definitions.push({ adapter: "java", name, kind: "method" });
+      }
+    }
+    return uniqueDefinitions(definitions);
+  },
+  isTestPath(path) {
+    return /(?:^|\/)src\/test\/|(?:Test|Tests|TestCase)\.java$/i.test(path);
+  }
+};
+var BUILT_IN_LANGUAGE_ADAPTERS = Object.freeze([
+  javascriptAdapter,
+  pythonAdapter,
+  javaAdapter
+]);
+var ADAPTER_BY_EXTENSION = new Map(BUILT_IN_LANGUAGE_ADAPTERS.flatMap((adapter) => adapter.extensions.map((extension) => [extension, adapter])));
+function languageAdapterForFile(file) {
+  return ADAPTER_BY_EXTENSION.get(file.extension.toLowerCase());
+}
+function extractLanguageImports(file) {
+  return languageAdapterForFile(file)?.extractImports(file.textSample) ?? [];
+}
+function extractLanguageDefinitions(file) {
+  return languageAdapterForFile(file)?.extractDefinitions(file.textSample) ?? [];
+}
+function isLanguageTestPath(path, extension) {
+  return ADAPTER_BY_EXTENSION.get(extension.toLowerCase())?.isTestPath(path.replace(/\\/g, "/")) ?? false;
+}
+function splitImportedNames(raw) {
+  return raw.replace(/[()]/g, "").split(",").flatMap((entry) => {
+    const name = entry.trim().split(/\s+as\s+/i)[0]?.trim();
+    return name && (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || name === "*") ? [name] : [];
+  });
+}
+function uniqueImports(imports) {
+  const seen = /* @__PURE__ */ new Set();
+  return imports.filter((entry) => {
+    const key = `${entry.adapter}\0${entry.specifier}\0${entry.importedNames.join(",")}\0${String(entry.wildcard)}`;
+    if (seen.has(key))
+      return false;
+    seen.add(key);
+    return true;
+  });
+}
+function uniqueDefinitions(definitions) {
+  const seen = /* @__PURE__ */ new Set();
+  return definitions.filter((entry) => {
+    const key = `${entry.name}\0${entry.kind}`;
+    if (seen.has(key))
+      return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 // packages/core/dist/paths.js
@@ -734,7 +894,7 @@ function buildNextAction(grounding, ranking, contextFiles, hasRoutedTests = true
 function groundIdentifier(repo, identifier) {
   const definitionPattern = new RegExp(`(?<![\\p{L}\\p{N}_$])(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\\s+)${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`, "u");
   const exactPattern = new RegExp(`(?<![\\p{L}\\p{N}_$])${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`, "u");
-  const definitionFiles = repo.files.filter((file) => definitionPattern.test(file.textSample)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
+  const definitionFiles = repo.files.filter((file) => extractLanguageDefinitions(file).some((entry) => entry.name === identifier) || definitionPattern.test(file.textSample)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
   if (definitionFiles.length > 0) {
     return {
       identifier,
@@ -747,7 +907,7 @@ function groundIdentifier(repo, identifier) {
 }
 function groundPartialOrUnverifiedIdentifier(repo, identifier) {
   const identifierParts = tokenizeIdentifier(identifier);
-  const partialFiles = repo.files.filter((file) => hasDefinitionContainingTokens(file.textSample, identifierParts)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
+  const partialFiles = repo.files.filter((file) => hasDefinitionContainingTokens(file, identifierParts)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
   if (identifierParts.size >= 2 && partialFiles.length > 0) {
     return {
       identifier,
@@ -760,12 +920,17 @@ function groundPartialOrUnverifiedIdentifier(repo, identifier) {
   }
   return { identifier, status: "not-found", matchedFiles: [] };
 }
-function hasDefinitionContainingTokens(text, expectedTokens) {
+function hasDefinitionContainingTokens(file, expectedTokens) {
   if (expectedTokens.size < 2) {
     return false;
   }
+  for (const definition of extractLanguageDefinitions(file)) {
+    const candidateTokens = tokenizeIdentifier(definition.name);
+    if ([...expectedTokens].every((token) => candidateTokens.has(token)))
+      return true;
+  }
   const definitionPattern = /(?<![\p{L}\p{N}_$])(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\s+)([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
-  for (const match of text.matchAll(definitionPattern)) {
+  for (const match of file.textSample.matchAll(definitionPattern)) {
     const name = match[1];
     if (!name) {
       continue;
@@ -928,6 +1093,34 @@ function manifestTestCommand(language, packageDir, files = []) {
       return { command: "cargo test", reason: "Rust source files; no Cargo.toml was found" };
     return manifest2.packageDir ? { command: `cargo test --manifest-path ${manifest2.path}`, reason: `nearest crate (${manifest2.packageDir}) declared by ${manifest2.path}` } : { command: "cargo test", reason: "Cargo.toml at the repository root" };
   }
+  if (language === "python") {
+    const config = nearestPythonTestConfig(files, packageDir);
+    if (!config)
+      return void 0;
+    const directory = config.path.split("/").slice(0, -1).join("/");
+    if (config.runner === "nox") {
+      return {
+        command: directory ? `nox -f ${config.path}` : "nox",
+        reason: `${config.path} explicitly configures nox`
+      };
+    }
+    if (config.runner === "tox") {
+      return {
+        command: directory ? `tox -c ${config.path}` : "tox",
+        reason: `${config.path} explicitly configures tox`
+      };
+    }
+    if (config.runner === "unittest") {
+      return {
+        command: directory ? `python -m unittest discover -s ${directory}` : "python -m unittest discover",
+        reason: `${config.path} uses Python's unittest framework`
+      };
+    }
+    return {
+      command: directory ? `python -m pytest -c ${config.path} ${directory}` : "python -m pytest",
+      reason: `${config.path} explicitly configures pytest`
+    };
+  }
   const manifest = nearestManifest(files, language);
   if (language === "ruby" && manifest) {
     return { command: "bundle exec rspec", reason: `${manifest.path} declares the Ruby bundle` };
@@ -935,13 +1128,78 @@ function manifestTestCommand(language, packageDir, files = []) {
   if (language === "php" && manifest) {
     return { command: "composer test", reason: `${manifest.path} declares Composer scripts` };
   }
-  if (language === "java" && manifest) {
-    return manifest.path.toLowerCase().endsWith("pom.xml") ? { command: "mvn test", reason: `${manifest.path} declares a Maven project` } : { command: "./gradlew test", reason: `${manifest.path} declares a Gradle project` };
+  if (language === "java") {
+    const javaManifest = requestedOrNearestManifest(files, "java", packageDir);
+    if (!javaManifest)
+      return void 0;
+    const directory = javaManifest.packageDir;
+    if (javaManifest.path.toLowerCase().endsWith("pom.xml")) {
+      const wrapper2 = findWrapper(files, directory, ["mvnw", "mvnw.cmd"]);
+      const command2 = wrapper2 ? `${posixExecutable(wrapper2)} test` : directory ? `mvn -f ${javaManifest.path} test` : "mvn test";
+      const framework2 = javaTestFramework(files, directory);
+      return {
+        command: command2,
+        reason: `${javaManifest.path} declares a Maven project${wrapper2 ? " with a wrapper" : ""}${framework2 ? `; ${framework2} tests detected` : ""}`
+      };
+    }
+    const wrapper = findWrapper(files, directory, ["gradlew", "gradlew.bat"]);
+    const executable = wrapper ? posixExecutable(wrapper) : "gradle";
+    const command = directory ? `${executable} -p ${directory} test` : `${executable} test`;
+    const framework = javaTestFramework(files, directory);
+    return {
+      command,
+      reason: `${javaManifest.path} declares a Gradle project${wrapper ? " with a wrapper" : ""}${framework ? `; ${framework} tests detected` : ""}`
+    };
   }
   if (language === "dotnet") {
     return manifest ? { command: `dotnet test${manifest.packageDir ? ` ${manifest.path}` : ""}`, reason: `${manifest.path} declares a .NET project` } : { command: "dotnet test", reason: ".NET source files; no project file was found" };
   }
   return void 0;
+}
+function nearestPythonTestConfig(files, packageDir) {
+  const candidates = files.flatMap((file) => {
+    const name = file.path.split("/").pop()?.toLowerCase() ?? "";
+    let runner;
+    if (name === "noxfile.py")
+      runner = "nox";
+    else if (name === "tox.ini" || name === "pyproject.toml" && /\[tool\.tox\b/i.test(file.textSample))
+      runner = "tox";
+    else if (name === "pytest.ini" || name === "pyproject.toml" && /\[tool\.pytest\.ini_options\]/i.test(file.textSample) || name === "setup.cfg" && /\[(?:tool:)?pytest\]/i.test(file.textSample))
+      runner = "pytest";
+    else if (file.isTest && /\b(?:import\s+unittest|unittest\.TestCase|from\s+unittest\s+import)\b/.test(file.textSample))
+      runner = "unittest";
+    return runner ? [{ file, runner }] : [];
+  });
+  const inRequestedPackage = packageDir ? candidates.filter(({ file, runner }) => runner === "unittest" ? file.path.startsWith(`${packageDir}/`) : file.path === `${packageDir}/${file.path.split("/").pop()}`) : [];
+  const rootDeclaresPython = files.some((file) => !file.path.includes("/") && languageForManifest(file.path) === "python");
+  const eligible = packageDir ? inRequestedPackage : rootDeclaresPython ? candidates.filter(({ file, runner }) => runner === "unittest" || !file.path.includes("/")) : candidates;
+  const selected = eligible.sort((a, b) => a.file.path.split("/").length - b.file.path.split("/").length || a.file.path.localeCompare(b.file.path))[0];
+  return selected ? { path: selected.file.path, runner: selected.runner } : void 0;
+}
+function javaTestFramework(files, packageDir) {
+  const scoped = packageDir ? files.filter((file) => file.path.startsWith(`${packageDir}/`)) : files;
+  const samples = scoped.filter((file) => file.isTest || /(?:pom\.xml|build\.gradle(?:\.kts)?)$/i.test(file.path)).map((file) => file.textSample).join("\n");
+  if (/\b(?:org\.testng|testng)\b/i.test(samples))
+    return "TestNG";
+  if (/\b(?:org\.junit|junit-jupiter|junit)\b/i.test(samples))
+    return "JUnit";
+  return void 0;
+}
+function requestedOrNearestManifest(files, language, packageDir) {
+  if (packageDir) {
+    const requested = files.filter((file) => file.path.split("/").slice(0, -1).join("/") === packageDir).filter((file) => languageForManifest(file.path) === language).sort((a, b) => a.path.localeCompare(b.path))[0];
+    if (requested)
+      return { path: requested.path, packageDir };
+  }
+  return nearestManifest(files, language);
+}
+function findWrapper(files, packageDir, names) {
+  const normalizedNames = new Set(names.map((name) => name.toLowerCase()));
+  const paths = packageDir ? names.map((name) => `${packageDir}/${name}`) : names;
+  return files.find((file) => paths.some((path) => file.path.toLowerCase() === path.toLowerCase()))?.path ?? files.find((file) => !file.path.includes("/") && normalizedNames.has(file.path.toLowerCase()))?.path;
+}
+function posixExecutable(path) {
+  return `./${path.replace(/\.cmd$|\.bat$/i, "")}`;
 }
 function suggestedRunner(language, files) {
   if (language === "python") {
@@ -977,24 +1235,16 @@ function languageForManifest(path) {
 }
 
 // packages/core/dist/import-graph.js
-var JS_EXTENSIONS = /* @__PURE__ */ new Set([".cjs", ".cts", ".js", ".jsx", ".mjs", ".mts", ".svelte", ".ts", ".tsx", ".vue"]);
 var RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"];
 var COMPILED_TO_SOURCE = {
   ".js": [".ts", ".tsx"],
   ".mjs": [".mts"],
   ".cjs": [".cts"]
 };
-var SPECIFIER_PATTERNS = [
-  /\bimport\s+[^'"()]*?from\s*["']([^"'\n]+)["']/g,
-  /\bimport\s*["']([^"'\n]+)["']/g,
-  /\bexport\s+[^'"()]*?from\s*["']([^"'\n]+)["']/g,
-  /\brequire\s*\(\s*["']([^"'\n]+)["']\s*\)/g,
-  /\bimport\s*\(\s*["']([^"'\n]+)["']\s*\)/g
-];
 var MAX_GRAPH_FILES = 5e3;
 var MAX_EDGES_PER_FILE = 200;
 function buildImportGraph(files) {
-  const allParseable = files.filter((file) => JS_EXTENSIONS.has(file.extension) && file.textSample.length > 0);
+  const allParseable = files.filter((file) => languageAdapterForFile(file) && file.textSample.length > 0);
   const parseable = allParseable.slice(0, MAX_GRAPH_FILES);
   const repoPaths = new Set(files.map((file) => file.path));
   const aliases = buildAliases(files);
@@ -1004,18 +1254,20 @@ function buildImportGraph(files) {
   let truncatedEdges = 0;
   for (const file of parseable) {
     let edges = 0;
-    for (const specifier of extractSpecifiers(file.textSample)) {
-      if (edges >= MAX_EDGES_PER_FILE) {
-        truncatedEdges += 1;
+    for (const imported of extractLanguageImports(file)) {
+      for (const target of resolveLanguageImport(file.path, imported, repoPaths, aliases, workspacePackages)) {
+        if (edges >= MAX_EDGES_PER_FILE) {
+          truncatedEdges += 1;
+          break;
+        }
+        if (target === file.path || imports.get(file.path)?.has(target))
+          continue;
+        addEdge(imports, file.path, target);
+        addEdge(importedBy, target, file.path);
+        edges += 1;
+      }
+      if (edges >= MAX_EDGES_PER_FILE)
         break;
-      }
-      const target = resolveSpecifier(file.path, specifier, repoPaths, aliases, workspacePackages);
-      if (!target || target === file.path) {
-        continue;
-      }
-      addEdge(imports, file.path, target);
-      addEdge(importedBy, target, file.path);
-      edges += 1;
     }
   }
   return {
@@ -1057,17 +1309,65 @@ function neighborsOf(graph, path) {
   }
   return neighbors;
 }
-function extractSpecifiers(textSample) {
-  const specifiers = /* @__PURE__ */ new Set();
-  for (const pattern of SPECIFIER_PATTERNS) {
-    for (const match of textSample.matchAll(pattern)) {
-      const specifier = match[1];
-      if (specifier) {
-        specifiers.add(specifier);
-      }
+function resolveLanguageImport(fromPath, imported, repoPaths, aliases, workspacePackages) {
+  if (imported.adapter === "python") {
+    return resolvePythonImport(fromPath, imported, repoPaths);
+  }
+  if (imported.adapter === "java") {
+    return resolveJavaImport(imported, repoPaths);
+  }
+  const target = resolveSpecifier(fromPath, imported.specifier, repoPaths, aliases, workspacePackages);
+  return target ? [target] : [];
+}
+function resolvePythonImport(fromPath, imported, repoPaths) {
+  const relativeMatch = /^(\.+)(.*)$/.exec(imported.specifier);
+  let roots;
+  if (relativeMatch?.[1] !== void 0) {
+    const base = fromPath.split("/").slice(0, -1);
+    const parentLevels = Math.max(0, relativeMatch[1].length - 1);
+    if (parentLevels > base.length)
+      return [];
+    const packageRoot = base.slice(0, base.length - parentLevels);
+    const moduleSegments = (relativeMatch[2] ?? "").split(".").filter(Boolean);
+    roots = [[...packageRoot, ...moduleSegments].join("/")];
+  } else {
+    const modulePath = imported.specifier.replace(/\./g, "/");
+    roots = [modulePath, `src/${modulePath}`];
+  }
+  const memberRoots = imported.importedNames.filter((name) => name !== "*").flatMap((name) => roots.map((root) => root ? `${root}/${name}` : name));
+  const targets = /* @__PURE__ */ new Set();
+  for (const root of [...memberRoots, ...roots]) {
+    for (const candidate of pythonCandidates(root, repoPaths, !relativeMatch)) {
+      targets.add(candidate);
     }
   }
-  return specifiers;
+  return [...targets].sort((a, b) => a.localeCompare(b));
+}
+function pythonCandidates(root, repoPaths, allowSuffix) {
+  if (!root)
+    return [];
+  const suffixes = [`${root}.py`, `${root}.pyi`, `${root}/__init__.py`, `${root}/__init__.pyi`];
+  const exact = suffixes.filter((candidate) => repoPaths.has(candidate));
+  if (exact.length > 0 || !allowSuffix)
+    return exact;
+  return [...repoPaths].filter((path) => suffixes.some((suffix) => path.endsWith(`/${suffix}`))).sort(shortestPathFirst).slice(0, 8);
+}
+function resolveJavaImport(imported, repoPaths) {
+  const modulePath = imported.specifier.replace(/\./g, "/");
+  if (imported.wildcard) {
+    return [...repoPaths].filter((path) => {
+      const marker = `/${modulePath}/`;
+      const index = `/${path}`.lastIndexOf(marker);
+      if (index === -1 || !path.endsWith(".java"))
+        return false;
+      return `/${path}`.slice(index + marker.length).split("/").length === 1;
+    }).sort(shortestPathFirst);
+  }
+  const suffix = `${modulePath}.java`;
+  return [...repoPaths].filter((path) => path === suffix || path.endsWith(`/${suffix}`)).sort(shortestPathFirst).slice(0, 1);
+}
+function shortestPathFirst(left, right) {
+  return left.split("/").length - right.split("/").length || left.localeCompare(right);
 }
 function resolveSpecifier(fromPath, specifier, repoPaths, aliases, workspacePackages) {
   const baseDir = fromPath.split("/").slice(0, -1).join("/");
@@ -1456,7 +1756,7 @@ function rankContextFilesDetailed(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMI
       score += EXACT_LITERAL_BOOST * Math.min(3, exactFragmentOccurrences.get(exactLiteral) ?? 0);
       reasons.push(`contains exact task literal: ${previewFragment(exactLiteral)}`);
     }
-    const definedIdentifiers = (file.kind === "documentation" ? [] : findDefinedIdentifiers(file.textSample, definitionSignals)).slice(0, MAX_DEFINITION_IDENTIFIERS);
+    const definedIdentifiers = (file.kind === "documentation" ? [] : findDefinedIdentifiers(file, definitionSignals)).slice(0, MAX_DEFINITION_IDENTIFIERS);
     if (definedIdentifiers.length > 0) {
       score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
       reasons.push(`defines task identifiers: ${definedIdentifiers.join(", ")}`);
@@ -1465,7 +1765,7 @@ function rankContextFilesDetailed(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMI
         reasons.push("task identifier is defined in maintained implementation source");
       }
     }
-    const taskMatchedDefinitions = signals.exactFragments.length === 0 && !taskTargetsDocumentation ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file.textSample, taskTokens)).filter((identifier) => !definedIdentifiers.includes(identifier)).slice(0, MAX_DEFINITION_IDENTIFIERS) : [];
+    const taskMatchedDefinitions = signals.exactFragments.length === 0 && !taskTargetsDocumentation ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file, taskTokens)).filter((identifier) => !definedIdentifiers.includes(identifier)).slice(0, MAX_DEFINITION_IDENTIFIERS) : [];
     if (taskMatchedDefinitions.length > 0) {
       score += taskMatchedDefinitions.length * TASK_MATCHED_DEFINITION_BOOST;
       reasons.push(`defines symbols matching task terms: ${taskMatchedDefinitions.join(", ")}`);
@@ -1574,7 +1874,7 @@ function hasContestedLead(ranked) {
   return ranked.slice(1).some((entry) => hasDefinitionEvidence(entry));
 }
 function hasDefinitionEvidence(entry) {
-  return entry.reasons.some((reason) => reason.startsWith("defines task identifiers:") || reason.startsWith("exact task literal at definition:"));
+  return entry.reasons.some((reason2) => reason2.startsWith("defines task identifiers:") || reason2.startsWith("exact task literal at definition:"));
 }
 function applyImportProximity(scored, repo) {
   const directSeeds = scored.filter((entry) => entry.score >= 8 && hasDirectEvidence(entry)).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, MAX_PROXIMITY_SEEDS);
@@ -1664,7 +1964,7 @@ function capConfidence(confidence, maximum) {
   return levels.indexOf(confidence) > levels.indexOf(maximum) ? maximum : confidence;
 }
 function hasDirectEvidence(entry) {
-  return entry.isChanged || entry.reasons.some((reason) => reason === "explicitly named in the task" || reason.startsWith("defines task identifiers:") || reason.startsWith("exact task literal at definition:"));
+  return entry.isChanged || entry.reasons.some((reason2) => reason2 === "explicitly named in the task" || reason2.startsWith("defines task identifiers:") || reason2.startsWith("exact task literal at definition:"));
 }
 function hasAnyNormalized(tokens, rawText, values) {
   return values.some((value) => {
@@ -1781,26 +2081,29 @@ function buildDefinitionSignals(identifiers) {
     pattern: new RegExp(`(?<![\\p{L}\\p{N}_$])(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\\s+)${escapeRegExp2(identifier)}(?![\\p{L}\\p{N}_$])`, "u")
   }));
 }
-function findDefinedIdentifiers(text, signals) {
-  return signals.filter((signal) => signal.pattern.test(text)).map((signal) => signal.identifier);
+function findDefinedIdentifiers(file, signals) {
+  const adapterDefinitions = new Set(extractLanguageDefinitions(file).map((entry) => entry.name));
+  return signals.filter((signal) => adapterDefinitions.has(signal.identifier) || signal.pattern.test(file.textSample)).map((signal) => signal.identifier);
 }
 function exactIdentifierPattern(identifier) {
   return new RegExp(`(?<![\\p{L}\\p{N}_$])${escapeRegExp2(identifier)}(?![\\p{L}\\p{N}_$])`, "u");
 }
-function findTaskMatchedDefinitions(text, taskTokens) {
-  const definitions = /* @__PURE__ */ new Set();
+function findTaskMatchedDefinitions(file, taskTokens) {
+  const definitions = new Set(extractLanguageDefinitions(file).map((entry) => entry.name));
   const pattern = /(?<![\p{L}\p{N}_$])(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\s+)([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
-  for (const match of text.matchAll(pattern)) {
+  for (const match of file.textSample.matchAll(pattern)) {
     const identifier = match[1];
-    if (!identifier) {
-      continue;
-    }
+    if (identifier)
+      definitions.add(identifier);
+  }
+  const matched = [];
+  for (const identifier of definitions) {
     const overlap = [...tokenizeText(identifier)].filter((token) => taskTokens.has(token));
     if (overlap.length >= 2 || overlap.length === 1 && identifier.length >= 6) {
-      definitions.add(identifier);
+      matched.push(identifier);
     }
   }
-  return [...definitions];
+  return matched;
 }
 function hasExactFragmentAtDefinition(text, fragment, definedIdentifiers) {
   let index = text.indexOf(fragment);
@@ -1905,6 +2208,904 @@ function truncateForDiagnostic(value, limit) {
   return value.length <= limit ? value : `${value.slice(0, limit)}\u2026`;
 }
 
+// packages/core/dist/retrieval.js
+var STOPWORDS = new Set(`a about above after again against all am an and any are as at be because been before being
+below between both but by can cannot could did do does doing down during each few for from further had has have having
+he her here hers him his how i if in into is it its itself just me more most my no nor not of off on once only or other
+ought our out over own same she should so some such than that the their them then there these they this those through
+to too under until up very was we were what when where which while who whom why with would you your
+bug issue issues error errors expected actual behavior behaviour reproduce reproduction steps version versions node npm
+report repo repository description example code please thanks title type severity confidence location line lines
+following above below see also would should could may might must will can also using used use uses`.split(/\s+/));
+function retrievalTokens(text) {
+  const tokens = [];
+  for (const raw of text.match(/[A-Za-z0-9_$]+/g) ?? []) {
+    const lower = raw.toLowerCase();
+    if (lower.length >= 3)
+      tokens.push(lower);
+    const parts = raw.split(/(?<=[a-z0-9])(?=[A-Z])|_/).filter((part) => part.length >= 3);
+    if (parts.length > 1)
+      tokens.push(...parts.map((part) => part.toLowerCase()));
+  }
+  return tokens;
+}
+function retrievalQueryTerms(task) {
+  return [...new Set(retrievalTokens(task))].filter((term) => !STOPWORDS.has(term));
+}
+function rankByBm25(files, task, limit = 5) {
+  const candidates = files.filter((file) => file.isSource && !file.isTest && file.kind === "code");
+  const terms = retrievalQueryTerms(task);
+  const documents = candidates.map((file) => {
+    const counts = /* @__PURE__ */ new Map();
+    for (const token of retrievalTokens(`${file.path}
+${file.textSample}`)) {
+      counts.set(token, (counts.get(token) ?? 0) + 1);
+    }
+    return { path: file.path, counts, length: [...counts.values()].reduce((sum, count) => sum + count, 0) };
+  });
+  if (documents.length === 0 || terms.length === 0)
+    return [];
+  const averageLength = documents.reduce((sum, document) => sum + document.length, 0) / documents.length || 1;
+  const documentFrequency = new Map(terms.map((term) => [
+    term,
+    documents.reduce((count, document) => count + (document.counts.has(term) ? 1 : 0), 0)
+  ]));
+  return documents.map((document) => {
+    let score = 0;
+    for (const term of terms) {
+      const frequency = document.counts.get(term) ?? 0;
+      if (frequency === 0)
+        continue;
+      const df = documentFrequency.get(term) ?? 0;
+      const idf = Math.log(1 + (documents.length - df + 0.5) / (df + 0.5));
+      score += idf * (frequency * 2.2 / (frequency + 1.2 * (0.25 + 0.75 * document.length / averageLength)));
+    }
+    return { path: document.path, score };
+  }).filter((entry) => entry.score > 0).sort((left, right) => right.score - left.score || left.path.localeCompare(right.path)).slice(0, Math.max(0, limit)).map((entry) => entry.path);
+}
+
+// packages/core/dist/semantic.js
+var PROVIDER_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+var SHA_256 = /^[a-f0-9]{64}$/;
+var DEFAULT_LIMIT = 8;
+var DEFAULT_MAX_SEMANTIC_CANDIDATES = 1e3;
+var DEFAULT_TIMEOUT_MS = 12e4;
+var DEFAULT_WEIGHTS = {
+  structural: 3,
+  lexical: 1,
+  semantic: 3.5,
+  reciprocalRankConstant: 60
+};
+async function rankContextFilesHybrid(repo, input, options = {}) {
+  const limit = positiveInteger(options.limit, DEFAULT_LIMIT);
+  const weights = {
+    structural: positiveNumber(options.weights?.structural, DEFAULT_WEIGHTS.structural),
+    lexical: positiveNumber(options.weights?.lexical, DEFAULT_WEIGHTS.lexical),
+    semantic: positiveNumber(options.weights?.semantic, DEFAULT_WEIGHTS.semantic),
+    reciprocalRankConstant: DEFAULT_WEIGHTS.reciprocalRankConstant
+  };
+  const detailed = rankContextFilesDetailed(repo, { ...input, exclude: options.exclude }, Number.MAX_SAFE_INTEGER, options.minStructuralScore ?? Number.NEGATIVE_INFINITY);
+  const structural = detailed.contextFiles;
+  const structuralByPath = new Map(structural.map((file) => [file.path, file]));
+  const task = [input.issueText ?? "", input.diffText ?? ""].filter(Boolean).join("\n");
+  const lexical = rankByBm25(repo.files.filter((file) => structuralByPath.has(file.path)), task, structural.length);
+  const signals = /* @__PURE__ */ new Map();
+  structural.forEach((file, index) => signals.set(file.path, {
+    structuralRank: index + 1,
+    structuralScore: file.score
+  }));
+  lexical.forEach((path, index) => {
+    const signal = signals.get(path);
+    if (signal)
+      signal.lexicalRank = index + 1;
+  });
+  const diagnostics = [];
+  let semantic;
+  const provider = options.embeddingProvider;
+  if (!provider) {
+    diagnostics.push({
+      code: "semantic-disabled",
+      severity: "info",
+      message: "Semantic retrieval was not configured; ranking used structural and lexical evidence only."
+    });
+  } else if (!provider.local && options.allowRemoteEmbeddings !== true) {
+    diagnostics.push({
+      code: "semantic-remote-disallowed",
+      severity: "warning",
+      message: `Embedding provider ${provider.id} is remote; source upload remains disabled unless explicitly allowed.`
+    });
+  } else {
+    const providerError = validateProvider(provider);
+    if (providerError) {
+      diagnostics.push({ code: "semantic-provider-invalid", severity: "warning", message: providerError });
+    } else if (task.trim() && structural.length > 0) {
+      const maxCandidates = positiveInteger(options.maxSemanticCandidates, DEFAULT_MAX_SEMANTIC_CANDIDATES);
+      const semanticCandidates = structural.slice(0, maxCandidates);
+      const truncatedFiles = structural.length - semanticCandidates.length;
+      if (truncatedFiles > 0) {
+        diagnostics.push({
+          code: "semantic-candidates-truncated",
+          severity: "warning",
+          message: `Semantic retrieval embedded ${semanticCandidates.length.toLocaleString()} candidates and omitted ${truncatedFiles.toLocaleString()} lower structural candidates.`
+        });
+      }
+      try {
+        const vectors = await embedWithTimeout(provider, [task, ...semanticCandidates.map((file) => semanticDocument(repo, file.path))], positiveInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS));
+        const query = vectors[0];
+        const semanticScores = semanticCandidates.map((file, index) => ({
+          path: file.path,
+          similarity: cosineSimilarity(query, vectors[index + 1])
+        })).sort((a, b) => b.similarity - a.similarity || a.path.localeCompare(b.path));
+        semanticScores.forEach((entry, index) => {
+          const signal = signals.get(entry.path);
+          if (signal) {
+            signal.semanticRank = index + 1;
+            signal.semanticSimilarity = round(entry.similarity, 6);
+          }
+        });
+        semantic = {
+          id: provider.id,
+          version: provider.version,
+          model: provider.model,
+          artifactHash: provider.artifactHash,
+          runtime: provider.runtime,
+          dimensions: provider.dimensions,
+          normalization: provider.normalization,
+          local: provider.local,
+          cacheKey: semanticCacheKey(provider),
+          indexedFiles: semanticCandidates.length,
+          truncatedFiles
+        };
+      } catch (error) {
+        diagnostics.push({
+          code: "semantic-provider-failed",
+          severity: "warning",
+          message: `Semantic retrieval failed without aborting FixMap: ${error instanceof Error ? error.message : String(error)}`
+        });
+      }
+    }
+  }
+  const fused = structural.map((file) => {
+    const signal = signals.get(file.path);
+    const fusionScore = reciprocalContribution(signal.structuralRank, weights.structural, weights.reciprocalRankConstant) + reciprocalContribution(signal.lexicalRank, weights.lexical, weights.reciprocalRankConstant) + reciprocalContribution(signal.semanticRank, weights.semantic, weights.reciprocalRankConstant);
+    const reasons = [...file.reasons];
+    if (signal.lexicalRank !== void 0)
+      reasons.push(`BM25 lexical rank #${signal.lexicalRank}`);
+    if (signal.semanticRank !== void 0 && signal.semanticSimilarity !== void 0 && semantic) {
+      reasons.push(`semantic rank #${signal.semanticRank} (cosine ${signal.semanticSimilarity.toFixed(3)}) via ${semantic.id}/${semantic.model}`);
+    }
+    return { ...file, fusionScore: round(fusionScore, 8), retrieval: signal, reasons };
+  }).sort((a, b) => Number(isFusionAnchor(b)) - Number(isFusionAnchor(a)) || b.fusionScore - a.fusionScore || (a.retrieval.structuralRank ?? Number.MAX_SAFE_INTEGER) - (b.retrieval.structuralRank ?? Number.MAX_SAFE_INTEGER) || a.path.localeCompare(b.path)).slice(0, limit).map((file, index) => ({ ...file, rank: index + 1 }));
+  return {
+    files: fused,
+    mode: semantic ? "structural-lexical-semantic" : "structural-lexical",
+    weights,
+    ...semantic ? { semantic } : {},
+    diagnostics,
+    structuralRanking: detailed.ranking
+  };
+}
+function isFusionAnchor(file) {
+  return file.reasons.some((reason2) => reason2 === "changed file" || reason2 === "explicitly named in the task" || reason2.startsWith("defines task identifiers:") || reason2.startsWith("exact task literal at definition:"));
+}
+function validateProvider(provider) {
+  if (!PROVIDER_ID.test(provider.id) || !provider.version.trim() || !provider.model.trim() || !provider.runtime.trim()) {
+    return "Embedding provider identity, version, model, or runtime is invalid.";
+  }
+  if (!SHA_256.test(provider.artifactHash))
+    return `Embedding provider ${provider.id} must declare a lowercase SHA-256 artifact hash.`;
+  if (!Number.isSafeInteger(provider.dimensions) || provider.dimensions < 1 || provider.dimensions > 65536) {
+    return `Embedding provider ${provider.id} declares invalid dimensions.`;
+  }
+  if (provider.normalization !== "l2" && provider.normalization !== "none") {
+    return `Embedding provider ${provider.id} declares invalid normalization.`;
+  }
+  return void 0;
+}
+async function embedWithTimeout(provider, texts, timeoutMs) {
+  const controller = new AbortController();
+  let timer;
+  try {
+    const timeout = new Promise((_resolve, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error(`embedding provider timed out after ${timeoutMs.toLocaleString()} ms`));
+      }, timeoutMs);
+    });
+    const output = await Promise.race([provider.embed(texts, { signal: controller.signal }), timeout]);
+    if (!Array.isArray(output) || output.length !== texts.length) {
+      throw new Error(`embedding provider returned ${Array.isArray(output) ? output.length : "invalid"} vectors for ${texts.length} texts`);
+    }
+    return output.map((vector, index) => validateVector(vector, provider, index));
+  } finally {
+    if (timer)
+      clearTimeout(timer);
+    controller.abort();
+  }
+}
+function validateVector(vector, provider, index) {
+  if (!Array.isArray(vector) && !ArrayBuffer.isView(vector)) {
+    throw new Error(`embedding vector ${index} is not an array`);
+  }
+  const values = Array.from(vector);
+  if (values.length !== provider.dimensions || values.some((value) => !Number.isFinite(value))) {
+    throw new Error(`embedding vector ${index} does not contain ${provider.dimensions} finite dimensions`);
+  }
+  const magnitude = Math.sqrt(values.reduce((sum, value) => sum + value * value, 0));
+  if (magnitude === 0)
+    throw new Error(`embedding vector ${index} has zero magnitude`);
+  if (provider.normalization === "l2" && Math.abs(magnitude - 1) > 0.01) {
+    throw new Error(`embedding vector ${index} is not L2-normalized as declared`);
+  }
+  return provider.normalization === "l2" ? values : values.map((value) => value / magnitude);
+}
+function cosineSimilarity(left, right) {
+  return left.reduce((sum, value, index) => sum + value * (right[index] ?? 0), 0);
+}
+function semanticDocument(repo, path) {
+  const file = repo.files.find((candidate) => candidate.path === path);
+  return `${path}
+${file?.textSample ?? ""}`.slice(0, 16e3);
+}
+function reciprocalContribution(rank, weight, constant) {
+  return rank === void 0 ? 0 : weight / (constant + rank);
+}
+function semanticCacheKey(provider) {
+  return [
+    provider.id,
+    provider.version,
+    provider.model,
+    provider.artifactHash,
+    provider.runtime,
+    provider.dimensions,
+    provider.normalization
+  ].join(":");
+}
+function positiveInteger(value, fallback) {
+  return value !== void 0 && Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+function positiveNumber(value, fallback) {
+  return value !== void 0 && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+function round(value, digits) {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
+// packages/core/dist/annotations.js
+var ID = /^annotation:[a-f0-9]{16}$/;
+var REVISION = /^[A-Za-z0-9][A-Za-z0-9._/@:+-]{0,255}$/;
+function validateAnnotationStore(candidate) {
+  if (!isRecord(candidate) || candidate.annotationStoreVersion !== 1 || !Array.isArray(candidate.annotations)) {
+    throw new Error("Unsupported or invalid FixMap annotation store. Expected annotationStoreVersion 1.");
+  }
+  const ids = /* @__PURE__ */ new Set();
+  const annotations = candidate.annotations.map((value) => {
+    validateAnnotation(value);
+    if (ids.has(value.id))
+      throw new Error(`Duplicate annotation ID: ${value.id}`);
+    ids.add(value.id);
+    return copyAnnotation(value);
+  }).sort((a, b) => scopeKey(a.scope).localeCompare(scopeKey(b.scope)) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  return { annotationStoreVersion: 1, annotations };
+}
+function assessAnnotations(store, repo, options) {
+  const validated = validateAnnotationStore(store);
+  const now = parseTimestamp(options.now, "assessment time");
+  const paths = new Set(repo.files.map((file) => normalizePath(file.path)));
+  const renames = new Map((options.renames ?? []).map((rename2) => {
+    const from = validateRelativePath(rename2.from, "rename source");
+    const to = validateRelativePath(rename2.to, "rename target");
+    return [from, to];
+  }));
+  return validated.annotations.map((annotation) => {
+    if (annotation.expiresAt && parseTimestamp(annotation.expiresAt, "annotation expiry") <= now) {
+      return { annotation, status: "expired", message: `Annotation ${annotation.id} expired at ${annotation.expiresAt}.` };
+    }
+    const targetPath = annotation.scope.kind === "file" || annotation.scope.kind === "symbol" || annotation.scope.kind === "contract" && annotation.scope.path ? annotation.scope.path : void 0;
+    if (targetPath) {
+      const renamedTo = renames.get(targetPath);
+      if (renamedTo) {
+        return {
+          annotation,
+          status: "renamed-target",
+          message: `Annotation target ${targetPath} was renamed to ${renamedTo}; review and update the annotation scope.`,
+          suggestedPath: renamedTo
+        };
+      }
+      if (!paths.has(targetPath)) {
+        return { annotation, status: "missing-target", message: `Annotation target ${targetPath} is not present in this repository snapshot.` };
+      }
+    }
+    return { annotation, status: "active", message: `Annotation ${annotation.id} is active.` };
+  });
+}
+function normalizeAnnotationInput(input) {
+  const scope = validateScope(input.scope);
+  const note = normalizeText(input.note, "annotation note", 2e3);
+  const createdAt = new Date(parseTimestamp(input.createdAt, "annotation creation time")).toISOString();
+  const expiresAt = input.expiresAt ? new Date(parseTimestamp(input.expiresAt, "annotation expiry")).toISOString() : void 0;
+  if (expiresAt && Date.parse(expiresAt) <= Date.parse(createdAt))
+    throw new Error("Annotation expiry must be after its creation time.");
+  const owner = input.owner ? normalizeText(input.owner, "annotation owner", 200) : void 0;
+  const sourceRevision = input.sourceRevision?.trim();
+  if (sourceRevision && !REVISION.test(sourceRevision))
+    throw new Error(`Invalid annotation source revision: ${sourceRevision}`);
+  return {
+    scope,
+    note,
+    ...owner ? { owner } : {},
+    createdAt,
+    ...expiresAt ? { expiresAt } : {},
+    ...sourceRevision ? { sourceRevision } : {}
+  };
+}
+function validateAnnotation(candidate) {
+  if (!isRecord(candidate) || typeof candidate.id !== "string" || !ID.test(candidate.id) || typeof candidate.note !== "string" || typeof candidate.createdAt !== "string") {
+    throw new Error("Invalid FixMap annotation record.");
+  }
+  const normalized = normalizeAnnotationInput({
+    scope: candidate.scope,
+    note: candidate.note,
+    ...typeof candidate.owner === "string" ? { owner: candidate.owner } : {},
+    createdAt: candidate.createdAt,
+    ...typeof candidate.expiresAt === "string" ? { expiresAt: candidate.expiresAt } : {},
+    ...typeof candidate.sourceRevision === "string" ? { sourceRevision: candidate.sourceRevision } : {}
+  });
+  if (candidate.note !== normalized.note || candidate.createdAt !== normalized.createdAt || candidate.owner !== normalized.owner || candidate.expiresAt !== normalized.expiresAt || candidate.sourceRevision !== normalized.sourceRevision || canonicalize(candidate.scope) !== canonicalize(normalized.scope)) {
+    throw new Error(`Annotation ${candidate.id} is not canonically encoded.`);
+  }
+  const expectedId = `annotation:${stableHash(canonicalize(normalized))}`;
+  if (candidate.id !== expectedId)
+    throw new Error(`Annotation ${candidate.id} does not match its content identity.`);
+}
+function validateScope(candidate) {
+  if (!isRecord(candidate) || typeof candidate.kind !== "string")
+    throw new Error("Annotation scope is invalid.");
+  if (candidate.kind === "file") {
+    return { kind: "file", path: validateRelativePath(String(candidate.path ?? ""), "annotation file") };
+  }
+  if (candidate.kind === "symbol") {
+    return {
+      kind: "symbol",
+      path: validateRelativePath(String(candidate.path ?? ""), "annotation symbol file"),
+      symbol: normalizeText(String(candidate.symbol ?? ""), "annotation symbol", 300)
+    };
+  }
+  if (candidate.kind === "service") {
+    return { kind: "service", name: normalizeText(String(candidate.name ?? ""), "annotation service", 300) };
+  }
+  if (candidate.kind === "contract") {
+    const path = candidate.path === void 0 ? void 0 : validateRelativePath(String(candidate.path), "annotation contract file");
+    return {
+      kind: "contract",
+      name: normalizeText(String(candidate.name ?? ""), "annotation contract", 300),
+      ...path ? { path } : {}
+    };
+  }
+  throw new Error("Unsupported annotation scope.");
+}
+function validateRelativePath(value, label) {
+  const normalized = normalizePath(value.trim());
+  if (!normalized || /^(?:[\\/]|[A-Za-z]:)/.test(value) || value.includes("\0") || normalized.split("/").some((part) => !part || part === "." || part === "..")) {
+    throw new Error(`Invalid ${label}: ${value}`);
+  }
+  return normalized;
+}
+function normalizePath(path) {
+  return path.replace(/\\/g, "/");
+}
+function normalizeText(value, label, maximum) {
+  const normalized = value.replace(/\r\n/g, "\n").trim();
+  if (!normalized || normalized.length > maximum || normalized.includes("\0"))
+    throw new Error(`Invalid ${label}.`);
+  return normalized;
+}
+function parseTimestamp(value, label) {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed))
+    throw new Error(`Invalid ${label}: ${value}`);
+  return parsed;
+}
+function scopeKey(scope) {
+  if (scope.kind === "file")
+    return `file:${scope.path}`;
+  if (scope.kind === "symbol")
+    return `symbol:${scope.path}:${scope.symbol}`;
+  if (scope.kind === "service")
+    return `service:${scope.name}`;
+  return `contract:${scope.path ?? ""}:${scope.name}`;
+}
+function copyAnnotation(annotation) {
+  return { ...annotation, scope: { ...annotation.scope } };
+}
+function canonicalize(value) {
+  if (Array.isArray(value))
+    return `[${value.map(canonicalize).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value).filter(([, entry]) => entry !== void 0).sort(([left], [right]) => left.localeCompare(right)).map(([key, entry]) => `${JSON.stringify(key)}:${canonicalize(entry)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function stableHash(value) {
+  let hash = 0xcbf29ce484222325n;
+  for (const byte of new TextEncoder().encode(value)) {
+    hash ^= BigInt(byte);
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return hash.toString(16).padStart(16, "0");
+}
+
+// packages/core/dist/decisions.js
+var DECISION_PATH = /(?:^|\/)(?:docs\/)?(?:adr|adrs|architecture\/decisions|decisions|rfcs?|design)(?:\/|$)|(?:^|\/)(?:architecture|design|rationale)\.md$|(?:^|\/)adr[-_ ]?\d+[^/]*\.md$/i;
+var PATH_LIKE = /^(?:[A-Za-z0-9_.@-]+\/)+[A-Za-z0-9_.@() +\[\]-]+(?:\.[A-Za-z0-9]+)?$/;
+function inventoryDecisionRecords(repo) {
+  const records = [];
+  const diagnostics = [];
+  const knownPaths = new Set(repo.files.map((file) => normalizePath2(file.path)));
+  for (const file of repo.files.filter((candidate) => DECISION_PATH.test(normalizePath2(candidate.path)))) {
+    if (file.textSampleComplete === false || !file.contentFingerprint) {
+      diagnostics.push({
+        code: "decision-source-incomplete",
+        severity: "warning",
+        path: file.path,
+        message: `${file.path} looks like a decision record, but complete content and an exact fingerprint were unavailable.`
+      });
+      continue;
+    }
+    const result = parseDecisionRecord({
+      path: file.path,
+      content: file.textSample,
+      fingerprint: file.contentFingerprint,
+      knownPaths
+    });
+    if (result.record) {
+      records.push(result.record);
+      const missing = result.record.targets.flatMap((target) => {
+        const targetPath = target.kind === "file" ? target.path : target.kind === "symbol" ? target.path : void 0;
+        return targetPath && !knownPaths.has(targetPath) ? [targetPath] : [];
+      });
+      if (missing.length > 0)
+        diagnostics.push({
+          code: "decision-target-missing",
+          severity: "warning",
+          path: file.path,
+          message: `${file.path} explicitly targets missing repository path${missing.length === 1 ? "" : "s"}: ${[...new Set(missing)].sort().join(", ")}.`
+        });
+    }
+    if (result.diagnostic)
+      diagnostics.push(result.diagnostic);
+  }
+  return {
+    decisionInventoryVersion: 1,
+    records: records.sort((a, b) => a.path.localeCompare(b.path)),
+    diagnostics: diagnostics.sort((a, b) => a.path.localeCompare(b.path) || a.code.localeCompare(b.code))
+  };
+}
+function selectDecisionRecords(inventory, input) {
+  if (inventory.decisionInventoryVersion !== 1)
+    throw new Error("Unsupported decision inventory version.");
+  const paths = new Set(input.paths.map(normalizePath2));
+  const task = input.task.toLowerCase();
+  return inventory.records.filter((record) => record.targets.some((target) => target.kind === "file" && paths.has(target.path) || target.kind === "symbol" && Boolean(target.path && paths.has(target.path)) || (target.kind === "service" || target.kind === "contract") && task.includes(target.name.toLowerCase())) || titleTerms(record.title).some((term) => task.includes(term)));
+}
+function parseDecisionRecord(input) {
+  const path = validatePath(input.path);
+  if (!input.fingerprint.trim() || /[\0-\x20]/.test(input.fingerprint))
+    throw new Error(`Invalid decision fingerprint for ${path}.`);
+  const { frontmatter, body } = splitFrontmatter(input.content);
+  const sections = markdownSections(body);
+  const title = firstHeading(body) ?? frontmatter.title;
+  const decision = section(sections, ["decision", "resolution", "proposal"]);
+  if (!title || !decision) {
+    return {
+      diagnostic: {
+        code: "decision-parse-failed",
+        severity: "warning",
+        path,
+        message: `${path} was not treated as human intent because it needs a title and a Decision, Resolution, or Proposal section.`
+      }
+    };
+  }
+  const statusText = frontmatter.status ?? section(sections, ["status"]);
+  const context = section(sections, ["context", "problem", "motivation"]);
+  const consequences = section(sections, ["consequences", "tradeoffs", "trade-offs", "outcome"]);
+  const appliesTo = [frontmatter["fixmap-applies-to"], section(sections, ["applies to", "scope"])].filter((value) => Boolean(value)).join("\n");
+  const supersedesText = [frontmatter.supersedes, section(sections, ["supersedes"])].filter((value) => Boolean(value)).join("\n");
+  const targets = normalizeTargets([
+    ...parseExplicitTargets(appliesTo),
+    ...literalPathTargets(body, input.knownPaths ?? /* @__PURE__ */ new Set())
+  ]);
+  const date = normalizeDate(frontmatter.date ?? section(sections, ["date"]));
+  return {
+    record: {
+      id: `decision:${stableHash2(path)}`,
+      path,
+      title: normalizeProse(title, 300),
+      status: normalizeStatus(statusText),
+      ...date ? { date } : {},
+      ...context ? { context: normalizeProse(context, 8e3) } : {},
+      decision: normalizeProse(decision, 8e3),
+      ...consequences ? { consequences: normalizeProse(consequences, 8e3) } : {},
+      targets,
+      supersedes: parseReferences(supersedesText),
+      sourceFingerprint: input.fingerprint
+    }
+  };
+}
+function splitFrontmatter(content) {
+  if (!content.startsWith("---\n") && !content.startsWith("---\r\n"))
+    return { frontmatter: {}, body: content };
+  const match = /^---\s*\r?\n([\s\S]*?)\r?\n---\s*\r?\n?/.exec(content);
+  if (!match)
+    return { frontmatter: {}, body: content };
+  const frontmatter = {};
+  let currentKey;
+  for (const line of (match[1] ?? "").split(/\r?\n/)) {
+    const field = /^([A-Za-z0-9_-]+)\s*:\s*(.*)$/.exec(line);
+    if (field?.[1] && field[2] !== void 0) {
+      currentKey = field[1].toLowerCase();
+      frontmatter[currentKey] = unquote(field[2].trim());
+      continue;
+    }
+    const item = /^\s*-\s+(.+)$/.exec(line)?.[1]?.trim();
+    if (item && currentKey)
+      frontmatter[currentKey] = `${frontmatter[currentKey] ? `${frontmatter[currentKey]}
+` : ""}${unquote(item)}`;
+  }
+  return { frontmatter, body: content.slice(match[0].length) };
+}
+function markdownSections(body) {
+  const sections = /* @__PURE__ */ new Map();
+  const matches = [...body.matchAll(/^#{2,6}\s+(.+?)\s*#*\s*$/gm)];
+  for (const [index, match] of matches.entries()) {
+    const title = match[1]?.trim().toLowerCase();
+    if (!title || match.index === void 0)
+      continue;
+    const start = match.index + match[0].length;
+    const end = matches[index + 1]?.index ?? body.length;
+    sections.set(title, body.slice(start, end).trim());
+  }
+  return sections;
+}
+function section(sections, names) {
+  for (const name of names) {
+    const exact = sections.get(name);
+    if (exact)
+      return exact;
+    const prefixed = [...sections].find(([heading]) => heading.startsWith(`${name}:`) || heading.startsWith(`${name} `))?.[1];
+    if (prefixed)
+      return prefixed;
+  }
+  return void 0;
+}
+function firstHeading(body) {
+  return body.match(/^#\s+(.+?)\s*#*\s*$/m)?.[1]?.trim();
+}
+function parseExplicitTargets(text) {
+  const targets = [];
+  const values = text.replace(/^\s*[-*]\s+/gm, "").replace(/^\[|\]$/g, "").split(/[\n,]/).map((value) => unquote(value.trim().replace(/^`|`$/g, ""))).filter(Boolean);
+  for (const value of values) {
+    const typed = /^(file|symbol|service|contract)\s*:\s*(.+)$/i.exec(value);
+    const kind = typed?.[1]?.toLowerCase();
+    const payload = (typed?.[2] ?? value).trim();
+    if (kind === "symbol") {
+      const [name, path] = payload.split("@").map((part) => part.trim());
+      if (name)
+        targets.push({ kind: "symbol", name, ...path ? { path: validatePath(path) } : {}, evidence: "explicit" });
+    } else if (kind === "service" || kind === "contract") {
+      if (payload)
+        targets.push({ kind, name: payload, evidence: "explicit" });
+    } else if (kind === "file" || PATH_LIKE.test(payload)) {
+      targets.push({ kind: "file", path: validatePath(payload), evidence: "explicit" });
+    }
+  }
+  return targets;
+}
+function literalPathTargets(body, knownPaths) {
+  return [...body.matchAll(/`([^`\r\n]+)`/g)].flatMap((match) => {
+    const candidate = normalizePath2(match[1]?.trim() ?? "");
+    return knownPaths.has(candidate) ? [{ kind: "file", path: candidate, evidence: "literal-mention" }] : [];
+  });
+}
+function normalizeTargets(targets) {
+  const byKey = /* @__PURE__ */ new Map();
+  for (const target of targets) {
+    const key = target.kind === "file" ? `file:${target.path}` : target.kind === "symbol" ? `symbol:${target.path ?? ""}:${target.name}` : `${target.kind}:${target.name}`;
+    const existing = byKey.get(key);
+    if (!existing || existing.evidence === "literal-mention")
+      byKey.set(key, { ...target });
+  }
+  return [...byKey.values()].sort((left, right) => targetKey(left).localeCompare(targetKey(right)));
+}
+function targetKey(target) {
+  if (target.kind === "file")
+    return `file:${target.path}`;
+  if (target.kind === "symbol")
+    return `symbol:${target.path ?? ""}:${target.name}`;
+  return `${target.kind}:${target.name}`;
+}
+function parseReferences(text) {
+  return [...new Set(text.split(/[\n,]/).map((value) => value.replace(/^\s*[-*]\s+/, "").trim()).filter(Boolean))].sort();
+}
+function normalizeStatus(value) {
+  const normalized = value?.toLowerCase().replace(/[*_`]/g, " ").trim() ?? "";
+  if (/\baccepted|approved|active\b/.test(normalized))
+    return "accepted";
+  if (/\bproposed|draft|pending\b/.test(normalized))
+    return "proposed";
+  if (/\brejected|declined\b/.test(normalized))
+    return "rejected";
+  if (/\bdeprecated|obsolete\b/.test(normalized))
+    return "deprecated";
+  if (/\bsuperseded|replaced\b/.test(normalized))
+    return "superseded";
+  return "unknown";
+}
+function normalizeDate(value) {
+  if (!value)
+    return void 0;
+  const candidate = value.trim().split(/\s+/)[0];
+  if (!candidate || !/^\d{4}-\d{2}-\d{2}$/.test(candidate))
+    return void 0;
+  const parsed = /* @__PURE__ */ new Date(`${candidate}T00:00:00Z`);
+  if (!Number.isFinite(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== candidate)
+    return void 0;
+  return candidate;
+}
+function normalizeProse(value, maximum) {
+  const normalized = value.replace(/\r\n/g, "\n").trim();
+  if (!normalized || normalized.length > maximum || normalized.includes("\0"))
+    throw new Error("Decision record prose is empty or exceeds the supported bound.");
+  return normalized;
+}
+function titleTerms(title) {
+  return title.toLowerCase().match(/[a-z0-9][a-z0-9_-]{3,}/g)?.filter((term) => !["decision", "record", "architecture", "using", "with"].includes(term)) ?? [];
+}
+function validatePath(value) {
+  const normalized = normalizePath2(value.trim());
+  if (!normalized || /^(?:[\\/]|[A-Za-z]:)/.test(value) || value.includes("\0") || normalized.split("/").some((part) => !part || part === "." || part === "..")) {
+    throw new Error(`Invalid decision path: ${value}`);
+  }
+  return normalized;
+}
+function normalizePath2(path) {
+  return path.replace(/\\/g, "/");
+}
+function unquote(value) {
+  return value.replace(/^(?:["'])(.*)(?:["'])$/, "$1");
+}
+function stableHash2(value) {
+  let hash = 0xcbf29ce484222325n;
+  for (const byte of new TextEncoder().encode(value)) {
+    hash ^= BigInt(byte);
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return hash.toString(16).padStart(16, "0");
+}
+
+// packages/core/dist/architecture.js
+var RULE_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+function parseArchitecturePolicy(input) {
+  const sourcePath = validateRelativePath2(input.path, "architecture policy path");
+  if (!input.fingerprint.trim() || /[\0-\x20]/.test(input.fingerprint))
+    throw new Error("Architecture policy needs a valid source fingerprint.");
+  let parsed;
+  try {
+    parsed = JSON.parse(input.content);
+  } catch {
+    throw new Error(`${sourcePath} is not valid JSON.`);
+  }
+  if (!isRecord2(parsed) || parsed.architecturePolicyVersion !== 1) {
+    throw new Error(`${sourcePath} must declare architecturePolicyVersion 1.`);
+  }
+  const policy = {
+    architecturePolicyVersion: 1,
+    source: { path: sourcePath, fingerprint: input.fingerprint },
+    boundaries: array(parsed.boundaries).map((rule, index) => boundaryRule(rule, index)),
+    requiredTests: array(parsed.requiredTests).map((rule, index) => testRule(rule, index)),
+    requiredReviews: array(parsed.requiredReviews).map((rule, index) => reviewRule(rule, index)),
+    contracts: array(parsed.contracts).map((rule, index) => contractRule(rule, index))
+  };
+  const ids = [
+    ...policy.boundaries.map((rule) => rule.id),
+    ...policy.requiredTests.map((rule) => rule.id),
+    ...policy.requiredReviews.map((rule) => rule.id),
+    ...policy.contracts.map((rule) => rule.id)
+  ];
+  const duplicate = ids.find((id, index) => ids.indexOf(id) !== index);
+  if (duplicate)
+    throw new Error(`Duplicate architecture policy rule id: ${duplicate}`);
+  if (ids.length > 500)
+    throw new Error("Architecture policy exceeds the 500-rule bound.");
+  return policy;
+}
+function architecturePolicyFromRepo(repo) {
+  const file = repo.files.find((candidate) => candidate.path === ".fixmap/policy.json");
+  if (!file)
+    return void 0;
+  if (file.textSampleComplete === false || !file.contentFingerprint) {
+    throw new Error(".fixmap/policy.json requires complete content and an exact fingerprint.");
+  }
+  return parseArchitecturePolicy({ path: file.path, content: file.textSample, fingerprint: file.contentFingerprint });
+}
+function evaluateArchitecturePolicy(policy, input) {
+  const findings = [];
+  const graph = buildImportGraph(input.repo.files);
+  const focus = input.focusPaths ? new Set(input.focusPaths) : void 0;
+  for (const rule of policy.boundaries) {
+    for (const [from, targets] of graph.imports) {
+      if (focus && !focus.has(from))
+        continue;
+      if (!matchesAny(from, rule.from))
+        continue;
+      for (const to of targets) {
+        if (!matchesAny(to, rule.deny))
+          continue;
+        findings.push({
+          code: "boundary-violation",
+          severity: rule.severity,
+          ruleId: rule.id,
+          message: `${from} imports denied architecture target ${to}: ${rule.reason}`,
+          paths: [from, to],
+          evidence: [
+            { kind: "import", path: from, relatedPath: to, detail: `${from} imports ${to}.` },
+            ...rule.decisionId ? [{ kind: "decision-record", detail: rule.decisionId }] : []
+          ]
+        });
+      }
+    }
+  }
+  const changed = input.repo.changedFiles;
+  for (const rule of policy.requiredTests) {
+    const triggering = changed.filter((path) => matchesAny(path, rule.paths));
+    if (triggering.length === 0 || changed.some((path) => matchesAny(path, rule.tests)))
+      continue;
+    findings.push({
+      code: "required-test-missing",
+      severity: rule.severity,
+      ruleId: rule.id,
+      message: `${triggering.length} changed path${triggering.length === 1 ? "" : "s"} triggered ${rule.id}, but no required test pattern changed: ${rule.reason}`,
+      paths: triggering,
+      evidence: [
+        ...triggering.map((path) => ({ kind: "changed-file", path, detail: `Matches ${rule.paths.join(", ")}.` })),
+        ...rule.tests.map((pattern) => ({ kind: "test-pattern", detail: pattern }))
+      ]
+    });
+  }
+  for (const rule of policy.requiredReviews) {
+    const triggering = changed.filter((path) => matchesAny(path, rule.paths));
+    if (triggering.length === 0)
+      continue;
+    findings.push({
+      code: "review-required",
+      severity: "info",
+      ruleId: rule.id,
+      message: `${rule.reviewers.join(", ")} should review ${triggering.join(", ")}: ${rule.reason}`,
+      paths: triggering,
+      evidence: rule.reviewers.map((reviewer) => ({ kind: "reviewer", detail: reviewer }))
+    });
+  }
+  for (const rule of policy.contracts) {
+    if (!rule.forbidBreaking || !input.contractComparison)
+      continue;
+    for (const change of input.contractComparison.changes.filter((candidate) => candidate.compatibility === "breaking" && matchesAny(candidate.path, rule.paths))) {
+      findings.push({
+        code: "breaking-contract",
+        severity: rule.severity,
+        ruleId: rule.id,
+        message: `${change.path} has a breaking contract change forbidden by ${rule.id}: ${rule.reason}`,
+        paths: [change.path],
+        evidence: [{ kind: "contract-change", path: change.path, detail: `${change.id}: ${change.reason}` }]
+      });
+    }
+  }
+  return {
+    policyFingerprint: policy.source.fingerprint,
+    findings: findings.sort((a, b) => severityOrder(a.severity) - severityOrder(b.severity) || a.ruleId.localeCompare(b.ruleId) || a.paths.join("\0").localeCompare(b.paths.join("\0")))
+  };
+}
+function boundaryRule(value, index) {
+  const rule = ruleRecord(value, "boundaries", index);
+  return {
+    id: ruleId(rule.id, "boundaries", index),
+    from: patterns(rule.from, "boundary from"),
+    deny: patterns(rule.deny, "boundary deny"),
+    reason: reason(rule.reason),
+    severity: severity(rule.severity),
+    ...typeof rule.decisionId === "string" && rule.decisionId.trim() ? { decisionId: rule.decisionId.trim() } : {}
+  };
+}
+function testRule(value, index) {
+  const rule = ruleRecord(value, "requiredTests", index);
+  return {
+    id: ruleId(rule.id, "requiredTests", index),
+    paths: patterns(rule.paths, "test paths"),
+    tests: patterns(rule.tests, "required tests"),
+    reason: reason(rule.reason),
+    severity: severity(rule.severity)
+  };
+}
+function reviewRule(value, index) {
+  const rule = ruleRecord(value, "requiredReviews", index);
+  const reviewers = strings(rule.reviewers, "reviewers");
+  return { id: ruleId(rule.id, "requiredReviews", index), paths: patterns(rule.paths, "review paths"), reviewers, reason: reason(rule.reason) };
+}
+function contractRule(value, index) {
+  const rule = ruleRecord(value, "contracts", index);
+  if (typeof rule.forbidBreaking !== "boolean")
+    throw new Error(`contracts[${index}].forbidBreaking must be boolean.`);
+  return {
+    id: ruleId(rule.id, "contracts", index),
+    paths: patterns(rule.paths, "contract paths"),
+    forbidBreaking: rule.forbidBreaking,
+    reason: reason(rule.reason),
+    severity: severity(rule.severity)
+  };
+}
+function ruleRecord(value, section2, index) {
+  if (!isRecord2(value))
+    throw new Error(`${section2}[${index}] must be an object.`);
+  return value;
+}
+function ruleId(value, section2, index) {
+  if (typeof value !== "string" || !RULE_ID.test(value))
+    throw new Error(`${section2}[${index}] has an invalid id.`);
+  return value;
+}
+function reason(value) {
+  if (typeof value !== "string" || !value.trim() || value.length > 1e3)
+    throw new Error("Architecture policy rules need a bounded reason.");
+  return value.trim();
+}
+function severity(value) {
+  if (value !== "warning" && value !== "error")
+    throw new Error("Architecture policy severity must be warning or error.");
+  return value;
+}
+function patterns(value, label) {
+  const values = strings(value, label);
+  if (values.length > 100)
+    throw new Error(`${label} exceeds the 100-pattern bound.`);
+  for (const pattern of values) {
+    if (pattern.length > 500 || pattern.startsWith("!") || pattern.includes("\0") || /^(?:[\\/]|[A-Za-z]:)/.test(pattern) || pattern.split(/[\\/]/).includes("..")) {
+      throw new Error(`Invalid ${label} pattern: ${pattern}`);
+    }
+  }
+  return [...new Set(values.map((pattern) => pattern.replace(/\\/g, "/")))].sort();
+}
+function strings(value, label) {
+  if (!Array.isArray(value) || value.length === 0 || !value.every((entry) => typeof entry === "string" && entry.trim() && entry.length <= 500)) {
+    throw new Error(`${label} must be a non-empty string array.`);
+  }
+  return value.map((entry) => entry.trim());
+}
+function matchesAny(path, patternsToMatch) {
+  return patternsToMatch.some((pattern) => buildPathExcluder([pattern]).excludes(path));
+}
+function severityOrder(value) {
+  return value === "error" ? 0 : value === "warning" ? 1 : 2;
+}
+function validateRelativePath2(value, label) {
+  const normalized = value.replace(/\\/g, "/").trim();
+  if (!normalized || /^(?:[\\/]|[A-Za-z]:)/.test(value) || value.includes("\0") || normalized.split("/").some((part) => !part || part === "." || part === ".."))
+    throw new Error(`Invalid ${label}: ${value}`);
+  return normalized;
+}
+function array(value) {
+  if (value === void 0)
+    return [];
+  if (!Array.isArray(value))
+    throw new Error("Architecture policy sections must be arrays.");
+  return value;
+}
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 // packages/core/dist/report.js
 var MAX_REPORTED_TERMS = 8;
 function buildReportFromRepo(repo, input) {
@@ -1919,10 +3120,59 @@ function buildReportFromRepo(repo, input) {
   }, input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT);
   const contextFiles = ranked.contextFiles;
   const ranking = ranked.ranking;
+  return assembleReport(repo, input, grounding, contextFiles, ranking);
+}
+async function buildHybridReportFromRepo(repo, input) {
+  const grounding = analyzeTaskGrounding(repo, { issueText: input.issueText, diffText: repo.diffText });
+  const hybrid = await rankContextFilesHybrid(repo, {
+    issueText: input.issueText,
+    diffText: repo.diffText
+  }, {
+    embeddingProvider: input.embeddingProvider,
+    limit: input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT,
+    ...input.allowRemoteEmbeddings !== void 0 ? { allowRemoteEmbeddings: input.allowRemoteEmbeddings } : {},
+    ...input.exclude ? { exclude: input.exclude } : {}
+  });
+  const contextFiles = hybrid.files.map((file) => ({
+    ...file,
+    confidence: hybridConfidence(file)
+  }));
+  const retrieval = {
+    mode: hybrid.mode,
+    weights: hybrid.weights,
+    ...hybrid.semantic ? { semantic: hybrid.semantic } : {}
+  };
+  const diagnostics = hybrid.diagnostics.flatMap((entry) => entry.code === "semantic-disabled" ? [] : [{ ...entry, code: entry.code }]);
+  return assembleReport(repo, input, grounding, contextFiles, hybrid.structuralRanking, diagnostics, retrieval, hybrid);
+}
+function assembleReport(repo, input, grounding, contextFiles, ranking, extraDiagnostics = [], retrieval, hybrid) {
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
   const impact = buildImpactMap(repo, contextPaths, testRoutes);
+  const annotations = input.annotationAsOf ? buildReportAnnotations(repo, [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles], input.issueText ?? "", input.annotationAsOf) : void 0;
+  const decisionInventory = inventoryDecisionRecords(repo);
+  const decisions = selectDecisionRecords(decisionInventory, {
+    paths: [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles],
+    task: input.issueText ?? ""
+  });
+  let policy;
+  const policyDiagnostics = [];
+  try {
+    const architecturePolicy = architecturePolicyFromRepo(repo);
+    if (architecturePolicy)
+      policy = evaluateArchitecturePolicy(architecturePolicy, {
+        repo,
+        focusPaths: [...contextPaths, ...repo.changedFiles]
+      });
+  } catch (error) {
+    policyDiagnostics.push({
+      code: "architecture-policy-invalid",
+      severity: "error",
+      paths: [".fixmap/policy.json"],
+      message: `.fixmap/policy.json was not applied: ${error instanceof Error ? error.message : String(error)}`
+    });
+  }
   return {
     reportVersion: 1,
     summary: buildSummary(contextFiles.length, testRoutes.length, impact.files.length),
@@ -1937,16 +3187,135 @@ function buildReportFromRepo(repo, input) {
       ...findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes),
       ...findTaskDiagnostics(repo, grounding, ranking),
       ...findTaskPreprocessingDiagnostics(input.issueText ?? ""),
-      ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude)
+      ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude),
+      ...annotations?.diagnostics ?? [],
+      ...decisionInventory.diagnostics.map((diagnostic) => ({
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        message: diagnostic.message,
+        paths: [diagnostic.path]
+      })),
+      ...policyDiagnostics,
+      ...(policy?.findings ?? []).map((finding) => ({
+        code: policyDiagnosticCode(finding.code),
+        severity: finding.severity,
+        message: finding.message,
+        paths: finding.paths
+      })),
+      ...extraDiagnostics
     ],
     analysis: {
       grounding,
       ranking,
+      ...hybrid ? { retrievalRanking: buildRetrievalRanking(hybrid) } : {},
       // Only a test route's related paths are tests. A lint, typecheck or Go route fills the
       // same field with implementation paths, and counting those made nextAction promise
       // "and its routed tests" when nothing of the sort had been routed.
       nextAction: buildNextAction(grounding, ranking, contextFiles, testRoutes.some((route) => route.kind === "test" && route.relatedFiles.length > 0))
-    }
+    },
+    ...retrieval ? { retrieval } : {},
+    ...annotations && annotations.entries.length > 0 ? { annotations: {
+      asOf: input.annotationAsOf,
+      sourcePath: ".fixmap/annotations.json",
+      sourceFingerprint: repo.files.find((file) => file.path === ".fixmap/annotations.json").contentFingerprint,
+      entries: annotations.entries
+    } } : {},
+    ...decisions.length > 0 ? { decisions } : {},
+    ...policy ? { policy } : {}
+  };
+}
+function policyDiagnosticCode(code) {
+  if (code === "boundary-violation")
+    return "architecture-boundary-violation";
+  if (code === "required-test-missing")
+    return "architecture-required-test";
+  if (code === "review-required")
+    return "architecture-review-required";
+  return "architecture-breaking-contract";
+}
+function buildReportAnnotations(repo, relevantPaths, issueText, asOf) {
+  const source = repo.files.find((file) => file.path === ".fixmap/annotations.json");
+  if (!source)
+    return void 0;
+  if (source.textSampleComplete === false || !source.contentFingerprint) {
+    return { entries: [], diagnostics: [{
+      code: "annotation-source-incomplete",
+      severity: "warning",
+      paths: [source.path],
+      message: ".fixmap/annotations.json exceeded the scanner content bound or could not be read; human-intent notes were not applied."
+    }] };
+  }
+  let assessments;
+  try {
+    const store = validateAnnotationStore(JSON.parse(source.textSample));
+    assessments = assessAnnotations(store, repo, { now: asOf, renames: diffRenames(repo.diffText) });
+  } catch (error) {
+    return { entries: [], diagnostics: [{
+      code: "annotation-store-invalid",
+      severity: "warning",
+      paths: [source.path],
+      message: `.fixmap/annotations.json was not applied: ${error instanceof Error ? error.message : String(error)}`
+    }] };
+  }
+  const paths = new Set(relevantPaths);
+  const lowerIssue = issueText.toLowerCase();
+  const entries = assessments.filter((assessment) => {
+    const scope = assessment.annotation.scope;
+    if (scope.kind === "file" || scope.kind === "symbol")
+      return paths.has(scope.path);
+    if (scope.kind === "contract")
+      return Boolean(scope.path && paths.has(scope.path)) || lowerIssue.includes(scope.name.toLowerCase());
+    return lowerIssue.includes(scope.name.toLowerCase());
+  });
+  const diagnostics = entries.flatMap((assessment) => {
+    const paths2 = annotationPaths(assessment);
+    if (assessment.status === "expired")
+      return [{
+        code: "annotation-expired",
+        severity: "info",
+        message: assessment.message,
+        ...paths2 ? { paths: paths2 } : {}
+      }];
+    if (assessment.status === "missing-target" || assessment.status === "renamed-target")
+      return [{
+        code: "annotation-target-stale",
+        severity: "warning",
+        message: assessment.message,
+        ...paths2 ? { paths: paths2 } : {}
+      }];
+    return [];
+  });
+  return { entries, diagnostics };
+}
+function annotationPaths(assessment) {
+  const scope = assessment.annotation.scope;
+  const path = scope.kind === "file" || scope.kind === "symbol" || scope.kind === "contract" ? scope.path : void 0;
+  return path ? [path] : void 0;
+}
+function diffRenames(diffText) {
+  const lines = diffText.split(/\r?\n/);
+  const renames = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const from = lines[index]?.match(/^rename from (.+)$/)?.[1];
+    const to = lines[index + 1]?.match(/^rename to (.+)$/)?.[1];
+    if (from && to)
+      renames.push({ from, to });
+  }
+  return renames;
+}
+function hybridConfidence(file) {
+  if (file.retrieval.structuralRank === file.rank || file.confidence !== "high")
+    return file.confidence;
+  const anchored = file.reasons.some((reason2) => reason2 === "changed file" || reason2 === "explicitly named in the task" || reason2.startsWith("defines task identifiers:") || reason2.startsWith("exact task literal at definition:"));
+  return anchored ? file.confidence : "medium";
+}
+function buildRetrievalRanking(hybrid) {
+  const top = hybrid.files[0]?.fusionScore;
+  const runnerUp = hybrid.files[1]?.fusionScore;
+  return {
+    topFusionScore: top ?? null,
+    runnerUpFusionScore: runnerUp ?? null,
+    topGap: top !== void 0 && runnerUp !== void 0 ? Number((top - runnerUp).toFixed(8)) : null
   };
 }
 function findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes) {
@@ -2136,8 +3505,8 @@ function buildTestRoutes(repo, contextPaths) {
 }
 function buildManifestTestRoute(repo, codeContextPaths, relatedTests) {
   const { language } = detectPrimaryLanguage(repo);
-  const crateDir = language === "rust" ? nearestManifestDir(repo, codeContextPaths, "Cargo.toml") : "";
-  const route = manifestTestCommand(language, crateDir, repo.files);
+  const packageDir = language === "rust" ? nearestManifestDir(repo, codeContextPaths, ["Cargo.toml"]) : language === "python" ? nearestManifestDir(repo, codeContextPaths, ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile"]) : language === "java" ? nearestManifestDir(repo, codeContextPaths, ["pom.xml", "build.gradle", "build.gradle.kts"]) : "";
+  const route = manifestTestCommand(language, packageDir, repo.files);
   if (!route) {
     return void 0;
   }
@@ -2147,11 +3516,12 @@ function buildManifestTestRoute(repo, codeContextPaths, relatedTests) {
     reason: route.reason,
     // Only real test files count as related here. Falling back to the implementation made
     // nextAction claim routed tests for a Go module that had none.
-    relatedFiles: scopeToPackage(relatedTests, crateDir)
+    relatedFiles: scopeToPackage(relatedTests, packageDir)
   };
 }
-function nearestManifestDir(repo, contextPaths, manifest) {
-  const manifestDirs = repo.files.filter((file) => file.path === manifest || file.path.endsWith(`/${manifest}`)).map((file) => file.path.split("/").slice(0, -1).join("/")).filter(Boolean);
+function nearestManifestDir(repo, contextPaths, manifests) {
+  const manifestNames = new Set(manifests.map((manifest) => manifest.toLowerCase()));
+  const manifestDirs = repo.files.filter((file) => manifestNames.has(file.path.split("/").pop()?.toLowerCase() ?? "")).map((file) => file.path.split("/").slice(0, -1).join("/")).filter(Boolean);
   return manifestDirs.filter((dir) => contextPaths.some((path) => path.startsWith(`${dir}/`))).sort((a, b) => b.split("/").length - a.split("/").length || a.localeCompare(b))[0] ?? "";
 }
 var RISK_RULES = [
@@ -2270,6 +3640,21 @@ function renderMarkdownReport(report) {
     "## Risk Map",
     "",
     ...listOrEmpty(report.risks.map((risk) => `- **${risk.severity}** ${risk.area}: ${risk.reason}`)),
+    ...report.annotations || report.decisions ? [
+      "",
+      "## Human Intent",
+      "",
+      ...listOrEmpty([
+        ...(report.decisions ?? []).map((decision) => `- **ADR ${decision.status}** ${markdownCode(decision.path)} \u2014 ${decision.title}: ${inlineProse(decision.decision)}`),
+        ...(report.annotations?.entries ?? []).map((assessment) => `- **annotation ${assessment.status}** ${describeAnnotationScope(assessment)}: ${assessment.annotation.note}`)
+      ])
+    ] : [],
+    ...report.policy ? [
+      "",
+      "## Architecture Policy",
+      "",
+      ...listOrEmpty(report.policy.findings.map((finding) => `- **${finding.severity}** ${markdownCode(finding.ruleId)}: ${finding.message}`))
+    ] : [],
     "",
     "## Changed Files",
     "",
@@ -2298,6 +3683,19 @@ function renderJsonReport(report) {
   return `${JSON.stringify(report, null, 2)}
 `;
 }
+function describeAnnotationScope(assessment) {
+  const scope = assessment.annotation.scope;
+  if (scope.kind === "file")
+    return markdownCode(scope.path);
+  if (scope.kind === "symbol")
+    return `${markdownCode(scope.symbol)} in ${markdownCode(scope.path)}`;
+  if (scope.kind === "service")
+    return `service ${markdownCode(scope.name)}`;
+  return `contract ${markdownCode(scope.name)}${scope.path ? ` in ${markdownCode(scope.path)}` : ""}`;
+}
+function inlineProse(value) {
+  return value.replace(/\s+/g, " ").trim();
+}
 function listOrEmpty(lines) {
   return lines.length > 0 ? lines : ["- None found"];
 }
@@ -2305,6 +3703,7 @@ function listOrEmpty(lines) {
 // packages/core/dist/repo-scan.js
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -2340,7 +3739,17 @@ var CONVENTIONAL_CONFIG_NAMES = /* @__PURE__ */ new Set([
   "vagrantfile",
   "pom.xml",
   "build.gradle",
-  "settings.gradle"
+  "build.gradle.kts",
+  "settings.gradle",
+  "settings.gradle.kts",
+  "gradlew",
+  "gradlew.bat",
+  "mvnw",
+  "mvnw.cmd",
+  "pyproject.toml",
+  "pytest.ini",
+  "setup.cfg",
+  "tox.ini"
 ]);
 var SFC_EXTENSIONS = /* @__PURE__ */ new Set([".vue", ".svelte"]);
 var SFC_SCRIPT_BLOCK = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
@@ -2363,11 +3772,13 @@ var GIT_HISTORY_MAX_BUFFER = 24 * 1024 * 1024;
 var MAX_HISTORY_COMMITS = 1e3;
 var MAX_HISTORY_FILES_PER_COMMIT = 30;
 var exec = promisify(execFile);
-var SCAN_CACHE_VERSION = 4;
+var SCAN_CACHE_VERSION = 5;
 var SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
 var SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1e3;
 var SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
 var SCAN_CACHE_TEMP_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i;
+var INCREMENTAL_INDEX_VERSION = 1;
+var INCREMENTAL_INDEX_TEMP_FILE = /^[a-f0-9]{24}-index-v1\.json\.\d+-[0-9a-f-]+\.tmp$/i;
 async function scanRepo(input) {
   const repoRoot = resolve(input.repoRoot);
   if (!await isDirectory(repoRoot)) {
@@ -2391,6 +3802,7 @@ async function scanRepo(input) {
   const internalCacheRoot = sameFilesystemPath(cacheRoot, repoRoot) || containedPath(repoRoot, cacheRoot) !== void 0 ? cacheRoot : void 0;
   const cacheDecision = input.useCache === true ? await buildScanCacheLocation(repoRoot, cacheRoot, internalPaths, input.includeHistory === true) : void 0;
   const cacheLocation = cacheDecision?.location;
+  const incrementalIndexLocation = input.useCache === true && !sameFilesystemPath(cacheRoot, repoRoot) && containedPath(repoRoot, cacheRoot) === void 0 ? buildIncrementalIndexLocation(repoRoot, cacheRoot) : void 0;
   if (input.useCache === false) {
     diagnostics.push({
       code: "cache-bypass",
@@ -2422,7 +3834,7 @@ async function scanRepo(input) {
       message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files, ${describeCacheAge(cached.createdAt)}). Pass --no-cache to rescan.`
     });
   } else {
-    files = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths);
+    files = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths, incrementalIndexLocation);
     trackedFiles = await listTrackedPaths(repoRoot, internalPaths);
     packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
     packageManager = detectPackageManager(files, diagnostics);
@@ -2459,12 +3871,16 @@ async function scanRepo(input) {
     ...history ? { history } : {}
   };
 }
+function buildIncrementalIndexLocation(root, cacheRoot) {
+  const repoKey = hashText(resolve(root));
+  return { path: join(cacheRoot, `${repoKey}-index-v1.json`), repoKey };
+}
 function configuredScanCacheRoot() {
   return resolve(process.env.FIXMAP_CACHE_DIR ?? join(process.env.LOCALAPPDATA ?? process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"), "fixmap", "scans"));
 }
 function containedPath(root, candidate) {
   const distance = relative(root, candidate);
-  return distance === "" || distance === ".." || distance.startsWith(`..${sep}`) || isAbsolute(distance) ? void 0 : normalizePath(distance);
+  return distance === "" || distance === ".." || distance.startsWith(`..${sep}`) || isAbsolute(distance) ? void 0 : normalizePath3(distance);
 }
 async function resolveInternalPaths(root, paths) {
   const requested = paths.flatMap((path) => {
@@ -2475,7 +3891,7 @@ async function resolveInternalPaths(root, paths) {
     return new Set(requested);
   try {
     const { stdout } = await exec("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER });
-    const repositoryPaths = stdout.split("\0").filter(Boolean).map(normalizePath);
+    const repositoryPaths = stdout.split("\0").filter(Boolean).map(normalizePath3);
     return new Set(requested.map((path) => repositoryPaths.find((candidate) => sameFilesystemPath(candidate, path)) ?? path));
   } catch {
     return new Set(requested);
@@ -2540,33 +3956,50 @@ async function readScanCache(location) {
     return void 0;
   }
 }
+async function readIncrementalScanIndex(location) {
+  try {
+    const candidate = JSON.parse(await readFile(location.path, "utf8"));
+    if (candidate.version !== INCREMENTAL_INDEX_VERSION || candidate.repoKey !== location.repoKey || typeof candidate.updatedAt !== "string" || !Number.isFinite(Date.parse(candidate.updatedAt)) || !Array.isArray(candidate.files))
+      return void 0;
+    const entries = /* @__PURE__ */ new Map();
+    for (const entry of candidate.files) {
+      if (!isRecord3(entry) || !isCachedRelativePath(entry.path) || typeof entry.fingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(entry.fingerprint) || !isCachedRepoFile(entry.file) || entry.file.path !== entry.path || entries.has(entry.path)) {
+        return void 0;
+      }
+      entries.set(entry.path, entry);
+    }
+    return entries;
+  } catch {
+    return void 0;
+  }
+}
 function isCachedHistory(candidate) {
-  if (!isRecord(candidate) || !Array.isArray(candidate.commits) || typeof candidate.inspectedCommits !== "number" || !Number.isSafeInteger(candidate.inspectedCommits) || candidate.inspectedCommits < 0 || typeof candidate.skippedLargeCommits !== "number" || !Number.isSafeInteger(candidate.skippedLargeCommits) || candidate.skippedLargeCommits < 0 || typeof candidate.shallow !== "boolean" || typeof candidate.truncated !== "boolean") {
+  if (!isRecord3(candidate) || !Array.isArray(candidate.commits) || typeof candidate.inspectedCommits !== "number" || !Number.isSafeInteger(candidate.inspectedCommits) || candidate.inspectedCommits < 0 || typeof candidate.skippedLargeCommits !== "number" || !Number.isSafeInteger(candidate.skippedLargeCommits) || candidate.skippedLargeCommits < 0 || typeof candidate.shallow !== "boolean" || typeof candidate.truncated !== "boolean") {
     return false;
   }
   return candidate.commits.every((commit) => {
-    if (!isRecord(commit) || typeof commit.hash !== "string" || !/^[a-f0-9]{40}$/i.test(commit.hash) || typeof commit.committedAt !== "number" || !Number.isSafeInteger(commit.committedAt) || commit.committedAt < 0 || !Array.isArray(commit.files))
+    if (!isRecord3(commit) || typeof commit.hash !== "string" || !/^[a-f0-9]{40}$/i.test(commit.hash) || typeof commit.committedAt !== "number" || !Number.isSafeInteger(commit.committedAt) || commit.committedAt < 0 || !Array.isArray(commit.files))
       return false;
     return commit.files.every(isCachedRelativePath);
   });
 }
 function isCachedRepoFile(candidate) {
-  if (!isRecord(candidate))
+  if (!isRecord3(candidate))
     return false;
   const validSkipReason = candidate.textSampleSkipReason === "too-large" || candidate.textSampleSkipReason === "not-text" || candidate.textSampleSkipReason === "unreadable";
-  return isCachedRelativePath(candidate.path) && typeof candidate.extension === "string" && typeof candidate.sizeBytes === "number" && Number.isFinite(candidate.sizeBytes) && candidate.sizeBytes >= 0 && typeof candidate.isTest === "boolean" && typeof candidate.isSource === "boolean" && (candidate.kind === "code" || candidate.kind === "config" || candidate.kind === "documentation" || candidate.kind === "other") && typeof candidate.textSample === "string" && typeof candidate.textSampleComplete === "boolean" && (candidate.textSampleComplete && candidate.textSampleSkipReason === void 0 || !candidate.textSampleComplete && validSkipReason);
+  return isCachedRelativePath(candidate.path) && typeof candidate.contentFingerprint === "string" && /^(?:git|worktree):[a-f0-9]{40,64}$/i.test(candidate.contentFingerprint) && typeof candidate.extension === "string" && typeof candidate.sizeBytes === "number" && Number.isFinite(candidate.sizeBytes) && candidate.sizeBytes >= 0 && typeof candidate.isTest === "boolean" && typeof candidate.isSource === "boolean" && (candidate.kind === "code" || candidate.kind === "config" || candidate.kind === "documentation" || candidate.kind === "other") && typeof candidate.textSample === "string" && typeof candidate.textSampleComplete === "boolean" && (candidate.textSampleComplete && candidate.textSampleSkipReason === void 0 || !candidate.textSampleComplete && validSkipReason);
 }
 function isCachedPackageScript(candidate) {
-  if (!isRecord(candidate))
+  if (!isRecord3(candidate))
     return false;
   return typeof candidate.name === "string" && candidate.name.trim().length > 0 && typeof candidate.command === "string" && (candidate.packageDir === "" || isCachedRelativePath(candidate.packageDir)) && (candidate.packageName === void 0 || typeof candidate.packageName === "string" && candidate.packageName.trim().length > 0);
 }
 function isCachedDiagnostic(candidate) {
-  if (!isRecord(candidate))
+  if (!isRecord3(candidate))
     return false;
   return typeof candidate.code === "string" && candidate.code.trim().length > 0 && typeof candidate.message === "string" && candidate.message.trim().length > 0 && (candidate.severity === "info" || candidate.severity === "warning" || candidate.severity === "error") && (candidate.paths === void 0 || Array.isArray(candidate.paths) && candidate.paths.every(isCachedRelativePath));
 }
-function isRecord(candidate) {
+function isRecord3(candidate) {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
 function isCachedRelativePath(candidate) {
@@ -2591,11 +4024,31 @@ async function writeScanCache(location, cached) {
     }
   }
 }
+async function writeIncrementalScanIndex(location, files) {
+  const temporaryPath = `${location.path}.${process.pid}-${randomUUID()}.tmp`;
+  const index = {
+    version: INCREMENTAL_INDEX_VERSION,
+    repoKey: location.repoKey,
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    files
+  };
+  try {
+    await mkdir(dirname(location.path), { recursive: true });
+    await writeFile(temporaryPath, `${JSON.stringify(index)}
+`, { encoding: "utf8", flag: "wx" });
+    await rename(temporaryPath, location.path);
+  } catch {
+    try {
+      await unlink(temporaryPath);
+    } catch {
+    }
+  }
+}
 async function pruneExpiredScanCache(cacheRoot) {
   try {
     const entries = await readdir(cacheRoot, { withFileTypes: true });
     const now = Date.now();
-    await Promise.all(entries.filter((entry) => entry.isFile() && (SCAN_CACHE_FILE.test(entry.name) || SCAN_CACHE_TEMP_FILE.test(entry.name))).map(async (entry) => {
+    await Promise.all(entries.filter((entry) => entry.isFile() && (SCAN_CACHE_FILE.test(entry.name) || SCAN_CACHE_TEMP_FILE.test(entry.name) || INCREMENTAL_INDEX_TEMP_FILE.test(entry.name))).map(async (entry) => {
       const path = join(cacheRoot, entry.name);
       try {
         const metadata = await stat(path);
@@ -2627,7 +4080,7 @@ function hashText(value) {
 async function listTrackedPaths(root, internalPaths) {
   try {
     const { stdout } = await exec("git", ["ls-files", "--cached", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER });
-    return stdout.split("\0").filter(Boolean).map(normalizePath).filter((path) => !hasInternalPath(internalPaths, path));
+    return stdout.split("\0").filter(Boolean).map(normalizePath3).filter((path) => !hasInternalPath(internalPaths, path));
   } catch {
     return [];
   }
@@ -2635,10 +4088,27 @@ async function listTrackedPaths(root, internalPaths) {
 function resolveDiffSpec(input) {
   return input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : void 0);
 }
-async function listFiles(root, diagnostics, internalCacheRoot, internalPaths) {
+async function listFiles(root, diagnostics, internalCacheRoot, internalPaths, incrementalIndexLocation) {
   const gitPaths = await listGitPaths(root);
-  const visiblePaths = gitPaths?.paths.filter((path) => !hasInternalPath(internalPaths, normalizePath(path)) && !isInternalCachePath(root, path, internalCacheRoot));
-  const files = gitPaths ? await buildFilesFromPaths(root, visiblePaths ?? [], diagnostics, gitPaths.gitLinks) : (await walkFiles(root, root, diagnostics, { count: 0, limitReported: false }, internalCacheRoot, internalPaths)).sort((a, b) => a.path.localeCompare(b.path));
+  const visiblePaths = gitPaths?.paths.filter((path) => !hasInternalPath(internalPaths, normalizePath3(path)) && !isInternalCachePath(root, path, internalCacheRoot));
+  let files;
+  if (gitPaths) {
+    const previous = incrementalIndexLocation ? await readIncrementalScanIndex(incrementalIndexLocation) : void 0;
+    const built = await buildFilesFromPaths(root, visiblePaths ?? [], diagnostics, gitPaths.gitLinks, gitPaths.fingerprints, previous);
+    files = built.files;
+    if (incrementalIndexLocation) {
+      await writeIncrementalScanIndex(incrementalIndexLocation, built.indexedFiles);
+    }
+    if (previous && built.reused > 0) {
+      diagnostics.push({
+        code: "incremental-index-hit",
+        severity: "info",
+        message: `Reused ${built.reused.toLocaleString()} unchanged file record${built.reused === 1 ? "" : "s"} from the persistent index and refreshed ${built.refreshed.toLocaleString()} changed or new path${built.refreshed === 1 ? "" : "s"}.`
+      });
+    }
+  } else {
+    files = (await walkFiles(root, root, diagnostics, { count: 0, limitReported: false }, internalCacheRoot, internalPaths)).sort((a, b) => a.path.localeCompare(b.path));
+  }
   reportUnreadContent(diagnostics, files);
   reportGeneratedDominance(diagnostics, files);
   return files;
@@ -2656,24 +4126,39 @@ function isInternalCachePath(root, path, internalCacheRoot) {
 }
 async function listGitPaths(root) {
   try {
-    const [{ stdout }, { stdout: staged }] = await Promise.all([
+    const [{ stdout }, { stdout: staged }, { stdout: dirty }] = await Promise.all([
       exec("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
         cwd: root,
         maxBuffer: GIT_MAX_BUFFER
       }),
-      exec("git", ["ls-files", "--stage", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER })
+      exec("git", ["ls-files", "--stage", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", "--name-only", "-z", "HEAD", "--"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }).catch(() => exec("git", ["diff", "--name-only", "-z", "--"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }))
     ]);
-    const gitLinks = new Set(staged.split("\0").flatMap((entry) => {
-      const match = /^160000\s+[0-9a-f]+\s+\d+\t(.+)$/i.exec(entry);
-      return match?.[1] ? [normalizePath(match[1])] : [];
-    }));
-    return { paths: [...new Set(stdout.split("\0").filter(Boolean))], gitLinks };
+    const gitLinks = /* @__PURE__ */ new Set();
+    const fingerprints = /* @__PURE__ */ new Map();
+    for (const entry of staged.split("\0")) {
+      const match = /^(\d+)\s+([0-9a-f]+)\s+\d+\t(.+)$/i.exec(entry);
+      if (!match?.[1] || !match[2] || !match[3])
+        continue;
+      const path = normalizePath3(match[3]);
+      if (match[1] === "160000") {
+        gitLinks.add(path);
+      } else if (!/^0+$/.test(match[2])) {
+        fingerprints.set(path, `git:${match[2].toLowerCase()}`);
+      }
+    }
+    for (const path of dirty.split("\0").filter(Boolean).map(normalizePath3)) {
+      fingerprints.delete(path);
+    }
+    return { paths: [...new Set(stdout.split("\0").filter(Boolean))], gitLinks, fingerprints };
   } catch {
     return void 0;
   }
 }
-async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* @__PURE__ */ new Set()) {
+async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* @__PURE__ */ new Set(), fingerprints = /* @__PURE__ */ new Map(), previous) {
   const results = [];
+  const indexedByPath = /* @__PURE__ */ new Map();
+  const reusedPaths = /* @__PURE__ */ new Set();
   const absent = [];
   const gitLinks = [];
   const seenRealPaths = /* @__PURE__ */ new Map();
@@ -2681,10 +4166,10 @@ async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* 
   const realRoot = await resolveRealPath(root);
   for (const [index, rawPath] of paths.entries()) {
     if (results.length >= MAX_SCANNED_FILES) {
-      reportScanLimit(diagnostics, paths.slice(index).map(normalizePath));
+      reportScanLimit(diagnostics, paths.slice(index).map(normalizePath3));
       break;
     }
-    const relativePath = normalizePath(rawPath);
+    const relativePath = normalizePath3(rawPath);
     if (isInAlwaysIgnoredDir(relativePath)) {
       continue;
     }
@@ -2692,7 +4177,11 @@ async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* 
       gitLinks.push(relativePath);
       continue;
     }
-    const scanned = await toRepoFile(join(root, rawPath), relativePath);
+    const absolutePath = join(root, rawPath);
+    const fingerprint = fingerprints.get(relativePath) ?? await hashWorktreeFile(absolutePath);
+    const prior = fingerprint ? previous?.get(relativePath) : void 0;
+    const reused2 = prior && prior.fingerprint === fingerprint ? prior.file : void 0;
+    const scanned = await toRepoFile(absolutePath, relativePath, fingerprint, reused2);
     if (scanned.status === "absent") {
       absent.push(relativePath);
       continue;
@@ -2711,7 +4200,14 @@ async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* 
       const currentIsAlias = !sameFilesystemPath(resolve(realRoot, relativePath), scanned.realPath);
       if (seenIsAlias && !currentIsAlias) {
         linked.push({ path: seenFile.path, target: relativePath });
+        indexedByPath.delete(seenFile.path);
+        reusedPaths.delete(seenFile.path);
         results[seenIndex] = scanned.file;
+        if (fingerprint) {
+          indexedByPath.set(relativePath, { path: relativePath, fingerprint, file: scanned.file });
+          if (reused2)
+            reusedPaths.add(relativePath);
+        }
       } else {
         linked.push({ path: relativePath, target: seenFile.path });
       }
@@ -2719,11 +4215,31 @@ async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* 
     }
     seenRealPaths.set(scanned.realPath, results.length);
     results.push(scanned.file);
+    if (fingerprint) {
+      indexedByPath.set(relativePath, { path: relativePath, fingerprint, file: scanned.file });
+      if (reused2)
+        reusedPaths.add(relativePath);
+    }
   }
   reportAbsentTrackedPaths(diagnostics, absent);
   reportLinkedDuplicates(diagnostics, linked);
   reportSkippedSubmodules(diagnostics, gitLinks);
-  return results.sort((a, b) => a.path.localeCompare(b.path));
+  const files = results.sort((a, b) => a.path.localeCompare(b.path));
+  const indexedFiles = files.flatMap((file) => {
+    const indexed = indexedByPath.get(file.path);
+    return indexed ? [indexed] : [];
+  });
+  const reused = files.filter((file) => reusedPaths.has(file.path)).length;
+  return { files, indexedFiles, reused, refreshed: Math.max(0, indexedFiles.length - reused) };
+}
+async function hashWorktreeFile(path) {
+  return await new Promise((resolveHash) => {
+    const hash = createHash("sha256");
+    const input = createReadStream(path);
+    input.on("data", (chunk) => hash.update(chunk));
+    input.on("error", () => resolveHash(void 0));
+    input.on("end", () => resolveHash(`worktree:${hash.digest("hex")}`));
+  });
 }
 function reportAbsentTrackedPaths(diagnostics, absent) {
   if (absent.length === 0)
@@ -2736,16 +4252,16 @@ function reportAbsentTrackedPaths(diagnostics, absent) {
 }
 function reportUnreadContent(diagnostics, files) {
   const unavailable = files.filter((file) => file.isSource && file.textSampleComplete === false && file.textSampleSkipReason !== "too-large");
-  for (const reason of ["not-text", "unreadable"]) {
-    const affected = unavailable.filter((file) => file.textSampleSkipReason === reason);
+  for (const reason2 of ["not-text", "unreadable"]) {
+    const affected = unavailable.filter((file) => file.textSampleSkipReason === reason2);
     if (affected.length === 0)
       continue;
     const sample2 = affected.slice(0, 3).map((file) => file.path).join(", ");
     const prefix = `${affected.length.toLocaleString()} source file${affected.length === 1 ? "" : "s"}`;
     diagnostics.push({
-      code: reason === "not-text" ? "content-not-utf8" : "content-unreadable",
+      code: reason2 === "not-text" ? "content-not-utf8" : "content-unreadable",
       severity: "warning",
-      message: reason === "not-text" ? `${prefix} ${affected.length === 1 ? "is" : "are"} not UTF-8 text (for example UTF-16 or binary) and rank${affected.length === 1 ? "s" : ""} on path alone: ${sample2}${affected.length > 3 ? ", ..." : ""}. Re-save source as UTF-8 to rank its contents.` : `${prefix} could not be read and rank${affected.length === 1 ? "s" : ""} on path alone: ${sample2}${affected.length > 3 ? ", ..." : ""}. Check file permissions and retry.`,
+      message: reason2 === "not-text" ? `${prefix} ${affected.length === 1 ? "is" : "are"} not UTF-8 text (for example UTF-16 or binary) and rank${affected.length === 1 ? "s" : ""} on path alone: ${sample2}${affected.length > 3 ? ", ..." : ""}. Re-save source as UTF-8 to rank its contents.` : `${prefix} could not be read and rank${affected.length === 1 ? "s" : ""} on path alone: ${sample2}${affected.length > 3 ? ", ..." : ""}. Check file permissions and retry.`,
       paths: affected.slice(0, 8).map((file) => file.path)
     });
   }
@@ -2825,10 +4341,11 @@ async function walkFiles(root, current, diagnostics, state, internalCacheRoot, i
       continue;
     }
     const absolutePath = join(current, entry.name);
-    const relativePath = normalizePath(relative(root, absolutePath));
+    const relativePath = normalizePath3(relative(root, absolutePath));
     if (hasInternalPath(internalPaths, relativePath) || isInternalCachePath(root, relativePath, internalCacheRoot))
       continue;
-    const scanned = await toRepoFile(absolutePath, relativePath);
+    const fingerprint = await hashWorktreeFile(absolutePath);
+    const scanned = await toRepoFile(absolutePath, relativePath, fingerprint);
     if (scanned.status === "ok") {
       results.push(scanned.file);
       state.count += 1;
@@ -2836,7 +4353,7 @@ async function walkFiles(root, current, diagnostics, state, internalCacheRoot, i
   }
   return results;
 }
-async function toRepoFile(absolutePath, relativePath) {
+async function toRepoFile(absolutePath, relativePath, contentFingerprint, reusable) {
   let fileStat;
   try {
     fileStat = await stat(absolutePath);
@@ -2845,6 +4362,13 @@ async function toRepoFile(absolutePath, relativePath) {
   }
   if (!fileStat.isFile()) {
     return { status: "not-a-file" };
+  }
+  if (reusable?.path === relativePath && contentFingerprint) {
+    return {
+      status: "ok",
+      realPath: await resolveRealPath(absolutePath),
+      file: { ...reusable, contentFingerprint, sizeBytes: fileStat.size }
+    };
   }
   const extension = extname(relativePath).toLowerCase();
   const conventionalKind = classifyConventionalTextFile(relativePath);
@@ -2858,9 +4382,10 @@ async function toRepoFile(absolutePath, relativePath) {
     realPath: await resolveRealPath(absolutePath),
     file: {
       path: relativePath,
+      ...contentFingerprint ? { contentFingerprint } : {},
       extension,
       sizeBytes: fileStat.size,
-      isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
+      isTest: isLanguageTestPath(relativePath, extension) || TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
       isSource,
       kind: classifyFile(relativePath, extension),
       textSample: sample.text,
@@ -2925,7 +4450,7 @@ async function readPackageScripts(root, files, diagnostics) {
     try {
       decoded = decodeManifest(bytes);
       const parsed = JSON.parse(decoded.text);
-      const packageDir = normalizePath(dirname(manifest.path));
+      const packageDir = normalizePath3(dirname(manifest.path));
       const packageName = typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : void 0;
       scripts.push(...Object.entries(parsed.scripts ?? {}).map(([name, command]) => ({
         name,
@@ -2970,7 +4495,7 @@ async function readDiff(repoRoot, diffSpec, diagnostics, internalPaths) {
       exec("git", ["diff", "--relative", "--name-only", diffSpec, ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
       exec("git", ["diff", "--relative", diffSpec, ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
     ]);
-    const tracked = names.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath);
+    const tracked = names.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath3);
     const untracked = diffSpec.includes("..") ? [] : await listUntrackedPaths(repoRoot, internalPaths);
     const changedFiles = [.../* @__PURE__ */ new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
     diagnostics.push({
@@ -3046,7 +4571,7 @@ async function readWorkingTree(repoRoot, includeUntracked, diagnostics, internal
       exec("git", ["diff", "--relative", "--name-only", "HEAD", ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER }),
       exec("git", ["diff", "--relative", "HEAD", ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
     ]);
-    const tracked = names.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath);
+    const tracked = names.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath3);
     const untracked = includeUntracked ? await listUntrackedPaths(repoRoot, internalPaths) : [];
     const changedFiles = [.../* @__PURE__ */ new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
     diagnostics.push({
@@ -3139,7 +4664,7 @@ function parseHistoryLog(logText, repositoryPaths) {
     if (!/^[a-f0-9]{40}$/i.test(hash) || !Number.isSafeInteger(committedAt) || committedAt < 0)
       continue;
     inspectedCommits += 1;
-    const allFiles = [...new Set(fields.map((path) => path.replace(/^\r?\n/, "")).filter(Boolean).map(normalizePath))];
+    const allFiles = [...new Set(fields.map((path) => path.replace(/^\r?\n/, "")).filter(Boolean).map(normalizePath3))];
     if (allFiles.length > MAX_HISTORY_FILES_PER_COMMIT) {
       skippedLargeCommits += 1;
       continue;
@@ -3253,7 +4778,7 @@ async function readTextSample(path, sizeBytes) {
 async function listUntrackedPaths(repoRoot, internalPaths = /* @__PURE__ */ new Set()) {
   try {
     const { stdout } = await exec("git", ["ls-files", "--others", "--exclude-standard", "-z"], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER });
-    return stdout.split("\0").filter(Boolean).map(normalizePath).filter((path) => !hasInternalPath(internalPaths, path));
+    return stdout.split("\0").filter(Boolean).map(normalizePath3).filter((path) => !hasInternalPath(internalPaths, path));
   } catch {
     return [];
   }
@@ -3265,7 +4790,7 @@ async function isDirectory(path) {
     return false;
   }
 }
-function normalizePath(path) {
+function normalizePath3(path) {
   return path.split(sep).join("/");
 }
 
@@ -3278,11 +4803,13 @@ async function buildFixMapAnalysis(input) {
   const requestedExclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
   const internalExclude = buildPathExcluder((input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern)));
   const exclude = combineExclusions(requestedExclude, internalExclude);
-  const report = buildReportFromRepo(repo, {
+  const reportInput = {
     issueText: input.issueText,
     limit: input.limit,
-    exclude
-  });
+    exclude,
+    annotationAsOf: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  const report = input.embeddingProvider ? await buildHybridReportFromRepo(repo, { ...reportInput, embeddingProvider: input.embeddingProvider }) : buildReportFromRepo(repo, reportInput);
   if (requestedExclude.patterns.length > 0) {
     const excludedPaths = repo.files.filter((file) => requestedExclude.excludes(file.path)).map((file) => file.path);
     const unmatchedPatterns = requestedExclude.patterns.filter((pattern) => !pattern.startsWith("!") && !requestedExclude.matchedPatterns.has(pattern));
@@ -3317,8 +4844,8 @@ function combineExclusions(primary, internal) {
     matchedPatterns: /* @__PURE__ */ new Set([...primary.matchedPatterns, ...internal.matchedPatterns])
   };
 }
-async function resolveExclusions(repoRoot, patterns) {
-  const combined = [...await readIgnoreFile(repoRoot), ...patterns].map((pattern) => normalizeAbsolutePattern(repoRoot, pattern));
+async function resolveExclusions(repoRoot, patterns2) {
+  const combined = [...await readIgnoreFile(repoRoot), ...patterns2].map((pattern) => normalizeAbsolutePattern(repoRoot, pattern));
   return combined.length > 0 ? buildPathExcluder(combined) : NO_EXCLUSIONS;
 }
 function normalizeAbsolutePattern(repoRoot, pattern) {
@@ -3460,13 +4987,123 @@ function verifyPlan(report, repo) {
       message: `The change touches ${risk.area}, which the original plan did not flag: ${risk.reason}.`
     });
   }
+  let policy;
+  try {
+    const architecturePolicy = architecturePolicyFromRepo(repo);
+    if (architecturePolicy) {
+      policy = evaluateArchitecturePolicy(architecturePolicy, { repo, focusPaths: changed });
+      findings.push(...policy.findings.map(policyVerifyFinding));
+    }
+  } catch (error) {
+    findings.push({
+      code: "architecture-policy-invalid",
+      severity: "error",
+      paths: [".fixmap/policy.json"],
+      message: `.fixmap/policy.json was not applied: ${error instanceof Error ? error.message : String(error)}`
+    });
+  }
   return {
     summary: buildVerifySummary(changed.length, findings),
     changedFiles: changed,
     findings,
     diagnostics: repo.diagnostics,
-    impact
+    impact,
+    narrative: buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy)
   };
+}
+function policyVerifyFinding(finding) {
+  return {
+    code: finding.code === "boundary-violation" ? "architecture-boundary-violation" : finding.code === "required-test-missing" ? "architecture-required-test" : finding.code === "review-required" ? "architecture-review-required" : "architecture-breaking-contract",
+    severity: finding.severity,
+    paths: finding.paths,
+    message: finding.message
+  };
+}
+function buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy) {
+  const narrative = [];
+  if (changed.length > 0)
+    narrative.push({
+      classification: "observation",
+      text: `${changed.length} file${changed.length === 1 ? "" : "s"} changed: ${changed.slice(0, 8).join(", ")}${changed.length > 8 ? ", ..." : ""}.`,
+      evidence: changed.map((path) => ({ kind: "changed-file", path, detail: "Present in the resolved verification diff." }))
+    });
+  for (const finding of policy?.findings ?? []) {
+    narrative.push({
+      classification: "observation",
+      text: `Architecture policy ${finding.ruleId} reports ${finding.code}: ${finding.message}`,
+      evidence: finding.evidence.map((entry) => ({
+        kind: "architecture-policy",
+        ...entry.path ? { path: entry.path } : {},
+        ...entry.relatedPath ? { relatedPath: entry.relatedPath } : {},
+        detail: `${finding.ruleId}: ${entry.kind}: ${entry.detail}`,
+        sourceFingerprint: policy.policyFingerprint
+      }))
+    });
+  }
+  for (const file of impact.files.slice(0, 8)) {
+    const relationship = file.evidence[0];
+    if (!relationship)
+      continue;
+    narrative.push({
+      classification: relationship.kind === "co-change" ? "inference" : "observation",
+      text: `${file.path} is in the recalculated impact graph because ${relationship.reason}.`,
+      evidence: [{
+        kind: "impact-relationship",
+        path: relationship.seed,
+        relatedPath: file.path,
+        detail: `${relationship.kind}: ${relationship.reason}`
+      }]
+    });
+  }
+  if (changedSource.length > 0 && changedTests.length === 0 && report.testRoutes.length > 0) {
+    narrative.push({
+      classification: "observation",
+      text: `Source changed without a changed test; FixMap had routed ${report.testRoutes.map((route) => route.command).join(", ")}.`,
+      evidence: report.testRoutes.map((route) => ({
+        kind: "test-route",
+        ...route.relatedFiles[0] ? { path: route.relatedFiles[0] } : {},
+        detail: `${route.command}: ${route.reason}`
+      }))
+    });
+  }
+  for (const risk of newRisks)
+    narrative.push({
+      classification: "inference",
+      text: `The diff may introduce ${risk.area} risk: ${risk.reason}.`,
+      evidence: [{ kind: "risk-rule", detail: `${risk.severity} ${risk.area}: ${risk.reason}` }]
+    });
+  for (const assessment of report.annotations?.entries ?? []) {
+    const scope = assessment.annotation.scope;
+    const path = scope.kind === "file" || scope.kind === "symbol" || scope.kind === "contract" ? scope.path : void 0;
+    if (path && !changed.includes(path))
+      continue;
+    narrative.push({
+      classification: "observation",
+      text: `Repository annotation ${assessment.annotation.id} is ${assessment.status}: ${assessment.annotation.note}`,
+      evidence: [{
+        kind: "annotation",
+        ...path ? { path } : {},
+        detail: assessment.message,
+        sourceFingerprint: report.annotations.sourceFingerprint
+      }]
+    });
+  }
+  for (const decision of report.decisions ?? []) {
+    const targetPaths = decision.targets.flatMap((target) => target.kind === "file" ? [target.path] : target.kind === "symbol" && target.path ? [target.path] : []);
+    if (targetPaths.length > 0 && !targetPaths.some((path) => changed.includes(path)))
+      continue;
+    narrative.push({
+      classification: "observation",
+      text: `${decision.path} records an ${decision.status} decision relevant to this diff: ${decision.decision.replace(/\s+/g, " ").trim()}`,
+      evidence: [{
+        kind: "decision-record",
+        path: decision.path,
+        detail: decision.title,
+        sourceFingerprint: decision.sourceFingerprint
+      }]
+    });
+  }
+  return narrative.slice(0, 16);
 }
 function buildVerifySummary(changedCount, findings) {
   const files = `${changedCount} changed ${changedCount === 1 ? "file" : "files"}`;
@@ -3504,6 +5141,12 @@ function renderVerifyMarkdown(result) {
       }
     }
   }
+  if (result.narrative && result.narrative.length > 0) {
+    lines.push("", "## Why This Diff Needs Attention", "");
+    for (const statement of result.narrative) {
+      lines.push(`- **${statement.classification}** ${statement.text}`);
+    }
+  }
   lines.push("", "## Changed Files", "");
   lines.push(...result.changedFiles.length > 0 ? result.changedFiles.map((path) => `- ${markdownCode(path)}`) : ["- None found"]);
   if (result.impact) {
@@ -3513,16 +5156,6 @@ function renderVerifyMarkdown(result) {
   return `${lines.join("\n")}
 `;
 }
-
-// packages/core/dist/retrieval.js
-var STOPWORDS = new Set(`a about above after again against all am an and any are as at be because been before being
-below between both but by can cannot could did do does doing down during each few for from further had has have having
-he her here hers him his how i if in into is it its itself just me more most my no nor not of off on once only or other
-ought our out over own same she should so some such than that the their them then there these they this those through
-to too under until up very was we were what when where which while who whom why with would you your
-bug issue issues error errors expected actual behavior behaviour reproduce reproduction steps version versions node npm
-report repo repository description example code please thanks title type severity confidence location line lines
-following above below see also would should could may might must will can also using used use uses`.split(/\s+/));
 
 // packages/core/dist/validate.js
 function validateFixMapReport(candidate, label) {
@@ -3555,7 +5188,7 @@ function validateFixMapReport(candidate, label) {
   const versioned = record.reportVersion === 1;
   const contextFiles = candidate.contextFiles;
   const invalid = contextFiles.findIndex((file) => {
-    if (!isRecord2(file))
+    if (!isRecord4(file))
       return true;
     const ranked = file;
     if (!isRepositoryRelativePath(ranked.path))
@@ -3567,6 +5200,10 @@ function validateFixMapReport(candidate, label) {
     if ((versioned || ranked.confidence !== void 0) && ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low")
       return true;
     if ((versioned || ranked.reasons !== void 0) && !isStringArray(ranked.reasons))
+      return true;
+    if (ranked.fusionScore === void 0 !== (ranked.retrieval === void 0))
+      return true;
+    if (ranked.fusionScore !== void 0 && (!isPositiveFiniteNumber(ranked.fusionScore) || !isRetrievalSignal(ranked.retrieval)))
       return true;
     return false;
   });
@@ -3594,7 +5231,7 @@ function validateFixMapReport(candidate, label) {
   }
   const testRoutes = record.testRoutes;
   const invalidRoute = testRoutes.findIndex((route) => {
-    if (!isRecord2(route))
+    if (!isRecord4(route))
       return true;
     return typeof route.command !== "string" || !route.command.trim() || !isRepositoryRelativePathArray(route.relatedFiles) || (versioned || route.kind !== void 0) && route.kind !== "test" && route.kind !== "validation" || (versioned || route.reason !== void 0) && typeof route.reason !== "string";
   });
@@ -3606,7 +5243,7 @@ function validateFixMapReport(candidate, label) {
   }
   const risks = record.risks;
   const invalidRisk = risks.findIndex((risk) => {
-    if (!isRecord2(risk))
+    if (!isRecord4(risk))
       return true;
     return typeof risk.area !== "string" || !risk.area.trim() || (versioned || risk.reason !== void 0) && typeof risk.reason !== "string" || (versioned || risk.severity !== void 0) && risk.severity !== "low" && risk.severity !== "medium" && risk.severity !== "high";
   });
@@ -3618,14 +5255,14 @@ function validateFixMapReport(candidate, label) {
   }
   if (record.impact !== void 0) {
     const impact = record.impact;
-    const history = isRecord2(impact) ? impact.history : void 0;
-    if (!isRecord2(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord2(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
+    const history = isRecord4(impact) ? impact.history : void 0;
+    if (!isRecord4(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord4(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
       return { success: false, message: `${label} has an invalid impact graph envelope.` };
     }
     const invalidImpact = impact.files.findIndex((file) => {
-      if (!isRecord2(file) || !isRepositoryRelativePath(file.path) || typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 || file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low" || !Array.isArray(file.evidence))
+      if (!isRecord4(file) || !isRepositoryRelativePath(file.path) || typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 || file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low" || !Array.isArray(file.evidence))
         return true;
-      return file.evidence.some((evidence) => !isRecord2(evidence) || !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) || !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() || evidence.occurrences !== void 0 && (!Number.isSafeInteger(evidence.occurrences) || evidence.occurrences < 0) || evidence.seedChanges !== void 0 && (!Number.isSafeInteger(evidence.seedChanges) || evidence.seedChanges < 0));
+      return file.evidence.some((evidence) => !isRecord4(evidence) || !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) || !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() || evidence.occurrences !== void 0 && (!Number.isSafeInteger(evidence.occurrences) || evidence.occurrences < 0) || evidence.seedChanges !== void 0 && (!Number.isSafeInteger(evidence.seedChanges) || evidence.seedChanges < 0));
     });
     if (invalidImpact !== -1) {
       return { success: false, message: `${label} has an invalid impact.files entry at index ${invalidImpact}.` };
@@ -3634,9 +5271,61 @@ function validateFixMapReport(candidate, label) {
   if (!isRepositoryRelativePathArray(record.changedFiles)) {
     return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
   }
+  if (record.annotations !== void 0) {
+    const annotations = record.annotations;
+    if (!isRecord4(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) || !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) || !Array.isArray(annotations.entries)) {
+      return { success: false, message: `${label} has an invalid annotations envelope.` };
+    }
+    const invalidAnnotation = annotations.entries.findIndex((assessment) => {
+      if (!isRecord4(assessment) || !isRecord4(assessment.annotation) || typeof assessment.message !== "string" || !["active", "expired", "missing-target", "renamed-target"].includes(String(assessment.status)) || assessment.suggestedPath !== void 0 && !isRepositoryRelativePath(assessment.suggestedPath))
+        return true;
+      try {
+        validateAnnotationStore({ annotationStoreVersion: 1, annotations: [assessment.annotation] });
+        return false;
+      } catch {
+        return true;
+      }
+    });
+    if (invalidAnnotation !== -1) {
+      return { success: false, message: `${label} has an invalid annotations entry at index ${invalidAnnotation}.` };
+    }
+  }
+  if (record.decisions !== void 0) {
+    if (!Array.isArray(record.decisions))
+      return { success: false, message: `${label} has invalid decisions; expected an array.` };
+    const invalidDecision = record.decisions.findIndex((decision) => {
+      if (!isRecord4(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.consequences !== void 0 && typeof decision.consequences !== "string")
+        return true;
+      return decision.targets.some((target) => {
+        if (!isRecord4(target) || !["explicit", "literal-mention"].includes(String(target.evidence)))
+          return true;
+        if (target.kind === "file")
+          return !isRepositoryRelativePath(target.path);
+        if (target.kind === "symbol")
+          return typeof target.name !== "string" || !target.name.trim() || target.path !== void 0 && !isRepositoryRelativePath(target.path);
+        return target.kind !== "service" && target.kind !== "contract" || typeof target.name !== "string" || !target.name.trim();
+      });
+    });
+    if (invalidDecision !== -1)
+      return { success: false, message: `${label} has an invalid decisions entry at index ${invalidDecision}.` };
+  }
+  if (record.policy !== void 0) {
+    const policy = record.policy;
+    if (!isRecord4(policy) || typeof policy.policyFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
+      return { success: false, message: `${label} has an invalid architecture policy envelope.` };
+    }
+    const invalidPolicyFinding = policy.findings.findIndex((finding) => {
+      if (!isRecord4(finding) || !["boundary-violation", "required-test-missing", "review-required", "breaking-contract"].includes(String(finding.code)) || !["info", "warning", "error"].includes(String(finding.severity)) || typeof finding.ruleId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(finding.ruleId) || typeof finding.message !== "string" || !finding.message.trim() || !isRepositoryRelativePathArray(finding.paths) || !Array.isArray(finding.evidence))
+        return true;
+      return finding.evidence.some((evidence) => !isRecord4(evidence) || !["import", "changed-file", "test-pattern", "reviewer", "contract-change", "decision-record"].includes(String(evidence.kind)) || typeof evidence.detail !== "string" || !evidence.detail.trim() || evidence.path !== void 0 && !isRepositoryRelativePath(evidence.path) || evidence.relatedPath !== void 0 && !isRepositoryRelativePath(evidence.relatedPath));
+    });
+    if (invalidPolicyFinding !== -1) {
+      return { success: false, message: `${label} has an invalid architecture policy finding at index ${invalidPolicyFinding}.` };
+    }
+  }
   const diagnostics = record.diagnostics;
   const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
-    if (!isRecord2(diagnostic))
+    if (!isRecord4(diagnostic))
       return true;
     return typeof diagnostic.code !== "string" || !diagnostic.code.trim() || typeof diagnostic.message !== "string" || diagnostic.severity !== "info" && diagnostic.severity !== "warning" && diagnostic.severity !== "error" || diagnostic.paths !== void 0 && !isRepositoryRelativePathArray(diagnostic.paths);
   });
@@ -3648,31 +5337,50 @@ function validateFixMapReport(candidate, label) {
   }
   if (record.analysis !== void 0) {
     const analysis = record.analysis;
-    const grounding = isRecord2(analysis) ? analysis.grounding : void 0;
-    const specificity = isRecord2(grounding) ? grounding.specificity : void 0;
+    const grounding = isRecord4(analysis) ? analysis.grounding : void 0;
+    const specificity = isRecord4(grounding) ? grounding.specificity : void 0;
     if (specificity !== "anchored" && specificity !== "descriptive" && specificity !== "vague") {
       return {
         success: false,
         message: `${label} has invalid analysis.grounding.specificity; expected anchored, descriptive, or vague.`
       };
     }
-    if (!isRecord2(analysis) || !isRecord2(grounding) || !Array.isArray(grounding.identifiers) || !isStringArray(grounding.unresolvedIdentifiers) || !isStringArray(grounding.partiallyResolvedIdentifiers) || !isStringArray(grounding.unverifiedIdentifiers) || typeof grounding.scanComplete !== "boolean" || !isRecord2(analysis.ranking) || !isNullableFiniteNumber(analysis.ranking.topScore) || !isNullableFiniteNumber(analysis.ranking.runnerUpScore) || !isNullableFiniteNumber(analysis.ranking.topGap) || typeof analysis.ranking.clustered !== "boolean" || typeof analysis.nextAction !== "string") {
+    if (!isRecord4(analysis) || !isRecord4(grounding) || !Array.isArray(grounding.identifiers) || !isStringArray(grounding.unresolvedIdentifiers) || !isStringArray(grounding.partiallyResolvedIdentifiers) || !isStringArray(grounding.unverifiedIdentifiers) || typeof grounding.scanComplete !== "boolean" || !isRecord4(analysis.ranking) || !isNullableFiniteNumber(analysis.ranking.topScore) || !isNullableFiniteNumber(analysis.ranking.runnerUpScore) || !isNullableFiniteNumber(analysis.ranking.topGap) || typeof analysis.ranking.clustered !== "boolean" || typeof analysis.nextAction !== "string") {
       return {
         success: false,
         message: `${label} has incomplete or invalid analysis grounding, ranking, or nextAction fields.`
       };
     }
-    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord2(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isRepositoryRelativePathArray(identifier.matchedFiles));
+    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord4(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isRepositoryRelativePathArray(identifier.matchedFiles));
     if (invalidIdentifier !== -1) {
       return {
         success: false,
         message: `${label} has an invalid analysis.grounding.identifiers entry at index ${invalidIdentifier}.`
       };
     }
+    if (analysis.retrievalRanking !== void 0) {
+      const retrievalRanking = analysis.retrievalRanking;
+      if (!isRecord4(retrievalRanking) || !isNullableFiniteNumber(retrievalRanking.topFusionScore) || !isNullableFiniteNumber(retrievalRanking.runnerUpFusionScore) || !isNullableFiniteNumber(retrievalRanking.topGap)) {
+        return { success: false, message: `${label} has invalid analysis.retrievalRanking fields.` };
+      }
+    }
+  }
+  if (record.retrieval !== void 0) {
+    const retrieval = record.retrieval;
+    const weights = isRecord4(retrieval) ? retrieval.weights : void 0;
+    if (!isRecord4(retrieval) || retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic" || !isRecord4(weights) || !isPositiveFiniteNumber(weights.structural) || !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) || !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
+      return { success: false, message: `${label} has an invalid retrieval envelope.` };
+    }
+    if (retrieval.mode === "structural-lexical-semantic" && !isSemanticProvenance(retrieval.semantic)) {
+      return { success: false, message: `${label} has invalid or missing semantic retrieval provenance.` };
+    }
+    if (retrieval.mode === "structural-lexical" && retrieval.semantic !== void 0) {
+      return { success: false, message: `${label} carries semantic provenance while declaring structural-lexical retrieval.` };
+    }
   }
   return { success: true, report: candidate };
 }
-function isRecord2(candidate) {
+function isRecord4(candidate) {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
 function isStringArray(candidate) {
@@ -3693,6 +5401,26 @@ function isNullableFiniteNumber(candidate) {
 }
 function isIdentifierStatus(candidate) {
   return candidate === "exact-definition" || candidate === "exact-text" || candidate === "partial-definition" || candidate === "not-found" || candidate === "unverified";
+}
+function isRetrievalSignal(candidate) {
+  if (!isRecord4(candidate))
+    return false;
+  const ranks = [candidate.structuralRank, candidate.lexicalRank, candidate.semanticRank];
+  if (ranks.every((rank) => rank === void 0))
+    return false;
+  if (ranks.some((rank) => rank !== void 0 && (!Number.isSafeInteger(rank) || Number(rank) < 1)))
+    return false;
+  if (candidate.structuralScore !== void 0 && (typeof candidate.structuralScore !== "number" || !Number.isFinite(candidate.structuralScore)))
+    return false;
+  return candidate.semanticSimilarity === void 0 || typeof candidate.semanticSimilarity === "number" && Number.isFinite(candidate.semanticSimilarity) && candidate.semanticSimilarity >= -1 && candidate.semanticSimilarity <= 1;
+}
+function isSemanticProvenance(candidate) {
+  if (!isRecord4(candidate))
+    return false;
+  return typeof candidate.id === "string" && candidate.id.trim().length > 0 && typeof candidate.version === "string" && candidate.version.trim().length > 0 && typeof candidate.model === "string" && candidate.model.trim().length > 0 && typeof candidate.artifactHash === "string" && /^[a-f0-9]{64}$/.test(candidate.artifactHash) && typeof candidate.runtime === "string" && candidate.runtime.trim().length > 0 && Number.isSafeInteger(candidate.dimensions) && Number(candidate.dimensions) > 0 && (candidate.normalization === "l2" || candidate.normalization === "none") && typeof candidate.local === "boolean" && typeof candidate.cacheKey === "string" && candidate.cacheKey.trim().length > 0 && Number.isSafeInteger(candidate.indexedFiles) && Number(candidate.indexedFiles) >= 0 && Number.isSafeInteger(candidate.truncatedFiles) && Number(candidate.truncatedFiles) >= 0;
+}
+function isPositiveFiniteNumber(candidate) {
+  return typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0;
 }
 
 // packages/action/src/github.ts
@@ -4185,21 +5913,21 @@ function trimToBoundary(text) {
 \`\`\``;
 }
 function splitExcludeInput(raw) {
-  const patterns = [];
+  const patterns2 = [];
   let current = "";
   let depth = 0;
   for (const character of raw) {
     if (character === "{") depth += 1;
     else if (character === "}") depth = Math.max(0, depth - 1);
     if (character === "\n" || character === "\r" || character === "," && depth === 0) {
-      patterns.push(current);
+      patterns2.push(current);
       current = "";
       continue;
     }
     current += character;
   }
-  patterns.push(current);
-  return patterns.map((pattern) => pattern.trim()).filter(Boolean);
+  patterns2.push(current);
+  return patterns2.map((pattern) => pattern.trim()).filter(Boolean);
 }
 function fitStepSummary(markdown, limitBytes = STEP_SUMMARY_LIMIT_BYTES) {
   const bytes = Buffer.from(markdown);

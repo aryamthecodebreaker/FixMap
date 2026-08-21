@@ -17,6 +17,8 @@ import type { FixMapReport, PackageScript, RankedFile, RepoFile, RepoMap, Report
 import { assessAnnotations, validateAnnotationStore } from "./annotations.js";
 import type { AnnotationAssessment, AnnotationRename } from "./annotations.js";
 import { inventoryDecisionRecords, selectDecisionRecords } from "./decisions.js";
+import { architecturePolicyFromRepo, evaluateArchitecturePolicy } from "./architecture.js";
+import type { ArchitecturePolicyResult } from "./architecture.js";
 
 const MAX_REPORTED_TERMS = 8;
 
@@ -119,6 +121,22 @@ function assembleReport(
     paths: [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles],
     task: input.issueText ?? ""
   });
+  let policy: ArchitecturePolicyResult | undefined;
+  const policyDiagnostics: ScanDiagnostic[] = [];
+  try {
+    const architecturePolicy = architecturePolicyFromRepo(repo);
+    if (architecturePolicy) policy = evaluateArchitecturePolicy(architecturePolicy, {
+      repo,
+      focusPaths: [...contextPaths, ...repo.changedFiles]
+    });
+  } catch (error) {
+    policyDiagnostics.push({
+      code: "architecture-policy-invalid",
+      severity: "error",
+      paths: [".fixmap/policy.json"],
+      message: `.fixmap/policy.json was not applied: ${error instanceof Error ? error.message : String(error)}`
+    });
+  }
 
   return {
     reportVersion: 1,
@@ -141,6 +159,13 @@ function assembleReport(
         severity: diagnostic.severity,
         message: diagnostic.message,
         paths: [diagnostic.path]
+      })),
+      ...policyDiagnostics,
+      ...(policy?.findings ?? []).map((finding): ScanDiagnostic => ({
+        code: policyDiagnosticCode(finding.code),
+        severity: finding.severity,
+        message: finding.message,
+        paths: finding.paths
       })),
       ...extraDiagnostics
     ],
@@ -167,8 +192,16 @@ function assembleReport(
           entries: annotations.entries
         } }
       : {}),
-    ...(decisions.length > 0 ? { decisions } : {})
+    ...(decisions.length > 0 ? { decisions } : {}),
+    ...(policy ? { policy } : {})
   };
+}
+
+function policyDiagnosticCode(code: import("./architecture.js").ArchitecturePolicyFinding["code"]): ScanDiagnostic["code"] {
+  if (code === "boundary-violation") return "architecture-boundary-violation";
+  if (code === "required-test-missing") return "architecture-required-test";
+  if (code === "review-required") return "architecture-review-required";
+  return "architecture-breaking-contract";
 }
 
 function buildReportAnnotations(
@@ -786,6 +819,14 @@ export function renderMarkdownReport(report: FixMapReport): string {
         )
       ])
     ] : []),
+    ...(report.policy ? [
+      "",
+      "## Architecture Policy",
+      "",
+      ...listOrEmpty(report.policy.findings.map((finding) =>
+        `- **${finding.severity}** ${markdownCode(finding.ruleId)}: ${finding.message}`
+      ))
+    ] : []),
     "",
     "## Changed Files",
     "",
@@ -856,6 +897,11 @@ export function renderAgentReport(report: FixMapReport): string {
         `annotation ${assessment.status} ${describeAnnotationScope(assessment)}  # ${assessment.annotation.note}`
       )
     ]),
+    "",
+    "POLICY:",
+    ...listOrEmpty((report.policy?.findings ?? []).map((finding) =>
+      `${finding.severity} ${finding.ruleId}  # ${finding.message}`
+    )),
     "",
     "AVOID:",
     ...listOrEmpty(avoided),
