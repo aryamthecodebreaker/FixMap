@@ -32,6 +32,8 @@ export { buildImpactMap } from "./impact.js";
 export { collectEvidence } from "./evidence.js";
 export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
 export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
+export { createSupplyChainEvidenceProvider, validateSupplyChainEvidenceBundle } from "./supply-chain.js";
+export type { SupplyChainEvidenceBundle, SupplyChainFindingKind, SupplyChainSeverity } from "./supply-chain.js";
 export type {
   CollectedEvidence,
   CollectedEvidenceItem,

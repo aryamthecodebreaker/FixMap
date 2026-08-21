@@ -15,6 +15,7 @@ export type EvidenceConfidence = "high" | "medium" | "low";
 
 export type EvidenceSubject =
   | { kind: "repository"; repository: string }
+  | { kind: "package"; name: string; version?: string; purl?: string }
   | { kind: "file"; path: string }
   | { kind: "symbol"; path: string; symbol: string }
   | { kind: "contract"; name: string; path?: string }
@@ -305,6 +306,9 @@ function validateRelationship(candidate: unknown, itemIds: Set<string>): string 
 function isEvidenceSubject(candidate: unknown): candidate is EvidenceSubject {
   if (!isRecord(candidate)) return false;
   if (candidate.kind === "repository") return typeof candidate.repository === "string" && candidate.repository.trim().length > 0;
+  if (candidate.kind === "package") return typeof candidate.name === "string" && candidate.name.trim().length > 0 && candidate.name.length <= 300 &&
+    (candidate.version === undefined || (typeof candidate.version === "string" && candidate.version.trim().length > 0 && candidate.version.length <= 300)) &&
+    (candidate.purl === undefined || (typeof candidate.purl === "string" && candidate.purl.startsWith("pkg:") && candidate.purl.length <= 1_000));
   if (candidate.kind === "file") return typeof candidate.path === "string" && isSafeRelativePath(candidate.path);
   if (candidate.kind === "symbol") return typeof candidate.path === "string" && isSafeRelativePath(candidate.path) &&
     typeof candidate.symbol === "string" && candidate.symbol.trim().length > 0;
