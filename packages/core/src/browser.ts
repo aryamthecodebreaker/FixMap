@@ -20,7 +20,7 @@ export type {
   HybridRankingResult,
   SemanticIndexProvenance
 } from "./semantic.js";
-export { buildReportFromRepo, buildRiskNotes, buildTestRoutes, renderAgentReport, renderJsonReport, renderMarkdownReport } from "./report.js";
+export { buildHybridReportFromRepo, buildReportFromRepo, buildRiskNotes, buildTestRoutes, renderAgentReport, renderJsonReport, renderMarkdownReport } from "./report.js";
 export { buildContextPack, estimateContextTokens, renderContextPackMarkdown, type ContextPack, type ContextSnippet } from "./context.js";
 export { buildFixMapGraph, renderFixMapGraphMermaid, type FixMapGraph } from "./graph.js";
 export { buildImpactMap } from "./impact.js";

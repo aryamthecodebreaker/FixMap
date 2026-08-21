@@ -25,6 +25,9 @@ For private source or working-tree changes, run from a local JavaScript or TypeS
 
 ```bash
 fixmap plan --issue "password reset emails fail"
+
+# Optional: add an existing on-device embedding model to structural + BM25 ranking
+fixmap plan --issue "keep signed-in users active" --semantic-model C:\models\all-MiniLM-L6-v2
 ```
 
 Install a discoverable `/fixmap` command for supported coding agents, then invoke it without a task to see the complete workflow menu:
@@ -96,6 +99,7 @@ For long task text, use `--issue-file task.md` or pipe text to `--issue -`. A le
 - **Focus controls** — cap output with `--limit`, repeat `--exclude`, or use ordered `.fixmapignore` patterns with negation. Pasted absolute paths inside the repository are normalized, and unmatched patterns produce a warning.
 - **Live changes** — `--working-tree` maps staged and unstaged tracked edits; `--include-untracked` opts new files into the changed-file set.
 - **Exact-state cache** — clean and tracked dirty git states are cached by repository, commit, status, and binary diff. Cache hits report age, entries expire after seven days, and `--no-cache` reports a fresh bypass.
+- **Opt-in local hybrid retrieval** — `--semantic-model <dir>` fuses structural, BM25, and cosine ranks while retaining each signal and model provenance. The model must already exist locally; FixMap forces local-files-only loading, persists model-isolated vectors outside the repository, and never uploads source. FixMap does not bundle the optional Transformers.js runtime, so install a compatible version in the host only after auditing its dependency tree.
 - **Artifact isolation** — current issue, comparison, verification, and output files are removed from ranking, change detection, and cache state, so a saved plan cannot recommend or invalidate itself.
 - **Doctor** — report the running version, resolved binary, global/PATH shadows, Node compatibility, and an optionally requested npm version.
 - **MCP** — expose Plan, Context, Graph, Explain, Compare, Verify, and Doctor as seven local stdio tools.
@@ -155,6 +159,7 @@ fixmap mcp             Run FixMap as an MCP server over stdio
 --limit <n>            Cap reported context files, 1 to 20 (default 8)
 --exclude <pattern>    Leave paths out of ranking; repeatable, gitignore-flavored
 --no-cache             Bypass the exact-state repository scan cache
+--semantic-model <dir> Use a pre-existing local embedding model; never download or upload source
 --repo <source>        Local path, file:// URL, or public GitHub HTTPS/SSH URL
 --format <fmt>         Plan: markdown, agent, or json; context: markdown or json; graph: mermaid or json
 --budget <tokens>      Context estimated source-token budget, 256 to 200000 (default 10000)

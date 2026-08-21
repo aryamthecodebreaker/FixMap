@@ -55,6 +55,8 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
       ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low"
     ) return true;
     if ((versioned || ranked.reasons !== undefined) && !isStringArray(ranked.reasons)) return true;
+    if ((ranked.fusionScore === undefined) !== (ranked.retrieval === undefined)) return true;
+    if (ranked.fusionScore !== undefined && (!isPositiveFiniteNumber(ranked.fusionScore) || !isRetrievalSignal(ranked.retrieval))) return true;
     return false;
   });
   if (invalid !== -1) {
@@ -202,6 +204,33 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
         message: `${label} has an invalid analysis.grounding.identifiers entry at index ${invalidIdentifier}.`
       };
     }
+    if (analysis.retrievalRanking !== undefined) {
+      const retrievalRanking = analysis.retrievalRanking;
+      if (!isRecord(retrievalRanking) ||
+        !isNullableFiniteNumber(retrievalRanking.topFusionScore) ||
+        !isNullableFiniteNumber(retrievalRanking.runnerUpFusionScore) ||
+        !isNullableFiniteNumber(retrievalRanking.topGap)) {
+        return { success: false, message: `${label} has invalid analysis.retrievalRanking fields.` };
+      }
+    }
+  }
+
+  if (record.retrieval !== undefined) {
+    const retrieval = record.retrieval;
+    const weights = isRecord(retrieval) ? retrieval.weights : undefined;
+    if (!isRecord(retrieval) ||
+      (retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic") ||
+      !isRecord(weights) || !isPositiveFiniteNumber(weights.structural) ||
+      !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) ||
+      !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
+      return { success: false, message: `${label} has an invalid retrieval envelope.` };
+    }
+    if (retrieval.mode === "structural-lexical-semantic" && !isSemanticProvenance(retrieval.semantic)) {
+      return { success: false, message: `${label} has invalid or missing semantic retrieval provenance.` };
+    }
+    if (retrieval.mode === "structural-lexical" && retrieval.semantic !== undefined) {
+      return { success: false, message: `${label} carries semantic provenance while declaring structural-lexical retrieval.` };
+    }
   }
 
   return { success: true, report: candidate as FixMapReport };
@@ -235,4 +264,34 @@ function isNullableFiniteNumber(candidate: unknown): boolean {
 function isIdentifierStatus(candidate: unknown): boolean {
   return candidate === "exact-definition" || candidate === "exact-text" ||
     candidate === "partial-definition" || candidate === "not-found" || candidate === "unverified";
+}
+
+function isRetrievalSignal(candidate: unknown): boolean {
+  if (!isRecord(candidate)) return false;
+  const ranks = [candidate.structuralRank, candidate.lexicalRank, candidate.semanticRank];
+  if (ranks.every((rank) => rank === undefined)) return false;
+  if (ranks.some((rank) => rank !== undefined && (!Number.isSafeInteger(rank) || Number(rank) < 1))) return false;
+  if (candidate.structuralScore !== undefined &&
+    (typeof candidate.structuralScore !== "number" || !Number.isFinite(candidate.structuralScore))) return false;
+  return candidate.semanticSimilarity === undefined ||
+    (typeof candidate.semanticSimilarity === "number" && Number.isFinite(candidate.semanticSimilarity) &&
+      candidate.semanticSimilarity >= -1 && candidate.semanticSimilarity <= 1);
+}
+
+function isSemanticProvenance(candidate: unknown): boolean {
+  if (!isRecord(candidate)) return false;
+  return typeof candidate.id === "string" && candidate.id.trim().length > 0 &&
+    typeof candidate.version === "string" && candidate.version.trim().length > 0 &&
+    typeof candidate.model === "string" && candidate.model.trim().length > 0 &&
+    typeof candidate.artifactHash === "string" && /^[a-f0-9]{64}$/.test(candidate.artifactHash) &&
+    typeof candidate.runtime === "string" && candidate.runtime.trim().length > 0 &&
+    Number.isSafeInteger(candidate.dimensions) && Number(candidate.dimensions) > 0 &&
+    (candidate.normalization === "l2" || candidate.normalization === "none") &&
+    typeof candidate.local === "boolean" && typeof candidate.cacheKey === "string" && candidate.cacheKey.trim().length > 0 &&
+    Number.isSafeInteger(candidate.indexedFiles) && Number(candidate.indexedFiles) >= 0 &&
+    Number.isSafeInteger(candidate.truncatedFiles) && Number(candidate.truncatedFiles) >= 0;
+}
+
+function isPositiveFiniteNumber(candidate: unknown): boolean {
+  return typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0;
 }

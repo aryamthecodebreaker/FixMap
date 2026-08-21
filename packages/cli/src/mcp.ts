@@ -48,6 +48,7 @@ type PlanArguments = {
   workingTree?: boolean;
   includeUntracked?: boolean;
   noCache?: boolean;
+  semanticModel?: string;
 };
 
 type ExplainArguments = {
@@ -143,7 +144,11 @@ const PLAN_TOOL = {
       },
       workingTree: { type: "boolean", description: "Map staged and unstaged tracked changes against HEAD" },
       includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" },
-      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" }
+      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" },
+      semanticModel: {
+        type: "string",
+        description: "Existing local Transformers.js embedding model directory. Never downloads a model or uploads source."
+      }
     },
     additionalProperties: false
   }
@@ -311,7 +316,8 @@ export function createFixMapMcpServer(
           includeUntracked: args.includeUntracked,
           useCache: !args.noCache,
           limit: args.limit,
-          exclude: args.exclude
+          exclude: args.exclude,
+          semanticModelPath: args.semanticModel
         }, repositorySourceDependencies);
         if (kind === "context") {
           const pack = contextFromAnalysis(analysis, args.budget ?? 10_000);
@@ -488,7 +494,8 @@ export function createFixMapMcpServer(
         includeUntracked: args.includeUntracked,
         useCache: !args.noCache,
         limit: args.limit,
-        exclude: args.exclude
+        exclude: args.exclude,
+        semanticModelPath: args.semanticModel
       }, repositorySourceDependencies);
     } catch (error) {
       return {
@@ -530,7 +537,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache"]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return {
@@ -544,6 +551,9 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
     if (value !== undefined && typeof value !== "string") {
       return { success: false, message: `"${name}" must be a string.` };
     }
+  }
+  if (record.semanticModel !== undefined && (typeof record.semanticModel !== "string" || !record.semanticModel.trim())) {
+    return { success: false, message: '"semanticModel" must be a non-empty local directory path.' };
   }
   for (const name of ["issue", "diff", "base", "head", "repo", "ref"] as const) {
     if (typeof record[name] === "string" && !record[name].trim()) return { success: false, message: `"${name}" must not be blank.` };
@@ -580,6 +590,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   if (record.workingTree === true) value.workingTree = true;
   if (record.includeUntracked === true) value.includeUntracked = true;
   if (record.noCache === true) value.noCache = true;
+  if (typeof record.semanticModel === "string") value.semanticModel = record.semanticModel.trim();
   if (value.ref && !/^https?:\/\//i.test(value.repo ?? "") && !tryParseGitHubIssueSource(value.issue ?? "")) {
     return { success: false, message: '"ref" requires a remote GitHub "repo" or issue URL.' };
   }
@@ -598,7 +609,7 @@ function parseAnalysisToolArguments(
     return { success: false, message: "tool arguments must be an object." };
   }
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", ...(kind === "context" ? ["budget"] : [])]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", ...(kind === "context" ? ["budget"] : [])]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
 

@@ -2,6 +2,7 @@ import { rankContextFilesDetailed } from "./rank.js";
 import { rankByBm25 } from "./retrieval.js";
 import type { PathExcluder } from "./exclude.js";
 import type { RankedFile, RepoMap } from "./types.js";
+import type { RankingShape } from "./grounding.js";
 
 export type EmbeddingNormalization = "l2" | "none";
 
@@ -58,6 +59,7 @@ export type HybridRankingResult = {
   weights: { structural: number; lexical: number; semantic: number; reciprocalRankConstant: number };
   semantic?: SemanticIndexProvenance;
   diagnostics: HybridRetrievalDiagnostic[];
+  structuralRanking: RankingShape;
 };
 
 export type HybridRankingOptions = {
@@ -90,7 +92,7 @@ const DEFAULT_WEIGHTS = {
  */
 export async function rankContextFilesHybrid(
   repo: RepoMap,
-  input: { issueText?: string; diffText?: string },
+  input: { issueText?: string | undefined; diffText?: string | undefined },
   options: HybridRankingOptions = {}
 ): Promise<HybridRankingResult> {
   const limit = positiveInteger(options.limit, DEFAULT_LIMIT);
@@ -215,7 +217,8 @@ export async function rankContextFilesHybrid(
     mode: semantic ? "structural-lexical-semantic" : "structural-lexical",
     weights,
     ...(semantic ? { semantic } : {}),
-    diagnostics
+    diagnostics,
+    structuralRanking: detailed.ranking
   };
 }
 

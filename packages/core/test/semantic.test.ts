@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { rankContextFilesHybrid, type EmbeddingProvider } from "../src/semantic.js";
+import { buildHybridReportFromRepo } from "../src/report.js";
+import { validateFixMapReport } from "../src/validate.js";
 import type { RepoFile, RepoMap } from "../src/types.js";
 
 function file(path: string, textSample: string): RepoFile {
@@ -130,5 +132,41 @@ describe("rankContextFilesHybrid", () => {
 
     expect(result.semantic).toMatchObject({ indexedFiles: 1, truncatedFiles: 1 });
     expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "semantic-candidates-truncated" }));
+  });
+
+  it("carries hybrid provenance through the shared report, impact, and test-routing contract", async () => {
+    const map = repo([
+      file("src/account.ts", "export function loadAccount() {}"),
+      file("src/session.ts", "export function renewSession() {}"),
+      { ...file("test/session.test.ts", "renewSession()"), isTest: true }
+    ]);
+    map.packageScripts = [{ name: "test", command: "vitest run", packageDir: "" }];
+    const embedding = provider(async (texts) => texts.map((text, index) =>
+      index === 0 || text.startsWith("src/session.ts") ? [1, 0] : [0, 1]
+    ));
+
+    const report = await buildHybridReportFromRepo(map, {
+      issueText: "keep the signed in person active",
+      embeddingProvider: embedding
+    });
+
+    expect(report.contextFiles[0]).toMatchObject({
+      path: "src/session.ts",
+      retrieval: { semanticRank: 1, semanticSimilarity: 1 }
+    });
+    expect(report.testRoutes[0]).toMatchObject({ command: "npm run test", relatedFiles: ["test/session.test.ts"] });
+    expect(report.retrieval).toMatchObject({
+      mode: "structural-lexical-semantic",
+      semantic: { id: "local-test", artifactHash: "a".repeat(64) }
+    });
+    expect(report.analysis?.retrievalRanking?.topFusionScore).toBe(report.contextFiles[0]?.fusionScore);
+    expect(validateFixMapReport(report, "hybrid report")).toMatchObject({ success: true });
+
+    const malformed = structuredClone(report) as unknown as { retrieval: { semantic: { artifactHash: string } } };
+    malformed.retrieval.semantic.artifactHash = "not-a-hash";
+    expect(validateFixMapReport(malformed, "hybrid report")).toMatchObject({
+      success: false,
+      message: expect.stringContaining("semantic retrieval provenance")
+    });
   });
 });

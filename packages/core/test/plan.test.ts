@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildFixMapAnalysis, buildFixMapReport } from "../src/plan.js";
 import { renderMarkdownReport } from "../src/report.js";
+import type { EmbeddingProvider } from "../src/semantic.js";
 
 async function createAuthFixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "fixmap-plan-"));
@@ -39,6 +40,34 @@ describe("buildFixMapReport", () => {
     expect(report.testRoutes[0]?.command).toBe("npm run test");
     expect(report.risks.map((risk) => risk.area)).toContain("authentication");
     expect(report.summary).toContain("context file");
+  });
+
+  it("uses an injected local embedding provider in the shared scan-to-report path", async () => {
+    const root = await createAuthFixture();
+    const embeddingProvider: EmbeddingProvider = {
+      id: "fixture",
+      version: "1",
+      model: "tiny",
+      artifactHash: "a".repeat(64),
+      runtime: "fixture/1",
+      dimensions: 2,
+      normalization: "l2",
+      local: true,
+      async embed(texts) {
+        return texts.map((text, index) =>
+          index === 0 || text.startsWith("src/auth/reset-password.ts") ? [1, 0] : [0, 1]
+        );
+      }
+    };
+
+    const report = await buildFixMapReport({
+      repoRoot: root,
+      issueText: "help a person recover access",
+      embeddingProvider
+    });
+
+    expect(report.contextFiles[0]?.path).toBe("src/auth/reset-password.ts");
+    expect(report.retrieval?.semantic).toMatchObject({ id: "fixture", local: true });
   });
 
   it("surfaces diff diagnostics instead of hiding them", async () => {

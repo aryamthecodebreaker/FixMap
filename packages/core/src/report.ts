@@ -11,7 +11,9 @@ import { extractTaskSignals, tokenizePath } from "./signals.js";
 import { findGatedTestDiagnostics } from "./test-gates.js";
 import { markdownCode } from "./markdown.js";
 import { DIAGNOSTIC_TERM_LIMIT, truncateForDiagnostic } from "./text.js";
-import type { FixMapReport, PackageScript, RankedFile, RepoFile, RepoMap, RiskNote, ScanDiagnostic, TestRoute } from "./types.js";
+import { rankContextFilesHybrid } from "./semantic.js";
+import type { EmbeddingProvider, HybridRankingResult } from "./semantic.js";
+import type { FixMapReport, PackageScript, RankedFile, RepoFile, RepoMap, ReportRetrieval, RiskNote, ScanDiagnostic, TestRoute } from "./types.js";
 
 const MAX_REPORTED_TERMS = 8;
 
@@ -42,6 +44,64 @@ export function buildReportFromRepo(
   );
   const contextFiles = ranked.contextFiles;
   const ranking = ranked.ranking;
+  return assembleReport(repo, input, grounding, contextFiles, ranking);
+}
+
+/** Builds the same report contract with an explicitly requested hybrid rank. */
+export async function buildHybridReportFromRepo(
+  repo: RepoMap,
+  input: {
+    issueText?: string | undefined;
+    limit?: number | undefined;
+    exclude?: PathExcluder | undefined;
+    embeddingProvider: EmbeddingProvider;
+    allowRemoteEmbeddings?: boolean;
+  }
+): Promise<FixMapReport> {
+  const grounding = analyzeTaskGrounding(repo, { issueText: input.issueText, diffText: repo.diffText });
+  const hybrid = await rankContextFilesHybrid(repo, {
+    issueText: input.issueText,
+    diffText: repo.diffText
+  }, {
+    embeddingProvider: input.embeddingProvider,
+    limit: input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT,
+    ...(input.allowRemoteEmbeddings !== undefined ? { allowRemoteEmbeddings: input.allowRemoteEmbeddings } : {}),
+    ...(input.exclude ? { exclude: input.exclude } : {})
+  });
+  const contextFiles = hybrid.files.map((file) => ({
+    ...file,
+    confidence: hybridConfidence(file)
+  }));
+  const retrieval: ReportRetrieval = {
+    mode: hybrid.mode,
+    weights: hybrid.weights,
+    ...(hybrid.semantic ? { semantic: hybrid.semantic } : {})
+  };
+  const diagnostics = hybrid.diagnostics.flatMap((entry): ScanDiagnostic[] =>
+    entry.code === "semantic-disabled" ? [] : [{ ...entry, code: entry.code }]
+  );
+  return assembleReport(
+    repo,
+    input,
+    grounding,
+    contextFiles,
+    hybrid.structuralRanking,
+    diagnostics,
+    retrieval,
+    hybrid
+  );
+}
+
+function assembleReport(
+  repo: RepoMap,
+  input: { issueText?: string | undefined; exclude?: PathExcluder | undefined },
+  grounding: TaskGrounding,
+  contextFiles: RankedFile[],
+  ranking: RankingShape,
+  extraDiagnostics: ScanDiagnostic[] = [],
+  retrieval?: ReportRetrieval,
+  hybrid?: HybridRankingResult
+): FixMapReport {
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
@@ -61,11 +121,13 @@ export function buildReportFromRepo(
       ...findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes),
       ...findTaskDiagnostics(repo, grounding, ranking),
       ...findTaskPreprocessingDiagnostics(input.issueText ?? ""),
-      ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude)
+      ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude),
+      ...extraDiagnostics
     ],
     analysis: {
       grounding,
       ranking,
+      ...(hybrid ? { retrievalRanking: buildRetrievalRanking(hybrid) } : {}),
       // Only a test route's related paths are tests. A lint, typecheck or Go route fills the
       // same field with implementation paths, and counting those made nextAction promise
       // "and its routed tests" when nothing of the sort had been routed.
@@ -75,7 +137,27 @@ export function buildReportFromRepo(
         contextFiles,
         testRoutes.some((route) => route.kind === "test" && route.relatedFiles.length > 0)
       )
-    }
+    },
+    ...(retrieval ? { retrieval } : {})
+  };
+}
+
+function hybridConfidence(file: import("./semantic.js").HybridRankedFile): RankedFile["confidence"] {
+  if (file.retrieval.structuralRank === file.rank || file.confidence !== "high") return file.confidence;
+  const anchored = file.reasons.some((reason) =>
+    reason === "changed file" || reason === "explicitly named in the task" ||
+    reason.startsWith("defines task identifiers:") || reason.startsWith("exact task literal at definition:")
+  );
+  return anchored ? file.confidence : "medium";
+}
+
+function buildRetrievalRanking(hybrid: HybridRankingResult): NonNullable<NonNullable<FixMapReport["analysis"]>["retrievalRanking"]> {
+  const top = hybrid.files[0]?.fusionScore;
+  const runnerUp = hybrid.files[1]?.fusionScore;
+  return {
+    topFusionScore: top ?? null,
+    runnerUpFusionScore: runnerUp ?? null,
+    topGap: top !== undefined && runnerUp !== undefined ? Number((top - runnerUp).toFixed(8)) : null
   };
 }
 

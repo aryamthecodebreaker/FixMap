@@ -67,7 +67,7 @@ export { createLocalTransformersEmbeddingProvider } from "./transformers-embeddi
 export type { LocalTransformersEmbeddingOptions } from "./transformers-embedding.js";
 export { withPersistentEmbeddingCache } from "./semantic-cache.js";
 export type { PersistentEmbeddingCacheOptions } from "./semantic-cache.js";
-export { buildReportFromRepo, buildRiskNotes, buildSummary, buildTestRoutes, pathsForRiskArea, renderAgentReport, renderJsonReport, renderMarkdownReport } from "./report.js";
+export { buildHybridReportFromRepo, buildReportFromRepo, buildRiskNotes, buildSummary, buildTestRoutes, pathsForRiskArea, renderAgentReport, renderJsonReport, renderMarkdownReport } from "./report.js";
 export { buildContextPack, estimateContextTokens, renderContextPackMarkdown, type ContextPack, type ContextSnippet } from "./context.js";
 export { buildFixMapGraph, renderFixMapGraphMermaid, type FixMapGraph } from "./graph.js";
 export { scanRepo } from "./repo-scan.js";
@@ -87,6 +87,7 @@ export type {
   RankedFile,
   RepoFile,
   RepoMap,
+  ReportRetrieval,
   RepositoryHistory,
   RiskNote,
   ScanDiagnostic,

@@ -78,7 +78,11 @@ export type ScanDiagnostic = {
     | "package-manager-conflict"
     | "impact-history-unavailable"
     | "impact-history-shallow"
-    | "impact-history-truncated";
+    | "impact-history-truncated"
+    | "semantic-remote-disallowed"
+    | "semantic-provider-invalid"
+    | "semantic-provider-failed"
+    | "semantic-candidates-truncated";
   message: string;
   severity: "info" | "warning" | "error";
   /**
@@ -124,6 +128,15 @@ export type RankedFile = {
   score: number;
   confidence: "high" | "medium" | "low";
   reasons: string[];
+  /** Present only when hybrid retrieval is requested. Kept separate from structural score. */
+  fusionScore?: number;
+  retrieval?: {
+    structuralRank?: number;
+    structuralScore?: number;
+    lexicalRank?: number;
+    semanticRank?: number;
+    semanticSimilarity?: number;
+  };
 };
 
 export type TestRoute = {
@@ -198,7 +211,30 @@ export type TaskAnalysis = {
     topGap: number | null;
     clustered: boolean;
   };
+  retrievalRanking?: {
+    topFusionScore: number | null;
+    runnerUpFusionScore: number | null;
+    topGap: number | null;
+  };
   nextAction: string;
+};
+
+export type ReportRetrieval = {
+  mode: "structural-lexical" | "structural-lexical-semantic";
+  weights: { structural: number; lexical: number; semantic: number; reciprocalRankConstant: number };
+  semantic?: {
+    id: string;
+    version: string;
+    model: string;
+    artifactHash: string;
+    runtime: string;
+    dimensions: number;
+    normalization: "l2" | "none";
+    local: boolean;
+    cacheKey: string;
+    indexedFiles: number;
+    truncatedFiles: number;
+  };
 };
 
 export type FixMapReport = {
@@ -213,6 +249,8 @@ export type FixMapReport = {
   changedFiles: string[];
   diagnostics: ScanDiagnostic[];
   analysis?: TaskAnalysis;
+  /** Additive provenance for an explicitly requested hybrid ranking. */
+  retrieval?: ReportRetrieval;
 };
 
 export type VerifyFinding = {

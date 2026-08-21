@@ -54,6 +54,7 @@ export type CliOptions = {
   workingTree: boolean;
   includeUntracked: boolean;
   noCache: boolean;
+  semanticModelPath?: string | undefined;
   unknownArgs: string[];
   invalidValues: string[];
 };
@@ -88,6 +89,7 @@ Usage:
   fixmap plan --diff main...HEAD
   fixmap plan --working-tree --include-untracked --limit 12 --exclude "docs/**"
   fixmap plan --no-cache --issue "Fix login" --repo .
+  fixmap plan --issue "Keep signed-in users active" --semantic-model C:\\models\\all-MiniLM-L6-v2
   fixmap plan --issue "Fix login" --format json --output plan.json
   fixmap plan --issue "Fix login" --format agent
   fixmap plan --issue "Fix login in auth middleware" --compare plan.json
@@ -127,6 +129,7 @@ Options:
   --working-tree      Map staged and unstaged changes against HEAD
   --include-untracked With --working-tree, also include untracked files
   --no-cache          Bypass the exact git-state repository scan cache
+  --semantic-model <dir> Use an existing local embedding model; never downloads or uploads source
   --repo <source>     Local path or public GitHub HTTPS URL (defaults to current directory)
   --ref <branch|tag>  Branch or tag to scan when --repo is a remote GitHub URL
   --limit <n>         Maximum context files to report (default 8, max 20)
@@ -477,7 +480,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 1;
   }
   if (options.command === "verify") {
-    const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain"].filter(Boolean);
+    const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain", options.semanticModelPath && "--semantic-model"].filter(Boolean);
     if (planOnly.length > 0) { stderr(`verify does not accept plan-only option(s): ${planOnly.join(", ")}.\n`); return 1; }
     const outputCollision = await describeOutputInputCollision(options);
     if (outputCollision) { stderr(`${outputCollision}\n`); return 1; }
@@ -626,7 +629,8 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       useCache: !options.noCache,
       limit: options.limit,
       exclude: options.exclude,
-      internalExclude: localPlanArtifactExclusions(options)
+      internalExclude: localPlanArtifactExclusions(options),
+      semanticModelPath: options.semanticModelPath
     });
   } catch (error) {
     stderr(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -871,6 +875,7 @@ const SINGLE_VALUE_FLAGS = new Set([
   "--head",
   "--ref",
   "--repo",
+  "--semantic-model",
   "--format",
   "--report",
   "--explain",
@@ -919,6 +924,7 @@ export function parseArgs(args: string[]): CliOptions {
   let workingTree = false;
   let includeUntracked = false;
   let noCache = false;
+  let semanticModelPath: string | undefined;
   const exclude: string[] = [];
   const unknownArgs: string[] = [];
   const invalidValues: string[] = [];
@@ -993,6 +999,10 @@ export function parseArgs(args: string[]): CliOptions {
       consumeValue();
       if (value?.trim()) repo = expandHomePath(value.trim());
       else invalidValues.push("--repo requires a local path or public GitHub repository URL");
+    } else if (arg === "--semantic-model") {
+      consumeValue();
+      if (value?.trim()) semanticModelPath = expandHomePath(value.trim());
+      else invalidValues.push("--semantic-model requires a local model directory");
     } else if (arg === "--format") {
       consumeValue();
       const normalized = value?.trim().toLowerCase();
@@ -1077,6 +1087,7 @@ export function parseArgs(args: string[]): CliOptions {
     workingTree,
     includeUntracked,
     noCache,
+    semanticModelPath,
     unknownArgs,
     invalidValues
   };

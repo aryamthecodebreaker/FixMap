@@ -22,6 +22,7 @@ export const FIXMAP_FEATURES = [
   { name: "Focus", command: "--limit, --exclude, .fixmapignore", detail: "Narrow ranking without changing the repository." },
   { name: "Live changes", command: "--working-tree --include-untracked", detail: "Map staged, unstaged, and optionally untracked work against HEAD." },
   { name: "Fresh scan", command: "--no-cache", detail: "Bypass the exact git-state cache with CLI --no-cache, MCP noCache: true, or Action no-cache: true, and report that a fresh scan was used." },
+  { name: "Local hybrid retrieval", command: "--semantic-model <dir>", detail: "Opt into structural + BM25 + local embedding rank fusion with a pre-existing model directory; model loading is local-files-only and source is never uploaded." },
   { name: "Machine output", command: "--format json --output <file>", detail: "Emit a versioned JSON contract or readable Markdown without executing repository code." },
   { name: "Compact agent output", command: "--format agent", detail: "Emit EDIT CANDIDATE, INSPECT, TEST, RISK, AVOID, and UNCERTAINTY sections for a small context window." },
   { name: "Repository benchmark", command: "fixmap benchmark --repo . --last 50", detail: "Backtest BM25, FixMap, and Impact Graph on historical parent snapshots with history cut off before each target change." },

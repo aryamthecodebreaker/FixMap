@@ -545,12 +545,14 @@ describe("CLI argument handling", () => {
 
   it("expands the home directory consistently for path options", () => {
     const parsed = parseArgs([
-      "plan", "--issue", "x", "--repo", "~", "--output", "~/plan.json", "--compare", "~\\before.json"
+      "plan", "--issue", "x", "--repo", "~", "--output", "~/plan.json", "--compare", "~\\before.json",
+      "--semantic-model", "~/models/embed"
     ]);
 
     expect(parsed.repo).toBe(homedir());
     expect(parsed.output).toBe(join(homedir(), "plan.json"));
     expect(parsed.comparePath).toBe(join(homedir(), "before.json"));
+    expect(parsed.semanticModelPath).toBe(join(homedir(), "models/embed"));
   });
 
   it.each([
@@ -1003,6 +1005,28 @@ describe("CLI argument handling", () => {
       limit: 3,
       exclude: ["apps/web"]
     }));
+  });
+
+  it("passes an explicitly selected local semantic model to the shared report builder", async () => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+
+    await runCli(
+      ["plan", "--issue", "keep the signed-in user active", "--semantic-model", "C:\\models\\embed"],
+      { ...io.dependencies, buildReport }
+    );
+
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({
+      semanticModelPath: "C:\\models\\embed"
+    }));
+  });
+
+  it("keeps semantic-model selection out of verify", async () => {
+    const io = capture();
+    expect(await runCli([
+      "verify", "--report", "plan.json", "--semantic-model", "C:\\models\\embed"
+    ], io.dependencies)).toBe(1);
+    expect(io.stderr.join("")).toContain("verify does not accept plan-only option(s): --semantic-model");
   });
 
   it("refuses --working-tree together with an explicit diff", async () => {

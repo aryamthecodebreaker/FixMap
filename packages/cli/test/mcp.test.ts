@@ -116,6 +116,11 @@ describe("fixmap mcp server", () => {
       success: true,
       value: { issue: "task", limit: 3, exclude: ["apps/web"] }
     });
+    expect(parsePlanArguments({ issue: "task", semanticModel: "  C:\\models\\embed  " })).toEqual({
+      success: true,
+      value: { issue: "task", semanticModel: "C:\\models\\embed" }
+    });
+    expect(parsePlanArguments({ issue: "task", semanticModel: " " }).success).toBe(false);
   });
 
   it("bypasses the repository cache when an MCP caller requests a fresh scan", async () => {
@@ -162,7 +167,7 @@ describe("fixmap mcp server", () => {
     expect(plan).toBeDefined();
     expect(plan?.description).toContain("test commands");
     expect(Object.keys(plan?.inputSchema.properties ?? {}).sort()).toEqual(
-      ["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache"].sort()
+      ["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel"].sort()
     );
     expect(plan?.inputSchema.additionalProperties).toBe(false);
     expect(plan?.inputSchema.properties?.repo?.description).toContain("public GitHub HTTPS");

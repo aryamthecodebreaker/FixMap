@@ -3,8 +3,9 @@ import { join, resolve } from "node:path";
 import { buildPathExcluder, parseIgnoreFile, NO_EXCLUSIONS } from "./exclude.js";
 import { markdownCode } from "./markdown.js";
 import type { PathExcluder } from "./exclude.js";
-import { buildReportFromRepo } from "./report.js";
+import { buildHybridReportFromRepo, buildReportFromRepo } from "./report.js";
 import { scanRepo } from "./repo-scan.js";
+import type { EmbeddingProvider } from "./semantic.js";
 import type { FixMapInput, FixMapReport } from "./types.js";
 
 export async function buildFixMapReport(
@@ -16,6 +17,7 @@ export async function buildFixMapReport(
     exclude?: string[] | undefined;
     /** Known command artifacts that must not compete with repository files in ranking. */
     internalExclude?: string[] | undefined;
+    embeddingProvider?: EmbeddingProvider | undefined;
   }
 ): Promise<FixMapReport> {
   return (await buildFixMapAnalysis(input)).report;
@@ -34,6 +36,7 @@ export async function buildFixMapAnalysis(
     limit?: number | undefined;
     exclude?: string[] | undefined;
     internalExclude?: string[] | undefined;
+    embeddingProvider?: EmbeddingProvider | undefined;
   }
 ): Promise<{ report: FixMapReport; repo: Awaited<ReturnType<typeof scanRepo>> }> {
   const repo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
@@ -43,11 +46,14 @@ export async function buildFixMapAnalysis(
   );
   const exclude = combineExclusions(requestedExclude, internalExclude);
 
-  const report = buildReportFromRepo(repo, {
+  const reportInput = {
     issueText: input.issueText,
     limit: input.limit,
     exclude
-  });
+  };
+  const report = input.embeddingProvider
+    ? await buildHybridReportFromRepo(repo, { ...reportInput, embeddingProvider: input.embeddingProvider })
+    : buildReportFromRepo(repo, reportInput);
 
   if (requestedExclude.patterns.length > 0) {
     const excludedPaths = repo.files.filter((file) => requestedExclude.excludes(file.path)).map((file) => file.path);

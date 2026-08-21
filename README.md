@@ -55,6 +55,9 @@ Save a plan before editing:
 
 ```bash
 fixmap plan --issue "password reset emails fail" --format json --output plan.json
+
+# Optional local semantic recall alongside structural and BM25 evidence
+fixmap plan --issue "keep signed-in users active" --semantic-model C:\models\all-MiniLM-L6-v2
 ```
 
 The plan separates primary context from likely impact: imports, reverse dependents, routed tests, and repeated Git co-change relationships. Impact files are places to inspect, not assumed edits.
@@ -113,7 +116,7 @@ Validate a saved report before another tool consumes it:
 fixmap validate plan.json
 ```
 
-Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked` when new files should count as changes, `--exclude` or `.fixmapignore` to focus the map, and `--no-cache` to force a fresh scan. Add `--fail-on warning` to Verify when advisory findings must fail CI. Run `fixmap --help` for the complete command reference.
+Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked` when new files should count as changes, `--exclude` or `.fixmapignore` to focus the map, and `--no-cache` to force a fresh scan. `--semantic-model <dir>` explicitly opts into local hybrid retrieval using a model already on disk. Add `--fail-on warning` to Verify when advisory findings must fail CI. Run `fixmap --help` for the complete command reference.
 
 ## Complete feature catalog
 
@@ -179,13 +182,13 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 
 ### TypeScript library
 
-- `@aryam/fixmap-core` exposes repository scanning, exclusion resolution, ranking, Context Pack and Impact Graph construction, BM25 retrieval, task grounding, language/import analysis, test/risk routing, report validation, and Markdown/JSON/agent/Mermaid rendering.
+- `@aryam/fixmap-core` exposes repository scanning, exclusion resolution, structural/BM25/optional local-semantic ranking, persistent model-isolated vector caching, Context Pack and Impact Graph construction, task grounding, language/import analysis, test/risk routing, report validation, and Markdown/JSON/agent/Mermaid rendering.
 - Its public API also exposes Explain, Compare, and Verify builders and result types, so another tool can compose the same workflow without shelling out to the CLI.
 - The `@aryam/fixmap-core/browser` entry runs the filesystem-free report, comparison, explanation, verification, and rendering logic in a browser bundle.
 
 ### Trust, compatibility, and evidence
 
-- The core is deterministic and local-first: no account, API key, hosted model, source upload, dependency install, repository script, test execution, or Git hook.
+- Default core analysis is deterministic and local-first: no account, API key, hosted model, source upload, dependency install, repository script, test execution, or Git hook. Semantic mode is an explicit opt-in: it accepts only a pre-existing local model directory, forces local-files-only loading, records the complete model-bundle hash and runtime, and never uploads source. FixMap intentionally does not bundle the optional Transformers.js runtime; hosts must install and audit a compatible runtime separately.
 - Public-repository analysis uses a temporary shallow checkout with credentials, inherited Git config, hooks, LFS smudging, symlinks, and submodule traversal disabled.
 - `reportVersion: 1` defines the JSON compatibility boundary; additive fields are allowed, legacy unmarked reports remain accepted, and unsupported versions fail with an actionable message.
 - Checked-in self, external, held-out, adversarial, and performance records power the evidence page; CI checks empty cohorts, confidence gates, generated-asset drift, Action bundle drift, and the 1,000-file benchmark.
