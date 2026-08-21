@@ -46,6 +46,8 @@ export { buildSandboxInvocation, runSandbox } from "./sandbox.js";
 export type { SandboxInvocation, SandboxLimits, SandboxProcessAdapter, SandboxRawResult, SandboxRequest, SandboxResult } from "./sandbox.js";
 export { analyzeTestReliability, assessReliableCoverage, validateTestHistoryBundle } from "./test-reliability.js";
 export type { ReliableCoverageResult, TestHistoryBundle, TestObservationStatus, TestReliabilityAssessment } from "./test-reliability.js";
+export { selectCIMatrix } from "./ci-matrix.js";
+export type { CIMatrixCandidate, CIMatrixDimension, CIMatrixEvidence, CIMatrixRequirement, CIMatrixSelection } from "./ci-matrix.js";
 export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
 export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
 export { createSupplyChainEvidenceProvider, validateSupplyChainEvidenceBundle } from "./supply-chain.js";

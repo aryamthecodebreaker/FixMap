@@ -65,6 +65,8 @@ The Node entry point exports `buildSandboxInvocation` and `runSandbox` for expli
 
 Historical CI evidence is normalized by `validateTestHistoryBundle`, classified by `analyzeTestReliability`, and joined to declared `TestRoute` paths by `assessReliableCoverage`. Same-commit and same-environment disagreement is kept distinct from failures across code revisions; skips, quarantine, feature gates, and newest failures stay explicit. Reliable-running status requires at least five clean passes across two commits and every test identity sharing a declared path to qualify. The result retains exact external provenance and never claims test correctness or future stability.
 
+`selectCIMatrix` chooses among caller-declared CI jobs without inventing commands or claiming that a job exercises an environment. OS, runtime, database, browser, feature-flag, and deployment requirements retain affected paths and exact repository/history/policy/runtime evidence; each candidate needs separate evidence for every coverage claim. Deterministic greedy set cover reduces the declared matrix, preserves all justifications, and reports uncovered requirements, omitted candidates, and `minimalityClaimed: false`.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.

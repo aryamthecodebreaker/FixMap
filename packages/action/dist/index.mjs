@@ -5173,6 +5173,10 @@ var DEFAULT_LIMITS = {
   tmpfsMb: 256
 };
 
+// packages/core/dist/ci-matrix.js
+var DIMENSIONS = ["os", "runtime", "database", "browser", "feature-flag", "deployment"];
+var DIMENSION_SET = new Set(DIMENSIONS);
+
 // packages/core/dist/validate.js
 function validateFixMapReport(candidate, label) {
   if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate) || !Array.isArray(candidate.contextFiles)) {
