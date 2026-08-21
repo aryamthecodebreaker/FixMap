@@ -83,6 +83,8 @@ export { mapRuntimeEvidence, validateRuntimeEvidenceBundle } from "./runtime-evi
 export type { MappedRuntimeEvidence, RuntimeCodeLocation, RuntimeEvidenceBundle, RuntimeProfileFrameRecord, RuntimeRepositorySnapshot, RuntimeSpanRecord } from "./runtime-evidence.js";
 export { rankIncidentSuspects } from "./incident.js";
 export type { IncidentRegressionInput, IncidentRegressionResult } from "./incident.js";
+export { createEditorProtocolSnapshot, handleEditorProtocolRequest } from "./editor-protocol.js";
+export type { EditorProtocolMethod, EditorProtocolRequest, EditorProtocolResponse, EditorProtocolSnapshot } from "./editor-protocol.js";
 export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
 export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
 export { createSupplyChainEvidenceProvider, validateSupplyChainEvidenceBundle } from "./supply-chain.js";

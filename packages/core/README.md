@@ -73,6 +73,8 @@ Historical CI evidence is normalized by `validateTestHistoryBundle`, classified 
 
 `rankIncidentSuspects` combines bounded deployment timing, exact changed-file revisions, eligible error locations, mapped runtime locations, and repository-scoped impact links for regression triage. Each transparent rule contributes at most once per suspect so exporter volume cannot inflate rank; observations and inferences stay labeled with all evidence fingerprints and references. Old/future deployments and unresolved runtime records remain visible, and every result hard-codes that causality is not established.
 
+Editor integrations share `createEditorProtocolSnapshot` and `handleEditorProtocolRequest` rather than reinterpreting reports independently. The v1 snapshot is a deep-frozen, content-fingerprinted projection of one explicit `reportVersion: 1`; local-only capabilities, plan, file, and annotation methods return stable errors and repeat the snapshot fingerprint. File views join context, impact, tests, annotations, authored decisions, policy, and clearly labeled repository risks without source upload or mutation.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.
