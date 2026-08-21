@@ -60,6 +60,8 @@ export { answerFixMapQuestion, buildAskEvidence } from "./ask.js";
 export type { AskEvidence, AskModelProvider, FixMapAnswer } from "./ask.js";
 export { draftReverseDocumentation, renderReverseDocumentationMarkdown } from "./reverse-docs.js";
 export type { ReverseDocumentationDraft, ReverseDocumentationTarget } from "./reverse-docs.js";
+export { assessEnterpriseRetention, authorizeEnterpriseAction, createEnterpriseAuditEvent, validateEnterprisePolicy, verifyEnterpriseAuditChain } from "./enterprise-policy.js";
+export type { EnterpriseAction, EnterpriseAuditEvent, EnterpriseAuthorizationDecision, EnterpriseAuthorizationRequest, EnterprisePolicy, EnterpriseResourceKind } from "./enterprise-policy.js";
 export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
 export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
 export { createSupplyChainEvidenceProvider, validateSupplyChainEvidenceBundle } from "./supply-chain.js";

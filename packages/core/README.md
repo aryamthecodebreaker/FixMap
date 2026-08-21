@@ -79,6 +79,8 @@ Editor integrations share `createEditorProtocolSnapshot` and `handleEditorProtoc
 
 `draftReverseDocumentation` produces pure, review-only module or architecture Markdown from exact repository file fingerprints, an exact architecture snapshot, and validated authored decisions. Observations, coupling-based inferences, unknowns, and provenance are separate sections. Drafts authorize neither writes nor overwrites, and an existing requested destination is explicitly marked occupied rather than replaced.
 
+Enterprise foundations use `authorizeEnterpriseAction`, SHA-256-linked `createEnterpriseAuditEvent`/`verifyEnterpriseAuditChain`, and `assessEnterpriseRetention`. Authorization is same-tenant, exact-grant, default-deny and treats host authentication as an unverified attestation. Audit events bind decisions and outcomes but still need an externally anchored or signed chain head. Retention only marks records eligible; legal holds win and automatic deletion is always false.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.
