@@ -37,6 +37,8 @@ The package also exports the lower-level scanner, excluder, ranker, BM25 retriev
 
 The v0.10 graph API exposes `createGraphIdentity`, explicit `createGraphEquivalence` relationships, deterministic `buildIdentityGraph` snapshots, `buildGraphDependencyIndex`, and `invalidateIdentityGraph`. Identities cover repository, service, package, module, file, symbol, contract, runtime component, and deployment. `buildWorkspaceMap` uses exact `RepoFile.contentFingerprint` values to link Node, Python, and Maven repositories without guessing that similarly named entities are equivalent. `@aryam/fixmap-core/browser` exposes these filesystem-free workspace and identity primitives alongside report, Context Pack, Impact Graph, Compare, Explain, Verify, validation, and rendering logic for browser applications.
 
+Contract Guardian starts with `inventoryContracts` and `compareContractInventories`: it normalizes OpenAPI, AsyncAPI, GraphQL, Protobuf, JSON Schema, and SQL migrations into deterministic compatibility entries, retains exact before/after fingerprints, and can emit owned contract nodes through `contractGraphNodes`. Findings distinguish compatible, breaking, and unknown changes; incomplete scanner content is diagnosed instead of treated as an absent contract.
+
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.
 
 MIT © FixMap contributors.

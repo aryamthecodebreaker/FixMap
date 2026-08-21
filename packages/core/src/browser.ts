@@ -63,6 +63,20 @@ export type {
 export { tokenizePath, tokenizeText } from "./signals.js";
 export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
 export { validateFixMapReport } from "./validate.js";
+export { compareContractInventories, contractGraphNodes, inventoryContracts, renderContractComparisonMarkdown } from "./contracts.js";
+export type {
+  ContractChange,
+  ContractComparison,
+  ContractCompatibility,
+  ContractDiagnostic,
+  ContractEntry,
+  ContractEntryRole,
+  ContractGraphOptions,
+  ContractInventory,
+  ContractKind,
+  ContractSource,
+  ContractSurface
+} from "./contracts.js";
 export type { ValidatedFixMapReport } from "./validate.js";
 export type { FileExplanation } from "./explain.js";
 export type { PathExcluder } from "./exclude.js";

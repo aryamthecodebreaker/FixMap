@@ -111,6 +111,26 @@ export { validateFixMapReport } from "./validate.js";
 export type { ValidatedFixMapReport } from "./validate.js";
 export { findGatedTestDiagnostics } from "./test-gates.js";
 export { stripByteOrderMark } from "./text.js";
+export {
+  compareContractInventories,
+  contractGraphNodes,
+  contractSourcesFromRepo,
+  inventoryContracts,
+  renderContractComparisonMarkdown
+} from "./contracts.js";
+export type {
+  ContractChange,
+  ContractComparison,
+  ContractCompatibility,
+  ContractDiagnostic,
+  ContractEntry,
+  ContractEntryRole,
+  ContractGraphOptions,
+  ContractInventory,
+  ContractKind,
+  ContractSource,
+  ContractSurface
+} from "./contracts.js";
 export type {
   FixMapInput,
   FixMapReport,
