@@ -69,6 +69,8 @@ Historical CI evidence is normalized by `validateTestHistoryBundle`, classified 
 
 `proposeCharacterizationTests` turns redaction-reviewed sandbox, trace, CI, or manual observations into deterministic structured arrange/act/assert drafts. Each proposal retains source and observation provenance, distinguishes a single observation from repeated multi-environment behavior, and says it preserves what was observed rather than what is correct. Drafts always require review and explicitly authorize neither execution nor commit; `renderCharacterizationProposalMarkdown` makes those boundaries visible in review output.
 
+`mapRuntimeEvidence` normalizes redaction-reviewed OpenTelemetry/APM trace and Speedscope/pprof profile evidence onto exact repository file identities. A mapping requires both an explicit repository ID and repository-relative code path; names and symbols are never identity guesses. Span latency stays separate from profile self-sample share, all unmapped records retain their reason, and the output explicitly makes no CPU-time, wall-clock-time, or causal-impact claim.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.
