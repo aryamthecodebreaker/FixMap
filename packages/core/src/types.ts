@@ -71,6 +71,7 @@ export type ScanDiagnostic = {
     | "diff-resolved"
     | "diff-text-truncated"
     | "cache-hit"
+    | "incremental-index-hit"
     | "cache-bypass"
     | "cache-skip"
     | "task-checklist-filtered"

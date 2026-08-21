@@ -2,6 +2,7 @@ import { NO_EXCLUSIONS } from "./exclude.js";
 import type { PathExcluder } from "./exclude.js";
 import { buildImportGraph, findImportProximity } from "./import-graph.js";
 import type { ImportProximity } from "./import-graph.js";
+import { extractLanguageDefinitions } from "./language-adapters.js";
 import {
   analyzeTaskGrounding,
   buildRankingShape,
@@ -12,7 +13,7 @@ import {
 import type { TaskGrounding } from "./grounding.js";
 import { isBackupPath, isGeneratedPath, isRecordedEvaluationOutput, LOCKFILE_NAMES, moduleStem, pathMatchesMention } from "./paths.js";
 import { extractTaskSignals, tokenizePath, tokenizeText } from "./signals.js";
-import type { RankedFile, RepoMap } from "./types.js";
+import type { RankedFile, RepoFile, RepoMap } from "./types.js";
 
 const DEPLOYMENT_TERMS = [
   "deploy", "deployment", "vercel", "netlify", "docker", "kubernetes", "hosting", "serverless", "production"
@@ -254,7 +255,7 @@ export function rankContextFilesDetailed(
         reasons.push(`contains exact task literal: ${previewFragment(exactLiteral)}`);
       }
 
-      const definedIdentifiers = (file.kind === "documentation" ? [] : findDefinedIdentifiers(file.textSample, definitionSignals))
+      const definedIdentifiers = (file.kind === "documentation" ? [] : findDefinedIdentifiers(file, definitionSignals))
         .slice(0, MAX_DEFINITION_IDENTIFIERS);
       if (definedIdentifiers.length > 0) {
         score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
@@ -273,7 +274,7 @@ export function rankContextFilesDetailed(
 
       const taskMatchedDefinitions = signals.exactFragments.length === 0 &&
         !taskTargetsDocumentation
-        ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file.textSample, taskTokens))
+        ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file, taskTokens))
           .filter((identifier) => !definedIdentifiers.includes(identifier))
           .slice(0, MAX_DEFINITION_IDENTIFIERS)
         : [];
@@ -742,8 +743,11 @@ function buildDefinitionSignals(identifiers: Set<string>): DefinitionSignal[] {
     }));
 }
 
-function findDefinedIdentifiers(text: string, signals: DefinitionSignal[]): string[] {
-  return signals.filter((signal) => signal.pattern.test(text)).map((signal) => signal.identifier);
+function findDefinedIdentifiers(file: RepoFile, signals: DefinitionSignal[]): string[] {
+  const adapterDefinitions = new Set(extractLanguageDefinitions(file).map((entry) => entry.name));
+  return signals
+    .filter((signal) => adapterDefinitions.has(signal.identifier) || signal.pattern.test(file.textSample))
+    .map((signal) => signal.identifier);
 }
 
 function exactIdentifierPattern(identifier: string): RegExp {
@@ -753,22 +757,23 @@ function exactIdentifierPattern(identifier: string): RegExp {
   );
 }
 
-function findTaskMatchedDefinitions(text: string, taskTokens: Set<string>): string[] {
-  const definitions = new Set<string>();
+function findTaskMatchedDefinitions(file: RepoFile, taskTokens: Set<string>): string[] {
+  const definitions = new Set(extractLanguageDefinitions(file).map((entry) => entry.name));
   const pattern =
     /(?<![\p{L}\p{N}_$])(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\s+)([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
 
-  for (const match of text.matchAll(pattern)) {
+  for (const match of file.textSample.matchAll(pattern)) {
     const identifier = match[1];
-    if (!identifier) {
-      continue;
-    }
+    if (identifier) definitions.add(identifier);
+  }
+  const matched: string[] = [];
+  for (const identifier of definitions) {
     const overlap = [...tokenizeText(identifier)].filter((token) => taskTokens.has(token));
     if (overlap.length >= 2 || (overlap.length === 1 && identifier.length >= 6)) {
-      definitions.add(identifier);
+      matched.push(identifier);
     }
   }
-  return [...definitions];
+  return matched;
 }
 
 function hasExactFragmentAtDefinition(text: string, fragment: string, definedIdentifiers: string[]): boolean {

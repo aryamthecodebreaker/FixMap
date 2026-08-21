@@ -67,6 +67,49 @@ describe("buildImportGraph", () => {
     expect([...(graph.imports.get("apps/web/page.ts") ?? [])]).toEqual(["packages/auth/src/reset.ts"]);
   });
 
+  it("resolves Python relative, package, and imported-module relationships", () => {
+    const files = [
+      codeFile("services/auth/app/api/reset.py", [
+        "from ..services import tokens",
+        "from app.models import User",
+        "import app.audit.events"
+      ].join("\n")),
+      codeFile("services/auth/app/services/tokens.py", "def decode_token(value): return value"),
+      codeFile("services/auth/app/models/User.py", "class User: pass"),
+      codeFile("services/auth/app/audit/events.py", "def record(): pass")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("services/auth/app/api/reset.py") ?? [])].sort()).toEqual([
+      "services/auth/app/audit/events.py",
+      "services/auth/app/models/User.py",
+      "services/auth/app/services/tokens.py"
+    ]);
+  });
+
+  it("resolves Java imports, static imports, and package wildcards", () => {
+    const files = [
+      codeFile("service/src/main/java/com/acme/auth/ResetService.java", [
+        "import com.acme.accounts.User;",
+        "import static com.acme.security.TokenVerifier.verify;",
+        "import com.acme.events.*;"
+      ].join("\n")),
+      codeFile("accounts/src/main/java/com/acme/accounts/User.java", "class User {}"),
+      codeFile("security/src/main/java/com/acme/security/TokenVerifier.java", "class TokenVerifier {}"),
+      codeFile("events/src/main/java/com/acme/events/PasswordReset.java", "class PasswordReset {}"),
+      codeFile("events/src/main/java/com/acme/events/internal/Hidden.java", "class Hidden {}")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("service/src/main/java/com/acme/auth/ResetService.java") ?? [])].sort()).toEqual([
+      "accounts/src/main/java/com/acme/accounts/User.java",
+      "events/src/main/java/com/acme/events/PasswordReset.java",
+      "security/src/main/java/com/acme/security/TokenVerifier.java"
+    ]);
+  });
+
   it("reports when the graph file budget truncates parseable modules", () => {
     const files = Array.from({ length: 5_001 }, (_, index) =>
       codeFile(`src/module-${index}.ts`, `export const module${index} = ${index};`)

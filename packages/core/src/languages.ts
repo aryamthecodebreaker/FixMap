@@ -164,11 +164,9 @@ function countCodeFiles(files: RepoFile[]): Map<PrimaryLanguage, number> {
  * unambiguous about it. Go and Rust each have exactly one, which is why they can be routed
  * rather than merely suggested.
  *
- * Python is deliberately absent. pytest, tox, unittest and nox are all plausible for a
- * repository carrying a pyproject.toml, and FixMap cannot read which one it configures —
- * `.toml` and `.cfg` are outside the sampled source extensions. Guessing would produce a
- * command that fails, so Python gets a named suggestion in the no-test-route diagnostic
- * instead of a routed command that claims more than FixMap knows.
+ * Python is routed only when a runner is explicitly configured. A bare pyproject.toml is
+ * not enough evidence: pytest, tox, unittest and nox are all plausible, so FixMap keeps the
+ * actionable suggestion instead of inventing a command.
  */
 export function manifestTestCommand(
   language: PrimaryLanguage,
@@ -206,6 +204,29 @@ export function manifestTestCommand(
       ? { command: `cargo test --manifest-path ${manifest.path}`, reason: `nearest crate (${manifest.packageDir}) declared by ${manifest.path}` }
       : { command: "cargo test", reason: "Cargo.toml at the repository root" };
   }
+  if (language === "python") {
+    const config = nearestPythonTestConfig(files, packageDir);
+    if (!config) return undefined;
+    const directory = config.path.split("/").slice(0, -1).join("/");
+    if (config.runner === "nox") {
+      return {
+        command: directory ? `nox -f ${config.path}` : "nox",
+        reason: `${config.path} explicitly configures nox`
+      };
+    }
+    if (config.runner === "tox") {
+      return {
+        command: directory ? `tox -c ${config.path}` : "tox",
+        reason: `${config.path} explicitly configures tox`
+      };
+    }
+    return {
+      command: directory
+        ? `python -m pytest -c ${config.path} ${directory}`
+        : "python -m pytest",
+      reason: `${config.path} explicitly configures pytest`
+    };
+  }
   const manifest = nearestManifest(files, language);
   if (language === "ruby" && manifest) {
     return { command: "bundle exec rspec", reason: `${manifest.path} declares the Ruby bundle` };
@@ -213,10 +234,21 @@ export function manifestTestCommand(
   if (language === "php" && manifest) {
     return { command: "composer test", reason: `${manifest.path} declares Composer scripts` };
   }
-  if (language === "java" && manifest) {
-    return manifest.path.toLowerCase().endsWith("pom.xml")
-      ? { command: "mvn test", reason: `${manifest.path} declares a Maven project` }
-      : { command: "./gradlew test", reason: `${manifest.path} declares a Gradle project` };
+  if (language === "java") {
+    const javaManifest = requestedOrNearestManifest(files, "java", packageDir);
+    if (!javaManifest) return undefined;
+    const directory = javaManifest.packageDir;
+    if (javaManifest.path.toLowerCase().endsWith("pom.xml")) {
+      const wrapper = findWrapper(files, directory, ["mvnw", "mvnw.cmd"]);
+      const command = wrapper
+        ? `${posixExecutable(wrapper)} test`
+        : directory ? `mvn -f ${javaManifest.path} test` : "mvn test";
+      return { command, reason: `${javaManifest.path} declares a Maven project${wrapper ? " with a wrapper" : ""}` };
+    }
+    const wrapper = findWrapper(files, directory, ["gradlew", "gradlew.bat"]);
+    const executable = wrapper ? posixExecutable(wrapper) : "gradle";
+    const command = directory ? `${executable} -p ${directory} test` : `${executable} test`;
+    return { command, reason: `${javaManifest.path} declares a Gradle project${wrapper ? " with a wrapper" : ""}` };
   }
   if (language === "dotnet") {
     return manifest
@@ -224,6 +256,67 @@ export function manifestTestCommand(
       : { command: "dotnet test", reason: ".NET source files; no project file was found" };
   }
   return undefined;
+}
+
+type PythonTestRunner = "pytest" | "tox" | "nox";
+
+function nearestPythonTestConfig(
+  files: RepoFile[],
+  packageDir: string
+): { path: string; runner: PythonTestRunner } | undefined {
+  const candidates = files.flatMap((file) => {
+    const name = file.path.split("/").pop()?.toLowerCase() ?? "";
+    let runner: PythonTestRunner | undefined;
+    if (name === "noxfile.py") runner = "nox";
+    else if (name === "tox.ini" || (name === "pyproject.toml" && /\[tool\.tox\b/i.test(file.textSample))) runner = "tox";
+    else if (name === "pytest.ini" ||
+      (name === "pyproject.toml" && /\[tool\.pytest\.ini_options\]/i.test(file.textSample)) ||
+      (name === "setup.cfg" && /\[(?:tool:)?pytest\]/i.test(file.textSample))) runner = "pytest";
+    return runner ? [{ file, runner }] : [];
+  });
+  const inRequestedPackage = packageDir
+    ? candidates.filter(({ file }) => file.path === `${packageDir}/${file.path.split("/").pop()}`)
+    : [];
+  const rootDeclaresPython = files.some((file) =>
+    !file.path.includes("/") && languageForManifest(file.path) === "python"
+  );
+  const eligible = packageDir
+    ? inRequestedPackage
+    : rootDeclaresPython ? candidates.filter(({ file }) => !file.path.includes("/")) : candidates;
+  const selected = eligible
+    .sort((a, b) =>
+      a.file.path.split("/").length - b.file.path.split("/").length ||
+      a.file.path.localeCompare(b.file.path)
+    )[0];
+  return selected ? { path: selected.file.path, runner: selected.runner } : undefined;
+}
+
+function requestedOrNearestManifest(
+  files: RepoFile[],
+  language: PrimaryLanguage,
+  packageDir: string
+): { path: string; packageDir: string } | undefined {
+  if (packageDir) {
+    const requested = files
+      .filter((file) => file.path.split("/").slice(0, -1).join("/") === packageDir)
+      .filter((file) => languageForManifest(file.path) === language)
+      .sort((a, b) => a.path.localeCompare(b.path))[0];
+    if (requested) return { path: requested.path, packageDir };
+  }
+  return nearestManifest(files, language);
+}
+
+function findWrapper(files: RepoFile[], packageDir: string, names: string[]): string | undefined {
+  const normalizedNames = new Set(names.map((name) => name.toLowerCase()));
+  const paths = packageDir
+    ? names.map((name) => `${packageDir}/${name}`)
+    : names;
+  return files.find((file) => paths.some((path) => file.path.toLowerCase() === path.toLowerCase()))?.path ??
+    files.find((file) => !file.path.includes("/") && normalizedNames.has(file.path.toLowerCase()))?.path;
+}
+
+function posixExecutable(path: string): string {
+  return `./${path.replace(/\.cmd$|\.bat$/i, "")}`;
 }
 
 /** The runner to name when there is nothing to route, so the warning is actionable. */

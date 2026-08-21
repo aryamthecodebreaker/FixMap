@@ -15,12 +15,58 @@ export {
   buildRankingShape
 } from "./grounding.js";
 export { buildImportGraph, findImportProximity } from "./import-graph.js";
+export {
+  BUILT_IN_LANGUAGE_ADAPTERS,
+  extractLanguageDefinitions,
+  extractLanguageImports,
+  isLanguageTestPath,
+  languageAdapterForFile
+} from "./language-adapters.js";
+export type {
+  LanguageAdapter,
+  LanguageAdapterId,
+  LanguageDefinition,
+  LanguageImport
+} from "./language-adapters.js";
 export { buildImpactMap } from "./impact.js";
+export { collectEvidence } from "./evidence.js";
+export type {
+  CollectedEvidence,
+  CollectedEvidenceItem,
+  CollectedEvidenceRelationship,
+  EvidenceCollectionOptions,
+  EvidenceConfidence,
+  EvidenceItem,
+  EvidenceKind,
+  EvidenceProvider,
+  EvidenceProviderCapabilities,
+  EvidenceProviderContext,
+  EvidenceProviderDiagnostic,
+  EvidenceProviderResult,
+  EvidenceRelationship,
+  EvidenceSubject
+} from "./evidence.js";
 export { detectPrimaryLanguage } from "./languages.js";
 export type { LanguageDetection, PrimaryLanguage } from "./languages.js";
 export { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
 export { rankContextFiles } from "./rank.js";
 export { rankByBm25, retrievalQueryTerms, retrievalTokens, taskMentionsExpectedPath } from "./retrieval.js";
+export { rankContextFilesHybrid } from "./semantic.js";
+export type {
+  EmbeddingNormalization,
+  EmbeddingProvider,
+  EmbeddingProviderProvenance,
+  HybridRankedFile,
+  HybridRankingOptions,
+  HybridRankingResult,
+  HybridRetrievalDiagnostic,
+  HybridRetrievalSignal,
+  SemanticIndexProvenance
+} from "./semantic.js";
+export { createLocalTransformersEmbeddingProvider } from "./transformers-embedding.js";
+export type { LocalTransformersEmbeddingOptions } from "./transformers-embedding.js";
+export { withPersistentEmbeddingCache } from "./semantic-cache.js";
+export type { PersistentEmbeddingCacheOptions } from "./semantic-cache.js";
 export { buildReportFromRepo, buildRiskNotes, buildSummary, buildTestRoutes, pathsForRiskArea, renderAgentReport, renderJsonReport, renderMarkdownReport } from "./report.js";
 export { buildContextPack, estimateContextTokens, renderContextPackMarkdown, type ContextPack, type ContextSnippet } from "./context.js";
 export { buildFixMapGraph, renderFixMapGraphMermaid, type FixMapGraph } from "./graph.js";

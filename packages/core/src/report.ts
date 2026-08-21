@@ -380,8 +380,14 @@ function buildManifestTestRoute(
   relatedTests: string[]
 ): TestRoute | undefined {
   const { language } = detectPrimaryLanguage(repo);
-  const crateDir = language === "rust" ? nearestManifestDir(repo, codeContextPaths, "Cargo.toml") : "";
-  const route = manifestTestCommand(language, crateDir, repo.files);
+  const packageDir = language === "rust"
+    ? nearestManifestDir(repo, codeContextPaths, ["Cargo.toml"])
+    : language === "python"
+      ? nearestManifestDir(repo, codeContextPaths, ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile"])
+      : language === "java"
+        ? nearestManifestDir(repo, codeContextPaths, ["pom.xml", "build.gradle", "build.gradle.kts"])
+        : "";
+  const route = manifestTestCommand(language, packageDir, repo.files);
   if (!route) {
     return undefined;
   }
@@ -392,7 +398,7 @@ function buildManifestTestRoute(
     reason: route.reason,
     // Only real test files count as related here. Falling back to the implementation made
     // nextAction claim routed tests for a Go module that had none.
-    relatedFiles: scopeToPackage(relatedTests, crateDir)
+    relatedFiles: scopeToPackage(relatedTests, packageDir)
   };
 }
 
@@ -402,9 +408,10 @@ function buildManifestTestRoute(
  * the same reason package scripts are scoped: a command that cannot reach a file should
  * not list it.
  */
-function nearestManifestDir(repo: RepoMap, contextPaths: string[], manifest: string): string {
+function nearestManifestDir(repo: RepoMap, contextPaths: string[], manifests: string[]): string {
+  const manifestNames = new Set(manifests.map((manifest) => manifest.toLowerCase()));
   const manifestDirs = repo.files
-    .filter((file) => file.path === manifest || file.path.endsWith(`/${manifest}`))
+    .filter((file) => manifestNames.has(file.path.split("/").pop()?.toLowerCase() ?? ""))
     .map((file) => file.path.split("/").slice(0, -1).join("/"))
     .filter(Boolean);
 

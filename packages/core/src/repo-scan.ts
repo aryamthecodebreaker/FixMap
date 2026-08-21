@@ -1,10 +1,12 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS, SOURCE_FILE_EXTENSIONS, isGeneratedPath } from "./paths.js";
+import { isLanguageTestPath } from "./language-adapters.js";
 import { DIAGNOSTIC_SPEC_LIMIT, truncateForDiagnostic } from "./text.js";
 import type { FixMapInput, HistoryCommit, PackageScript, RepoFile, RepoMap, RepositoryHistory } from "./types.js";
 
@@ -21,7 +23,8 @@ const CONVENTIONAL_DOCUMENT_NAMES = new Set([
 const CONVENTIONAL_CONFIG_NAMES = new Set([
   ".dockerignore", ".editorconfig", ".gitattributes", ".gitignore", ".npmignore",
   "codeowners", "dockerfile", "gemfile", "jenkinsfile", "makefile", "procfile", "rakefile", "vagrantfile",
-  "pom.xml", "build.gradle", "settings.gradle"
+  "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "gradlew", "gradlew.bat",
+  "mvnw", "mvnw.cmd", "pyproject.toml", "pytest.ini", "setup.cfg", "tox.ini"
 ]);
 
 /**
@@ -56,6 +59,8 @@ const SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 const SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
 const SCAN_CACHE_TEMP_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i;
+const INCREMENTAL_INDEX_VERSION = 1;
+const INCREMENTAL_INDEX_TEMP_FILE = /^[a-f0-9]{24}-index-v1\.json\.\d+-[0-9a-f-]+\.tmp$/i;
 
 type CachedScan = {
   version: typeof SCAN_CACHE_VERSION;
@@ -67,6 +72,19 @@ type CachedScan = {
   packageManager: RepoMap["packageManager"];
   diagnostics: RepoMap["diagnostics"];
   history: RepositoryHistory | null;
+};
+
+type IndexedRepoFile = {
+  path: string;
+  fingerprint: string;
+  file: RepoFile;
+};
+
+type IncrementalScanIndex = {
+  version: typeof INCREMENTAL_INDEX_VERSION;
+  repoKey: string;
+  updatedAt: string;
+  files: IndexedRepoFile[];
 };
 
 export async function scanRepo(
@@ -102,6 +120,10 @@ export async function scanRepo(
     ? await buildScanCacheLocation(repoRoot, cacheRoot, internalPaths, input.includeHistory === true)
     : undefined;
   const cacheLocation = cacheDecision?.location;
+  const incrementalIndexLocation = input.useCache === true &&
+    !sameFilesystemPath(cacheRoot, repoRoot) && containedPath(repoRoot, cacheRoot) === undefined
+    ? buildIncrementalIndexLocation(repoRoot, cacheRoot)
+    : undefined;
   if (input.useCache === false) {
     diagnostics.push({
       code: "cache-bypass",
@@ -133,7 +155,7 @@ export async function scanRepo(
       message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files, ${describeCacheAge(cached.createdAt)}). Pass --no-cache to rescan.`
     });
   } else {
-    files = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths);
+    files = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths, incrementalIndexLocation);
     trackedFiles = await listTrackedPaths(repoRoot, internalPaths);
     packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
     packageManager = detectPackageManager(files, diagnostics);
@@ -178,6 +200,12 @@ export async function scanRepo(
 
 type ScanCacheLocation = { path: string; stateKey: string };
 type ScanCacheDecision = { location?: ScanCacheLocation; skipReason?: string };
+type IncrementalIndexLocation = { path: string; repoKey: string };
+
+function buildIncrementalIndexLocation(root: string, cacheRoot: string): IncrementalIndexLocation {
+  const repoKey = hashText(resolve(root));
+  return { path: join(cacheRoot, `${repoKey}-index-v1.json`), repoKey };
+}
 
 function configuredScanCacheRoot(): string {
   return resolve(process.env.FIXMAP_CACHE_DIR ?? join(
@@ -312,6 +340,29 @@ async function readScanCache(location: ScanCacheLocation): Promise<CachedScan | 
   }
 }
 
+async function readIncrementalScanIndex(
+  location: IncrementalIndexLocation
+): Promise<Map<string, IndexedRepoFile> | undefined> {
+  try {
+    const candidate = JSON.parse(await readFile(location.path, "utf8")) as Partial<IncrementalScanIndex>;
+    if (candidate.version !== INCREMENTAL_INDEX_VERSION || candidate.repoKey !== location.repoKey ||
+      typeof candidate.updatedAt !== "string" || !Number.isFinite(Date.parse(candidate.updatedAt)) ||
+      !Array.isArray(candidate.files)) return undefined;
+    const entries = new Map<string, IndexedRepoFile>();
+    for (const entry of candidate.files) {
+      if (!isRecord(entry) || !isCachedRelativePath(entry.path) ||
+        typeof entry.fingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(entry.fingerprint) ||
+        !isCachedRepoFile(entry.file) || entry.file.path !== entry.path || entries.has(entry.path)) {
+        return undefined;
+      }
+      entries.set(entry.path, entry as IndexedRepoFile);
+    }
+    return entries;
+  } catch {
+    return undefined;
+  }
+}
+
 function isCachedHistory(candidate: unknown): candidate is RepositoryHistory {
   if (!isRecord(candidate) || !Array.isArray(candidate.commits) ||
     typeof candidate.inspectedCommits !== "number" || !Number.isSafeInteger(candidate.inspectedCommits) || candidate.inspectedCommits < 0 ||
@@ -395,6 +446,28 @@ async function writeScanCache(location: ScanCacheLocation, cached: CachedScan): 
   }
 }
 
+async function writeIncrementalScanIndex(
+  location: IncrementalIndexLocation,
+  files: IndexedRepoFile[]
+): Promise<void> {
+  const temporaryPath = `${location.path}.${process.pid}-${randomUUID()}.tmp`;
+  const index: IncrementalScanIndex = {
+    version: INCREMENTAL_INDEX_VERSION,
+    repoKey: location.repoKey,
+    updatedAt: new Date().toISOString(),
+    files
+  };
+  try {
+    await mkdir(dirname(location.path), { recursive: true });
+    await writeFile(temporaryPath, `${JSON.stringify(index)}\n`, { encoding: "utf8", flag: "wx" });
+    await rename(temporaryPath, location.path);
+  } catch {
+    try {
+      await unlink(temporaryPath);
+    } catch { /* The rename may already have consumed it. */ }
+  }
+}
+
 async function pruneExpiredScanCache(cacheRoot: string): Promise<void> {
   try {
     const entries = await readdir(cacheRoot, { withFileTypes: true });
@@ -403,7 +476,8 @@ async function pruneExpiredScanCache(cacheRoot: string): Promise<void> {
       // A killed process can leave its uniquely named atomic-write file behind. It is not
       // readable as a cache entry, but without pruning it the cache directory grows forever.
       // The same seven-day horizon preserves any plausible active writer.
-      .filter((entry) => entry.isFile() && (SCAN_CACHE_FILE.test(entry.name) || SCAN_CACHE_TEMP_FILE.test(entry.name)))
+      .filter((entry) => entry.isFile() && (SCAN_CACHE_FILE.test(entry.name) || SCAN_CACHE_TEMP_FILE.test(entry.name) ||
+        INCREMENTAL_INDEX_TEMP_FILE.test(entry.name)))
       .map(async (entry) => {
         const path = join(cacheRoot, entry.name);
         try {
@@ -455,16 +529,43 @@ async function listFiles(
   root: string,
   diagnostics: RepoMap["diagnostics"],
   internalCacheRoot: string | undefined,
-  internalPaths: ReadonlySet<string>
+  internalPaths: ReadonlySet<string>,
+  incrementalIndexLocation?: IncrementalIndexLocation
 ): Promise<RepoFile[]> {
   const gitPaths = await listGitPaths(root);
   const visiblePaths = gitPaths?.paths.filter((path) =>
     !hasInternalPath(internalPaths, normalizePath(path)) && !isInternalCachePath(root, path, internalCacheRoot)
   );
-  const files = gitPaths
-    ? await buildFilesFromPaths(root, visiblePaths ?? [], diagnostics, gitPaths.gitLinks)
-    : (await walkFiles(root, root, diagnostics, { count: 0, limitReported: false }, internalCacheRoot, internalPaths))
+  let files: RepoFile[];
+  if (gitPaths) {
+    const previous = incrementalIndexLocation
+      ? await readIncrementalScanIndex(incrementalIndexLocation)
+      : undefined;
+    const built = await buildFilesFromPaths(
+      root,
+      visiblePaths ?? [],
+      diagnostics,
+      gitPaths.gitLinks,
+      gitPaths.fingerprints,
+      previous
+    );
+    files = built.files;
+    if (incrementalIndexLocation) {
+      await writeIncrementalScanIndex(incrementalIndexLocation, built.indexedFiles);
+    }
+    if (previous && built.reused > 0) {
+      diagnostics.push({
+        code: "incremental-index-hit",
+        severity: "info",
+        message:
+          `Reused ${built.reused.toLocaleString()} unchanged file record${built.reused === 1 ? "" : "s"} from the persistent index ` +
+          `and refreshed ${built.refreshed.toLocaleString()} changed or new path${built.refreshed === 1 ? "" : "s"}.`
+      });
+    }
+  } else {
+    files = (await walkFiles(root, root, diagnostics, { count: 0, limitReported: false }, internalCacheRoot, internalPaths))
       .sort((a, b) => a.path.localeCompare(b.path));
+  }
 
   // These are properties of the scanned files, not of git. Keeping them here makes an
   // extracted archive and a checkout report the same content limitations.
@@ -489,32 +590,62 @@ function isInternalCachePath(root: string, path: string, internalCacheRoot?: str
   );
 }
 
-async function listGitPaths(root: string): Promise<{ paths: string[]; gitLinks: Set<string> } | undefined> {
+async function listGitPaths(root: string): Promise<{
+  paths: string[];
+  gitLinks: Set<string>;
+  fingerprints: Map<string, string>;
+} | undefined> {
   try {
-    const [{ stdout }, { stdout: staged }] = await Promise.all([
+    const [{ stdout }, { stdout: staged }, { stdout: dirty }] = await Promise.all([
       exec("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
         cwd: root,
         maxBuffer: GIT_MAX_BUFFER
       }),
-      exec("git", ["ls-files", "--stage", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER })
+      exec("git", ["ls-files", "--stage", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["diff", "--name-only", "-z", "HEAD", "--"], { cwd: root, maxBuffer: GIT_MAX_BUFFER })
+        // An unborn repository has an index but no HEAD. Its staged blob IDs are still
+        // reusable; the no-HEAD diff identifies any further unstaged edits to those files.
+        .catch(() => exec("git", ["diff", "--name-only", "-z", "--"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }))
     ]);
-    const gitLinks = new Set(staged.split("\0").flatMap((entry) => {
-      const match = /^160000\s+[0-9a-f]+\s+\d+\t(.+)$/i.exec(entry);
-      return match?.[1] ? [normalizePath(match[1])] : [];
-    }));
-    return { paths: [...new Set(stdout.split("\0").filter(Boolean))], gitLinks };
+    const gitLinks = new Set<string>();
+    const fingerprints = new Map<string, string>();
+    for (const entry of staged.split("\0")) {
+      const match = /^(\d+)\s+([0-9a-f]+)\s+\d+\t(.+)$/i.exec(entry);
+      if (!match?.[1] || !match[2] || !match[3]) continue;
+      const path = normalizePath(match[3]);
+      if (match[1] === "160000") {
+        gitLinks.add(path);
+      } else if (!/^0+$/.test(match[2])) {
+        fingerprints.set(path, `git:${match[2].toLowerCase()}`);
+      }
+    }
+    for (const path of dirty.split("\0").filter(Boolean).map(normalizePath)) {
+      fingerprints.delete(path);
+    }
+    return { paths: [...new Set(stdout.split("\0").filter(Boolean))], gitLinks, fingerprints };
   } catch {
     return undefined;
   }
 }
 
+type BuiltFiles = {
+  files: RepoFile[];
+  indexedFiles: IndexedRepoFile[];
+  reused: number;
+  refreshed: number;
+};
+
 async function buildFilesFromPaths(
   root: string,
   paths: string[],
   diagnostics: RepoMap["diagnostics"],
-  knownGitLinks = new Set<string>()
-): Promise<RepoFile[]> {
+  knownGitLinks = new Set<string>(),
+  fingerprints = new Map<string, string>(),
+  previous?: Map<string, IndexedRepoFile>
+): Promise<BuiltFiles> {
   const results: RepoFile[] = [];
+  const indexedByPath = new Map<string, IndexedRepoFile>();
+  const reusedPaths = new Set<string>();
   const absent: string[] = [];
   const gitLinks: string[] = [];
   // Git can hand back two tracked paths that are one file on disk: a symlink beside its
@@ -549,7 +680,11 @@ async function buildFilesFromPaths(
       continue;
     }
 
-    const scanned = await toRepoFile(join(root, rawPath), relativePath);
+    const absolutePath = join(root, rawPath);
+    const fingerprint = fingerprints.get(relativePath) ?? await hashWorktreeFile(absolutePath);
+    const prior = fingerprint ? previous?.get(relativePath) : undefined;
+    const reused = prior && prior.fingerprint === fingerprint ? prior.file : undefined;
+    const scanned = await toRepoFile(absolutePath, relativePath, reused);
     if (scanned.status === "absent") {
       absent.push(relativePath);
       continue;
@@ -571,7 +706,13 @@ async function buildFilesFromPaths(
       const currentIsAlias = !sameFilesystemPath(resolve(realRoot, relativePath), scanned.realPath);
       if (seenIsAlias && !currentIsAlias) {
         linked.push({ path: seenFile.path, target: relativePath });
+        indexedByPath.delete(seenFile.path);
+        reusedPaths.delete(seenFile.path);
         results[seenIndex] = scanned.file;
+        if (fingerprint) {
+          indexedByPath.set(relativePath, { path: relativePath, fingerprint, file: scanned.file });
+          if (reused) reusedPaths.add(relativePath);
+        }
       } else {
         linked.push({ path: relativePath, target: seenFile.path });
       }
@@ -579,13 +720,33 @@ async function buildFilesFromPaths(
     }
     seenRealPaths.set(scanned.realPath, results.length);
     results.push(scanned.file);
+    if (fingerprint) {
+      indexedByPath.set(relativePath, { path: relativePath, fingerprint, file: scanned.file });
+      if (reused) reusedPaths.add(relativePath);
+    }
   }
 
   reportAbsentTrackedPaths(diagnostics, absent);
   reportLinkedDuplicates(diagnostics, linked);
   reportSkippedSubmodules(diagnostics, gitLinks);
 
-  return results.sort((a, b) => a.path.localeCompare(b.path));
+  const files = results.sort((a, b) => a.path.localeCompare(b.path));
+  const indexedFiles = files.flatMap((file) => {
+    const indexed = indexedByPath.get(file.path);
+    return indexed ? [indexed] : [];
+  });
+  const reused = files.filter((file) => reusedPaths.has(file.path)).length;
+  return { files, indexedFiles, reused, refreshed: Math.max(0, indexedFiles.length - reused) };
+}
+
+async function hashWorktreeFile(path: string): Promise<string | undefined> {
+  return await new Promise((resolveHash) => {
+    const hash = createHash("sha256");
+    const input = createReadStream(path);
+    input.on("data", (chunk) => hash.update(chunk));
+    input.on("error", () => resolveHash(undefined));
+    input.on("end", () => resolveHash(`worktree:${hash.digest("hex")}`));
+  });
 }
 
 /**
@@ -781,7 +942,11 @@ type ScannedFile =
   | { status: "absent" }
   | { status: "not-a-file" };
 
-async function toRepoFile(absolutePath: string, relativePath: string): Promise<ScannedFile> {
+async function toRepoFile(
+  absolutePath: string,
+  relativePath: string,
+  reusable?: RepoFile
+): Promise<ScannedFile> {
   let fileStat;
   try {
     fileStat = await stat(absolutePath);
@@ -790,6 +955,14 @@ async function toRepoFile(absolutePath: string, relativePath: string): Promise<S
   }
   if (!fileStat.isFile()) {
     return { status: "not-a-file" };
+  }
+
+  if (reusable?.path === relativePath) {
+    return {
+      status: "ok",
+      realPath: await resolveRealPath(absolutePath),
+      file: { ...reusable, sizeBytes: fileStat.size }
+    };
   }
 
   const extension = extname(relativePath).toLowerCase();
@@ -809,7 +982,7 @@ async function toRepoFile(absolutePath: string, relativePath: string): Promise<S
       path: relativePath,
       extension,
       sizeBytes: fileStat.size,
-      isTest: TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
+      isTest: isLanguageTestPath(relativePath, extension) || TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
       isSource,
       kind: classifyFile(relativePath, extension),
       textSample: sample.text,

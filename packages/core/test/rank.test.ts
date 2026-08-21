@@ -54,6 +54,22 @@ describe("rankContextFiles", () => {
     expect(ranked[0]?.reasons).toContain("defines task identifiers: REGEX_FORMAT");
   });
 
+  it("ranks a Java method definition above a vocabulary-dense caller", () => {
+    const ranked = rankContextFiles(repoWith([
+      codeFile(
+        "src/main/java/com/acme/auth/PasswordResetService.java",
+        "public final class PasswordResetService { public User resetPassword(User user) { return user; } }"
+      ),
+      codeFile(
+        "src/main/java/com/acme/api/ResetController.java",
+        "password reset recovery token resetPassword password reset recovery token"
+      )
+    ]), { issueText: "resetPassword rejects a valid recovery token" });
+
+    expect(ranked[0]?.path).toBe("src/main/java/com/acme/auth/PasswordResetService.java");
+    expect(ranked[0]?.reasons).toContain("defines task identifiers: resetPassword");
+  });
+
   it("keeps task terms when every file shares the same vocabulary", () => {
     const repo: RepoMap = {
       root: "/repo",

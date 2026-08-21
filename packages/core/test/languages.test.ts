@@ -148,6 +148,65 @@ describe("test routing beyond package scripts", () => {
     expect(diagnostic!.message).toContain("python");
   });
 
+  it("routes pytest only when Python configuration explicitly selects it", () => {
+    const repo = repoOf([
+      file("pyproject.toml", {
+        isSource: true,
+        kind: "config",
+        textSample: "[tool.pytest.ini_options]\naddopts = '-q'\n"
+      }),
+      file("src/app.py"),
+      file("tests/test_app.py", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(repo, ["src/app.py"])[0]).toMatchObject({
+      command: "python -m pytest",
+      relatedFiles: ["tests/test_app.py"]
+    });
+  });
+
+  it("scopes nested Python pytest and tox configurations", () => {
+    const pytestRepo = repoOf([
+      file("services/api/pyproject.toml", { textSample: "[tool.pytest.ini_options]\n" }),
+      file("services/api/app.py")
+    ]);
+    const toxRepo = repoOf([
+      file("services/api/pyproject.toml"),
+      file("services/api/tox.ini"),
+      file("services/api/app.py")
+    ]);
+
+    expect(buildTestRoutes(pytestRepo, ["services/api/app.py"])[0]?.command)
+      .toBe("python -m pytest -c services/api/pyproject.toml services/api");
+    expect(buildTestRoutes(toxRepo, ["services/api/app.py"])[0]?.command)
+      .toBe("tox -c services/api/tox.ini");
+  });
+
+  it("routes Maven and Gradle with wrappers and nested project scope", () => {
+    const maven = repoOf([
+      file("services/api/pom.xml"),
+      file("services/api/mvnw", { isSource: false, kind: "config" }),
+      file("services/api/src/main/java/App.java")
+    ]);
+    const gradle = repoOf([
+      file("build.gradle"),
+      file("gradlew", { isSource: false, kind: "config" }),
+      file("services/payments/build.gradle.kts"),
+      file("services/payments/src/main/java/Payment.java")
+    ]);
+
+    expect(buildTestRoutes(maven, ["services/api/src/main/java/App.java"])[0]?.command)
+      .toBe("./services/api/mvnw test");
+    expect(buildTestRoutes(gradle, ["services/payments/src/main/java/Payment.java"])[0]?.command)
+      .toBe("./gradlew -p services/payments test");
+  });
+
+  it("uses installed Java tools when wrappers are absent", () => {
+    expect(manifestTestCommand("java", "", [file("pom.xml")])?.command).toBe("mvn test");
+    expect(manifestTestCommand("java", "svc", [file("svc/build.gradle"), file("svc/App.java")])?.command)
+      .toBe("gradle -p svc test");
+  });
+
   it("prefers tox when the repository configures it", () => {
     const repo = repoOf([
       file("pyproject.toml", { isSource: false, kind: "config" }),
@@ -155,9 +214,7 @@ describe("test routing beyond package scripts", () => {
       file("src/app.py")
     ]);
 
-    const report = buildReportFromRepo(repo, { issueText: "app fails to start" });
-
-    expect(report.diagnostics.find((entry) => entry.code === "no-test-route")?.message).toContain("tox");
+    expect(buildTestRoutes(repo, ["src/app.py"])[0]?.command).toBe("tox");
   });
 
   it("does not let a nested tox.ini override a shallower Python configuration", () => {

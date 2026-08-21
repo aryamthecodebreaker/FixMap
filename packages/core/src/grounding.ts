@@ -1,3 +1,4 @@
+import { extractLanguageDefinitions } from "./language-adapters.js";
 import { pathMatchesMention } from "./paths.js";
 import { extractTaskSignals, tokenizeIdentifier, tokenizeText } from "./signals.js";
 import type {
@@ -172,7 +173,10 @@ function groundIdentifier(repo: RepoMap, identifier: string): IdentifierGroundin
     "u"
   );
   const definitionFiles = repo.files
-    .filter((file) => definitionPattern.test(file.textSample))
+    .filter((file) =>
+      extractLanguageDefinitions(file).some((entry) => entry.name === identifier) ||
+      definitionPattern.test(file.textSample)
+    )
     .map((file) => file.path)
     .slice(0, MAX_IDENTIFIER_MATCHED_FILES);
 
@@ -200,7 +204,7 @@ function groundPartialOrUnverifiedIdentifier(
 ): IdentifierGrounding {
   const identifierParts = tokenizeIdentifier(identifier);
   const partialFiles = repo.files
-    .filter((file) => hasDefinitionContainingTokens(file.textSample, identifierParts))
+    .filter((file) => hasDefinitionContainingTokens(file, identifierParts))
     .map((file) => file.path)
     .slice(0, MAX_IDENTIFIER_MATCHED_FILES);
 
@@ -219,14 +223,21 @@ function groundPartialOrUnverifiedIdentifier(
   return { identifier, status: "not-found", matchedFiles: [] };
 }
 
-function hasDefinitionContainingTokens(text: string, expectedTokens: Set<string>): boolean {
+function hasDefinitionContainingTokens(
+  file: RepoMap["files"][number],
+  expectedTokens: Set<string>
+): boolean {
   if (expectedTokens.size < 2) {
     return false;
+  }
+  for (const definition of extractLanguageDefinitions(file)) {
+    const candidateTokens = tokenizeIdentifier(definition.name);
+    if ([...expectedTokens].every((token) => candidateTokens.has(token))) return true;
   }
   const definitionPattern =
     /(?<![\p{L}\p{N}_$])(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\s+)([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
 
-  for (const match of text.matchAll(definitionPattern)) {
+  for (const match of file.textSample.matchAll(definitionPattern)) {
     const name = match[1];
     if (!name) {
       continue;

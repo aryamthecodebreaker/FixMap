@@ -1,22 +1,12 @@
+import { extractLanguageImports, languageAdapterForFile, type LanguageImport } from "./language-adapters.js";
 import type { RepoFile } from "./types.js";
 
-// Single-file components import and are imported like any other module, and their script
-// block is what gets sampled — so leaving them out meant proximity never helped a Vue or
-// Svelte app even once those extensions could rank at all.
-const JS_EXTENSIONS = new Set([".cjs", ".cts", ".js", ".jsx", ".mjs", ".mts", ".svelte", ".ts", ".tsx", ".vue"]);
 const RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"];
 const COMPILED_TO_SOURCE: Record<string, string[]> = {
   ".js": [".ts", ".tsx"],
   ".mjs": [".mts"],
   ".cjs": [".cts"]
 };
-const SPECIFIER_PATTERNS = [
-  /\bimport\s+[^'"()]*?from\s*["']([^"'\n]+)["']/g,
-  /\bimport\s*["']([^"'\n]+)["']/g,
-  /\bexport\s+[^'"()]*?from\s*["']([^"'\n]+)["']/g,
-  /\brequire\s*\(\s*["']([^"'\n]+)["']\s*\)/g,
-  /\bimport\s*\(\s*["']([^"'\n]+)["']\s*\)/g
-];
 const MAX_GRAPH_FILES = 5_000;
 const MAX_EDGES_PER_FILE = 200;
 
@@ -34,7 +24,7 @@ export type ImportProximity = {
 };
 
 export function buildImportGraph(files: RepoFile[]): ImportGraph {
-  const allParseable = files.filter((file) => JS_EXTENSIONS.has(file.extension) && file.textSample.length > 0);
+  const allParseable = files.filter((file) => languageAdapterForFile(file) && file.textSample.length > 0);
   const parseable = allParseable.slice(0, MAX_GRAPH_FILES);
   const repoPaths = new Set(files.map((file) => file.path));
   const aliases = buildAliases(files);
@@ -45,18 +35,18 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
 
   for (const file of parseable) {
     let edges = 0;
-    for (const specifier of extractSpecifiers(file.textSample)) {
-      if (edges >= MAX_EDGES_PER_FILE) {
-        truncatedEdges += 1;
-        break;
+    for (const imported of extractLanguageImports(file)) {
+      for (const target of resolveLanguageImport(file.path, imported, repoPaths, aliases, workspacePackages)) {
+        if (edges >= MAX_EDGES_PER_FILE) {
+          truncatedEdges += 1;
+          break;
+        }
+        if (target === file.path || imports.get(file.path)?.has(target)) continue;
+        addEdge(imports, file.path, target);
+        addEdge(importedBy, target, file.path);
+        edges += 1;
       }
-      const target = resolveSpecifier(file.path, specifier, repoPaths, aliases, workspacePackages);
-      if (!target || target === file.path) {
-        continue;
-      }
-      addEdge(imports, file.path, target);
-      addEdge(importedBy, target, file.path);
-      edges += 1;
+      if (edges >= MAX_EDGES_PER_FILE) break;
     }
   }
 
@@ -105,20 +95,85 @@ function neighborsOf(graph: ImportGraph, path: string): { path: string; directio
   return neighbors;
 }
 
-function extractSpecifiers(textSample: string): Set<string> {
-  const specifiers = new Set<string>();
-  for (const pattern of SPECIFIER_PATTERNS) {
-    for (const match of textSample.matchAll(pattern)) {
-      const specifier = match[1];
-      if (specifier) {
-        specifiers.add(specifier);
-      }
-    }
+type Alias = { prefix: string; suffix: string; targets: string[] };
+
+function resolveLanguageImport(
+  fromPath: string,
+  imported: LanguageImport,
+  repoPaths: Set<string>,
+  aliases: Alias[],
+  workspacePackages: Map<string, string[]>
+): string[] {
+  if (imported.adapter === "python") {
+    return resolvePythonImport(fromPath, imported, repoPaths);
   }
-  return specifiers;
+  if (imported.adapter === "java") {
+    return resolveJavaImport(imported, repoPaths);
+  }
+  const target = resolveSpecifier(fromPath, imported.specifier, repoPaths, aliases, workspacePackages);
+  return target ? [target] : [];
 }
 
-type Alias = { prefix: string; suffix: string; targets: string[] };
+function resolvePythonImport(fromPath: string, imported: LanguageImport, repoPaths: Set<string>): string[] {
+  const relativeMatch = /^(\.+)(.*)$/.exec(imported.specifier);
+  let roots: string[];
+  if (relativeMatch?.[1] !== undefined) {
+    const base = fromPath.split("/").slice(0, -1);
+    const parentLevels = Math.max(0, relativeMatch[1].length - 1);
+    if (parentLevels > base.length) return [];
+    const packageRoot = base.slice(0, base.length - parentLevels);
+    const moduleSegments = (relativeMatch[2] ?? "").split(".").filter(Boolean);
+    roots = [[...packageRoot, ...moduleSegments].join("/")];
+  } else {
+    const modulePath = imported.specifier.replace(/\./g, "/");
+    roots = [modulePath, `src/${modulePath}`];
+  }
+
+  const memberRoots = imported.importedNames
+    .filter((name) => name !== "*")
+    .flatMap((name) => roots.map((root) => root ? `${root}/${name}` : name));
+  const targets = new Set<string>();
+  for (const root of [...memberRoots, ...roots]) {
+    for (const candidate of pythonCandidates(root, repoPaths, !relativeMatch)) {
+      targets.add(candidate);
+    }
+  }
+  return [...targets].sort((a, b) => a.localeCompare(b));
+}
+
+function pythonCandidates(root: string, repoPaths: Set<string>, allowSuffix: boolean): string[] {
+  if (!root) return [];
+  const suffixes = [`${root}.py`, `${root}.pyi`, `${root}/__init__.py`, `${root}/__init__.pyi`];
+  const exact = suffixes.filter((candidate) => repoPaths.has(candidate));
+  if (exact.length > 0 || !allowSuffix) return exact;
+  return [...repoPaths]
+    .filter((path) => suffixes.some((suffix) => path.endsWith(`/${suffix}`)))
+    .sort(shortestPathFirst)
+    .slice(0, 8);
+}
+
+function resolveJavaImport(imported: LanguageImport, repoPaths: Set<string>): string[] {
+  const modulePath = imported.specifier.replace(/\./g, "/");
+  if (imported.wildcard) {
+    return [...repoPaths]
+      .filter((path) => {
+        const marker = `/${modulePath}/`;
+        const index = `/${path}`.lastIndexOf(marker);
+        if (index === -1 || !path.endsWith(".java")) return false;
+        return `/${path}`.slice(index + marker.length).split("/").length === 1;
+      })
+      .sort(shortestPathFirst);
+  }
+  const suffix = `${modulePath}.java`;
+  return [...repoPaths]
+    .filter((path) => path === suffix || path.endsWith(`/${suffix}`))
+    .sort(shortestPathFirst)
+    .slice(0, 1);
+}
+
+function shortestPathFirst(left: string, right: string): number {
+  return left.split("/").length - right.split("/").length || left.localeCompare(right);
+}
 
 function resolveSpecifier(
   fromPath: string,
