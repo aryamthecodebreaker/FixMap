@@ -61,6 +61,8 @@ export type {
   IdentityGraphVersion
 } from "./identity-graph.js";
 export { tokenizePath, tokenizeText } from "./signals.js";
+export { detectChangeConflicts } from "./change-conflicts.js";
+export type { ChangeConflict, ChangeConflictAnalysis, ChangeIntent, ChangeZone } from "./change-conflicts.js";
 export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
 export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
 export { createSupplyChainEvidenceProvider, validateSupplyChainEvidenceBundle } from "./supply-chain.js";

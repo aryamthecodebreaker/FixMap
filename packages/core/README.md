@@ -49,6 +49,8 @@ Historical graph queries use `scanRepoAtRef`, `buildArchitectureSnapshotAtRef`, 
 
 Supply-chain data enters through `validateSupplyChainEvidenceBundle` and `createSupplyChainEvidenceProvider`. The versioned normalization contract retains external scanner/SBOM tool version, database version, timestamp, document SHA-256, package identity, confidence, advisory/fix data, and license policy. FixMap validates and relates those records but does not ship a CVE database or infer whether a package version or license is safe.
 
+`detectChangeConflicts` compares explicit concurrent change intents on stable graph identities. It distinguishes intended edits, impact zones, contract zones, and graph baselines; reports edit/edit, directional edit/impact, shared-contract, and stale-baseline conflicts with evidence; and leaves unrelated identities alone. Display labels never establish sameness. Only explicit reviewed alias/equivalence edges in an identity graph canonicalize two zones.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.
