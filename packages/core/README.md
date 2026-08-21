@@ -55,6 +55,8 @@ Supply-chain data enters through `validateSupplyChainEvidenceBundle` and `create
 
 `comparePlanAlternatives` requires every candidate to use the same exact graph fingerprint, then compares separate edit, impact, contract, policy, test-coverage, reversibility, and uncertainty axes. The output retains evidence and a non-dominated frontier. It intentionally has no winner field or scalar score: genuine tradeoffs remain visible instead of being hidden behind arbitrary weights.
 
+Outcome feedback uses `OutcomeRecord` and the pure `addOutcomeRecord`, `removeOutcomeRecord`, and `summarizeOutcomeCalibration` APIs. Predictions, actual edits, command outcomes, and separately sourced task assessment remain distinct. Calibration exposes correct predictions, false positives, misses, precision/recall, and per-record evidence; it always declares `automaticWeightChanges: false` and never rewrites ranking weights.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.
