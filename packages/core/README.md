@@ -41,6 +41,8 @@ Contract Guardian starts with `inventoryContracts` and `compareContractInventori
 
 Human intent is represented by versioned annotations and authored decision records. `inventoryDecisionRecords` preserves ADR/RFC/design Context, Decision, Consequences, status, date, supersession, explicit scopes, and exact source fingerprints; `selectDecisionRecords` attaches only relevant records. Literal path mentions count only when that path exists in the scanned snapshot, and FixMap never rewrites generated prose as the author’s rationale.
 
+Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, and decision records. Markdown explains the risk; JSON preserves the proof.
+
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.
 
 MIT © FixMap contributors.

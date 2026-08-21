@@ -10,7 +10,7 @@
 import { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
 import { buildImpactMap } from "./impact.js";
 import { buildRiskNotes, pathsForRiskArea } from "./report.js";
-import type { FixMapReport, RepoMap, VerifyFinding, VerifyResult } from "./types.js";
+import type { FixMapReport, ImpactMap, RepoMap, VerifyFinding, VerifyNarrativeStatement, VerifyResult } from "./types.js";
 import { markdownCode } from "./markdown.js";
 
 export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
@@ -205,8 +205,87 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
     changedFiles: changed,
     findings,
     diagnostics: repo.diagnostics,
-    impact
+    impact,
+    narrative: buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks)
   };
+}
+
+function buildVerifyNarrative(
+  report: FixMapReport,
+  changed: readonly string[],
+  changedSource: readonly string[],
+  changedTests: readonly string[],
+  impact: ImpactMap,
+  newRisks: readonly { area: string; reason: string; severity: "low" | "medium" | "high" }[]
+): VerifyNarrativeStatement[] {
+  const narrative: VerifyNarrativeStatement[] = [];
+  if (changed.length > 0) narrative.push({
+    classification: "observation",
+    text: `${changed.length} file${changed.length === 1 ? "" : "s"} changed: ${changed.slice(0, 8).join(", ")}${changed.length > 8 ? ", ..." : ""}.`,
+    evidence: changed.map((path) => ({ kind: "changed-file", path, detail: "Present in the resolved verification diff." }))
+  });
+  for (const file of impact.files.slice(0, 8)) {
+    const relationship = file.evidence[0];
+    if (!relationship) continue;
+    narrative.push({
+      classification: relationship.kind === "co-change" ? "inference" : "observation",
+      text: `${file.path} is in the recalculated impact graph because ${relationship.reason}.`,
+      evidence: [{
+        kind: "impact-relationship",
+        path: relationship.seed,
+        relatedPath: file.path,
+        detail: `${relationship.kind}: ${relationship.reason}`
+      }]
+    });
+  }
+  if (changedSource.length > 0 && changedTests.length === 0 && report.testRoutes.length > 0) {
+    narrative.push({
+      classification: "observation",
+      text: `Source changed without a changed test; FixMap had routed ${report.testRoutes.map((route) => route.command).join(", ")}.`,
+      evidence: report.testRoutes.map((route) => ({
+        kind: "test-route",
+        ...(route.relatedFiles[0] ? { path: route.relatedFiles[0] } : {}),
+        detail: `${route.command}: ${route.reason}`
+      }))
+    });
+  }
+  for (const risk of newRisks) narrative.push({
+    classification: "inference",
+    text: `The diff may introduce ${risk.area} risk: ${risk.reason}.`,
+    evidence: [{ kind: "risk-rule", detail: `${risk.severity} ${risk.area}: ${risk.reason}` }]
+  });
+  for (const assessment of report.annotations?.entries ?? []) {
+    const scope = assessment.annotation.scope;
+    const path = scope.kind === "file" || scope.kind === "symbol" || scope.kind === "contract" ? scope.path : undefined;
+    if (path && !changed.includes(path)) continue;
+    narrative.push({
+      classification: "observation",
+      text: `Repository annotation ${assessment.annotation.id} is ${assessment.status}: ${assessment.annotation.note}`,
+      evidence: [{
+        kind: "annotation",
+        ...(path ? { path } : {}),
+        detail: assessment.message,
+        sourceFingerprint: report.annotations!.sourceFingerprint
+      }]
+    });
+  }
+  for (const decision of report.decisions ?? []) {
+    const targetPaths = decision.targets.flatMap((target) =>
+      target.kind === "file" ? [target.path] : target.kind === "symbol" && target.path ? [target.path] : []
+    );
+    if (targetPaths.length > 0 && !targetPaths.some((path) => changed.includes(path))) continue;
+    narrative.push({
+      classification: "observation",
+      text: `${decision.path} records an ${decision.status} decision relevant to this diff: ${decision.decision.replace(/\s+/g, " ").trim()}`,
+      evidence: [{
+        kind: "decision-record",
+        path: decision.path,
+        detail: decision.title,
+        sourceFingerprint: decision.sourceFingerprint
+      }]
+    });
+  }
+  return narrative.slice(0, 16);
 }
 
 function buildVerifySummary(changedCount: number, findings: VerifyFinding[]): string {
@@ -249,6 +328,12 @@ export function renderVerifyMarkdown(result: VerifyResult): string {
       for (const path of finding.paths.slice(0, 8)) {
         lines.push(`  - ${markdownCode(path)}`);
       }
+    }
+  }
+  if (result.narrative && result.narrative.length > 0) {
+    lines.push("", "## Why This Diff Needs Attention", "");
+    for (const statement of result.narrative) {
+      lines.push(`- **${statement.classification}** ${statement.text}`);
     }
   }
   lines.push("", "## Changed Files", "");

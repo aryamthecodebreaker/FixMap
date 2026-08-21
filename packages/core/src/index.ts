@@ -175,5 +175,7 @@ export type {
   TaskAnalysis,
   TestRoute,
   VerifyFinding,
+  VerifyNarrativeEvidence,
+  VerifyNarrativeStatement,
   VerifyResult
 } from "./types.js";

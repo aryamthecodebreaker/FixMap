@@ -303,4 +303,19 @@ export type VerifyResult = {
    */
   diagnostics: ScanDiagnostic[];
   impact?: ImpactMap;
+  narrative?: VerifyNarrativeStatement[];
+};
+
+export type VerifyNarrativeEvidence = {
+  kind: "changed-file" | "impact-relationship" | "test-route" | "risk-rule" | "annotation" | "decision-record";
+  path?: string;
+  relatedPath?: string;
+  detail: string;
+  sourceFingerprint?: string;
+};
+
+export type VerifyNarrativeStatement = {
+  classification: "observation" | "inference";
+  text: string;
+  evidence: VerifyNarrativeEvidence[];
 };

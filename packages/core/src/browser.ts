@@ -117,5 +117,7 @@ export type {
   RiskNote,
   TestRoute,
   VerifyFinding,
+  VerifyNarrativeEvidence,
+  VerifyNarrativeStatement,
   VerifyResult
 } from "./types.js";

@@ -192,6 +192,7 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 - Its public API also exposes Explain, Compare, and Verify builders and result types, so another tool can compose the same workflow without shelling out to the CLI.
 - `fixmap annotate` writes a versioned `.fixmap/annotations.json` with stable content identities, file/symbol/service/contract scopes, optional owner and expiry, and rename/missing-target checks. Relevant notes retain the store fingerprint in Markdown, JSON, and compact agent reports.
 - ADR/rationale ingestion preserves the repository author’s Context, Decision, and Consequences text with its exact file fingerprint. Plans attach explicit scopes and verified literal path mentions; malformed, incomplete, or stale-target records become diagnostics rather than invented intent.
+- Verify narrates why a diff needs attention and labels every sentence as observation or inference; JSON keeps the exact changed-file, relationship, test, risk-rule, annotation, or ADR evidence behind it.
 - The `@aryam/fixmap-core/browser` entry runs the filesystem-free report, comparison, explanation, verification, workspace/identity-graph, and rendering logic in a browser bundle.
 
 ### Trust, compatibility, and evidence
