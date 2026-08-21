@@ -40,6 +40,8 @@ export { addOutcomeRecord, createOutcomeRecord, emptyOutcomeStore, removeOutcome
 export type { OutcomeCalibration, OutcomeRecord, OutcomeStore, TestOutcomeStatus } from "./outcomes.js";
 export { buildChangeDossier, validateChangeDossier } from "./dossier.js";
 export type { ChangeDossier, ChangeDossierInput, DossierAssumption } from "./dossier.js";
+export { routeReviewers } from "./ownership.js";
+export type { ReviewEvidence, ReviewRoutingResult, ReviewSuggestion } from "./ownership.js";
 export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
 export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
 export { createSupplyChainEvidenceProvider, validateSupplyChainEvidenceBundle } from "./supply-chain.js";

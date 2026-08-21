@@ -59,6 +59,8 @@ Outcome feedback uses `OutcomeRecord` and the pure `addOutcomeRecord`, `removeOu
 
 `buildChangeDossier` creates one versioned lifecycle artifact linking request provenance, assumptions and their evidence status, plan/report and graph fingerprints, decision records, diff state, command outcomes, runtime observations/inferences, reviews, and optional release identifiers. It is valid before a diff or release exists, normalizes paths/timestamps, requires evidence for completed claims, and detects content that no longer matches its dossier fingerprint.
 
+`routeReviewers` combines the highest-precedence CODEOWNERS file (with last matching rule semantics), active annotation owners, architecture-policy review rules, and bounded Git author history. Every suggestion keeps source fingerprints, paths and CODEOWNERS lines, confidence, and `availabilityInferred: false`. Historical authorship is low-confidence routing evidence only; FixMap never infers current employment or availability.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.

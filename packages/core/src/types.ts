@@ -128,6 +128,8 @@ export type RepoMap = {
 export type HistoryCommit = {
   hash: string;
   committedAt: number;
+  /** Authored Git identity as recorded by the commit; never treated as current availability. */
+  author?: string;
   files: string[];
 };
 

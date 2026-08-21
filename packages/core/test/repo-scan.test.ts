@@ -552,11 +552,12 @@ describe("scanRepo", () => {
     await exec("git", ["add", "."], { cwd: root });
     await exec("git", ["commit", "-m", "initial"], { cwd: root });
 
-    const repo = await scanRepo({ repoRoot: root, diffSpec: "HEAD...HEAD" });
+    const repo = await scanRepo({ repoRoot: root, diffSpec: "HEAD...HEAD", includeHistory: true });
 
     expect(repo.changedFiles).toEqual([]);
     expect(repo.diagnostics.find((entry) => entry.code === "diff-resolved")?.message)
       .toContain("resolved to zero changed files");
+    expect(repo.history?.commits[0]?.author).toBe("Test User");
   });
 
   it("distinguishes an unborn repository from a non-repository", { timeout: 30_000 }, async () => {

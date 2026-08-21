@@ -54,7 +54,7 @@ const MAX_HISTORY_COMMITS = 1_000;
 const MAX_HISTORY_FILES_PER_COMMIT = 30;
 const exec = promisify(execFile);
 type ScanState = { count: number; limitReported: boolean };
-const SCAN_CACHE_VERSION = 5;
+const SCAN_CACHE_VERSION = 6;
 const SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 const SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
@@ -373,6 +373,7 @@ function isCachedHistory(candidate: unknown): candidate is RepositoryHistory {
   return candidate.commits.every((commit) => {
     if (!isRecord(commit) || typeof commit.hash !== "string" || !/^[a-f0-9]{40}$/i.test(commit.hash) ||
       typeof commit.committedAt !== "number" || !Number.isSafeInteger(commit.committedAt) || commit.committedAt < 0 ||
+      (commit.author !== undefined && (typeof commit.author !== "string" || !commit.author.trim() || commit.author.length > 200 || /[\0-\x1f\x7f]/.test(commit.author))) ||
       !Array.isArray(commit.files)) return false;
     return commit.files.every(isCachedRelativePath);
   });
@@ -1327,7 +1328,7 @@ async function readRepositoryHistory(
         "log",
         "--no-merges",
         "-n", String(MAX_HISTORY_COMMITS),
-        "--format=%x1e%H%x1f%ct",
+        "--format=%x1e%H%x1f%ct%x1f%aN",
         "--name-only",
         "-z",
         "HEAD"
@@ -1396,7 +1397,10 @@ function parseHistoryLog(
     const separator = header.indexOf("\x1f");
     if (separator === -1) continue;
     const hash = header.slice(0, separator).trim();
-    const committedAt = Number.parseInt(header.slice(separator + 1).trim(), 10);
+    const secondSeparator = header.indexOf("\x1f", separator + 1);
+    const committedAt = Number.parseInt(header.slice(separator + 1, secondSeparator === -1 ? undefined : secondSeparator).trim(), 10);
+    const rawAuthor = secondSeparator === -1 ? "" : header.slice(secondSeparator + 1).trim();
+    const author = rawAuthor && !/[\0-\x1f\x7f]/.test(rawAuthor) ? rawAuthor.slice(0, 200) : undefined;
     if (!/^[a-f0-9]{40}$/i.test(hash) || !Number.isSafeInteger(committedAt) || committedAt < 0) continue;
 
     inspectedCommits += 1;
@@ -1410,7 +1414,7 @@ function parseHistoryLog(
     }
     const currentFiles = allFiles.filter((path) => repositoryPaths.has(path));
     if (currentFiles.length === 0) continue;
-    commits.push({ hash, committedAt, files: currentFiles });
+    commits.push({ hash, committedAt, ...(author ? { author } : {}), files: currentFiles });
   }
   return { commits, inspectedCommits, skippedLargeCommits };
 }
