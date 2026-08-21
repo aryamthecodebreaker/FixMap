@@ -92,6 +92,12 @@ describe("report rendering", () => {
           path: ".fixmap/annotations.json", extension: ".json", sizeBytes: annotationText.length,
           contentFingerprint: `worktree:${"a".repeat(64)}`,
           isSource: true, isTest: false, kind: "config", textSample: annotationText, textSampleComplete: true
+        },
+        {
+          path: "docs/adr/auth.md", extension: ".md", sizeBytes: 120,
+          contentFingerprint: `git:${"b".repeat(40)}`,
+          isSource: true, isTest: false, kind: "documentation", textSampleComplete: true,
+          textSample: "# Keep external identity boundaries\n\n## Status\nAccepted\n\n## Decision\nTreat `src/auth.ts` as an external compatibility boundary.\n"
         }
       ],
       packageScripts: [], changedFiles: [], diffText: "", packageManager: "npm", diagnostics: []
@@ -105,9 +111,16 @@ describe("report rendering", () => {
       annotation: expect.objectContaining({ note: "Do not refactor; external identity contract." })
     }));
     expect(report.annotations?.sourceFingerprint).toBe(`worktree:${"a".repeat(64)}`);
+    expect(report.decisions).toContainEqual(expect.objectContaining({
+      path: "docs/adr/auth.md",
+      status: "accepted",
+      decision: expect.stringContaining("external compatibility boundary")
+    }));
     expect(renderMarkdownReport(report)).toContain("## Human Intent");
+    expect(renderMarkdownReport(report)).toContain("ADR accepted");
     expect(renderAgentReport(report)).toContain("INTENT:");
     expect(renderAgentReport(report)).toContain("external identity contract");
+    expect(renderAgentReport(report)).toContain("docs/adr/auth.md");
   });
 
   it("routes nearby tests by path overlap and adds risk notes", () => {

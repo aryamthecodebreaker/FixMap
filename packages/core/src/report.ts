@@ -16,6 +16,7 @@ import type { EmbeddingProvider, HybridRankingResult } from "./semantic.js";
 import type { FixMapReport, PackageScript, RankedFile, RepoFile, RepoMap, ReportRetrieval, RiskNote, ScanDiagnostic, TestRoute } from "./types.js";
 import { assessAnnotations, validateAnnotationStore } from "./annotations.js";
 import type { AnnotationAssessment, AnnotationRename } from "./annotations.js";
+import { inventoryDecisionRecords, selectDecisionRecords } from "./decisions.js";
 
 const MAX_REPORTED_TERMS = 8;
 
@@ -113,6 +114,11 @@ function assembleReport(
   const annotations = input.annotationAsOf
     ? buildReportAnnotations(repo, [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles], input.issueText ?? "", input.annotationAsOf)
     : undefined;
+  const decisionInventory = inventoryDecisionRecords(repo);
+  const decisions = selectDecisionRecords(decisionInventory, {
+    paths: [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles],
+    task: input.issueText ?? ""
+  });
 
   return {
     reportVersion: 1,
@@ -130,6 +136,12 @@ function assembleReport(
       ...findTaskPreprocessingDiagnostics(input.issueText ?? ""),
       ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude),
       ...(annotations?.diagnostics ?? []),
+      ...decisionInventory.diagnostics.map((diagnostic): ScanDiagnostic => ({
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        message: diagnostic.message,
+        paths: [diagnostic.path]
+      })),
       ...extraDiagnostics
     ],
     analysis: {
@@ -154,7 +166,8 @@ function assembleReport(
           sourceFingerprint: repo.files.find((file) => file.path === ".fixmap/annotations.json")!.contentFingerprint!,
           entries: annotations.entries
         } }
-      : {})
+      : {}),
+    ...(decisions.length > 0 ? { decisions } : {})
   };
 }
 
@@ -760,13 +773,18 @@ export function renderMarkdownReport(report: FixMapReport): string {
     "## Risk Map",
     "",
     ...listOrEmpty(report.risks.map((risk) => `- **${risk.severity}** ${risk.area}: ${risk.reason}`)),
-    ...(report.annotations ? [
+    ...(report.annotations || report.decisions ? [
       "",
       "## Human Intent",
       "",
-      ...listOrEmpty(report.annotations.entries.map((assessment) =>
-        `- **${assessment.status}** ${describeAnnotationScope(assessment)}: ${assessment.annotation.note}`
-      ))
+      ...listOrEmpty([
+        ...(report.decisions ?? []).map((decision) =>
+          `- **ADR ${decision.status}** ${markdownCode(decision.path)} — ${decision.title}: ${inlineProse(decision.decision)}`
+        ),
+        ...(report.annotations?.entries ?? []).map((assessment) =>
+          `- **annotation ${assessment.status}** ${describeAnnotationScope(assessment)}: ${assessment.annotation.note}`
+        )
+      ])
     ] : []),
     "",
     "## Changed Files",
@@ -830,9 +848,14 @@ export function renderAgentReport(report: FixMapReport): string {
     ...listOrEmpty(report.risks.map((risk) => `${risk.severity} ${risk.area}  # ${risk.reason}`)),
     "",
     "INTENT:",
-    ...listOrEmpty((report.annotations?.entries ?? []).map((assessment) =>
-      `${assessment.status} ${describeAnnotationScope(assessment)}  # ${assessment.annotation.note}`
-    )),
+    ...listOrEmpty([
+      ...(report.decisions ?? []).map((decision) =>
+        `ADR ${decision.status} ${decision.path}  # ${decision.title}: ${inlineProse(decision.decision)}`
+      ),
+      ...(report.annotations?.entries ?? []).map((assessment) =>
+        `annotation ${assessment.status} ${describeAnnotationScope(assessment)}  # ${assessment.annotation.note}`
+      )
+    ]),
     "",
     "AVOID:",
     ...listOrEmpty(avoided),
@@ -849,6 +872,10 @@ function describeAnnotationScope(assessment: AnnotationAssessment): string {
   if (scope.kind === "symbol") return `${markdownCode(scope.symbol)} in ${markdownCode(scope.path)}`;
   if (scope.kind === "service") return `service ${markdownCode(scope.name)}`;
   return `contract ${markdownCode(scope.name)}${scope.path ? ` in ${markdownCode(scope.path)}` : ""}`;
+}
+
+function inlineProse(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
 }
 
 function listOrEmpty(lines: string[]): string[] {

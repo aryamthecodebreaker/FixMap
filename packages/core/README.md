@@ -39,6 +39,8 @@ The v0.10 graph API exposes `createGraphIdentity`, explicit `createGraphEquivale
 
 Contract Guardian starts with `inventoryContracts` and `compareContractInventories`: it normalizes OpenAPI, AsyncAPI, GraphQL, Protobuf, JSON Schema, and SQL migrations into deterministic compatibility entries, retains exact before/after fingerprints, and can emit owned contract nodes through `contractGraphNodes`. Findings distinguish compatible, breaking, and unknown changes; incomplete scanner content is diagnosed instead of treated as an absent contract.
 
+Human intent is represented by versioned annotations and authored decision records. `inventoryDecisionRecords` preserves ADR/RFC/design Context, Decision, Consequences, status, date, supersession, explicit scopes, and exact source fingerprints; `selectDecisionRecords` attaches only relevant records. Literal path mentions count only when that path exists in the scanned snapshot, and FixMap never rewrites generated prose as the author’s rationale.
+
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.
 
 MIT © FixMap contributors.

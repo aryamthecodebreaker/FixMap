@@ -63,6 +63,14 @@ export type {
 export { tokenizePath, tokenizeText } from "./signals.js";
 export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
 export { validateFixMapReport } from "./validate.js";
+export { parseDecisionRecord, selectDecisionRecords } from "./decisions.js";
+export type {
+  DecisionDiagnostic,
+  DecisionInventory,
+  DecisionRecord,
+  DecisionStatus,
+  DecisionTarget
+} from "./decisions.js";
 export {
   addAnnotation,
   annotationsForPath,

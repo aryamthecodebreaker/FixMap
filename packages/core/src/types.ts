@@ -1,4 +1,5 @@
 import type { AnnotationAssessment } from "./annotations.js";
+import type { DecisionRecord } from "./decisions.js";
 
 export type FixMapInput = {
   repoRoot: string;
@@ -90,7 +91,10 @@ export type ScanDiagnostic = {
     | "annotation-store-invalid"
     | "annotation-source-incomplete"
     | "annotation-target-stale"
-    | "annotation-expired";
+    | "annotation-expired"
+    | "decision-source-incomplete"
+    | "decision-parse-failed"
+    | "decision-target-missing";
   message: string;
   severity: "info" | "warning" | "error";
   /**
@@ -266,6 +270,8 @@ export type FixMapReport = {
     sourceFingerprint: string;
     entries: AnnotationAssessment[];
   };
+  /** Authored ADR/rationale excerpts relevant to this plan; never generated summaries. */
+  decisions?: DecisionRecord[];
 };
 
 export type VerifyFinding = {

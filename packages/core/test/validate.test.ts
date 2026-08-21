@@ -54,6 +54,28 @@ describe("validateFixMapReport", () => {
     expect(invalid.success).toBe(false);
   });
 
+  it("validates authored decision records", () => {
+    const valid = validateFixMapReport({
+      ...envelope,
+      decisions: [{
+        id: "decision:0123456789abcdef",
+        path: "docs/adr/auth.md",
+        title: "Keep auth stable",
+        status: "accepted",
+        decision: "Preserve the external contract.",
+        targets: [{ kind: "file", path: "src/reset.ts", evidence: "explicit" }],
+        supersedes: [],
+        sourceFingerprint: `git:${"a".repeat(40)}`
+      }]
+    }, "report");
+    expect(valid.success).toBe(true);
+    const invalid = validateFixMapReport({
+      ...envelope,
+      decisions: [{ id: "decision:bad", path: "../adr.md" }]
+    }, "report");
+    expect(invalid.success).toBe(false);
+  });
+
   it("requires all existing version 1 entry fields while leaving legacy entries compatible", () => {
     const result = validateFixMapReport({
       ...envelope,

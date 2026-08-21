@@ -111,6 +111,14 @@ export { validateFixMapReport } from "./validate.js";
 export type { ValidatedFixMapReport } from "./validate.js";
 export { findGatedTestDiagnostics } from "./test-gates.js";
 export { stripByteOrderMark } from "./text.js";
+export { inventoryDecisionRecords, parseDecisionRecord, selectDecisionRecords } from "./decisions.js";
+export type {
+  DecisionDiagnostic,
+  DecisionInventory,
+  DecisionRecord,
+  DecisionStatus,
+  DecisionTarget
+} from "./decisions.js";
 export {
   addAnnotation,
   annotationsForPath,

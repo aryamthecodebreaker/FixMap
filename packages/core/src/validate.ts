@@ -173,6 +173,30 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     }
   }
 
+  if (record.decisions !== undefined) {
+    if (!Array.isArray(record.decisions)) return { success: false, message: `${label} has invalid decisions; expected an array.` };
+    const invalidDecision = record.decisions.findIndex((decision) => {
+      if (!isRecord(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) ||
+        !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() ||
+        !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) ||
+        typeof decision.decision !== "string" || !decision.decision.trim() ||
+        typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) ||
+        !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) ||
+        !decision.supersedes.every((value) => typeof value === "string" && value.trim()) ||
+        (decision.date !== undefined && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date))) ||
+        (decision.context !== undefined && typeof decision.context !== "string") ||
+        (decision.consequences !== undefined && typeof decision.consequences !== "string")) return true;
+      return decision.targets.some((target) => {
+        if (!isRecord(target) || !["explicit", "literal-mention"].includes(String(target.evidence))) return true;
+        if (target.kind === "file") return !isRepositoryRelativePath(target.path);
+        if (target.kind === "symbol") return typeof target.name !== "string" || !target.name.trim() ||
+          (target.path !== undefined && !isRepositoryRelativePath(target.path));
+        return (target.kind !== "service" && target.kind !== "contract") || typeof target.name !== "string" || !target.name.trim();
+      });
+    });
+    if (invalidDecision !== -1) return { success: false, message: `${label} has an invalid decisions entry at index ${invalidDecision}.` };
+  }
+
   const diagnostics = record.diagnostics as unknown[];
   const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
     if (!isRecord(diagnostic)) return true;
