@@ -61,6 +61,8 @@ export type {
   IdentityGraphVersion
 } from "./identity-graph.js";
 export { tokenizePath, tokenizeText } from "./signals.js";
+export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
+export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
 export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
 export { validateFixMapReport } from "./validate.js";
 export {

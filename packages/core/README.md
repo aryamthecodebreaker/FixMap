@@ -45,6 +45,8 @@ Architecture policy is repository-owned in `.fixmap/policy.json`. `architectureP
 
 Historical graph queries use `scanRepoAtRef`, `buildArchitectureSnapshotAtRef`, and `compareArchitectureRefs`. Refs are first resolved to immutable commit IDs, then exact Git blobs are read in a bounded batch. The API never checks out a ref, moves `HEAD`, or writes into the worktree.
 
+`sensitiveDataFlowEvidenceProvider` is a built-in, network-free evidence provider for approximate credential, token, PII, and payment indicators near logging, network, storage, or analytics sinks. It reports only detector rule IDs, categories, exact file fingerprints, and low-confidence structural relationships—never matched values or source snippets—and explicitly states that its results are not taint analysis or a complete security proof.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.
