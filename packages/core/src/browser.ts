@@ -87,6 +87,8 @@ export { createEditorProtocolSnapshot, handleEditorProtocolRequest } from "./edi
 export type { EditorProtocolMethod, EditorProtocolRequest, EditorProtocolResponse, EditorProtocolSnapshot } from "./editor-protocol.js";
 export { answerFixMapQuestion, buildAskEvidence } from "./ask.js";
 export type { AskEvidence, AskModelProvider, FixMapAnswer } from "./ask.js";
+export { draftReverseDocumentation, renderReverseDocumentationMarkdown } from "./reverse-docs.js";
+export type { ReverseDocumentationDraft, ReverseDocumentationTarget } from "./reverse-docs.js";
 export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
 export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
 export { createSupplyChainEvidenceProvider, validateSupplyChainEvidenceBundle } from "./supply-chain.js";

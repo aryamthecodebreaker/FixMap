@@ -77,6 +77,8 @@ Editor integrations share `createEditorProtocolSnapshot` and `handleEditorProtoc
 
 `answerFixMapQuestion` provides a deterministic no-model path for structural plan, impact, test, risk, and authored-rationale questions using a bounded `buildAskEvidence` pack. An optional provider sees report evidence rather than source content, must cite only supplied IDs and expose unknowns, and falls back safely on invalid or failed output. Remote providers require explicit consent before receiving evidence; provider locality remains a caller-declared claim, and model text is never marked independently verified.
 
+`draftReverseDocumentation` produces pure, review-only module or architecture Markdown from exact repository file fingerprints, an exact architecture snapshot, and validated authored decisions. Observations, coupling-based inferences, unknowns, and provenance are separate sections. Drafts authorize neither writes nor overwrites, and an existing requested destination is explicitly marked occupied rather than replaced.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.
