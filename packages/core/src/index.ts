@@ -32,6 +32,8 @@ export { buildImpactMap } from "./impact.js";
 export { collectEvidence } from "./evidence.js";
 export { detectChangeConflicts } from "./change-conflicts.js";
 export type { ChangeConflict, ChangeConflictAnalysis, ChangeIntent, ChangeZone } from "./change-conflicts.js";
+export { buildMigrationPlan } from "./migration.js";
+export type { MigrationCompatibility, MigrationPhase, MigrationPlan, MigrationStep } from "./migration.js";
 export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
 export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
 export { createSupplyChainEvidenceProvider, validateSupplyChainEvidenceBundle } from "./supply-chain.js";

@@ -51,6 +51,8 @@ Supply-chain data enters through `validateSupplyChainEvidenceBundle` and `create
 
 `detectChangeConflicts` compares explicit concurrent change intents on stable graph identities. It distinguishes intended edits, impact zones, contract zones, and graph baselines; reports edit/edit, directional edit/impact, shared-contract, and stale-baseline conflicts with evidence; and leaves unrelated identities alone. Display labels never establish sameness. Only explicit reviewed alias/equivalence edges in an identity graph canonicalize two zones.
 
+`buildMigrationPlan` validates explicit migration steps against one exact identity-graph snapshot and produces dependency-ordered phases. Each step must name intended edits, impacts, contracts, a compatibility strategy (with exit criteria when a window exists), verification commands with reasons, and rollback triggers/actions. Every phase reports its blast radius; cycles, unknown identities, missing safety fields, and undeclared parallel edit/contract overlap fail closed.
+
 Verify includes a structured impact narrative: each sentence is labeled as an observation or inference and carries machine-readable evidence for changed files, structural or historical impact, routed tests, risk rules, annotations, decision records, and architecture policy. Markdown explains the risk; JSON preserves the proof.
 
 JSON reports use `reportVersion: 1`. Additive fields and diagnostic codes may appear within that version; consumers should ignore unknown fields and use diagnostic severity as the stable fallback.
