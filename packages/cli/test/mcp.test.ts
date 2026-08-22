@@ -174,13 +174,13 @@ describe("fixmap mcp server", () => {
     expect(report.contextFiles).toHaveLength(1);
   });
 
-  it("advertises the complete plan, context, graph, workspace, ask, migrate, explain, compare, verify, and doctor workflow", async () => {
+  it("advertises the complete plan, context, graph, workspace, ask, migrate, reverse-docs, explain, compare, verify, and doctor workflow", async () => {
     const client = await connectClient();
 
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
@@ -210,6 +210,10 @@ describe("fixmap mcp server", () => {
     expect(Object.keys(migrate?.inputSchema.properties ?? {}).sort()).toEqual(["input", "format"].sort());
     expect(migrate?.inputSchema.required).toEqual(["input"]);
     expect(migrate?.inputSchema.additionalProperties).toBe(false);
+    const reverseDocs = tools.tools.find((tool) => tool.name === "fixmap_reverse_docs");
+    expect(Object.keys(reverseDocs?.inputSchema.properties ?? {}).sort()).toEqual(["input", "format"].sort());
+    expect(reverseDocs?.inputSchema.required).toEqual(["input"]);
+    expect(reverseDocs?.inputSchema.additionalProperties).toBe(false);
     expect(verify).toBeDefined();
     expect(Object.keys(verify?.inputSchema.properties ?? {}).sort()).toEqual(
       ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache"].sort()
@@ -348,6 +352,54 @@ describe("fixmap mcp server", () => {
     const plan = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
     expect(plan).toMatchObject({ migrationPlanVersion: 1, graphFingerprint: graph.version.fingerprint });
     expect(plan.phases.map((phase: { stepIds: string[] }) => phase.stepIds)).toEqual([["expand"], ["contract"]]);
+  });
+
+  it("drafts review-only reverse documentation through MCP", async () => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_reverse_docs",
+      arguments: {
+        input: {
+          reverseDocumentationInputVersion: 1,
+          repo: { files: [
+            { path: "src/auth.ts", extension: ".ts", sizeBytes: 10, isSource: true, isTest: false, kind: "code", textSample: "auth", contentFingerprint: "git:auth" },
+            { path: "src/session.ts", extension: ".ts", sizeBytes: 10, isSource: true, isTest: false, kind: "code", textSample: "session", contentFingerprint: "git:session" }
+          ] },
+          architecture: {
+            architectureSnapshotVersion: 1,
+            fingerprint: "architecture:abc",
+            sourceFingerprint: "repo:abc",
+            edges: [{ from: "src/session.ts", to: "src/auth.ts" }],
+            cycles: [],
+            coupling: [
+              { path: "src/auth.ts", incoming: 1, outgoing: 0, total: 1 },
+              { path: "src/session.ts", incoming: 0, outgoing: 1, total: 1 }
+            ],
+            boundaryViolations: [],
+            truncated: { files: 0, edges: 0 }
+          },
+          decisions: [],
+          targets: [{
+            id: "auth-module",
+            title: "Authentication module",
+            kind: "module",
+            paths: ["src/auth.ts", "src/session.ts"],
+            requestedPath: "docs/generated/auth.md"
+          }]
+        },
+        format: "json"
+      }
+    });
+
+    expect(result.isError).toBeFalsy();
+    const drafts = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+    expect(drafts[0]).toMatchObject({
+      reverseDocumentationVersion: 1,
+      reviewRequired: true,
+      writeAuthorized: false,
+      overwriteAuthorized: false,
+      destination: { status: "available" }
+    });
   });
 
   it("compares two reports through MCP", async () => {

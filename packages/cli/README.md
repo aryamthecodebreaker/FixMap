@@ -112,6 +112,14 @@ fixmap migrate --input migration.json --format markdown
 
 See the repository's checked-in `examples/migration-plan/migration.json` for the versioned input shape. Migration planning never executes commands, edits source, or authorizes rollout.
 
+Draft review-only module or architecture documentation from exact file fingerprints, an architecture snapshot, authored decisions, and explicit targets:
+
+```bash
+fixmap reverse-docs --input examples/reverse-documentation/input.json --format markdown
+```
+
+The drafts separate observations, inferences, unknowns, and provenance. Requested destinations remain advisory; the command never writes or overwrites repository documentation.
+
 Public GitHub issue, pull request, and repository URL modes are available in the CLI and MCP server for issue-only analysis. FixMap fetches task context anonymously, shallow-clones the default branch into an isolated temporary directory, disables credentials and repository execution surfaces, and removes the checkout before returning. Clone locally to use `--diff`, `--base`, `--head`, or working-tree inputs.
 
 For long task text, use `--issue-file task.md`, pipe it directly to `fixmap plan`, or use explicit stdin with `--issue-file -` / `--issue -`. A leading `@` in `--issue` is ordinary task text; only the explicit file flag reads from disk. A one-off `npx -y @aryam/fixmap@latest ...` run is also available, but npm may choose an existing project-local FixMap first. Run `fixmap doctor`, treat its printed running version as authoritative, and update or remove a stale install. For a reproducible clean test, install the exact version into an isolated npm prefix and invoke that prefix's `fixmap` shim directly; the repository README includes complete PowerShell and POSIX commands.
@@ -124,6 +132,7 @@ For long task text, use `--issue-file task.md`, pipe it directly to `fixmap plan
 - **Cross-repository workspace** — use `fixmap workspace --config <file> --seed <repository-id>` to resolve local Node, Python, and Maven package providers and trace downstream consumers with versioned identity, manifest, import, and submodule evidence.
 - **Repository Q&A** — use `fixmap ask --report <plan.json> --question <text>` to answer structural context, impact, test, risk, policy, ADR, and annotation questions from bounded report evidence with citations and explicit unknowns.
 - **Migration planner** — use `fixmap migrate --input <migration.json>` to validate and render dependency phases, blast radius, compatibility, verification, and rollback without executing or applying the plan.
+- **Reverse documentation** — use `fixmap reverse-docs --input <reverse-docs.json>` to create review-only module or architecture drafts from exact structural evidence without writing the requested destination.
 - **Explain** — use `--explain <path>` to distinguish ranked, below-cutoff, tie-truncated, excluded, and not-scanned paths.
 - **Compare** — use `--compare <report.json>` to measure how a refined task changed ranks, scores, confidence, and grounding.
 - **Verify** — compare a saved plan with the completed diff or working tree and recalculate impact around the files actually changed; errors fail by default and `--fail-on warning` provides an opt-in strict CI gate without pretending FixMap ran tests or proved correctness.
@@ -137,14 +146,14 @@ For long task text, use `--issue-file task.md`, pipe it directly to `fixmap plan
 - **Opt-in local hybrid retrieval** — `--semantic-model <dir>` fuses structural, BM25, and cosine ranks while retaining each signal and model provenance. The model must already exist locally; FixMap forces local-files-only loading, persists model-isolated vectors outside the repository, and never uploads source. FixMap does not bundle the optional Transformers.js runtime, so install a compatible version in the host only after auditing its dependency tree.
 - **Artifact isolation** — current issue, comparison, verification, and output files are removed from ranking, change detection, and cache state, so a saved plan cannot recommend or invalidate itself.
 - **Doctor** — report the running version, resolved binary, global/PATH shadows, Node compatibility, and an optionally requested npm version.
-- **MCP** — expose Plan, Context, Graph, Workspace, Ask, Migrate, Explain, Compare, Verify, and Doctor as ten local stdio tools.
+- **MCP** — expose Plan, Context, Graph, Workspace, Ask, Migrate, Reverse Docs, Explain, Compare, Verify, and Doctor as eleven local stdio tools.
 - **Slash-command discovery** — `fixmap setup` previews without writes, `fixmap setup --agent all` installs `/fixmap`, and `fixmap features` prints the same complete catalog in Markdown or JSON.
 - **Safe repository handling** — public repositories use isolated temporary checkouts with credentials, hooks, filters, and submodule recursion disabled. Local source is read without installing dependencies or running repository scripts.
 - **Human, agent, and machine output** — Markdown is the default; `--format agent` is a compact handoff, and JSON reports carry `reportVersion: 1` with the documented additive compatibility policy.
 
 ## MCP server
 
-FixMap ships ten Model Context Protocol tools: `fixmap_plan`, `fixmap_context`, `fixmap_graph`, `fixmap_workspace`, `fixmap_ask`, `fixmap_migrate`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor`. Plan, Context, Graph, Workspace, Explain, and Verify accept `noCache: true` when an agent needs a fresh repository scan rather than an exact-state cache hit.
+FixMap ships eleven Model Context Protocol tools: `fixmap_plan`, `fixmap_context`, `fixmap_graph`, `fixmap_workspace`, `fixmap_ask`, `fixmap_migrate`, `fixmap_reverse_docs`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor`. Plan, Context, Graph, Workspace, Explain, and Verify accept `noCache: true` when an agent needs a fresh repository scan rather than an exact-state cache hit.
 
 Context budgets use a deterministic estimate of one token per four UTF-8 bytes of source. Metadata does not consume that source budget. Scanner sample limits are reported per snippet with `sourceTruncated`, so consumers can distinguish a complete file from a bounded sample.
 
@@ -176,6 +185,7 @@ fixmap graph           Export the Impact Graph as Mermaid or JSON
 fixmap workspace       Map package dependencies and impact across local repositories
 fixmap ask             Answer report-only structural questions with citations
 fixmap migrate         Build a dependency-ordered, review-only migration plan
+fixmap reverse-docs    Draft review-only documentation from exact structural evidence
 fixmap verify          Compare a saved plan with the diff that followed
 fixmap benchmark       Backtest BM25, FixMap, and Impact Graph on local Git history
 fixmap watch           Recheck working-tree drift and impact whenever edits change

@@ -105,6 +105,7 @@ Usage:
   fixmap workspace --config .fixmap/workspace.json --seed auth --format json
   fixmap ask --report plan.json --question "Which tests should I run?"
   fixmap migrate --input migration.json --format markdown
+  fixmap reverse-docs --input reverse-docs.json --format markdown
   fixmap watch --report plan.json --repo .
   fixmap annotate src/auth/token.ts --note "Do not refactor; external contract"
   fixmap features
@@ -122,6 +123,7 @@ Commands:
   workspace           Map package dependencies and impact across local repositories
   ask                 Answer structural questions from a saved report with citations
   migrate             Build a dependency-ordered, review-only migration plan
+  reverse-docs        Draft review-only documentation from exact structural evidence
   watch               Recheck working-tree drift and impact whenever edits change
   annotate            Attach reviewable tribal knowledge to files, symbols, services, or contracts
   features            List every FixMap capability and its command
@@ -470,6 +472,15 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   if (args[0] === "migrate") {
     const { runMigrationCommand } = await import("./migration-command.js");
     return runMigrationCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "reverse-docs") {
+    const { runReverseDocsCommand } = await import("./reverse-docs-command.js");
+    return runReverseDocsCommand(args.slice(1), {
       stdout,
       stderr,
       ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})

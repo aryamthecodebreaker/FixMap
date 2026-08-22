@@ -7,6 +7,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import {
   answerFixMapQuestion,
   buildMigrationPlan,
+  draftReverseDocumentation,
   compareReports,
   buildFixMapGraph,
   explainFile,
@@ -30,6 +31,7 @@ import { clarifyMissingPath } from "./explain-path.js";
 import { analyzeRepository, contextFromAnalysis } from "./analysis-source.js";
 import { renderAskMarkdown } from "./ask-command.js";
 import { parseMigrationInput, renderMigrationPlanMarkdown } from "./migration-command.js";
+import { parseReverseDocsInput, renderReverseDocsMarkdown } from "./reverse-docs-command.js";
 import { runWorkspaceCommand } from "./workspace-command.js";
 import {
   buildReportForRepository,
@@ -297,6 +299,26 @@ const MIGRATION_TOOL = {
   }
 };
 
+const REVERSE_DOCS_TOOL = {
+  name: "fixmap_reverse_docs",
+  title: "FixMap reverse docs",
+  description:
+    "Build deterministic, review-only module or architecture documentation drafts from exact file fingerprints, structural edges, and authored decisions. " +
+    "Observations, inferences, and unknowns remain separate; this tool never writes or overwrites repository files.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      input: {
+        description: "Version-1 reverse-documentation input object or path to a local JSON input file",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    required: ["input"],
+    additionalProperties: false
+  }
+};
+
 const VERIFY_TOOL = {
   name: "fixmap_verify",
   title: "FixMap verify",
@@ -366,7 +388,7 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -491,6 +513,39 @@ export function createFixMapMcpServer(
           content: [{
             type: "text",
             text: format.value === "json" ? `${JSON.stringify(plan, null, 2)}\n` : renderMigrationPlanMarkdown(plan)
+          }]
+        };
+      } catch (error) {
+        const message = typeof record.input === "string"
+          ? describeInputReadError(record.input, error)
+          : error instanceof Error ? error.message : String(error);
+        return { isError: true, content: [{ type: "text", text: message }] };
+      }
+    }
+    if (request.params.name === REVERSE_DOCS_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["input", "format"].includes(key));
+      if (unknown.length > 0) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }]
+        };
+      }
+      if (record?.input === undefined) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "input" is required and must be a reverse-documentation object or local JSON path.' }] };
+      }
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      try {
+        const raw: unknown = typeof record.input === "string"
+          ? JSON.parse(readDecodedTextFile(record.input))
+          : record.input;
+        const input = parseReverseDocsInput(raw);
+        const drafts = draftReverseDocumentation(input.repo, input.architecture, input.decisions, input.targets);
+        return {
+          content: [{
+            type: "text",
+            text: format.value === "json" ? `${JSON.stringify(drafts, null, 2)}\n` : renderReverseDocsMarkdown(drafts)
           }]
         };
       } catch (error) {
