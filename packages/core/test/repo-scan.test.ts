@@ -517,6 +517,13 @@ describe("scanRepo", () => {
       // An unprivileged Windows session cannot create symlinks. The Linux CI run covers it.
       return;
     }
+    // Keep the alias and real target more than one scanner I/O batch apart. The concurrent
+    // preparation stage must still reduce in Git order and replace the early alias with the
+    // canonical path deterministically.
+    await mkdir(join(root, "middle"), { recursive: true });
+    await Promise.all(Array.from({ length: 40 }, (_, index) =>
+      writeFile(join(root, "middle", `filler-${String(index).padStart(2, "0")}.ts`), `export const filler${index} = ${index};\n`)
+    ));
     await exec("git", ["init", "-b", "main"], { cwd: root });
     await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
     await exec("git", ["config", "user.name", "Test User"], { cwd: root });
@@ -525,7 +532,11 @@ describe("scanRepo", () => {
 
     const repo = await scanRepo({ repoRoot: root });
 
-    expect(repo.files.map((file) => file.path)).toEqual(["real-src/reset.ts"]);
+    expect(repo.files.filter((file) => file.path.endsWith("reset.ts")).map((file) => file.path))
+      .toEqual(["real-src/reset.ts"]);
+    expect(repo.files.map((file) => file.path)).toEqual(
+      repo.files.map((file) => file.path).slice().sort((left, right) => left.localeCompare(right))
+    );
     const diagnostic = repo.diagnostics.find((entry) => entry.code === "duplicate-real-path");
     expect(diagnostic?.message).toContain("link.ts -> real-src/reset.ts");
   });

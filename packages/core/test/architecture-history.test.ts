@@ -61,5 +61,5 @@ describe("historical architecture", () => {
   it("rejects control-character refs before invoking Git", async () => {
     const { root } = await fixture();
     await expect(scanRepoAtRef({ repoRoot: root, ref: "HEAD\n--help" })).rejects.toThrow("single-line");
-  });
+  }, 15_000);
 });

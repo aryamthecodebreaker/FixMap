@@ -49,6 +49,10 @@ const TEST_PATTERNS = [
 const MAX_TEXT_SAMPLE_BYTES = 64_000;
 const MAX_DIFF_TEXT_CHARS = 200_000;
 const MAX_SCANNED_FILES = 25_000;
+// Metadata reads, bounded content samples, and realpath resolution are independent per file.
+// Running a small batch together removes the dominant cold-scan latency on large Windows
+// checkouts without opening an unbounded number of file handles.
+const TRACKED_SCAN_IO_CONCURRENCY = 32;
 const GIT_MAX_BUFFER = 10 * 1024 * 1024;
 const GIT_HISTORY_MAX_BUFFER = 24 * 1024 * 1024;
 const MAX_HISTORY_COMMITS = 1_000;
@@ -651,6 +655,17 @@ type BuiltFiles = {
   refreshed: number;
 };
 
+type PreparedTrackedPath =
+  | { index: number; relativePath: string; status: "ignored" | "git-link" }
+  | {
+    index: number;
+    relativePath: string;
+    status: "scanned";
+    fingerprint: string | undefined;
+    reused: boolean;
+    scanned: ScannedFile;
+  };
+
 async function buildFilesFromPaths(
   root: string,
   paths: string[],
@@ -678,22 +693,13 @@ async function buildFilesFromPaths(
   // every ordinary file look like a symlink.
   const realRoot = await resolveRealPath(root);
 
-  for (const [index, rawPath] of paths.entries()) {
-    if (results.length >= MAX_SCANNED_FILES) {
-      // Git handed us the whole tracked list, so the remainder is known exactly.
-      // Saying which directories went unread lets a reader judge whether the
-      // truncation touched the code their task is about.
-      reportScanLimit(diagnostics, paths.slice(index).map(normalizePath));
-      break;
-    }
-
+  const preparePath = async (rawPath: string, index: number): Promise<PreparedTrackedPath> => {
     const relativePath = normalizePath(rawPath);
     if (isInAlwaysIgnoredDir(relativePath)) {
-      continue;
+      return { index, relativePath, status: "ignored" };
     }
     if (knownGitLinks.has(relativePath)) {
-      gitLinks.push(relativePath);
-      continue;
+      return { index, relativePath, status: "git-link" };
     }
 
     const absolutePath = join(root, rawPath);
@@ -701,44 +707,73 @@ async function buildFilesFromPaths(
     const prior = fingerprint ? previous?.get(relativePath) : undefined;
     const reused = prior && prior.fingerprint === fingerprint ? prior.file : undefined;
     const scanned = await toRepoFile(absolutePath, relativePath, fingerprint, reused);
-    if (scanned.status === "absent") {
-      absent.push(relativePath);
-      continue;
-    }
-    if (scanned.status === "not-a-file") {
-      gitLinks.push(relativePath);
-      continue;
-    }
-    if (scanned.status !== "ok") {
-      continue;
-    }
+    return { index, relativePath, status: "scanned", fingerprint, reused: reused !== undefined, scanned };
+  };
 
-    const seenIndex = seenRealPaths.get(scanned.realPath);
-    if (seenIndex !== undefined) {
-      const seenFile = results[seenIndex]!;
-      // Looking only at the leaf with lstat misses Windows junctions, where the linked
-      // object is an ancestor directory. Comparing literal and resolved paths covers both.
-      const seenIsAlias = !sameFilesystemPath(resolve(realRoot, seenFile.path), scanned.realPath);
-      const currentIsAlias = !sameFilesystemPath(resolve(realRoot, relativePath), scanned.realPath);
-      if (seenIsAlias && !currentIsAlias) {
-        linked.push({ path: seenFile.path, target: relativePath });
-        indexedByPath.delete(seenFile.path);
-        reusedPaths.delete(seenFile.path);
-        results[seenIndex] = scanned.file;
-        if (fingerprint) {
-          indexedByPath.set(relativePath, { path: relativePath, fingerprint, file: scanned.file });
-          if (reused) reusedPaths.add(relativePath);
-        }
-      } else {
-        linked.push({ path: relativePath, target: seenFile.path });
+  let limitReached = false;
+  for (let start = 0; start < paths.length && !limitReached; start += TRACKED_SCAN_IO_CONCURRENCY) {
+    const batch = paths.slice(start, start + TRACKED_SCAN_IO_CONCURRENCY);
+    const prepared = await Promise.all(batch.map((rawPath, offset) => preparePath(rawPath, start + offset)));
+
+    // Reduce in the exact order Git supplied. Alias selection, the scan budget, and every
+    // diagnostic therefore remain stable even though the filesystem work above overlaps.
+    for (const candidate of prepared) {
+      if (results.length >= MAX_SCANNED_FILES) {
+        // Git handed us the whole tracked list, so the remainder is known exactly.
+        // Saying which directories went unread lets a reader judge whether the
+        // truncation touched the code their task is about.
+        reportScanLimit(diagnostics, paths.slice(candidate.index).map(normalizePath));
+        limitReached = true;
+        break;
       }
-      continue;
-    }
-    seenRealPaths.set(scanned.realPath, results.length);
-    results.push(scanned.file);
-    if (fingerprint) {
-      indexedByPath.set(relativePath, { path: relativePath, fingerprint, file: scanned.file });
-      if (reused) reusedPaths.add(relativePath);
+
+      if (candidate.status === "ignored") continue;
+      if (candidate.status === "git-link") {
+        gitLinks.push(candidate.relativePath);
+        continue;
+      }
+      if (candidate.status !== "scanned") continue;
+
+      const { relativePath, fingerprint, reused, scanned } = candidate;
+      if (scanned.status === "absent") {
+        absent.push(relativePath);
+        continue;
+      }
+      if (scanned.status === "not-a-file") {
+        gitLinks.push(relativePath);
+        continue;
+      }
+      if (scanned.status !== "ok") {
+        continue;
+      }
+
+      const seenIndex = seenRealPaths.get(scanned.realPath);
+      if (seenIndex !== undefined) {
+        const seenFile = results[seenIndex]!;
+        // Looking only at the leaf with lstat misses Windows junctions, where the linked
+        // object is an ancestor directory. Comparing literal and resolved paths covers both.
+        const seenIsAlias = !sameFilesystemPath(resolve(realRoot, seenFile.path), scanned.realPath);
+        const currentIsAlias = !sameFilesystemPath(resolve(realRoot, relativePath), scanned.realPath);
+        if (seenIsAlias && !currentIsAlias) {
+          linked.push({ path: seenFile.path, target: relativePath });
+          indexedByPath.delete(seenFile.path);
+          reusedPaths.delete(seenFile.path);
+          results[seenIndex] = scanned.file;
+          if (fingerprint) {
+            indexedByPath.set(relativePath, { path: relativePath, fingerprint, file: scanned.file });
+            if (reused) reusedPaths.add(relativePath);
+          }
+        } else {
+          linked.push({ path: relativePath, target: seenFile.path });
+        }
+        continue;
+      }
+      seenRealPaths.set(scanned.realPath, results.length);
+      results.push(scanned.file);
+      if (fingerprint) {
+        indexedByPath.set(relativePath, { path: relativePath, fingerprint, file: scanned.file });
+        if (reused) reusedPaths.add(relativePath);
+      }
     }
   }
 
