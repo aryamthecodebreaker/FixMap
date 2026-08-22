@@ -191,13 +191,13 @@ describe("fixmap mcp server", () => {
     expect(report.contextFiles).toHaveLength(1);
   });
 
-  it("advertises the complete plan, context, graph, workspace, ask, migrate, reverse-docs, history, explain, compare, verify, and doctor workflow", async () => {
+  it("advertises the complete plan, context, graph, workspace, ask, migrate, reverse-docs, history, supply-chain, explain, compare, verify, and doctor workflow", async () => {
     const client = await connectClient();
 
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_supply_chain", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
@@ -235,6 +235,10 @@ describe("fixmap mcp server", () => {
     expect(Object.keys(history?.inputSchema.properties ?? {}).sort()).toEqual(["repo", "from", "to", "couplingDelta", "applyPolicy", "format"].sort());
     expect(history?.inputSchema.required).toEqual(["from", "to"]);
     expect(history?.inputSchema.additionalProperties).toBe(false);
+    const supplyChain = tools.tools.find((tool) => tool.name === "fixmap_supply_chain");
+    expect(Object.keys(supplyChain?.inputSchema.properties ?? {}).sort()).toEqual(["input", "format"].sort());
+    expect(supplyChain?.inputSchema.required).toEqual(["input"]);
+    expect(supplyChain?.inputSchema.additionalProperties).toBe(false);
     expect(verify).toBeDefined();
     expect(Object.keys(verify?.inputSchema.properties ?? {}).sort()).toEqual(
       ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache"].sort()
@@ -437,6 +441,30 @@ describe("fixmap mcp server", () => {
     expect(comparison.to.commit).toBe(after);
     expect(comparison.drift.addedEdges).toContainEqual({ from: "a.ts", to: "b.ts" });
   }, 20_000);
+
+  it("imports normalized supply-chain evidence through MCP", async () => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_supply_chain",
+      arguments: {
+        input: {
+          supplyChainBundleVersion: 1,
+          generatedAt: "2026-08-21T12:00:00Z",
+          source: { tool: "external-scanner", toolVersion: "4.2.0", documentFingerprint: `sha256:${"a".repeat(64)}` },
+          components: [{ id: "npm-example-1", name: "example", version: "1.0.0", licenses: ["MIT"], paths: ["package-lock.json"] }],
+          findings: [{
+            id: "scanner-advisory-1", kind: "vulnerability", severity: "high", confidence: "high",
+            componentId: "npm-example-1", summary: "External scanner matched an advisory.", advisoryId: "EXTERNAL-1"
+          }]
+        },
+        format: "json"
+      }
+    });
+    expect(result.isError).toBeFalsy();
+    const report = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+    expect(report.claims).toMatchObject({ externalEvidenceOnly: true, fixMapExecutedScanner: false, remediationAuthorized: false });
+    expect(report.evidence.items).toContainEqual(expect.objectContaining({ id: "fixmap-supply-chain:finding:scanner-advisory-1" }));
+  });
 
   it("compares two reports through MCP", async () => {
     const client = await connectClient();

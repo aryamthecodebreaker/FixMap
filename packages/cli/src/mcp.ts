@@ -34,6 +34,7 @@ import { renderAskMarkdown } from "./ask-command.js";
 import { parseMigrationInput, renderMigrationPlanMarkdown } from "./migration-command.js";
 import { parseReverseDocsInput, renderReverseDocsMarkdown } from "./reverse-docs-command.js";
 import { renderHistoryMarkdown } from "./history-command.js";
+import { buildSupplyChainReport, renderSupplyChainMarkdown } from "./supply-chain-command.js";
 import { runWorkspaceCommand } from "./workspace-command.js";
 import {
   buildReportForRepository,
@@ -342,6 +343,26 @@ const HISTORY_TOOL = {
   }
 };
 
+const SUPPLY_CHAIN_TOOL = {
+  name: "fixmap_supply_chain",
+  title: "FixMap supply chain",
+  description:
+    "Validate and render a version-1 normalized external scanner or SBOM bundle with package-aware vulnerability, outdated-version, and license-policy evidence. " +
+    "FixMap never fetches advisory data, maintains no vulnerability corpus, executes no scanner, and authorizes no remediation.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      input: {
+        description: "Version-1 supply-chain bundle object or path to a local JSON file",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    required: ["input"],
+    additionalProperties: false
+  }
+};
+
 const VERIFY_TOOL = {
   name: "fixmap_verify",
   title: "FixMap verify",
@@ -411,7 +432,7 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, SUPPLY_CHAIN_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -614,6 +635,28 @@ export function createFixMapMcpServer(
         return { isError: true, content: [{ type: "text", text: message.includes("Could not resolve Git ref")
           ? `Could not resolve one of the requested Git refs in "${repoRoot}". Confirm both refs exist and the path is a Git checkout.`
           : `Could not compare historical architecture in "${repoRoot}".` }] };
+      }
+    }
+    if (request.params.name === SUPPLY_CHAIN_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["input", "format"].includes(key));
+      if (unknown.length > 0) {
+        return { isError: true, content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }] };
+      }
+      if (record?.input === undefined) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "input" is required and must be a supply-chain object or local JSON path.' }] };
+      }
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      try {
+        const raw: unknown = typeof record.input === "string" ? JSON.parse(readDecodedTextFile(record.input)) : record.input;
+        const report = await buildSupplyChainReport(raw);
+        return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(report, null, 2)}\n` : renderSupplyChainMarkdown(report) }] };
+      } catch (error) {
+        const message = typeof record.input === "string"
+          ? describeInputReadError(record.input, error)
+          : error instanceof Error ? error.message : String(error);
+        return { isError: true, content: [{ type: "text", text: message }] };
       }
     }
     if (request.params.name === COMPARE_TOOL.name) {

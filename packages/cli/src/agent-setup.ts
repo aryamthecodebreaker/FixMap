@@ -15,12 +15,13 @@ export const FIXMAP_FEATURES = [
   { name: "Migration planning", command: "fixmap migrate --input <migration.json>", detail: "Validate an exact identity graph and explicit steps, then order compatibility windows, tests, rollback points, and blast radius without applying changes." },
   { name: "Reverse documentation", command: "fixmap reverse-docs --input <reverse-docs.json>", detail: "Draft review-only module or architecture Markdown from exact file fingerprints, structural edges, and authored decisions without writing repository files." },
   { name: "Architecture history", command: "fixmap history --repo . --from <ref> --to <ref>", detail: "Compare exact committed architecture snapshots without checking out either ref or changing the worktree." },
+  { name: "Supply-chain evidence", command: "fixmap supply-chain --input <bundle.json>", detail: "Validate normalized external scanner or SBOM evidence with exact tool, database, document, advisory, version, and license provenance." },
   { name: "Explain", command: "fixmap plan --explain <path>", detail: "Show whether a path ranked, tied below the limit, was excluded, or was never scanned." },
   { name: "Compare", command: "fixmap plan --compare <report.json>", detail: "Compare a refined task and current plan with an earlier JSON report." },
   { name: "Verify", command: "fixmap verify --report <report.json>", detail: "Compare the completed diff or working tree with the saved plan; add --fail-on warning for a strict CI gate." },
   { name: "Validate", command: "fixmap validate <report.json>", detail: "Check a saved report against FixMap's structural compatibility contract." },
   { name: "Doctor", command: "fixmap doctor", detail: "Diagnose stale local, global, PATH, and npx install shadows." },
-  { name: "MCP", command: "fixmap mcp", detail: "Expose Plan, Context, Graph, Workspace, Ask, Migrate, Reverse Docs, History, Explain, Compare, Verify, and Doctor over local stdio." },
+  { name: "MCP", command: "fixmap mcp", detail: "Expose Plan, Context, Graph, Workspace, Ask, Migrate, Reverse Docs, History, Supply Chain, Explain, Compare, Verify, and Doctor over local stdio." },
   { name: "Public tasks", command: "fixmap owner/repository#123", detail: "Fetch public GitHub issue or pull-request text anonymously and scan its repository in an isolated checkout." },
   { name: "Repository sources", command: "--repo <path|url> --ref <branch|tag>", detail: "Map a local checkout, file URL, directory archive, or a named branch or tag from a public GitHub repository." },
   { name: "Task files", command: "--issue-file <file|->", detail: "Read long task text from UTF-8, UTF-16, or stdin, including BOM-less UTF-16 from common Windows tools." },
@@ -61,7 +62,7 @@ When this command is invoked without a task, run \`fixmap features\` and present
 When the invocation includes a task, issue URL, diff, file path, or workflow name:
 
 1. Run \`fixmap features\` if the requested capability is ambiguous.
-2. Use the matching local command: Plan, Context, Graph, Workspace, Ask, Migrate, Reverse Docs, History, Explain, Compare, Verify, Watch, Annotate, Benchmark, Validate, Doctor, or MCP.
+2. Use the matching local command: Plan, Context, Graph, Workspace, Ask, Migrate, Reverse Docs, History, Supply Chain, Explain, Compare, Verify, Watch, Annotate, Benchmark, Validate, Doctor, or MCP.
 3. Read the Impact Graph as files to inspect, not a claim that each file must change. Preserve each relationship's evidence.
 4. Prefer \`--format agent\` when context is constrained, \`fixmap watch\` while an agent is editing, and \`fixmap benchmark\` when the user asks whether FixMap works on this repository.
 5. Preserve the user's repository and never imply that FixMap ran tests or proved correctness; it produces a starting map and verification findings.
