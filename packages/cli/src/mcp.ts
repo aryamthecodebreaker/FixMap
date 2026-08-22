@@ -9,6 +9,7 @@ import {
   buildMigrationPlan,
   draftReverseDocumentation,
   compareReports,
+  compareArchitectureRefs,
   buildFixMapGraph,
   explainFile,
   renderComparisonMarkdown,
@@ -32,6 +33,7 @@ import { analyzeRepository, contextFromAnalysis } from "./analysis-source.js";
 import { renderAskMarkdown } from "./ask-command.js";
 import { parseMigrationInput, renderMigrationPlanMarkdown } from "./migration-command.js";
 import { parseReverseDocsInput, renderReverseDocsMarkdown } from "./reverse-docs-command.js";
+import { renderHistoryMarkdown } from "./history-command.js";
 import { runWorkspaceCommand } from "./workspace-command.js";
 import {
   buildReportForRepository,
@@ -319,6 +321,27 @@ const REVERSE_DOCS_TOOL = {
   }
 };
 
+const HISTORY_TOOL = {
+  name: "fixmap_history",
+  title: "FixMap history",
+  description:
+    "Compare architecture at two exact committed Git refs without checking out either ref or changing the worktree. " +
+    "Returns immutable commit IDs plus added/removed edges, cycle and boundary drift, and coupling growth.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      repo: { type: "string", description: "Local Git checkout path (defaults to the MCP server repository)" },
+      from: { type: "string", description: "Earlier committed Git ref" },
+      to: { type: "string", description: "Later committed Git ref" },
+      couplingDelta: { type: "integer", minimum: 1, maximum: 10000, description: "Minimum coupling growth to report (default 2)" },
+      applyPolicy: { type: "boolean", description: "Apply the repository architecture policy when present (default true)" },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    required: ["from", "to"],
+    additionalProperties: false
+  }
+};
+
 const VERIFY_TOOL = {
   name: "fixmap_verify",
   title: "FixMap verify",
@@ -388,7 +411,7 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -553,6 +576,44 @@ export function createFixMapMcpServer(
           ? describeInputReadError(record.input, error)
           : error instanceof Error ? error.message : String(error);
         return { isError: true, content: [{ type: "text", text: message }] };
+      }
+    }
+    if (request.params.name === HISTORY_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["repo", "from", "to", "couplingDelta", "applyPolicy", "format"].includes(key));
+      if (unknown.length > 0) {
+        return { isError: true, content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }] };
+      }
+      if (typeof record?.from !== "string" || !record.from.trim() || /[\0\r\n]/.test(record.from) || record.from.length > 500 ||
+        typeof record.to !== "string" || !record.to.trim() || /[\0\r\n]/.test(record.to) || record.to.length > 500) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "from" and "to" are required bounded single-line Git refs.' }] };
+      }
+      if (record.repo !== undefined && (typeof record.repo !== "string" || !record.repo.trim() || record.repo.includes("\0"))) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "repo" must be a non-empty local path.' }] };
+      }
+      if (record.couplingDelta !== undefined && (!Number.isSafeInteger(record.couplingDelta) || Number(record.couplingDelta) < 1 || Number(record.couplingDelta) > 10_000)) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "couplingDelta" must be an integer from 1 to 10000.' }] };
+      }
+      if (record.applyPolicy !== undefined && typeof record.applyPolicy !== "boolean") {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "applyPolicy" must be a boolean.' }] };
+      }
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      const repoRoot = resolve(typeof record.repo === "string" ? record.repo.trim() : defaultRepo ?? process.cwd());
+      try {
+        const result = await compareArchitectureRefs({
+          repoRoot,
+          fromRef: record.from.trim(),
+          toRef: record.to.trim(),
+          couplingDelta: record.couplingDelta === undefined ? 2 : Number(record.couplingDelta),
+          applyRepositoryPolicy: record.applyPolicy === undefined ? true : record.applyPolicy
+        });
+        return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(result, null, 2)}\n` : renderHistoryMarkdown(result) }] };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return { isError: true, content: [{ type: "text", text: message.includes("Could not resolve Git ref")
+          ? `Could not resolve one of the requested Git refs in "${repoRoot}". Confirm both refs exist and the path is a Git checkout.`
+          : `Could not compare historical architecture in "${repoRoot}".` }] };
       }
     }
     if (request.params.name === COMPARE_TOOL.name) {

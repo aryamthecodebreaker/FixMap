@@ -141,6 +141,14 @@ fixmap reverse-docs --input examples/reverse-documentation/input.json
 
 The output separates observations, inferences, unknowns, and provenance. Requested destinations are advisory only; FixMap neither creates nor overwrites them.
 
+Compare architecture at two committed refs without checking either one out:
+
+```bash
+fixmap history --repo . --from v0.9.0 --to HEAD
+```
+
+The result records both immutable commit IDs and reports added or removed edges, cycle and policy drift, and coupling growth. It reads Git objects directly and leaves HEAD and the worktree untouched.
+
 Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked` when new files should count as changes, `--exclude` or `.fixmapignore` to focus the map, and `--no-cache` to force a fresh scan. `--semantic-model <dir>` explicitly opts into local hybrid retrieval using a model already on disk. Add `--fail-on warning` to Verify when advisory findings must fail CI. Run `fixmap --help` for the complete command reference.
 
 Map impact across local service repositories with a reviewed workspace config:
@@ -291,7 +299,7 @@ Architecture rules live in a reviewed `.fixmap/policy.json` file. Every rule has
 ### Agent and automation interfaces
 
 - `fixmap setup` installs `/fixmap` discovery for Claude Code, Cursor, GitHub Copilot prompt files, and the open Agent Skills layout; the no-argument command lists every FixMap workflow before making changes.
-- The MCP server exposes `fixmap_plan`, `fixmap_context`, `fixmap_graph`, `fixmap_workspace`, `fixmap_ask`, `fixmap_migrate`, `fixmap_reverse_docs`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor` over local stdio and is published in the official MCP Registry.
+- The MCP server exposes `fixmap_plan`, `fixmap_context`, `fixmap_graph`, `fixmap_workspace`, `fixmap_ask`, `fixmap_migrate`, `fixmap_reverse_docs`, `fixmap_history`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor` over local stdio and is published in the official MCP Registry.
 - The GitHub Action runs Plan or Verify on pull requests, appends within the job summary's remaining 1 MiB budget, bounds its report output and comment, and creates or updates one FixMap comment instead of posting duplicates.
 - The Action accepts explicit task input or pull-request context, uses the same report validator as the CLI and MCP server, and fails clearly when a requested diff cannot be resolved.
 - The homepage task mapper runs real Plan logic against the bundled `sample-api` repository and preserves the engine's uncertainty state instead of inventing fallback results.

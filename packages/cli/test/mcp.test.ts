@@ -44,6 +44,23 @@ async function createWorkspaceFixture(): Promise<string> {
   return config;
 }
 
+async function createHistoryFixture(): Promise<{ root: string; before: string; after: string }> {
+  const root = await mkdtemp(join(tmpdir(), "fixmap-mcp-history-"));
+  await exec("git", ["init", "--quiet"], { cwd: root });
+  await exec("git", ["config", "user.email", "fixmap@example.test"], { cwd: root });
+  await exec("git", ["config", "user.name", "FixMap Test"], { cwd: root });
+  await writeFile(join(root, "a.ts"), "export const a = true;\n");
+  await writeFile(join(root, "b.ts"), "export const b = true;\n");
+  await exec("git", ["add", "a.ts", "b.ts"], { cwd: root });
+  await exec("git", ["commit", "--quiet", "-m", "before"], { cwd: root });
+  const before = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+  await writeFile(join(root, "a.ts"), "import { b } from './b'; export const a = b;\n");
+  await exec("git", ["add", "a.ts"], { cwd: root });
+  await exec("git", ["commit", "--quiet", "-m", "after"], { cwd: root });
+  const after = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+  return { root, before, after };
+}
+
 async function connectClient(repositorySourceDependencies: RepositorySourceDependencies = {}) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const server = createFixMapMcpServer(repositorySourceDependencies);
@@ -174,13 +191,13 @@ describe("fixmap mcp server", () => {
     expect(report.contextFiles).toHaveLength(1);
   });
 
-  it("advertises the complete plan, context, graph, workspace, ask, migrate, reverse-docs, explain, compare, verify, and doctor workflow", async () => {
+  it("advertises the complete plan, context, graph, workspace, ask, migrate, reverse-docs, history, explain, compare, verify, and doctor workflow", async () => {
     const client = await connectClient();
 
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
@@ -214,6 +231,10 @@ describe("fixmap mcp server", () => {
     expect(Object.keys(reverseDocs?.inputSchema.properties ?? {}).sort()).toEqual(["input", "format"].sort());
     expect(reverseDocs?.inputSchema.required).toEqual(["input"]);
     expect(reverseDocs?.inputSchema.additionalProperties).toBe(false);
+    const history = tools.tools.find((tool) => tool.name === "fixmap_history");
+    expect(Object.keys(history?.inputSchema.properties ?? {}).sort()).toEqual(["repo", "from", "to", "couplingDelta", "applyPolicy", "format"].sort());
+    expect(history?.inputSchema.required).toEqual(["from", "to"]);
+    expect(history?.inputSchema.additionalProperties).toBe(false);
     expect(verify).toBeDefined();
     expect(Object.keys(verify?.inputSchema.properties ?? {}).sort()).toEqual(
       ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache"].sort()
@@ -401,6 +422,21 @@ describe("fixmap mcp server", () => {
       destination: { status: "available" }
     });
   });
+
+  it("compares committed architecture history through MCP without checkout", async () => {
+    const { root, before, after } = await createHistoryFixture();
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_history",
+      arguments: { repo: root, from: before, to: after, couplingDelta: 1, format: "json" }
+    });
+
+    expect(result.isError).toBeFalsy();
+    const comparison = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+    expect(comparison.from.commit).toBe(before);
+    expect(comparison.to.commit).toBe(after);
+    expect(comparison.drift.addedEdges).toContainEqual({ from: "a.ts", to: "b.ts" });
+  }, 20_000);
 
   it("compares two reports through MCP", async () => {
     const client = await connectClient();
