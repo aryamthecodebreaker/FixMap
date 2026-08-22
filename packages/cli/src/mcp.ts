@@ -8,6 +8,7 @@ import {
   answerFixMapQuestion,
   buildMigrationPlan,
   draftReverseDocumentation,
+  mapRuntimeEvidence,
   compareReports,
   compareArchitectureRefs,
   buildFixMapGraph,
@@ -35,6 +36,7 @@ import { parseMigrationInput, renderMigrationPlanMarkdown } from "./migration-co
 import { parseReverseDocsInput, renderReverseDocsMarkdown } from "./reverse-docs-command.js";
 import { renderHistoryMarkdown } from "./history-command.js";
 import { buildSupplyChainReport, renderSupplyChainMarkdown } from "./supply-chain-command.js";
+import { parseRuntimeInput, renderRuntimeMarkdown } from "./runtime-command.js";
 import { runWorkspaceCommand } from "./workspace-command.js";
 import {
   buildReportForRepository,
@@ -363,6 +365,26 @@ const SUPPLY_CHAIN_TOOL = {
   }
 };
 
+const RUNTIME_TOOL = {
+  name: "fixmap_runtime",
+  title: "FixMap runtime",
+  description:
+    "Map a redaction-reviewed OpenTelemetry, normalized APM, Speedscope, or pprof bundle only through explicit repository IDs, paths, and exact file fingerprints. " +
+    "Labels and symbols never establish identity; correlation never establishes causality.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      input: {
+        description: "Version-1 runtime input object or path containing bundle and exact repository snapshots",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    required: ["input"],
+    additionalProperties: false
+  }
+};
+
 const VERIFY_TOOL = {
   name: "fixmap_verify",
   title: "FixMap verify",
@@ -432,7 +454,7 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, SUPPLY_CHAIN_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -652,6 +674,25 @@ export function createFixMapMcpServer(
         const raw: unknown = typeof record.input === "string" ? JSON.parse(readDecodedTextFile(record.input)) : record.input;
         const report = await buildSupplyChainReport(raw);
         return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(report, null, 2)}\n` : renderSupplyChainMarkdown(report) }] };
+      } catch (error) {
+        const message = typeof record.input === "string"
+          ? describeInputReadError(record.input, error)
+          : error instanceof Error ? error.message : String(error);
+        return { isError: true, content: [{ type: "text", text: message }] };
+      }
+    }
+    if (request.params.name === RUNTIME_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["input", "format"].includes(key));
+      if (unknown.length > 0) return { isError: true, content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }] };
+      if (record?.input === undefined) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "input" is required and must be a runtime object or local JSON path.' }] };
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      try {
+        const raw: unknown = typeof record.input === "string" ? JSON.parse(readDecodedTextFile(record.input)) : record.input;
+        const input = parseRuntimeInput(raw);
+        const mapped = mapRuntimeEvidence(input.bundle, input.snapshots);
+        return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(mapped, null, 2)}\n` : renderRuntimeMarkdown(mapped) }] };
       } catch (error) {
         const message = typeof record.input === "string"
           ? describeInputReadError(record.input, error)

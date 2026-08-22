@@ -108,6 +108,7 @@ Usage:
   fixmap reverse-docs --input reverse-docs.json --format markdown
   fixmap history --repo . --from v0.9.0 --to HEAD
   fixmap supply-chain --input supply-chain.json
+  fixmap runtime --input runtime.json
   fixmap watch --report plan.json --repo .
   fixmap annotate src/auth/token.ts --note "Do not refactor; external contract"
   fixmap features
@@ -128,6 +129,7 @@ Commands:
   reverse-docs        Draft review-only documentation from exact structural evidence
   history             Compare architecture at two committed Git refs without checkout
   supply-chain        Import normalized external scanner and SBOM evidence
+  runtime             Map redaction-reviewed runtime evidence to exact files
   watch               Recheck working-tree drift and impact whenever edits change
   annotate            Attach reviewable tribal knowledge to files, symbols, services, or contracts
   features            List every FixMap capability and its command
@@ -503,6 +505,15 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   if (args[0] === "supply-chain") {
     const { runSupplyChainCommand } = await import("./supply-chain-command.js");
     return runSupplyChainCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "runtime") {
+    const { runRuntimeCommand } = await import("./runtime-command.js");
+    return runRuntimeCommand(args.slice(1), {
       stdout,
       stderr,
       ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})

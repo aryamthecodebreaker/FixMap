@@ -191,13 +191,13 @@ describe("fixmap mcp server", () => {
     expect(report.contextFiles).toHaveLength(1);
   });
 
-  it("advertises the complete plan, context, graph, workspace, ask, migrate, reverse-docs, history, supply-chain, explain, compare, verify, and doctor workflow", async () => {
+  it("advertises the complete plan, context, graph, workspace, ask, migrate, reverse-docs, history, supply-chain, runtime, explain, compare, verify, and doctor workflow", async () => {
     const client = await connectClient();
 
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_supply_chain", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
@@ -239,6 +239,10 @@ describe("fixmap mcp server", () => {
     expect(Object.keys(supplyChain?.inputSchema.properties ?? {}).sort()).toEqual(["input", "format"].sort());
     expect(supplyChain?.inputSchema.required).toEqual(["input"]);
     expect(supplyChain?.inputSchema.additionalProperties).toBe(false);
+    const runtime = tools.tools.find((tool) => tool.name === "fixmap_runtime");
+    expect(Object.keys(runtime?.inputSchema.properties ?? {}).sort()).toEqual(["input", "format"].sort());
+    expect(runtime?.inputSchema.required).toEqual(["input"]);
+    expect(runtime?.inputSchema.additionalProperties).toBe(false);
     expect(verify).toBeDefined();
     expect(Object.keys(verify?.inputSchema.properties ?? {}).sort()).toEqual(
       ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache"].sort()
@@ -464,6 +468,37 @@ describe("fixmap mcp server", () => {
     const report = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
     expect(report.claims).toMatchObject({ externalEvidenceOnly: true, fixMapExecutedScanner: false, remediationAuthorized: false });
     expect(report.evidence.items).toContainEqual(expect.objectContaining({ id: "fixmap-supply-chain:finding:scanner-advisory-1" }));
+  });
+
+  it("maps redaction-reviewed runtime evidence through MCP", async () => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_runtime",
+      arguments: {
+        input: {
+          runtimeInputVersion: 1,
+          bundle: {
+            runtimeEvidenceBundleVersion: 1,
+            source: {
+              format: "opentelemetry", tool: "otel-collector", version: "0.130.0", documentFingerprint: `sha256:${"a".repeat(64)}`,
+              capturedFrom: "2026-08-21T09:00:00Z", capturedTo: "2026-08-21T10:00:00Z", redactionReviewed: true,
+              redactionSummary: "Sensitive attributes removed before export."
+            },
+            records: [{
+              kind: "span", id: "span-1", traceId: "a".repeat(32), spanId: "b".repeat(16), name: "POST /login", serviceName: "auth",
+              startedAt: "2026-08-21T09:01:00Z", durationMs: 24.5, status: "ok",
+              code: { repositoryId: "repo:auth", path: "src/auth.ts", evidenceReference: "span.attr.code.filepath" }
+            }]
+          },
+          snapshots: [{ repositoryId: "repo:auth", files: [{ path: "src/auth.ts", contentFingerprint: "git:abc123" }] }]
+        },
+        format: "json"
+      }
+    });
+    expect(result.isError).toBeFalsy();
+    const mapped = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+    expect(mapped.observations[0].subject).toMatchObject({ repositoryId: "repo:auth", path: "src/auth.ts", contentFingerprint: "git:abc123" });
+    expect(mapped.claims.causalImpactInferred).toBe(false);
   });
 
   it("compares two reports through MCP", async () => {
