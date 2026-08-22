@@ -4114,6 +4114,7 @@ var TEST_PATTERNS = [
 var MAX_TEXT_SAMPLE_BYTES = 64e3;
 var MAX_DIFF_TEXT_CHARS = 2e5;
 var MAX_SCANNED_FILES = 25e3;
+var TRACKED_SCAN_IO_CONCURRENCY = 32;
 var GIT_MAX_BUFFER = 10 * 1024 * 1024;
 var GIT_HISTORY_MAX_BUFFER = 24 * 1024 * 1024;
 var MAX_HISTORY_COMMITS = 1e3;
@@ -4521,61 +4522,78 @@ async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* 
   const seenRealPaths = /* @__PURE__ */ new Map();
   const linked = [];
   const realRoot = await resolveRealPath(root);
-  for (const [index, rawPath] of paths.entries()) {
-    if (results.length >= MAX_SCANNED_FILES) {
-      reportScanLimit(diagnostics, paths.slice(index).map(normalizePath3));
-      break;
-    }
+  const preparePath = async (rawPath, index) => {
     const relativePath = normalizePath3(rawPath);
     if (isInAlwaysIgnoredDir(relativePath)) {
-      continue;
+      return { index, relativePath, status: "ignored" };
     }
     if (knownGitLinks.has(relativePath)) {
-      gitLinks.push(relativePath);
-      continue;
+      return { index, relativePath, status: "git-link" };
     }
     const absolutePath = join(root, rawPath);
     const fingerprint = fingerprints.get(relativePath) ?? await hashWorktreeFile(absolutePath);
     const prior = fingerprint ? previous?.get(relativePath) : void 0;
     const reused2 = prior && prior.fingerprint === fingerprint ? prior.file : void 0;
     const scanned = await toRepoFile(absolutePath, relativePath, fingerprint, reused2);
-    if (scanned.status === "absent") {
-      absent.push(relativePath);
-      continue;
-    }
-    if (scanned.status === "not-a-file") {
-      gitLinks.push(relativePath);
-      continue;
-    }
-    if (scanned.status !== "ok") {
-      continue;
-    }
-    const seenIndex = seenRealPaths.get(scanned.realPath);
-    if (seenIndex !== void 0) {
-      const seenFile = results[seenIndex];
-      const seenIsAlias = !sameFilesystemPath(resolve(realRoot, seenFile.path), scanned.realPath);
-      const currentIsAlias = !sameFilesystemPath(resolve(realRoot, relativePath), scanned.realPath);
-      if (seenIsAlias && !currentIsAlias) {
-        linked.push({ path: seenFile.path, target: relativePath });
-        indexedByPath.delete(seenFile.path);
-        reusedPaths.delete(seenFile.path);
-        results[seenIndex] = scanned.file;
-        if (fingerprint) {
-          indexedByPath.set(relativePath, { path: relativePath, fingerprint, file: scanned.file });
-          if (reused2)
-            reusedPaths.add(relativePath);
-        }
-      } else {
-        linked.push({ path: relativePath, target: seenFile.path });
+    return { index, relativePath, status: "scanned", fingerprint, reused: reused2 !== void 0, scanned };
+  };
+  let limitReached = false;
+  for (let start = 0; start < paths.length && !limitReached; start += TRACKED_SCAN_IO_CONCURRENCY) {
+    const batch = paths.slice(start, start + TRACKED_SCAN_IO_CONCURRENCY);
+    const prepared = await Promise.all(batch.map((rawPath, offset) => preparePath(rawPath, start + offset)));
+    for (const candidate of prepared) {
+      if (results.length >= MAX_SCANNED_FILES) {
+        reportScanLimit(diagnostics, paths.slice(candidate.index).map(normalizePath3));
+        limitReached = true;
+        break;
       }
-      continue;
-    }
-    seenRealPaths.set(scanned.realPath, results.length);
-    results.push(scanned.file);
-    if (fingerprint) {
-      indexedByPath.set(relativePath, { path: relativePath, fingerprint, file: scanned.file });
-      if (reused2)
-        reusedPaths.add(relativePath);
+      if (candidate.status === "ignored")
+        continue;
+      if (candidate.status === "git-link") {
+        gitLinks.push(candidate.relativePath);
+        continue;
+      }
+      if (candidate.status !== "scanned")
+        continue;
+      const { relativePath, fingerprint, reused: reused2, scanned } = candidate;
+      if (scanned.status === "absent") {
+        absent.push(relativePath);
+        continue;
+      }
+      if (scanned.status === "not-a-file") {
+        gitLinks.push(relativePath);
+        continue;
+      }
+      if (scanned.status !== "ok") {
+        continue;
+      }
+      const seenIndex = seenRealPaths.get(scanned.realPath);
+      if (seenIndex !== void 0) {
+        const seenFile = results[seenIndex];
+        const seenIsAlias = !sameFilesystemPath(resolve(realRoot, seenFile.path), scanned.realPath);
+        const currentIsAlias = !sameFilesystemPath(resolve(realRoot, relativePath), scanned.realPath);
+        if (seenIsAlias && !currentIsAlias) {
+          linked.push({ path: seenFile.path, target: relativePath });
+          indexedByPath.delete(seenFile.path);
+          reusedPaths.delete(seenFile.path);
+          results[seenIndex] = scanned.file;
+          if (fingerprint) {
+            indexedByPath.set(relativePath, { path: relativePath, fingerprint, file: scanned.file });
+            if (reused2)
+              reusedPaths.add(relativePath);
+          }
+        } else {
+          linked.push({ path: relativePath, target: seenFile.path });
+        }
+        continue;
+      }
+      seenRealPaths.set(scanned.realPath, results.length);
+      results.push(scanned.file);
+      if (fingerprint) {
+        indexedByPath.set(relativePath, { path: relativePath, fingerprint, file: scanned.file });
+        if (reused2)
+          reusedPaths.add(relativePath);
+      }
     }
   }
   reportAbsentTrackedPaths(diagnostics, absent);
