@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { rankContextFilesEvidenceDetailed, selectEvidenceProfiles, type RetrievalEvidenceProfile } from "../src/rank.js";
-import { buildRetrievalQuery, rankSymbolsByBm25Detailed } from "../src/retrieval.js";
+import {
+  buildRetrievalQuery,
+  rankDocumentsByBm25,
+  rankSymbolsByBm25Detailed,
+  retrievalTokens
+} from "../src/retrieval.js";
 import type { RepoFile, RepoMap } from "../src/types.js";
 
 function file(path: string, textSample: string): RepoFile {
@@ -156,4 +161,42 @@ describe("evidence retrieval pipeline", () => {
       terms: expect.arrayContaining(["constructor", "prototype"])
     });
   });
+
+  it("matches a full-sort BM25 reference for bounded Top-K results", () => {
+    const inputs = Array.from({ length: 137 }, (_, index) => ({
+      id: `src/file-${String(index).padStart(3, "0")}.ts`,
+      text: [
+        index % 2 === 0 ? "session renewal" : "account profile",
+        index % 3 === 0 ? "token token" : "cache",
+        index % 5 === 0 ? "renewSessionToken" : "renderAvatar",
+        `value${index}`
+      ].join(" ")
+    }));
+    const task = "session token renewal";
+
+    for (const limit of [0, 1, 5, 50, 137, 200]) {
+      expect(rankDocumentsByBm25(inputs, task, limit)).toEqual(referenceBm25(inputs, task).slice(0, limit));
+    }
+  });
 });
+
+function referenceBm25(inputs: readonly { id: string; text: string }[], task: string) {
+  const terms = buildRetrievalQuery(task).terms;
+  const documents = inputs.map((input) => ({ id: input.id, tokens: retrievalTokens(input.text) }));
+  const averageLength = documents.reduce((sum, document) => sum + document.tokens.length, 0) / documents.length || 1;
+  return documents.map((document) => {
+    let score = 0;
+    for (const term of terms) {
+      const frequency = document.tokens.filter((token) => token === term).length;
+      if (frequency === 0) continue;
+      const documentFrequency = documents.filter((candidate) => candidate.tokens.includes(term)).length;
+      const idf = Math.log(1 + (documents.length - documentFrequency + 0.5) / (documentFrequency + 0.5));
+      score += idf * ((frequency * 2.2) /
+        (frequency + 1.2 * (0.25 + (0.75 * document.tokens.length) / averageLength)));
+    }
+    return { id: document.id, score };
+  })
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+}

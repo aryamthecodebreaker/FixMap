@@ -160,22 +160,43 @@ export function rankDocumentsByBm25(
   });
   const averageLength = documents.reduce((sum, document) => sum + document.length, 0) / documents.length || 1;
 
-  return documents
-    .map((document) => {
-      let score = 0;
-      for (const term of terms) {
-        const frequency = document.counts.get(term) ?? 0;
-        if (frequency === 0) continue;
-        const df = documentFrequency.get(term) ?? 0;
-        const idf = Math.log(1 + (documents.length - df + 0.5) / (df + 0.5));
-        score += idf * ((frequency * 2.2) / (frequency + 1.2 * (0.25 + (0.75 * document.length) / averageLength)));
-      }
-      return { id: document.id, score };
-    })
-    .filter((entry) => entry.score > 0)
-    .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
-    .slice(0, Math.max(0, limit))
-    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+  const top: Array<{ id: string; score: number }> = [];
+  const boundedLimit = Math.max(0, Math.min(documents.length, limit));
+  if (boundedLimit === 0) return [];
+  for (const document of documents) {
+    let score = 0;
+    for (const term of terms) {
+      const frequency = document.counts.get(term) ?? 0;
+      if (frequency === 0) continue;
+      const df = documentFrequency.get(term) ?? 0;
+      const idf = Math.log(1 + (documents.length - df + 0.5) / (df + 0.5));
+      score += idf * ((frequency * 2.2) / (frequency + 1.2 * (0.25 + (0.75 * document.length) / averageLength)));
+    }
+    if (score > 0) insertBoundedBm25(top, { id: document.id, score }, boundedLimit);
+  }
+  return top.map((entry, index) => ({ ...entry, rank: index + 1 }));
+}
+
+/** Keep the exact full-sort order while bounding sort work and retained candidates to K. */
+function insertBoundedBm25(
+  top: Array<{ id: string; score: number }>,
+  entry: { id: string; score: number },
+  limit: number
+): void {
+  let low = 0;
+  let high = top.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (compareBm25(entry, top[middle]!) < 0) high = middle;
+    else low = middle + 1;
+  }
+  if (low >= limit) return;
+  top.splice(low, 0, entry);
+  if (top.length > limit) top.pop();
+}
+
+function compareBm25(left: { id: string; score: number }, right: { id: string; score: number }): number {
+  return right.score - left.score || left.id.localeCompare(right.id);
 }
 
 /**
