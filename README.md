@@ -222,7 +222,8 @@ Repeat `--seed` to trace downstream provider-to-consumer impact from multiple re
 ### Plan and ranking
 
 - Ranks source, test, configuration, documentation, and other files from path terms, source content, identifiers, quoted fragments (including smart quotes and guillemets), file mentions, and real diff content.
-- Recognizes JavaScript/TypeScript declaration tests, Go `_test.go`, Python `test_*.py` and `*_test.py`, common test directories, and framework single-file components.
+- Uses one deterministic adapter path for JavaScript/TypeScript, Python, Java, Go, Rust, Ruby, PHP, and .NET definitions, imports, test layouts, exact-identifier grounding, fix-site ranking, and impact edges. Resolution stays source-based and bounded; unsupported dynamic or generated relationships remain unknown instead of guessed.
+- Recognizes JavaScript/TypeScript declaration tests, Go `_test.go`, Python `test_*.py` and `*_test.py`, Rust integration tests, Ruby specs/tests, PHP tests, .NET tests, common test directories, and framework single-file components.
 - Deprioritizes lockfiles, sync-client backups, bundled output, examples, and generated counterparts when maintained source exists, while keeping ordinary modules such as `deep-copy.ts` and tracked first-party `vendor/` source rankable.
 - Routes reachable test commands from real package scripts and pairs them with the nearest related test files. It warns when routed JavaScript, Python, Go, or Rust tests are skipped, ignored, conditional, or gated.
 - Accepts versioned, source-fingerprinted CI observations through the Core API to distinguish same-revision flakiness, current failures, skipped or quarantined tests, gated execution, insufficient history, and repeatedly clean execution. A declared test route counts as reliably observed only when every related test path clears the conservative history threshold; this remains execution evidence, not proof that a test is correct.

@@ -70,6 +70,22 @@ describe("rankContextFiles", () => {
     expect(ranked[0]?.reasons).toContain("defines task identifiers: resetPassword");
   });
 
+  it.each([
+    ["Go", "auth/reset.go", "func resetPassword(user User) error { return nil }", "resetPassword"],
+    ["Rust", "src/auth/reset.rs", "pub fn reset_password(user: User) -> Result<()> { Ok(()) }", "reset_password"],
+    ["Ruby", "lib/auth/reset.rb", "def reset_password(user)\n  user\nend", "reset_password"],
+    ["PHP", "src/Auth/Reset.php", "<?php function resetPassword(User $user) { return $user; }", "resetPassword"],
+    [".NET", "src/Auth/ResetService.cs", "class ResetService { public User ResetPassword(User user) { return user; } }", "ResetPassword"]
+  ])("ranks a %s definition above a vocabulary-dense consumer", (_language, path, definition, identifier) => {
+    const ranked = rankContextFiles(repoWith([
+      codeFile(path, definition),
+      codeFile("docs/consumer.txt", "password reset recovery token user failure password reset recovery token")
+    ]), { issueText: `${identifier} rejects a valid recovery token` });
+
+    expect(ranked[0]?.path).toBe(path);
+    expect(ranked[0]?.reasons).toContain(`defines task identifiers: ${identifier}`);
+  });
+
   it("keeps task terms when every file shares the same vocabulary", () => {
     const repo: RepoMap = {
       root: "/repo",

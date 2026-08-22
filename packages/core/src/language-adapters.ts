@@ -1,6 +1,14 @@
 import type { RepoFile } from "./types.js";
 
-export type LanguageAdapterId = "javascript-typescript" | "python" | "java";
+export type LanguageAdapterId =
+  | "javascript-typescript"
+  | "python"
+  | "java"
+  | "go"
+  | "rust"
+  | "ruby"
+  | "php"
+  | "dotnet";
 
 export type LanguageImport = {
   adapter: LanguageAdapterId;
@@ -33,6 +41,7 @@ export type LanguageAdapter = {
 
 const IDENTIFIER = "[A-Za-z_$][A-Za-z0-9_$]*";
 const JAVA_CONTROL_WORDS = new Set(["catch", "do", "else", "for", "if", "new", "return", "switch", "synchronized", "throw", "while"]);
+const CSHARP_CONTROL_WORDS = new Set(["catch", "do", "else", "for", "foreach", "if", "lock", "return", "switch", "throw", "using", "while"]);
 
 const javascriptAdapter: LanguageAdapter = {
   id: "javascript-typescript",
@@ -153,10 +162,139 @@ const javaAdapter: LanguageAdapter = {
   }
 };
 
+const goAdapter: LanguageAdapter = {
+  id: "go",
+  extensions: [".go"],
+  extractImports(text) {
+    const imports: LanguageImport[] = [];
+    for (const match of text.matchAll(/^\s*import\s+(?:[A-Za-z_.][A-Za-z0-9_.]*\s+)?["`]([^"`\n]+)["`]/gm)) {
+      if (match[1]) imports.push({ adapter: "go", specifier: match[1], importedNames: [], wildcard: false });
+    }
+    for (const block of text.matchAll(/^\s*import\s*\(([\s\S]*?)^\s*\)/gm)) {
+      for (const match of (block[1] ?? "").matchAll(/^\s*(?:[A-Za-z_.][A-Za-z0-9_.]*\s+)?["`]([^"`\n]+)["`]/gm)) {
+        if (match[1]) imports.push({ adapter: "go", specifier: match[1], importedNames: [], wildcard: false });
+      }
+    }
+    return uniqueImports(imports);
+  },
+  extractDefinitions(text) {
+    return definitionsFromPatterns("go", text, [
+      { pattern: /^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm, kind: "function" },
+      { pattern: /^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?:struct|interface)\b/gm, kind: "class" },
+      { pattern: /^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?!(?:struct|interface)\b)/gm, kind: "type" },
+      { pattern: /^\s*(?:var|const)\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "variable" }
+    ]);
+  },
+  isTestPath(path) { return /(?:^|\/)[^/]+_test\.go$/i.test(path); }
+};
+
+const rustAdapter: LanguageAdapter = {
+  id: "rust",
+  extensions: [".rs"],
+  extractImports(text) {
+    const imports: LanguageImport[] = [];
+    for (const match of text.matchAll(/^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([^;\n]+)\s*;/gm)) {
+      const specifier = (match[1] ?? "").replace(/\s+/g, "").replace(/::\{.*$/, "");
+      if (specifier) imports.push({ adapter: "rust", specifier, importedNames: [], wildcard: specifier.endsWith("::*") });
+    }
+    for (const match of text.matchAll(/^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/gm)) {
+      if (match[1]) imports.push({ adapter: "rust", specifier: `self::${match[1]}`, importedNames: [], wildcard: false });
+    }
+    return uniqueImports(imports);
+  },
+  extractDefinitions(text) {
+    const visibility = "(?:pub(?:\\([^)]*\\))?\\s+)?";
+    return definitionsFromPatterns("rust", text, [
+      { pattern: new RegExp(`^\\s*${visibility}(?:async\\s+)?(?:unsafe\\s+)?fn\\s+([A-Za-z_][A-Za-z0-9_]*)\\b`, "gm"), kind: "function" },
+      { pattern: new RegExp(`^\\s*${visibility}(?:struct|enum)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b`, "gm"), kind: "class" },
+      { pattern: new RegExp(`^\\s*${visibility}trait\\s+([A-Za-z_][A-Za-z0-9_]*)\\b`, "gm"), kind: "interface" },
+      { pattern: new RegExp(`^\\s*${visibility}type\\s+([A-Za-z_][A-Za-z0-9_]*)\\b`, "gm"), kind: "type" },
+      { pattern: new RegExp(`^\\s*${visibility}(?:const|static(?:\\s+mut)?)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b`, "gm"), kind: "variable" }
+    ]);
+  },
+  isTestPath(path) { return /(?:^|\/)(?:tests?|benches)\/[^/]+\.rs$|(?:^|\/)[^/]+_test\.rs$/i.test(path); }
+};
+
+const rubyAdapter: LanguageAdapter = {
+  id: "ruby",
+  extensions: [".rb", ".rake"],
+  extractImports(text) {
+    const imports: LanguageImport[] = [];
+    for (const match of text.matchAll(/^\s*(require_relative|require|load)\s*\(?\s*["']([^"'\n]+)["']/gm)) {
+      if (match[2]) imports.push({ adapter: "ruby", specifier: `${match[1] === "require_relative" ? "relative:" : "absolute:"}${match[2]}`, importedNames: [], wildcard: false });
+    }
+    return uniqueImports(imports);
+  },
+  extractDefinitions(text) {
+    return definitionsFromPatterns("ruby", text, [
+      { pattern: /^\s*(?:async\s+)?def\s+(?:self\.)?([A-Za-z_][A-Za-z0-9_!?=]*)\b/gm, kind: "method" },
+      { pattern: /^\s*class\s+(?:[A-Za-z_][A-Za-z0-9_]*::)*([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "class" },
+      { pattern: /^\s*module\s+(?:[A-Za-z_][A-Za-z0-9_]*::)*([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "type" }
+    ]);
+  },
+  isTestPath(path) { return /(?:^|\/)spec\/.*_spec\.rb$|(?:^|\/)test\/.*_test\.rb$/i.test(path); }
+};
+
+const phpAdapter: LanguageAdapter = {
+  id: "php",
+  extensions: [".php", ".phtml"],
+  extractImports(text) {
+    const imports: LanguageImport[] = [];
+    for (const match of text.matchAll(/^\s*use\s+(?:function\s+|const\s+)?([^;\n]+)\s*;/gm)) {
+      for (const entry of (match[1] ?? "").split(",")) {
+        const specifier = entry.trim().replace(/^\\+/, "").split(/\s+as\s+/i)[0]?.trim();
+        if (specifier) imports.push({ adapter: "php", specifier, importedNames: [], wildcard: false });
+      }
+    }
+    for (const match of text.matchAll(/\b(?:require|require_once|include|include_once)\s*(?:\(\s*)?["']([^"'\n]+)["']/g)) {
+      if (match[1]) imports.push({ adapter: "php", specifier: `file:${match[1]}`, importedNames: [], wildcard: false });
+    }
+    return uniqueImports(imports);
+  },
+  extractDefinitions(text) {
+    return definitionsFromPatterns("php", text, [
+      { pattern: /\b(?:final\s+|abstract\s+|readonly\s+)*(?:class|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g, kind: "class" },
+      { pattern: /\binterface\s+([A-Za-z_][A-Za-z0-9_]*)\b/g, kind: "interface" },
+      { pattern: /\bfunction\s+&?\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/g, kind: "function" }
+    ]);
+  },
+  isTestPath(path) { return /(?:^|\/)tests?\/|(?:Test|Tests)\.php$/i.test(path); }
+};
+
+const dotnetAdapter: LanguageAdapter = {
+  id: "dotnet",
+  extensions: [".cs", ".csx"],
+  extractImports(text) {
+    const imports: LanguageImport[] = [];
+    for (const match of text.matchAll(/^\s*(?:global\s+)?using\s+(?:static\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\s*=\s*)?([A-Za-z_][A-Za-z0-9_.]*)\s*;/gm)) {
+      if (match[1]) imports.push({ adapter: "dotnet", specifier: match[1], importedNames: [], wildcard: false });
+    }
+    return uniqueImports(imports);
+  },
+  extractDefinitions(text) {
+    const definitions = definitionsFromPatterns("dotnet", text, [
+      { pattern: /\b(?:class|record(?:\s+class)?|struct|enum)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g, kind: "class" },
+      { pattern: /\binterface\s+([A-Za-z_][A-Za-z0-9_]*)\b/g, kind: "interface" },
+      { pattern: /\bdelegate\s+[^;({]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g, kind: "type" }
+    ]);
+    const methodPattern = /(?:^|[;{}]\s*)(?:(?:public|protected|private|internal|static|virtual|override|abstract|sealed|async|extern|unsafe|new|partial)\s+)*(?:[A-Za-z_][A-Za-z0-9_<>,.?\[\]]*\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;{}]*\)\s*(?:where\s+[^={]+)?(?:=>|\{)/gm;
+    for (const match of text.matchAll(methodPattern)) {
+      if (match[1] && !CSHARP_CONTROL_WORDS.has(match[1])) definitions.push({ adapter: "dotnet", name: match[1], kind: "method", offset: match.index });
+    }
+    return uniqueDefinitions(definitions.sort(byOffset));
+  },
+  isTestPath(path) { return /(?:^|\/)(?:tests?|specs?)\/|(?:Test|Tests|TestCase)\.cs$/i.test(path); }
+};
+
 export const BUILT_IN_LANGUAGE_ADAPTERS: readonly LanguageAdapter[] = Object.freeze([
   javascriptAdapter,
   pythonAdapter,
-  javaAdapter
+  javaAdapter,
+  goAdapter,
+  rustAdapter,
+  rubyAdapter,
+  phpAdapter,
+  dotnetAdapter
 ]);
 
 const ADAPTER_BY_EXTENSION = new Map(
@@ -214,4 +352,22 @@ function uniqueDefinitions(definitions: LanguageDefinition[]): LanguageDefinitio
     seen.add(key);
     return true;
   });
+}
+
+function definitionsFromPatterns(
+  adapter: LanguageAdapterId,
+  text: string,
+  patterns: Array<{ pattern: RegExp; kind: LanguageDefinition["kind"] }>
+): LanguageDefinition[] {
+  const definitions: LanguageDefinition[] = [];
+  for (const { pattern, kind } of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      if (match[1]) definitions.push({ adapter, name: match[1], kind, offset: match.index });
+    }
+  }
+  return uniqueDefinitions(definitions.sort(byOffset));
+}
+
+function byOffset(left: LanguageDefinition, right: LanguageDefinition): number {
+  return (left.offset ?? 0) - (right.offset ?? 0) || left.name.localeCompare(right.name) || left.kind.localeCompare(right.kind);
 }

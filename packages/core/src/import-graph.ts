@@ -1,4 +1,4 @@
-import { extractLanguageImports, languageAdapterForFile, type LanguageImport } from "./language-adapters.js";
+import { extractLanguageDefinitions, extractLanguageImports, languageAdapterForFile, type LanguageImport } from "./language-adapters.js";
 import type { RepoFile } from "./types.js";
 
 const RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"];
@@ -27,6 +27,11 @@ type ResolverIndex = {
   repoPaths: Set<string>;
   suffixPaths: Map<string, string[]>;
   javaPackagePaths: Map<string, string[]>;
+  directoryPaths: Map<string, string[]>;
+  goModules: Array<{ name: string; root: string }>;
+  phpSymbols: Map<string, string[]>;
+  phpNamespaces: Map<string, string[]>;
+  dotnetNamespaces: Map<string, string[]>;
 };
 
 export function buildImportGraph(files: RepoFile[]): ImportGraph {
@@ -116,6 +121,21 @@ function resolveLanguageImport(
   if (imported.adapter === "java") {
     return resolveJavaImport(imported, resolverIndex);
   }
+  if (imported.adapter === "go") {
+    return resolveGoImport(imported, resolverIndex);
+  }
+  if (imported.adapter === "rust") {
+    return resolveRustImport(fromPath, imported, resolverIndex);
+  }
+  if (imported.adapter === "ruby") {
+    return resolveRubyImport(fromPath, imported, resolverIndex);
+  }
+  if (imported.adapter === "php") {
+    return resolvePhpImport(fromPath, imported, resolverIndex);
+  }
+  if (imported.adapter === "dotnet") {
+    return resolveDotnetImport(imported, resolverIndex);
+  }
   const target = resolveSpecifier(fromPath, imported.specifier, resolverIndex.repoPaths, aliases, workspacePackages);
   return target ? [target] : [];
 }
@@ -169,6 +189,83 @@ function resolveJavaImport(imported: LanguageImport, resolverIndex: ResolverInde
     .slice(0, 1);
 }
 
+function resolveGoImport(imported: LanguageImport, resolverIndex: ResolverIndex): string[] {
+  const module = resolverIndex.goModules.find((entry) =>
+    imported.specifier === entry.name || imported.specifier.startsWith(`${entry.name}/`));
+  if (!module) return [];
+  const suffix = imported.specifier === module.name ? "" : imported.specifier.slice(module.name.length + 1);
+  const directory = [module.root, suffix].filter(Boolean).join("/");
+  return (resolverIndex.directoryPaths.get(directory) ?? [])
+    .filter((path) => path.endsWith(".go") && !path.endsWith("_test.go"))
+    .sort(shortestPathFirst)
+    .slice(0, 20);
+}
+
+function resolveRustImport(fromPath: string, imported: LanguageImport, resolverIndex: ResolverIndex): string[] {
+  const cargoRoot = nearestManifestDirectory(fromPath, "Cargo.toml", resolverIndex.repoPaths);
+  const sourceRoot = cargoRoot ? `${cargoRoot}/src`.replace(/^\//, "") : fromPath.startsWith("src/") ? "src" : "";
+  const segments = imported.specifier.replace(/::\*$/, "").split("::").filter(Boolean);
+  const head = segments.shift();
+  let base: string;
+  if (head === "crate") {
+    base = sourceRoot;
+  } else if (head === "self" || head === "super") {
+    const pathSegments = fromPath.split("/");
+    const fileName = pathSegments.pop() ?? "";
+    const stem = fileName.replace(/\.rs$/i, "");
+    const isRootModule = ["lib", "main", "mod"].includes(stem);
+    const moduleSegments = isRootModule ? pathSegments : [...pathSegments, stem];
+    if (head === "super") moduleSegments.pop();
+    base = moduleSegments.join("/");
+  } else {
+    return [];
+  }
+  for (let length = segments.length; length >= 1; length -= 1) {
+    const root = [base, ...segments.slice(0, length)].filter(Boolean).join("/");
+    const match = [`${root}.rs`, `${root}/mod.rs`].find((candidate) => resolverIndex.repoPaths.has(candidate));
+    if (match) return [match];
+  }
+  return [];
+}
+
+function resolveRubyImport(fromPath: string, imported: LanguageImport, resolverIndex: ResolverIndex): string[] {
+  const separator = imported.specifier.indexOf(":");
+  const mode = separator === -1 ? "" : imported.specifier.slice(0, separator);
+  const raw = separator === -1 ? imported.specifier : imported.specifier.slice(separator + 1);
+  const normalized = raw.replace(/\.rb$/i, "");
+  const roots = mode === "relative"
+    ? [normalizeSegments(`${fromPath.split("/").slice(0, -1).join("/")}/${normalized}`)].filter((value): value is string => Boolean(value))
+    : [normalized, `lib/${normalized}`, `app/${normalized}`];
+  for (const root of roots) {
+    const match = [`${root}.rb`, `${root}/init.rb`].find((candidate) => resolverIndex.repoPaths.has(candidate));
+    if (match) return [match];
+  }
+  return [];
+}
+
+function resolvePhpImport(fromPath: string, imported: LanguageImport, resolverIndex: ResolverIndex): string[] {
+  if (imported.specifier.startsWith("file:")) {
+    const raw = imported.specifier.slice("file:".length);
+    const root = normalizeSegments(`${fromPath.split("/").slice(0, -1).join("/")}/${raw}`);
+    if (!root) return [];
+    return resolverIndex.repoPaths.has(root) ? [root] : resolverIndex.repoPaths.has(`${root}.php`) ? [`${root}.php`] : [];
+  }
+  const symbol = imported.specifier.replace(/^\\+/, "").toLowerCase();
+  const exact = resolverIndex.phpSymbols.get(symbol);
+  if (exact?.length) return [...exact].sort(shortestPathFirst).slice(0, 1);
+  const namespace = symbol.split("\\").slice(0, -1).join("\\");
+  return [...(resolverIndex.phpNamespaces.get(namespace) ?? [])].sort(shortestPathFirst).slice(0, 20);
+}
+
+function resolveDotnetImport(imported: LanguageImport, resolverIndex: ResolverIndex): string[] {
+  const namespace = imported.specifier.toLowerCase();
+  const exact = resolverIndex.dotnetNamespaces.get(namespace) ?? [];
+  // C# namespace names are dotted but not hierarchical imports: `using A.B`
+  // does not make symbols declared in `A.B.C` available. Exact lookup is both
+  // the correct model and avoids scanning every namespace for every using.
+  return exact.slice(0, 20);
+}
+
 /** Build once per graph instead of walking every repository path for every Python or Java
  * import. Each source path contributes its directory suffixes, preserving the old
  * path.endsWith() resolution semantics while changing repeated lookup from O(files) to O(1). */
@@ -176,12 +273,19 @@ function buildResolverIndex(files: RepoFile[]): ResolverIndex {
   const repoPaths = new Set(files.map((file) => file.path));
   const suffixPaths = new Map<string, string[]>();
   const javaPackagePaths = new Map<string, string[]>();
+  const directoryPaths = new Map<string, string[]>();
+  const goModules: Array<{ name: string; root: string }> = [];
+  const phpSymbols = new Map<string, string[]>();
+  const phpNamespaces = new Map<string, string[]>();
+  const dotnetNamespaces = new Map<string, string[]>();
 
   for (const file of files) {
-    if (!/\.(?:py|pyi|java)$/i.test(file.path)) continue;
     const segments = file.path.split("/");
-    for (let start = 1; start < segments.length; start += 1) {
-      addIndexedPath(suffixPaths, segments.slice(start).join("/"), file.path);
+    addIndexedPath(directoryPaths, segments.slice(0, -1).join("/"), file.path);
+    if (/\.(?:py|pyi|java)$/i.test(file.path)) {
+      for (let start = 1; start < segments.length; start += 1) {
+        addIndexedPath(suffixPaths, segments.slice(start).join("/"), file.path);
+      }
     }
     if (file.path.toLowerCase().endsWith(".java")) {
       const directories = segments.slice(0, -1);
@@ -189,9 +293,43 @@ function buildResolverIndex(files: RepoFile[]): ResolverIndex {
         addIndexedPath(javaPackagePaths, directories.slice(start).join("/"), file.path);
       }
     }
+    if (file.path === "go.mod" || file.path.endsWith("/go.mod")) {
+      const name = /^\s*module\s+([^\s]+)\s*$/m.exec(file.textSample)?.[1];
+      if (name) goModules.push({ name, root: segments.slice(0, -1).join("/") });
+    }
+    if (file.path.toLowerCase().endsWith(".php")) {
+      const namespace = /^\s*namespace\s+([^;{\n]+)\s*[;{]/m.exec(file.textSample)?.[1]?.trim().replace(/^\\+|\\+$/g, "");
+      if (namespace) {
+        const normalizedNamespace = namespace.toLowerCase();
+        addIndexedPath(phpNamespaces, normalizedNamespace, file.path);
+        for (const definition of extractLanguageDefinitions(file)) {
+          if (["class", "interface", "type"].includes(definition.kind)) {
+            addIndexedPath(phpSymbols, `${normalizedNamespace}\\${definition.name.toLowerCase()}`, file.path);
+          }
+        }
+      }
+    }
+    if (file.path.toLowerCase().endsWith(".cs")) {
+      const namespace = /\bnamespace\s+([A-Za-z_][A-Za-z0-9_.]*)\s*(?:;|\{)/m.exec(file.textSample)?.[1]?.toLowerCase();
+      if (namespace) addIndexedPath(dotnetNamespaces, namespace, file.path);
+    }
   }
 
-  return { repoPaths, suffixPaths, javaPackagePaths };
+  goModules.sort((a, b) => b.name.length - a.name.length || a.name.localeCompare(b.name));
+  // A large namespace such as `System` can be referenced by thousands of C# files.
+  // Sort each namespace once instead of sorting the same candidate list per `using`.
+  for (const paths of dotnetNamespaces.values()) paths.sort(shortestPathFirst);
+  return { repoPaths, suffixPaths, javaPackagePaths, directoryPaths, goModules, phpSymbols, phpNamespaces, dotnetNamespaces };
+}
+
+function nearestManifestDirectory(fromPath: string, manifest: string, repoPaths: ReadonlySet<string>): string | undefined {
+  const directories = fromPath.split("/").slice(0, -1);
+  for (let length = directories.length; length >= 0; length -= 1) {
+    const directory = directories.slice(0, length).join("/");
+    const candidate = directory ? `${directory}/${manifest}` : manifest;
+    if (repoPaths.has(candidate)) return directory;
+  }
+  return undefined;
 }
 
 function addIndexedPath(index: Map<string, string[]>, key: string, path: string): void {

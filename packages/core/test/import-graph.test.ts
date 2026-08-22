@@ -110,6 +110,70 @@ describe("buildImportGraph", () => {
     ]);
   });
 
+  it("resolves Go imports inside the nearest declared module", () => {
+    const files = [
+      codeFile("go.mod", "module example.com/acme\n"),
+      codeFile("cmd/server/main.go", "package main\nimport \"example.com/acme/auth\""),
+      codeFile("auth/token.go", "package auth\ntype Token struct {}"),
+      codeFile("auth/session.go", "package auth\nfunc Session() {}"),
+      codeFile("auth/token_test.go", "package auth\nfunc TestToken() {}")
+    ];
+    const graph = buildImportGraph(files);
+    expect([...(graph.imports.get("cmd/server/main.go") ?? [])].sort()).toEqual([
+      "auth/session.go",
+      "auth/token.go"
+    ]);
+  });
+
+  it("resolves Rust crate, self-module, and symbol-qualified uses", () => {
+    const files = [
+      codeFile("Cargo.toml", "[package]\nname = 'acme'"),
+      codeFile("src/lib.rs", "pub mod auth;"),
+      codeFile("src/auth.rs", "pub struct Token;"),
+      codeFile("src/service.rs", "use crate::auth::Token;")
+    ];
+    const graph = buildImportGraph(files);
+    expect([...(graph.imports.get("src/lib.rs") ?? [])]).toEqual(["src/auth.rs"]);
+    expect([...(graph.imports.get("src/service.rs") ?? [])]).toEqual(["src/auth.rs"]);
+  });
+
+  it("resolves Ruby relative and load-path requires", () => {
+    const files = [
+      codeFile("app/services/reset.rb", "require_relative '../tokens'\nrequire 'auth/audit'"),
+      codeFile("app/tokens.rb", "class Token; end"),
+      codeFile("lib/auth/audit.rb", "module Audit; end")
+    ];
+    const graph = buildImportGraph(files);
+    expect([...(graph.imports.get("app/services/reset.rb") ?? [])].sort()).toEqual([
+      "app/tokens.rb",
+      "lib/auth/audit.rb"
+    ]);
+  });
+
+  it("resolves PHP file includes and namespace symbols", () => {
+    const files = [
+      codeFile("src/Auth/Reset.php", "<?php\nnamespace Acme\\Auth;\nuse Acme\\Accounts\\User;\nrequire_once './Token.php';"),
+      codeFile("src/Auth/Token.php", "<?php\nnamespace Acme\\Auth;\nclass Token {}"),
+      codeFile("src/Accounts/User.php", "<?php\nnamespace Acme\\Accounts;\nclass User {}")
+    ];
+    const graph = buildImportGraph(files);
+    expect([...(graph.imports.get("src/Auth/Reset.php") ?? [])].sort()).toEqual([
+      "src/Accounts/User.php",
+      "src/Auth/Token.php"
+    ]);
+  });
+
+  it("resolves .NET namespace imports without matching labels across namespaces", () => {
+    const files = [
+      codeFile("Auth/ResetService.cs", "using Acme.Accounts;\nnamespace Acme.Auth;\nclass ResetService {}"),
+      codeFile("Accounts/User.cs", "namespace Acme.Accounts;\nclass User {}"),
+      codeFile("Accounts/Internal/Audit.cs", "namespace Acme.Accounts.Internal;\nclass Audit {}"),
+      codeFile("Other/User.cs", "namespace Other.Accounts;\nclass User {}")
+    ];
+    const graph = buildImportGraph(files);
+    expect([...(graph.imports.get("Auth/ResetService.cs") ?? [])]).toEqual(["Accounts/User.cs"]);
+  });
+
   it("reports when the graph file budget truncates parseable modules", () => {
     const files = Array.from({ length: 5_001 }, (_, index) =>
       codeFile(`src/module-${index}.ts`, `export const module${index} = ${index};`)
