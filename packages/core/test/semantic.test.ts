@@ -134,6 +134,26 @@ describe("rankContextFilesHybrid", () => {
     expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "semantic-candidates-truncated" }));
   });
 
+  it("lets semantic retrieval add a file outside the evidence candidate union", async () => {
+    const files = Array.from({ length: 70 }, (_, index) =>
+      file(`src/file-${String(index).padStart(2, "0")}.ts`, `export const value${index} = ${index}`)
+    );
+    files.push(file("src/meaning.ts", "export function keepAlive() {}"));
+    const map = repo(files);
+    const embedding = provider(async (texts) => texts.map((text, index) =>
+      index === 0 || text.startsWith("src/meaning.ts") ? [1, 0] : [0, 1]
+    ));
+
+    const result = await rankContextFilesHybrid(
+      map,
+      { issueText: "signed in person remains active" },
+      { embeddingProvider: embedding, maxSemanticCandidates: 100 }
+    );
+
+    expect(result.files[0]?.path).toBe("src/meaning.ts");
+    expect(result.files[0]?.retrieval).toMatchObject({ semanticRank: 1 });
+  });
+
   it("carries hybrid provenance through the shared report, impact, and test-routing contract", async () => {
     const map = repo([
       file("src/account.ts", "export function loadAccount() {}"),

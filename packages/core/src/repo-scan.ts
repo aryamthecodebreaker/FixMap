@@ -1,12 +1,13 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS, SOURCE_FILE_EXTENSIONS, isGeneratedPath } from "./paths.js";
 import { isLanguageTestPath } from "./language-adapters.js";
+import { markdownCode } from "./markdown.js";
 import { DIAGNOSTIC_SPEC_LIMIT, truncateForDiagnostic } from "./text.js";
 import type { FixMapInput, HistoryCommit, PackageScript, RepoFile, RepoMap, RepositoryHistory } from "./types.js";
 
@@ -53,14 +54,14 @@ const GIT_HISTORY_MAX_BUFFER = 24 * 1024 * 1024;
 const MAX_HISTORY_COMMITS = 1_000;
 const MAX_HISTORY_FILES_PER_COMMIT = 30;
 const exec = promisify(execFile);
-type ScanState = { count: number; limitReported: boolean };
-const SCAN_CACHE_VERSION = 6;
+type ScanState = { count: number; limitReported: boolean; linkedPaths: string[] };
+const SCAN_CACHE_VERSION = 7;
 const SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 const SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
 const SCAN_CACHE_TEMP_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i;
-const INCREMENTAL_INDEX_VERSION = 1;
-const INCREMENTAL_INDEX_TEMP_FILE = /^[a-f0-9]{24}-index-v1\.json\.\d+-[0-9a-f-]+\.tmp$/i;
+const INCREMENTAL_INDEX_VERSION = 2;
+const INCREMENTAL_INDEX_TEMP_FILE = /^[a-f0-9]{24}-index-v2\.json\.\d+-[0-9a-f-]+\.tmp$/i;
 
 type CachedScan = {
   version: typeof SCAN_CACHE_VERSION;
@@ -204,7 +205,7 @@ type IncrementalIndexLocation = { path: string; repoKey: string };
 
 function buildIncrementalIndexLocation(root: string, cacheRoot: string): IncrementalIndexLocation {
   const repoKey = hashText(resolve(root));
-  return { path: join(cacheRoot, `${repoKey}-index-v1.json`), repoKey };
+  return { path: join(cacheRoot, `${repoKey}-index-v2.json`), repoKey };
 }
 
 function configuredScanCacheRoot(): string {
@@ -566,8 +567,20 @@ async function listFiles(
       });
     }
   } else {
-    files = (await walkFiles(root, root, diagnostics, { count: 0, limitReported: false }, internalCacheRoot, internalPaths))
+    const state: ScanState = { count: 0, limitReported: false, linkedPaths: [] };
+    files = (await walkFiles(root, root, diagnostics, state, internalCacheRoot, internalPaths))
       .sort((a, b) => a.path.localeCompare(b.path));
+    if (state.linkedPaths.length > 0) {
+      const paths = [...new Set(state.linkedPaths)].sort();
+      diagnostics.push({
+        code: "linked-paths-skipped",
+        severity: "info",
+        message:
+          `Skipped ${paths.length} symbolic link or junction ${paths.length === 1 ? "path" : "paths"} during the filesystem scan ` +
+          `to avoid leaving the repository or following a loop: ${paths.slice(0, 5).map(markdownCode).join(", ")}${paths.length > 5 ? ", ..." : ""}.`,
+        paths: paths.slice(0, 8)
+      });
+    }
   }
 
   // These are properties of the scanned files, not of git. Keeping them here makes an
@@ -822,9 +835,8 @@ function reportUnreadContent(diagnostics: RepoMap["diagnostics"], files: RepoFil
     code: "content-too-large",
     severity: "warning",
     message:
-      `${unread.length.toLocaleString()} source file${unread.length === 1 ? "" : "s"} could not be read as text and ` +
-      `rank${unread.length === 1 ? "s" : ""} on path alone — largest: ${sample}` +
-      `${unread.length > 3 ? ", …" : ""}. Files over ${(MAX_TEXT_SAMPLE_BYTES / 1000).toLocaleString()} kB are not sampled.`,
+      `${unread.length.toLocaleString()} source file${unread.length === 1 ? "" : "s"} exceeded the complete text window — largest: ${sample}` +
+      `${unread.length > 3 ? ", …" : ""}. Files over ${(MAX_TEXT_SAMPLE_BYTES / 1000).toLocaleString()} kB use bounded head and distributed retrieval samples; context and grounding remain incomplete.`,
     paths: unread.slice(0, 8).map((file) => file.path)
   });
 }
@@ -912,6 +924,10 @@ async function walkFiles(
       }
       break;
     }
+    if (entry.isSymbolicLink()) {
+      state.linkedPaths.push(normalizePath(relative(root, join(current, entry.name))));
+      continue;
+    }
     if (entry.isDirectory()) {
       if (WALK_IGNORED_DIRS.has(entry.name)) {
         continue;
@@ -978,6 +994,7 @@ async function toRepoFile(
     : { text: "", complete: true };
   if (SFC_EXTENSIONS.has(extension) && sample.text) {
     sample.text = extractScriptBlocks(sample.text);
+    if (sample.searchText) sample.searchText = extractScriptBlocks(sample.searchText);
   }
 
   return {
@@ -992,6 +1009,7 @@ async function toRepoFile(
       isSource,
       kind: classifyFile(relativePath, extension),
       textSample: sample.text,
+      ...(sample.searchText ? { searchTextSample: sample.searchText } : {}),
       textSampleComplete: sample.complete,
       ...(sample.skipReason ? { textSampleSkipReason: sample.skipReason } : {})
     }
@@ -1510,13 +1528,11 @@ function classifyConventionalTextFile(path: string): "documentation" | "config" 
 async function readTextSample(
   path: string,
   sizeBytes: number
-): Promise<{ text: string; complete: boolean; skipReason?: RepoFile["textSampleSkipReason"] }> {
-  if (sizeBytes > MAX_TEXT_SAMPLE_BYTES) {
-    return { text: "", complete: false, skipReason: "too-large" };
-  }
-
+): Promise<{ text: string; searchText?: string; complete: boolean; skipReason?: RepoFile["textSampleSkipReason"] }> {
   try {
-    const bytes = await readFile(path);
+    const bytes = sizeBytes <= MAX_TEXT_SAMPLE_BYTES
+      ? await readFile(path)
+      : await readFileWindow(path, 0, MAX_TEXT_SAMPLE_BYTES);
     // A NUL byte does not occur in real source. Treating such a file as text produced a
     // garbled sample that matched nothing, while the path still scored — so a binary blob
     // named like source ranked on its name alone with no way to tell from the report.
@@ -1525,10 +1541,38 @@ async function readTextSample(
     if (bytes.includes(0)) {
       return { text: "", complete: false, skipReason: "not-text" };
     }
-    return { text: bytes.toString("utf8"), complete: true };
+    const text = bytes.toString("utf8");
+    if (sizeBytes <= MAX_TEXT_SAMPLE_BYTES) return { text, complete: true };
+    const searchBytes = await readDistributedWindows(path, sizeBytes);
+    if (searchBytes.includes(0)) return { text: "", complete: false, skipReason: "not-text" };
+    return { text, searchText: searchBytes.toString("utf8"), complete: false, skipReason: "too-large" };
   } catch {
     return { text: "", complete: false, skipReason: "unreadable" };
   }
+}
+
+async function readFileWindow(path: string, position: number, length: number): Promise<Buffer> {
+  const handle = await open(path, "r");
+  try {
+    const buffer = Buffer.allocUnsafe(length);
+    const { bytesRead } = await handle.read(buffer, 0, length, position);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
+async function readDistributedWindows(path: string, sizeBytes: number): Promise<Buffer> {
+  const windowBytes = Math.floor(MAX_TEXT_SAMPLE_BYTES / 4);
+  const maximumStart = Math.max(0, sizeBytes - windowBytes);
+  const starts = [...new Set([
+    0,
+    Math.floor(maximumStart / 3),
+    Math.floor((maximumStart * 2) / 3),
+    maximumStart
+  ])];
+  const windows = await Promise.all(starts.map((position) => readFileWindow(path, position, windowBytes)));
+  return Buffer.concat(windows.flatMap((window, index) => index === 0 ? [window] : [Buffer.from("\n"), window]));
 }
 
 async function listUntrackedPaths(

@@ -18,12 +18,12 @@ import {
   renderVerifyMarkdown,
   resolveExclusions,
   scanRepo,
-  stripByteOrderMark,
   validateFixMapReport,
   verifyPlan,
   type FixMapReport
 } from "@aryam/fixmap-core";
 import { renderDoctorReport, runDoctorChecks } from "./doctor.js";
+import { describeInputReadError, readDecodedTextFile } from "./decode-input.js";
 import { clarifyMissingPath } from "./explain-path.js";
 import { analyzeRepository, contextFromAnalysis } from "./analysis-source.js";
 import {
@@ -747,6 +747,9 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
   }
+  if (record.report === undefined) {
+    return { success: false, message: '"report" is required and must be a FixMap report object or a path to a FixMap JSON report.' };
+  }
   const loaded = loadReportInput(record.report, '"report"');
   if (!loaded.success) {
     return { success: false, message: loaded.message };
@@ -820,11 +823,11 @@ function loadReportInput(input: unknown, label: string): LoadedReport {
     }
     let contents: string;
     try {
-      contents = stripByteOrderMark(readFileSync(path, "utf8"));
+      contents = readDecodedTextFile(path);
     } catch (error) {
       return {
         success: false,
-        message: `${label} looked like a file path but could not be read: ${error instanceof Error ? error.message : String(error)}.`
+        message: `${label} looked like a file path but could not be read: ${describeInputReadError(path, error)}`
       };
     }
     let parsed: unknown;

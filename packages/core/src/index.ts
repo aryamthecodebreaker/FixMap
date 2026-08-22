@@ -1,4 +1,6 @@
 export { buildFixMapAnalysis, buildFixMapReport, resolveExclusions } from "./plan.js";
+export { fixMapArtifactKind, isFixMapArtifact } from "./artifacts.js";
+export type { FixMapArtifactKind } from "./artifacts.js";
 export { buildPathExcluder, NO_EXCLUSIONS } from "./exclude.js";
 export type { PathExcluder } from "./exclude.js";
 export { compareReports, renderComparisonMarkdown } from "./compare.js";
@@ -85,8 +87,29 @@ export type {
 export { detectPrimaryLanguage } from "./languages.js";
 export type { LanguageDetection, PrimaryLanguage } from "./languages.js";
 export { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
-export { rankContextFiles } from "./rank.js";
-export { rankByBm25, retrievalQueryTerms, retrievalTokens, taskMentionsExpectedPath } from "./retrieval.js";
+export { rankContextFiles, rankContextFilesEvidenceDetailed } from "./rank.js";
+export type {
+  EvidenceRankingResult,
+  RetrievalEvidenceProfile,
+  RetrievalEvidenceTier,
+  RetrievalIntent
+} from "./rank.js";
+export {
+  buildRetrievalQuery,
+  rankByBm25,
+  rankByBm25Detailed,
+  rankDocumentsByBm25,
+  rankSymbolsByBm25Detailed,
+  retrievalQueryTerms,
+  retrievalTokens,
+  taskMentionsExpectedPath
+} from "./retrieval.js";
+export type {
+  Bm25RankedDocument,
+  RetrievalQuery,
+  RetrievalQueryExpansion,
+  SymbolRetrievalHit
+} from "./retrieval.js";
 export { rankContextFilesHybrid } from "./semantic.js";
 export type {
   EmbeddingNormalization,

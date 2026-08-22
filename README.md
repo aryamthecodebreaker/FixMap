@@ -42,7 +42,7 @@ npx -y @aryam/fixmap@latest plan --issue https://github.com/chalk/chalk/issues/6
 Install a discoverable `/fixmap` command for Claude Code, Cursor, GitHub Copilot, and Agent Skills:
 
 ```bash
-fixmap setup
+fixmap setup --agent all
 ```
 
 Type `/fixmap` with no task to see the full feature menu, or run `fixmap features` in a terminal. Use `fixmap setup --agent <name>` to install one integration, and `--force` only after reviewing an existing customized command.
@@ -125,12 +125,12 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 
 ### Inputs and repository mapping
 
-- Accepts a public GitHub issue or pull-request URL, plain task text, a UTF-8 or UTF-16 `--issue-file` (including common BOM-less Windows UTF-16 files), or task text from stdin.
+- Accepts a public GitHub issue or pull-request URL, plain task text, a UTF-8 or UTF-16 `--issue-file` (including common BOM-less Windows UTF-16 files), bare piped task text, or explicit stdin through `--issue-file -` / `--issue -`.
 - Normalizes supported browser and GitHub API issue URLs, including `www`, query strings, and fragments, while rejecting credentials, lookalike hosts, ports, and unsafe encoded paths.
 - Scans the current checkout, another local path, a `file://` URL, or an isolated checkout of a public GitHub repository.
 - Maps `--diff <spec>`, `--base`/`--head`, or the current `--working-tree`; untracked changes remain opt-in with `--include-untracked`.
 - Reuses raw repository scans only when the repository root, commit, status, and binary diff are identical. Task text, `--limit`, and exclusion rules are applied after that scan, so changing them can safely reuse the same cached files while still producing a newly ranked and filtered report; Compare scans the current plan, while Verify validates its supplied report against a fresh or exact-state repository map. `cache-hit` reports reuse and scan age, entries expire after seven days, and `FIXMAP_CACHE_DIR` moves the OS cache. Force a fresh scan with CLI `--no-cache`, MCP `noCache: true`, or Action `no-cache: true`.
-- Keeps the current `--issue-file`, `--compare`, `--report`, and `--output` artifacts out of repository ranking, change detection, and cache invalidation, so FixMap never recommends its own report as the fix site.
+- Keeps the current `--issue-file`, `--compare`, `--report`, and `--output` artifacts out of repository ranking, change detection, and cache invalidation. Previously saved FixMap report, verify, and context artifacts are also recognized from their content contract—not a guessed filename—and excluded from ranking, impact analysis, and context packs with a visible diagnostic. A repository-owned `plan.json` remains eligible when it is not FixMap output.
 - Detects npm, pnpm, Yarn, and Bun projects and reads the scripts declared by each workspace package. When the root is silent it can infer an agreed nested lockfile, while conflicting root declarations produce a diagnostic instead of silently choosing.
 
 ### Plan and ranking
@@ -150,8 +150,8 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 - Provides same-tenant, default-deny enterprise authorization primitives, SHA-256-linked audit envelopes, and legal-hold-aware retention decisions. Core never claims to authenticate the caller, audit chains still require an external trusted anchor, and retention never deletes automatically.
 - Includes pinned, non-root self-hosted MCP and standalone product-UI container targets with health checks and explicit cache/workspace mounts. The image is designed for orchestrator-enforced zero egress; it does not misrepresent the UI as a hosted scanner, and release evidence still requires Docker-capable clean-runtime tests and image scanning.
 - Reports six bounded risk areas: authentication, billing, automation, data, public API, and dependencies.
-- Explains task grounding, ranking shape, unresolved or partially matched identifiers, exclusions, scan limits, unread content, skipped submodules, empty diffs, and Git failures.
-- Supports a strict decimal `--limit`, repeatable `--exclude`, and ordered `.fixmapignore` patterns with negation. Root-leading patterns are repository-relative, pasted absolute paths inside the repository are normalized, and patterns that match nothing produce a warning. Limits change only how many rows are shown, never confidence or ranking-shape analysis.
+- Explains task grounding, ranking shape, unresolved or partially matched identifiers, exclusions, scan limits, unread content, skipped submodules and linked filesystem paths, empty diffs, and Git failures.
+- Supports a strict decimal `--limit` from 1 to 20, repeatable `--exclude`, and ordered `.fixmapignore` patterns with negation. Root-leading patterns are repository-relative, pasted absolute paths inside the repository are normalized, and patterns that match nothing produce a warning. Limits change only how many rows are shown, never confidence or ranking-shape analysis.
 
 ### Impact Graph and repository benchmark
 

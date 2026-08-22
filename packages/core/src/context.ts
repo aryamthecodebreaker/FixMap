@@ -1,5 +1,6 @@
 import { extractTaskSignals } from "./signals.js";
 import { markdownCode } from "./markdown.js";
+import { isFixMapArtifact } from "./artifacts.js";
 import type { FixMapReport, RepoFile, RepoMap } from "./types.js";
 
 export type ContextSnippet = {
@@ -22,7 +23,7 @@ export type ContextPack = {
   estimatedSourceTokens: number;
   tokenEstimate: "utf8-bytes-divided-by-4";
   snippets: ContextSnippet[];
-  omitted: Array<{ path: string; reason: "budget" | "unavailable" | "empty" }>;
+  omitted: Array<{ path: string; reason: "budget" | "unavailable" | "empty" | "fixmap-artifact" }>;
 };
 
 type Candidate = {
@@ -62,6 +63,10 @@ export function buildContextPack(input: {
     const file = fileByPath.get(candidate.path);
     if (!file) {
       omitted.push({ path: candidate.path, reason: "unavailable" });
+      continue;
+    }
+    if (isFixMapArtifact(file)) {
+      omitted.push({ path: candidate.path, reason: "fixmap-artifact" });
       continue;
     }
     if (!file.textSample.trim()) {

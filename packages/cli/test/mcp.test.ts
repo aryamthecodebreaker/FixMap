@@ -400,6 +400,18 @@ describe("fixmap mcp server", () => {
     expect(text).not.toContain("Cannot read properties");
   });
 
+  it("accepts a UTF-16 report path from PowerShell clients", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-mcp-report-utf16-"));
+    const path = join(root, "plan.json");
+    const plan = { summary: "", contextFiles: [], testRoutes: [], risks: [], changedFiles: [], diagnostics: [] };
+    await writeFile(path, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(JSON.stringify(plan), "utf16le")]));
+
+    expect(parseVerifyArguments({ report: path, workingTree: true })).toEqual({
+      success: true,
+      value: { report: plan, reportPath: path, workingTree: true }
+    });
+  });
+
   it("rejects incomplete marked version 1 entries before verify scans", async () => {
     const client = await connectClient();
     const result = await client.callTool({
@@ -688,6 +700,13 @@ describe("MCP surface parity", () => {
     expect(parseVerifyArguments({ report, diff: " HEAD ", format: " JSON ", noCache: true })).toEqual({
       success: true,
       value: { report, diff: "HEAD", noCache: true, format: "json" }
+    });
+  });
+
+  it("states that verify report is required when it is omitted", () => {
+    expect(parseVerifyArguments({ workingTree: true })).toEqual({
+      success: false,
+      message: '"report" is required and must be a FixMap report object or a path to a FixMap JSON report.'
     });
   });
 

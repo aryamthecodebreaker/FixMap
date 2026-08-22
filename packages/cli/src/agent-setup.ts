@@ -31,7 +31,7 @@ export const FIXMAP_FEATURES = [
   { name: "Test routing", command: "fixmap plan", detail: "Detect package, workspace, and language test commands, related tests, and skipped or gated suites." },
   { name: "Risk and diagnostics", command: "fixmap plan", detail: "Report bounded risk areas, grounding quality, unread content, scan limits, package-manager conflicts, and unresolved diffs." },
   { name: "GitHub Action", command: "uses: aryamthecodebreaker/FixMap@<version>", detail: "Plan or verify pull requests with bounded summaries, outputs, and one updated comment." },
-  { name: "Agent setup", command: "fixmap setup", detail: "Install the discoverable /fixmap command for Claude Code, Cursor, GitHub Copilot, or Agent Skills." }
+  { name: "Agent setup", command: "fixmap setup --agent <name|all>", detail: "Explicitly install the discoverable /fixmap command for Claude Code, Cursor, GitHub Copilot, or Agent Skills; bare setup is preview-only." }
 ] as const;
 
 export function renderFeatureCatalog(format: "markdown" | "json" = "markdown"): string {
@@ -44,7 +44,7 @@ export function renderFeatureCatalog(format: "markdown" | "json" = "markdown"): 
       `  ${feature.detail}`
     ]),
     "",
-    "Run `fixmap setup` to install `/fixmap` discovery for supported coding agents.",
+    "Run `fixmap setup --agent all` to install `/fixmap` discovery for supported coding agents; bare `fixmap setup` is preview-only.",
     ""
   ].join("\n");
 }

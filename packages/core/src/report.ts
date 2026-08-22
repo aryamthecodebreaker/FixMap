@@ -6,7 +6,7 @@ import type { RankingShape, TaskGrounding } from "./grounding.js";
 import type { PathExcluder } from "./exclude.js";
 import { detectPrimaryLanguage, manifestTestCommand, suggestedRunner } from "./languages.js";
 import { buildImpactMap } from "./impact.js";
-import { DEFAULT_CONTEXT_FILE_LIMIT, rankContextFiles, rankContextFilesDetailed } from "./rank.js";
+import { DEFAULT_CONTEXT_FILE_LIMIT, rankContextFiles, rankContextFilesEvidenceDetailed } from "./rank.js";
 import { extractTaskSignals, tokenizePath } from "./signals.js";
 import { findGatedTestDiagnostics } from "./test-gates.js";
 import { markdownCode } from "./markdown.js";
@@ -39,7 +39,7 @@ export function buildReportFromRepo(
     issueText: input.issueText,
     diffText: repo.diffText
   });
-  const ranked = rankContextFilesDetailed(
+  const ranked = rankContextFilesEvidenceDetailed(
     repo,
     {
       issueText: input.issueText,

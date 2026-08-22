@@ -33,11 +33,11 @@ fixmap plan --issue "keep signed-in users active" --semantic-model C:\models\all
 Install a discoverable `/fixmap` command for supported coding agents, then invoke it without a task to see the complete workflow menu:
 
 ```bash
-fixmap setup
+fixmap setup --agent all
 fixmap features
 ```
 
-`fixmap setup` supports Claude Code, Cursor, GitHub Copilot prompt files, and the open Agent Skills layout. It preflights every target, is idempotent, and refuses to overwrite customized commands unless you explicitly pass `--force` after reviewing them.
+Bare `fixmap setup` is a read-only workflow preview. `fixmap setup --agent all` supports Claude Code, Cursor, GitHub Copilot prompt files, and the open Agent Skills layout. It preflights every target, is idempotent, and refuses to overwrite customized commands unless you explicitly pass `--force` after reviewing them.
 
 Use a real branch diff:
 
@@ -90,7 +90,7 @@ fixmap annotate --list
 
 Public GitHub issue, pull request, and repository URL modes are available in the CLI and MCP server for issue-only analysis. FixMap fetches task context anonymously, shallow-clones the default branch into an isolated temporary directory, disables credentials and repository execution surfaces, and removes the checkout before returning. Clone locally to use `--diff`, `--base`, `--head`, or working-tree inputs.
 
-For long task text, use `--issue-file task.md` or pipe text to `--issue -`. A leading `@` in `--issue` is ordinary task text; only the explicit file flag reads from disk. A one-off `npx -y @aryam/fixmap@latest ...` run is also available, but npm may choose an existing project-local FixMap first. Run `fixmap doctor`, treat its printed running version as authoritative, and update or remove a stale install. For a reproducible clean test, install the exact version into an isolated npm prefix and invoke that prefix's `fixmap` shim directly; the repository README includes complete PowerShell and POSIX commands.
+For long task text, use `--issue-file task.md`, pipe it directly to `fixmap plan`, or use explicit stdin with `--issue-file -` / `--issue -`. A leading `@` in `--issue` is ordinary task text; only the explicit file flag reads from disk. A one-off `npx -y @aryam/fixmap@latest ...` run is also available, but npm may choose an existing project-local FixMap first. Run `fixmap doctor`, treat its printed running version as authoritative, and update or remove a stale install. For a reproducible clean test, install the exact version into an isolated npm prefix and invoke that prefix's `fixmap` shim directly; the repository README includes complete PowerShell and POSIX commands.
 
 ## Complete feature catalog
 
@@ -104,14 +104,14 @@ For long task text, use `--issue-file task.md` or pipe text to `--issue -`. A le
 - **Watch** — use `fixmap watch --report plan.json --repo .` to emit drift findings and a recalculated Impact Graph whenever the working tree changes. JSON format is newline-delimited for agent consumers.
 - **Human intent** — use `fixmap annotate` to maintain atomic `.fixmap/annotations.json` records for files, symbols, services, and contracts. Relevant notes, expiry, and rename/missing-target state surface with the exact store fingerprint; repository ADR/RFC/design records surface their authored decision text and provenance alongside them.
 - **Validate** — run `fixmap validate <report.json>` to check report compatibility without writing custom JavaScript.
-- **Focus controls** — cap output with `--limit`, repeat `--exclude`, or use ordered `.fixmapignore` patterns with negation. Pasted absolute paths inside the repository are normalized, and unmatched patterns produce a warning.
+- **Focus controls** — cap output with `--limit` from 1 to 20, repeat `--exclude`, or use ordered `.fixmapignore` patterns with negation. Pasted absolute paths inside the repository are normalized, and unmatched patterns produce a warning.
 - **Live changes** — `--working-tree` maps staged and unstaged tracked edits; `--include-untracked` opts new files into the changed-file set.
 - **Exact-state cache** — clean and tracked dirty git states are cached by repository, commit, status, and binary diff. Cache hits report age, entries expire after seven days, and `--no-cache` reports a fresh bypass.
 - **Opt-in local hybrid retrieval** — `--semantic-model <dir>` fuses structural, BM25, and cosine ranks while retaining each signal and model provenance. The model must already exist locally; FixMap forces local-files-only loading, persists model-isolated vectors outside the repository, and never uploads source. FixMap does not bundle the optional Transformers.js runtime, so install a compatible version in the host only after auditing its dependency tree.
 - **Artifact isolation** — current issue, comparison, verification, and output files are removed from ranking, change detection, and cache state, so a saved plan cannot recommend or invalidate itself.
 - **Doctor** — report the running version, resolved binary, global/PATH shadows, Node compatibility, and an optionally requested npm version.
 - **MCP** — expose Plan, Context, Graph, Explain, Compare, Verify, and Doctor as seven local stdio tools.
-- **Slash-command discovery** — `fixmap setup` installs `/fixmap`; `fixmap features` prints the same complete catalog in Markdown or JSON.
+- **Slash-command discovery** — `fixmap setup` previews without writes, `fixmap setup --agent all` installs `/fixmap`, and `fixmap features` prints the same complete catalog in Markdown or JSON.
 - **Safe repository handling** — public repositories use isolated temporary checkouts with credentials, hooks, filters, and submodule recursion disabled. Local source is read without installing dependencies or running repository scripts.
 - **Human, agent, and machine output** — Markdown is the default; `--format agent` is a compact handoff, and JSON reports carry `reportVersion: 1` with the documented additive compatibility policy.
 
@@ -153,7 +153,7 @@ fixmap annotate        Add, list, or remove reviewable repository knowledge
 fixmap doctor          Report the resolved version and any shadowing install
 fixmap validate        Validate a saved FixMap JSON report
 fixmap features        List every FixMap capability in Markdown or JSON
-fixmap setup           Install /fixmap discovery for supported coding agents
+fixmap setup           Preview workflows without writing files; add --agent to install
 fixmap mcp             Run FixMap as an MCP server over stdio
 
 --issue <text|url>     Issue text, task description, or public GitHub issue or pull request URL

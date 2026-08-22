@@ -9,7 +9,7 @@ export { buildPathExcluder, NO_EXCLUSIONS, parseIgnoreFile } from "./exclude.js"
 export { compareReports, renderComparisonMarkdown } from "./compare.js";
 export { quoteCliValue } from "./cli-quote.js";
 export type { CliShell } from "./cli-quote.js";
-export { rankContextFiles } from "./rank.js";
+export { rankContextFiles, rankContextFilesEvidenceDetailed } from "./rank.js";
 export { rankByBm25, retrievalQueryTerms, retrievalTokens, taskMentionsExpectedPath } from "./retrieval.js";
 export { rankContextFilesHybrid } from "./semantic.js";
 export type {
@@ -22,6 +22,7 @@ export type {
 } from "./semantic.js";
 export { buildHybridReportFromRepo, buildReportFromRepo, buildRiskNotes, buildTestRoutes, renderAgentReport, renderJsonReport, renderMarkdownReport } from "./report.js";
 export { buildContextPack, estimateContextTokens, renderContextPackMarkdown, type ContextPack, type ContextSnippet } from "./context.js";
+export { fixMapArtifactKind, isFixMapArtifact } from "./artifacts.js";
 export { buildFixMapGraph, renderFixMapGraphMermaid, type FixMapGraph } from "./graph.js";
 export { buildImpactMap } from "./impact.js";
 export { buildWorkspaceImpact, buildWorkspaceMap } from "./workspace.js";

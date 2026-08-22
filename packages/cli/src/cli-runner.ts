@@ -16,7 +16,6 @@ import {
   verifyPlan,
   renderMarkdownReport,
   scanRepo,
-  stripByteOrderMark,
   validateFixMapReport,
   type FixMapReport
 } from "@aryam/fixmap-core";
@@ -25,6 +24,7 @@ import { installAgentCommands, renderFeatureCatalog, type AgentTarget } from "./
 import { clarifyMissingPath } from "./explain-path.js";
 import type { RepositoryBenchmark } from "./benchmark.js";
 import type { WatchRepositoryInput, WatchUpdate } from "./watch.js";
+import { decodeInputText, describeInputReadError, readDecodedTextFile } from "./decode-input.js";
 import {
   buildReportForRepository,
   isSafeGitRefName,
@@ -119,7 +119,7 @@ Commands:
   watch               Recheck working-tree drift and impact whenever edits change
   annotate            Attach reviewable tribal knowledge to files, symbols, services, or contracts
   features            List every FixMap capability and its command
-  setup               Install a discoverable /fixmap command for coding agents
+  setup               Preview workflows, or explicitly install /fixmap for coding agents
   mcp                 Run FixMap as an MCP server over stdio for AI coding agents
 
 Options:
@@ -155,7 +155,7 @@ Set FIXMAP_CACHE_DIR to move the OS scan cache, and FIXMAP_VERBOSE_USAGE=1 to in
 const DOCTOR_USAGE = `Usage: fixmap doctor [--format markdown|json]\n\nChecks the running FixMap binary, PATH/global shadows, and known install blind spots.\n`;
 const MCP_USAGE = `Usage: fixmap mcp [--repo <path>]\n\nRuns the FixMap MCP server over stdio. --repo sets the default local repository for tool calls that omit repo.\n`;
 const FEATURES_USAGE = `Usage: fixmap features [--format markdown|json]\n\nLists every FixMap capability and the command that exposes it.\n`;
-const SETUP_USAGE = `Usage: fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>] [--force]\n\nInstalls a /fixmap command that lists and runs FixMap workflows.\n`;
+const SETUP_USAGE = `Usage: fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>] [--force]\n\nWith no arguments, previews every workflow without writing files. Pass --agent explicitly to install a /fixmap command.\n`;
 const VALIDATE_USAGE = `Usage: fixmap validate <report.json> [--format markdown|json]\n\nChecks a saved report against FixMap's structural compatibility contract.\n`;
 const BENCHMARK_USAGE = `Usage: fixmap benchmark [--repo <local-path>] [--last <1-100>] [--format markdown|json] [--output <file>]\n\nBacktests BM25, FixMap, and Impact Graph against historical parent snapshots without executing repository code.\n`;
 
@@ -238,6 +238,10 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
 
   if (args[0] === "setup") {
     if (args[1] === "--help" || args[1] === "-h") { stdout(SETUP_USAGE); return 0; }
+    if (args.length === 1) {
+      stdout(`${renderFeatureCatalog("markdown")}Preview only: no files were changed. Install explicitly with fixmap setup --agent <claude|cursor|copilot|agents|all> [--repo <path>].\n`);
+      return 0;
+    }
     let repoRoot = process.cwd();
     let targets: AgentTarget[] = ["claude", "cursor", "copilot", "agents"];
     let force = false;
@@ -289,6 +293,14 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       stderr(`Unknown setup option: ${arg}\n\n${SETUP_USAGE}`);
       return 1;
     }
+    if (!agentSeen) {
+      if (force) {
+        stderr(`--force requires an explicit --agent target.\n\n${SETUP_USAGE}`);
+        return 1;
+      }
+      stdout(`${renderFeatureCatalog("markdown")}Preview only: no files were changed. Install explicitly with fixmap setup --agent <claude|cursor|copilot|agents|all> [--repo <path>].\n`);
+      return 0;
+    }
     try {
       const installed = await installAgentCommands({ repoRoot, targets, force });
       stdout(`${installed.map((entry) => `${entry.status}: ${entry.path}`).join("\n")}\n\nType /fixmap in a supported agent to open the full FixMap feature menu.\n`);
@@ -328,7 +340,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     }
     if (!reportPath) { stderr(`validate requires a report path.\n\n${VALIDATE_USAGE}`); return 1; }
     try {
-      const parsed = JSON.parse(stripByteOrderMark(readFileSync(reportPath, "utf8"))) as unknown;
+      const parsed = JSON.parse(readDecodedTextFile(reportPath)) as unknown;
       const result = validateFixMapReport(parsed, `"${reportPath}"`);
       if (!result.success) { stderr(`${result.message}\n`); return 1; }
       const payload = {
@@ -342,7 +354,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
         : `Valid FixMap report: ${reportPath} (${payload.contextFiles} context files, reportVersion ${payload.reportVersion}).\n`);
       return 0;
     } catch (error) {
-      stderr(`Could not validate "${reportPath}": ${error instanceof Error ? error.message : String(error)}\n`);
+      stderr(`Could not validate "${reportPath}": ${describeInputReadError(reportPath, error)}\n`);
       return 1;
     }
   }
@@ -521,7 +533,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   // property of the repository alone. Requiring a task signal for both made the second
   // unaskable, which is the one you reach for when a file is missing from a report.
   if (!options.issueText && !options.diffSpec && !options.baseRef && !options.workingTree && !options.explainPath) {
-    stderr("Provide --issue, --diff, --base/--head, or --working-tree so FixMap has a task signal.\n");
+    stderr("Provide --issue, --diff, --base/--head, or --working-tree so FixMap has a task signal. Pipe task text directly, or use --issue-file - for explicit stdin.\n");
     return 1;
   }
 
@@ -688,10 +700,10 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     let previous: FixMapReport;
     let previousText: string;
     try {
-      previousText = stripByteOrderMark(readFileSync(options.comparePath, "utf8"));
+      previousText = readDecodedTextFile(options.comparePath);
     } catch (error) {
       stderr(
-        `Could not read comparison file "${options.comparePath}": ${error instanceof Error ? error.message : String(error)}\n` +
+        `Could not read comparison file "${options.comparePath}": ${describeInputReadError(options.comparePath, error)}\n` +
         "Save one first with: fixmap plan --issue \"...\" --format json --output plan.json\n"
       );
       return 1;
@@ -1213,10 +1225,10 @@ function loadIssueText(
   } catch (error) {
     throw new Error(
       `Could not read issue text from ${path === "-" ? "stdin" : `\"${path}\"`}: ` +
-      `${error instanceof Error ? error.message : String(error)}`
+      `${path === "-" ? (error instanceof Error ? error.message : String(error)) : describeInputReadError(path, error)}`
     );
   }
-  const text = decodeIssueText(raw);
+  const text = decodeInputText(raw);
   if (!text.trim()) {
     throw new Error(`Issue text from ${path === "-" ? "stdin" : `\"${path}\"`} was empty.`);
   }
@@ -1225,34 +1237,6 @@ function loadIssueText(
 
 function defaultReadIssueFile(path: string | number): Buffer {
   return readFileSync(path);
-}
-
-/** Decode the encodings commonly produced by editors on every supported platform. */
-function decodeIssueText(raw: string | Buffer): string {
-  if (typeof raw === "string") return raw.replace(/^\uFEFF/, "");
-  if (raw.length >= 2 && raw[0] === 0xff && raw[1] === 0xfe) {
-    return raw.subarray(2).toString("utf16le").replace(/^\uFEFF/, "");
-  }
-  if (raw.length >= 2 && raw[0] === 0xfe && raw[1] === 0xff) {
-    const swapped = Buffer.allocUnsafe(raw.length - 2);
-    for (let index = 2; index + 1 < raw.length; index += 2) {
-      swapped[index - 2] = raw[index + 1]!;
-      swapped[index - 1] = raw[index]!;
-    }
-    return swapped.toString("utf16le").replace(/^\uFEFF/, "");
-  }
-  if (raw.length >= 4 && raw.length % 2 === 0) {
-    let evenNuls = 0;
-    let oddNuls = 0;
-    for (let index = 0; index < raw.length; index += 2) {
-      if (raw[index] === 0) evenNuls += 1;
-      if (raw[index + 1] === 0) oddNuls += 1;
-    }
-    const pairs = raw.length / 2;
-    if (oddNuls / pairs >= 0.3 && evenNuls / pairs < 0.1) return raw.toString("utf16le");
-    if (evenNuls / pairs >= 0.3 && oddNuls / pairs < 0.1) return Buffer.from(raw).swap16().toString("utf16le");
-  }
-  return raw.toString("utf8").replace(/^\uFEFF/, "");
 }
 
 function quoteCliValue(value: string): string {
@@ -1321,10 +1305,10 @@ async function runVerify(
 
   let reportText: string;
   try {
-    reportText = stripByteOrderMark(readFileSync(options.reportPath, "utf8"));
+    reportText = readDecodedTextFile(options.reportPath);
   } catch (error) {
     io.stderr(
-      `Could not read "${options.reportPath}": ${error instanceof Error ? error.message : String(error)}\n` +
+      `Could not read "${options.reportPath}": ${describeInputReadError(options.reportPath, error)}\n` +
       "Generate one with: fixmap plan --issue \"...\" --format json --output plan.json\n"
     );
     return 1;
@@ -1425,7 +1409,7 @@ function describeUnsupportedTaskUrl(issueText: string): string | undefined {
   const value = issueText.trim();
   // `tryParse`, not `parse` — this is a boolean probe, and the throwing variant printed a
   // Node stack here for URLs it could not classify instead of this one-line message.
-  if (!/^https?:\/\/\S+$/i.test(value) || tryParseGitHubIssueSource(value)) return undefined;
+  if (!/^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(value) || tryParseGitHubIssueSource(value)) return undefined;
   return "Unsupported task URL. Use a public GitHub issue or pull request URL such as " +
     "https://github.com/owner/repository/issues/123 or /pull/123, or pass descriptive task text. " +
     "The URL must use https. A ?query, #fragment, and a www. or api. host are accepted and normalized; " +

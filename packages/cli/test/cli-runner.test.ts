@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { link, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { link, mkdir, mkdtemp, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -86,6 +86,21 @@ describe("CLI argument handling", () => {
     const buildReport = vi.fn(async () => report);
     expect(await runCli(["123/456#7"], { ...io.dependencies, buildReport })).toBe(0);
     expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({ issueText: "123/456#7" }));
+  });
+
+  it("rejects a standalone URL with an unsupported scheme before ranking junk tokens", async () => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+
+    const exitCode = await runCli(["plan", "--issue", "ftp://github.com/chalk/chalk/issues/624"], {
+      ...io.dependencies,
+      buildReport
+    });
+
+    expect(exitCode).toBe(1);
+    expect(buildReport).not.toHaveBeenCalled();
+    expect(io.stderr.join("")).toContain("Unsupported task URL");
+    expect(io.stderr.join("")).toContain("must use https");
   });
 
   it("accepts a canonical GitHub issue URL without plan --issue", async () => {
@@ -250,6 +265,35 @@ describe("CLI argument handling", () => {
     for (const command of ["fixmap setup", "fixmap features", "fixmap validate", "fixmap context", "fixmap graph", "fixmap watch", "--no-cache"]) {
       expect(npmReadme).toContain(command);
     }
+  });
+
+  it("previews setup workflows without installing when no target is explicit", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-preview-"));
+    const io = capture();
+
+    expect(await runCli(["setup", "--repo", root], io.dependencies)).toBe(0);
+    expect(io.stdout.join(""))
+      .toContain("# FixMap features")
+      .toContain("Preview only: no files were changed")
+      .toContain("fixmap setup --agent");
+    expect(io.stderr).toEqual([]);
+    await expect(readdir(root)).resolves.toEqual([]);
+  });
+
+  it("keeps bare setup read-only in the current repository", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-agent-setup-bare-preview-"));
+    const io = capture();
+    const originalCwd = process.cwd();
+
+    process.chdir(root);
+    try {
+      expect(await runCli(["setup"], io.dependencies)).toBe(0);
+    } finally {
+      process.chdir(originalCwd);
+    }
+
+    expect(io.stdout.join("")).toContain("Preview only: no files were changed");
+    await expect(readdir(root)).resolves.toEqual([]);
   });
 
   it("installs an idempotent /fixmap command for a selected agent", async () => {
@@ -432,6 +476,26 @@ describe("CLI argument handling", () => {
     expect(JSON.parse(io.stdout.join(""))).toMatchObject({ valid: true, path, contextFiles: 1 });
   });
 
+  it("validates UTF-16 JSON reports produced by Windows PowerShell", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-validate-utf16-"));
+    const path = join(root, "report.json");
+    await writeFile(path, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(JSON.stringify(report), "utf16le")]));
+    const io = capture();
+
+    expect(await runCli(["validate", path, "--format", "json"], io.dependencies)).toBe(0);
+    expect(JSON.parse(io.stdout.join(""))).toMatchObject({ valid: true, contextFiles: 1 });
+    expect(io.stderr.join("")).not.toContain("Unexpected token");
+  });
+
+  it("rejects report directories without leaking EISDIR internals", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-validate-directory-"));
+    const io = capture();
+
+    expect(await runCli(["validate", root], io.dependencies)).toBe(1);
+    expect(io.stderr.join("")).toContain("is a directory; provide a file path");
+    expect(io.stderr.join("")).not.toMatch(/EISDIR|illegal operation|errno/i);
+  });
+
   it("rejects duplicate validate formats instead of silently choosing the last one", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-validate-format-"));
     const path = join(root, "report.json");
@@ -583,6 +647,17 @@ describe("CLI argument handling", () => {
     expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({
       issueText: "password reset emails fail"
     }));
+  });
+
+  it("rejects an issue-file directory without leaking EISDIR internals", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-issue-directory-"));
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+
+    expect(await runCli(["plan", "--issue-file", root], { ...io.dependencies, buildReport })).toBe(1);
+    expect(buildReport).not.toHaveBeenCalled();
+    expect(io.stderr.join("")).toContain("is a directory; provide a file path");
+    expect(io.stderr.join("")).not.toMatch(/EISDIR|illegal operation|errno/i);
   });
 
   it("agent report #9 reads stdin before starting a no-cache scan", async () => {
@@ -880,6 +955,27 @@ describe("CLI argument handling", () => {
     expect(writeReport).toHaveBeenCalledWith("verify.json", expect.any(String));
     // --help documented --output and verify printed to stdout anyway, creating no file.
     expect(io.stdout).toEqual([]);
+  });
+
+  it("verifies a UTF-16 JSON report and keeps decoder bytes out of diagnostics", async () => {
+    const io = capture();
+    const directory = await mkdtemp(join(tmpdir(), "fixmap-verify-utf16-"));
+    await writeFile(join(directory, "README.md"), "first\n");
+    await exec("git", ["init", "-b", "main"], { cwd: directory });
+    await exec("git", ["-c", "user.name=FixMap Test", "-c", "user.email=fixmap@example.test", "add", "README.md"], { cwd: directory });
+    await exec("git", ["-c", "user.name=FixMap Test", "-c", "user.email=fixmap@example.test", "commit", "-m", "first"], { cwd: directory });
+    await writeFile(join(directory, "README.md"), "second\n");
+    const planPath = join(directory, "plan.json");
+    await writeFile(planPath, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(JSON.stringify(report), "utf16le")]));
+
+    const exitCode = await runCli(
+      ["verify", "--report", planPath, "--repo", directory, "--working-tree"],
+      io.dependencies
+    );
+
+    expect(exitCode).toBe(0);
+    expect(io.stdout.join("")).toContain("README.md");
+    expect(io.stderr.join("")).not.toMatch(/Unexpected token|��|�/);
   });
 
   it("does not print a placeholder git spec inside a copy-paste command", async () => {

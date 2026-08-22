@@ -466,6 +466,22 @@ describe("scanRepo", () => {
     expect(diagnostic?.message).toContain("Files over 64 kB");
   });
 
+  it("keeps large source rankable through bounded distributed retrieval windows", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-large-search-sample-"));
+    const path = join(root, "routing.py");
+    await writeFile(path, `${"# ordinary route\n".repeat(12_000)}\ndef server_sent_event_disconnect():\n    return True\n`);
+
+    const repo = await scanRepo({ repoRoot: root });
+    const routing = repo.files.find((file) => file.path === "routing.py");
+
+    expect(routing?.textSampleComplete).toBe(false);
+    expect(routing?.textSample.length).toBeGreaterThan(0);
+    expect(routing?.textSample).not.toContain("server_sent_event_disconnect");
+    expect(routing?.searchTextSample).toContain("server_sent_event_disconnect");
+    expect(repo.diagnostics.find((entry) => entry.code === "content-too-large")?.message)
+      .toContain("distributed retrieval samples");
+  });
+
   // A sparse checkout lists paths in the index that are not on disk. Dropping them silently
   // let a partial scan read as a complete one, and --explain blamed .gitignore for a path
   // git tracks.
@@ -530,6 +546,26 @@ describe("scanRepo", () => {
     expect(repo.files.filter((file) => file.path.endsWith("reset.ts"))).toHaveLength(1);
     expect(repo.diagnostics.find((entry) => entry.code === "duplicate-real-path")?.message)
       .toContain("alias-src/reset.ts -> real-src/reset.ts");
+  });
+
+  it("diagnoses linked directories skipped by a non-git filesystem scan", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-linked-directory-"));
+    const outside = await mkdtemp(join(tmpdir(), "fixmap-linked-target-"));
+    await writeFile(join(outside, "outside.ts"), "export const outside = true;\n");
+    try {
+      await symlink(outside, join(root, "linked-src"), process.platform === "win32" ? "junction" : "dir");
+    } catch {
+      // Windows developer mode/permissions can prohibit creating links; CI covers it.
+      return;
+    }
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.map((file) => file.path)).not.toContain("linked-src/outside.ts");
+    expect(repo.diagnostics.find((entry) => entry.code === "linked-paths-skipped")).toMatchObject({
+      severity: "info",
+      paths: ["linked-src"]
+    });
   });
 
   it("turns a truncated UTF-16BE manifest into a diagnostic instead of throwing", async () => {
@@ -683,7 +719,7 @@ describe("scanRepo", () => {
       await exec("git", ["commit", "-m", "initial"], { cwd: root });
 
       await scanRepo({ repoRoot: root, useCache: true });
-      const indexName = (await readdir(cacheRoot)).find((entry) => entry.endsWith("-index-v1.json"));
+      const indexName = (await readdir(cacheRoot)).find((entry) => entry.endsWith("-index-v2.json"));
       expect(indexName).toBeDefined();
       await writeFile(join(cacheRoot, indexName!), "{truncated");
       await writeFile(join(root, "a.ts"), "export const a = 2;\n");

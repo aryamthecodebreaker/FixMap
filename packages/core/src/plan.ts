@@ -7,6 +7,7 @@ import { buildHybridReportFromRepo, buildReportFromRepo } from "./report.js";
 import { scanRepo } from "./repo-scan.js";
 import type { EmbeddingProvider } from "./semantic.js";
 import type { FixMapInput, FixMapReport } from "./types.js";
+import { fixMapArtifactKind, isFixMapArtifact } from "./artifacts.js";
 
 export async function buildFixMapReport(
   input: Pick<
@@ -56,8 +57,26 @@ export async function buildFixMapAnalysis(
     ? await buildHybridReportFromRepo(repo, { ...reportInput, embeddingProvider: input.embeddingProvider })
     : buildReportFromRepo(repo, reportInput);
 
+  const generatedArtifacts = repo.files.filter(isFixMapArtifact);
+  if (generatedArtifacts.length > 0) {
+    const described = generatedArtifacts.slice(0, 8).map((file) =>
+      `${markdownCode(file.path)} (${fixMapArtifactKind(file)})`
+    );
+    report.diagnostics.push({
+      code: "fixmap-artifact-excluded",
+      severity: "info",
+      message:
+        `Excluded ${generatedArtifacts.length} previously generated FixMap ${generatedArtifacts.length === 1 ? "artifact" : "artifacts"} ` +
+        `from ranking, impact analysis, and context packing: ${described.join(", ")}${generatedArtifacts.length > 8 ? ", ..." : ""}.`,
+      paths: generatedArtifacts.slice(0, 8).map((file) => file.path)
+    });
+  }
+
   if (requestedExclude.patterns.length > 0) {
     const excludedPaths = repo.files.filter((file) => requestedExclude.excludes(file.path)).map((file) => file.path);
+    const effectivePatterns = [...new Set(repo.files
+      .map((file) => requestedExclude.reasonFor(file.path))
+      .filter((pattern): pattern is string => pattern !== undefined))];
     const unmatchedPatterns = requestedExclude.patterns.filter((pattern) =>
       !pattern.startsWith("!") && !requestedExclude.matchedPatterns.has(pattern)
     );
@@ -76,8 +95,8 @@ export async function buildFixMapAnalysis(
         code: "paths-excluded",
         severity: report.contextFiles.length === 0 ? "warning" : "info",
         message:
-          `${requestedExclude.patterns.length} exclusion ${requestedExclude.patterns.length === 1 ? "pattern" : "patterns"} ` +
-          `removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${requestedExclude.patterns.map(markdownCode).join(", ")}. ` +
+          `${effectivePatterns.length} exclusion ${effectivePatterns.length === 1 ? "pattern" : "patterns"} ` +
+          `removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${effectivePatterns.map(markdownCode).join(", ")}. ` +
           "Run --explain on a file you expected to see if this is why it is absent.",
         paths: excludedPaths.slice(0, 8)
       });

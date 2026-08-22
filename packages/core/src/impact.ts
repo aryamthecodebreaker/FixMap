@@ -1,4 +1,5 @@
 import { buildImportGraph } from "./import-graph.js";
+import { isFixMapArtifact } from "./artifacts.js";
 import { isBackupPath, isGeneratedPath } from "./paths.js";
 import type {
   ImpactEvidence,
@@ -30,7 +31,7 @@ export function buildImpactMap(
   testRoutes: TestRoute[] = [],
   limit = DEFAULT_IMPACT_LIMIT
 ): ImpactMap {
-  const repositoryPaths = new Set(repo.files.map((file) => file.path));
+  const repositoryPaths = new Set(repo.files.filter((file) => !isFixMapArtifact(file)).map((file) => file.path));
   const seeds = [...new Set(requestedSeeds)]
     .filter((path) => repositoryPaths.has(path))
     .slice(0, MAX_IMPACT_SEEDS);

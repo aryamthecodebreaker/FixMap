@@ -21,6 +21,25 @@ async function createAuthFixture(): Promise<string> {
 }
 
 describe("buildFixMapReport", () => {
+  it("excludes a FixMap report saved by an earlier invocation", async () => {
+    const root = await createAuthFixture();
+    await writeFile(join(root, "plan.json"), JSON.stringify({
+      reportVersion: 1,
+      summary: "FixMap found password reset context.",
+      contextFiles: [{ rank: 1, path: "plan.json", score: 99, confidence: "high", reasons: ["password reset"] }],
+      testRoutes: [], risks: [], changedFiles: [], diagnostics: []
+    }));
+
+    const analysis = await buildFixMapAnalysis({ repoRoot: root, issueText: "password reset emails fail" });
+
+    expect(analysis.report.contextFiles.map((file) => file.path)).not.toContain("plan.json");
+    expect(analysis.report.impact?.files.map((file) => file.path) ?? []).not.toContain("plan.json");
+    expect(analysis.report.diagnostics).toContainEqual(expect.objectContaining({
+      code: "fixmap-artifact-excluded",
+      paths: ["plan.json"]
+    }));
+  });
+
   it("returns the exact scanned repository snapshot with an analysis", async () => {
     const root = await createAuthFixture();
 
@@ -115,6 +134,23 @@ describe("buildFixMapReport", () => {
     expect(diagnostic?.message).toContain("removed by exclusion patterns");
     expect(diagnostic?.paths).toContain("src/auth/reset-password.ts");
     expect(report.diagnostics.find((entry) => entry.code === "paths-excluded")?.severity).toBe("warning");
+  });
+
+  it("does not claim an unmatched pattern removed paths matched by another pattern", async () => {
+    const root = await createAuthFixture();
+
+    const report = await buildFixMapReport({
+      repoRoot: root,
+      issueText: "password reset emails fail",
+      exclude: ["src/auth/**", "does-not-exist/**"]
+    });
+
+    const removed = report.diagnostics.find((entry) => entry.code === "paths-excluded")?.message ?? "";
+    const unmatched = report.diagnostics.find((entry) => entry.code === "exclusion-no-match")?.message ?? "";
+    expect(removed).toContain("1 exclusion pattern");
+    expect(removed).toContain("`src/auth/**`");
+    expect(removed).not.toContain("does-not-exist");
+    expect(unmatched).toContain("`does-not-exist/**`");
   });
 
   it("renders exclusion globs as code instead of live markdown", async () => {
@@ -214,7 +250,7 @@ describe("buildFixMapReport", () => {
     expect(report.analysis?.nextAction).toContain("Add a concrete");
   });
 
-  it("does not claim an identifier is absent when a large source file was not sampled", async () => {
+  it("grounds a definition found by a large source file's distributed search sample", async () => {
     const root = await createAuthFixture();
     const padding = "x".repeat(64_100);
     await writeFile(
@@ -228,13 +264,14 @@ describe("buildFixMapReport", () => {
     });
 
     expect(report.analysis?.grounding.unresolvedIdentifiers).toEqual([]);
-    expect(report.analysis?.grounding.unverifiedIdentifiers).toEqual(["lateIdentifier"]);
+    expect(report.analysis?.grounding.unverifiedIdentifiers).toEqual([]);
     expect(report.analysis?.grounding.identifiers).toContainEqual({
       identifier: "lateIdentifier",
-      status: "unverified",
-      matchedFiles: []
+      status: "exact-definition",
+      matchedFiles: ["src/large-module.ts"]
     });
-    expect(report.diagnostics.map((entry) => entry.code)).toContain("identifier-unverified");
+    expect(report.contextFiles[0]?.path).toBe("src/large-module.ts");
+    expect(report.diagnostics.map((entry) => entry.code)).not.toContain("identifier-unverified");
     expect(report.diagnostics.map((entry) => entry.code)).not.toContain("unresolved-identifier");
   });
 });

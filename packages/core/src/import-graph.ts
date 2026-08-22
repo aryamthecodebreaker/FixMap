@@ -23,10 +23,16 @@ export type ImportProximity = {
   direction: "imports" | "imported-by";
 };
 
+type ResolverIndex = {
+  repoPaths: Set<string>;
+  suffixPaths: Map<string, string[]>;
+  javaPackagePaths: Map<string, string[]>;
+};
+
 export function buildImportGraph(files: RepoFile[]): ImportGraph {
   const allParseable = files.filter((file) => languageAdapterForFile(file) && file.textSample.length > 0);
   const parseable = allParseable.slice(0, MAX_GRAPH_FILES);
-  const repoPaths = new Set(files.map((file) => file.path));
+  const resolverIndex = buildResolverIndex(files);
   const aliases = buildAliases(files);
   const workspacePackages = buildWorkspacePackages(files);
   const imports = new Map<string, Set<string>>();
@@ -36,7 +42,7 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
   for (const file of parseable) {
     let edges = 0;
     for (const imported of extractLanguageImports(file)) {
-      for (const target of resolveLanguageImport(file.path, imported, repoPaths, aliases, workspacePackages)) {
+      for (const target of resolveLanguageImport(file.path, imported, resolverIndex, aliases, workspacePackages)) {
         if (edges >= MAX_EDGES_PER_FILE) {
           truncatedEdges += 1;
           break;
@@ -100,21 +106,21 @@ type Alias = { prefix: string; suffix: string; targets: string[] };
 function resolveLanguageImport(
   fromPath: string,
   imported: LanguageImport,
-  repoPaths: Set<string>,
+  resolverIndex: ResolverIndex,
   aliases: Alias[],
   workspacePackages: Map<string, string[]>
 ): string[] {
   if (imported.adapter === "python") {
-    return resolvePythonImport(fromPath, imported, repoPaths);
+    return resolvePythonImport(fromPath, imported, resolverIndex);
   }
   if (imported.adapter === "java") {
-    return resolveJavaImport(imported, repoPaths);
+    return resolveJavaImport(imported, resolverIndex);
   }
-  const target = resolveSpecifier(fromPath, imported.specifier, repoPaths, aliases, workspacePackages);
+  const target = resolveSpecifier(fromPath, imported.specifier, resolverIndex.repoPaths, aliases, workspacePackages);
   return target ? [target] : [];
 }
 
-function resolvePythonImport(fromPath: string, imported: LanguageImport, repoPaths: Set<string>): string[] {
+function resolvePythonImport(fromPath: string, imported: LanguageImport, resolverIndex: ResolverIndex): string[] {
   const relativeMatch = /^(\.+)(.*)$/.exec(imported.specifier);
   let roots: string[];
   if (relativeMatch?.[1] !== undefined) {
@@ -134,41 +140,64 @@ function resolvePythonImport(fromPath: string, imported: LanguageImport, repoPat
     .flatMap((name) => roots.map((root) => root ? `${root}/${name}` : name));
   const targets = new Set<string>();
   for (const root of [...memberRoots, ...roots]) {
-    for (const candidate of pythonCandidates(root, repoPaths, !relativeMatch)) {
+    for (const candidate of pythonCandidates(root, resolverIndex, !relativeMatch)) {
       targets.add(candidate);
     }
   }
   return [...targets].sort((a, b) => a.localeCompare(b));
 }
 
-function pythonCandidates(root: string, repoPaths: Set<string>, allowSuffix: boolean): string[] {
+function pythonCandidates(root: string, resolverIndex: ResolverIndex, allowSuffix: boolean): string[] {
   if (!root) return [];
   const suffixes = [`${root}.py`, `${root}.pyi`, `${root}/__init__.py`, `${root}/__init__.pyi`];
-  const exact = suffixes.filter((candidate) => repoPaths.has(candidate));
+  const exact = suffixes.filter((candidate) => resolverIndex.repoPaths.has(candidate));
   if (exact.length > 0 || !allowSuffix) return exact;
-  return [...repoPaths]
-    .filter((path) => suffixes.some((suffix) => path.endsWith(`/${suffix}`)))
+  return [...new Set(suffixes.flatMap((suffix) => resolverIndex.suffixPaths.get(suffix) ?? []))]
     .sort(shortestPathFirst)
     .slice(0, 8);
 }
 
-function resolveJavaImport(imported: LanguageImport, repoPaths: Set<string>): string[] {
+function resolveJavaImport(imported: LanguageImport, resolverIndex: ResolverIndex): string[] {
   const modulePath = imported.specifier.replace(/\./g, "/");
   if (imported.wildcard) {
-    return [...repoPaths]
-      .filter((path) => {
-        const marker = `/${modulePath}/`;
-        const index = `/${path}`.lastIndexOf(marker);
-        if (index === -1 || !path.endsWith(".java")) return false;
-        return `/${path}`.slice(index + marker.length).split("/").length === 1;
-      })
-      .sort(shortestPathFirst);
+    return [...(resolverIndex.javaPackagePaths.get(modulePath) ?? [])].sort(shortestPathFirst);
   }
   const suffix = `${modulePath}.java`;
-  return [...repoPaths]
-    .filter((path) => path === suffix || path.endsWith(`/${suffix}`))
+  const exact = resolverIndex.repoPaths.has(suffix) ? [suffix] : [];
+  return [...exact, ...(resolverIndex.suffixPaths.get(suffix) ?? [])]
     .sort(shortestPathFirst)
     .slice(0, 1);
+}
+
+/** Build once per graph instead of walking every repository path for every Python or Java
+ * import. Each source path contributes its directory suffixes, preserving the old
+ * path.endsWith() resolution semantics while changing repeated lookup from O(files) to O(1). */
+function buildResolverIndex(files: RepoFile[]): ResolverIndex {
+  const repoPaths = new Set(files.map((file) => file.path));
+  const suffixPaths = new Map<string, string[]>();
+  const javaPackagePaths = new Map<string, string[]>();
+
+  for (const file of files) {
+    if (!/\.(?:py|pyi|java)$/i.test(file.path)) continue;
+    const segments = file.path.split("/");
+    for (let start = 1; start < segments.length; start += 1) {
+      addIndexedPath(suffixPaths, segments.slice(start).join("/"), file.path);
+    }
+    if (file.path.toLowerCase().endsWith(".java")) {
+      const directories = segments.slice(0, -1);
+      for (let start = 0; start < directories.length; start += 1) {
+        addIndexedPath(javaPackagePaths, directories.slice(start).join("/"), file.path);
+      }
+    }
+  }
+
+  return { repoPaths, suffixPaths, javaPackagePaths };
+}
+
+function addIndexedPath(index: Map<string, string[]>, key: string, path: string): void {
+  const existing = index.get(key);
+  if (existing) existing.push(path);
+  else index.set(key, [path]);
 }
 
 function shortestPathFirst(left: string, right: string): number {

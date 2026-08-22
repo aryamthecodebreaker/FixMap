@@ -13,6 +13,8 @@ export type LanguageDefinition = {
   adapter: LanguageAdapterId;
   name: string;
   kind: "function" | "method" | "class" | "interface" | "type" | "variable";
+  /** UTF-16 offset in the scanner text sample, when the adapter can locate it. */
+  offset?: number;
 };
 
 /**
@@ -63,7 +65,7 @@ const javascriptAdapter: LanguageAdapter = {
         : declaration === "interface" ? "interface"
           : declaration === "type" || declaration === "enum" ? "type"
             : match[0].includes("function") ? "function" : "variable";
-      definitions.push({ adapter: "javascript-typescript", name, kind });
+      definitions.push({ adapter: "javascript-typescript", name, kind, offset: match.index });
     }
     return uniqueDefinitions(definitions);
   },
@@ -96,10 +98,10 @@ const pythonAdapter: LanguageAdapter = {
   extractDefinitions(text) {
     const definitions: LanguageDefinition[] = [];
     for (const match of text.matchAll(/^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm)) {
-      if (match[1]) definitions.push({ adapter: "python", name: match[1], kind: "function" });
+      if (match[1]) definitions.push({ adapter: "python", name: match[1], kind: "function", offset: match.index });
     }
     for (const match of text.matchAll(/^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm)) {
-      if (match[1]) definitions.push({ adapter: "python", name: match[1], kind: "class" });
+      if (match[1]) definitions.push({ adapter: "python", name: match[1], kind: "class", offset: match.index });
     }
     return uniqueDefinitions(definitions);
   },
@@ -133,14 +135,15 @@ const javaAdapter: LanguageAdapter = {
       definitions.push({
         adapter: "java",
         name,
-        kind: match[1] === "interface" ? "interface" : match[1] === "class" || match[1] === "record" ? "class" : "type"
+        kind: match[1] === "interface" ? "interface" : match[1] === "class" || match[1] === "record" ? "class" : "type",
+        offset: match.index
       });
     }
     const methodPattern = /(?:^|[;{}]\s*)(?:(?:public|protected|private|static|final|abstract|synchronized|native|default|strictfp)\s+)*(?:<[A-Za-z0-9_?,.\s]+>\s*)?(?:[A-Za-z_$][A-Za-z0-9_$<>,.?\[\]]*\s+)?([A-Za-z_$][A-Za-z0-9_$]*)\s*\([^;{}]*\)\s*(?:throws\s+[^{]+)?\{/gm;
     for (const match of text.matchAll(methodPattern)) {
       const name = match[1];
       if (name && !JAVA_CONTROL_WORDS.has(name)) {
-        definitions.push({ adapter: "java", name, kind: "method" });
+        definitions.push({ adapter: "java", name, kind: "method", offset: match.index });
       }
     }
     return uniqueDefinitions(definitions);
@@ -159,17 +162,27 @@ export const BUILT_IN_LANGUAGE_ADAPTERS: readonly LanguageAdapter[] = Object.fre
 const ADAPTER_BY_EXTENSION = new Map(
   BUILT_IN_LANGUAGE_ADAPTERS.flatMap((adapter) => adapter.extensions.map((extension) => [extension, adapter] as const))
 );
+const IMPORT_CACHE = new WeakMap<object, LanguageImport[]>();
+const DEFINITION_CACHE = new WeakMap<object, LanguageDefinition[]>();
 
 export function languageAdapterForFile(file: Pick<RepoFile, "extension">): LanguageAdapter | undefined {
   return ADAPTER_BY_EXTENSION.get(file.extension.toLowerCase());
 }
 
-export function extractLanguageImports(file: Pick<RepoFile, "extension" | "textSample">): LanguageImport[] {
-  return languageAdapterForFile(file)?.extractImports(file.textSample) ?? [];
+export function extractLanguageImports(file: Pick<RepoFile, "extension" | "textSample" | "searchTextSample">): LanguageImport[] {
+  const cached = IMPORT_CACHE.get(file);
+  if (cached) return cached;
+  const imports = languageAdapterForFile(file)?.extractImports(file.searchTextSample ?? file.textSample) ?? [];
+  IMPORT_CACHE.set(file, imports);
+  return imports;
 }
 
-export function extractLanguageDefinitions(file: Pick<RepoFile, "extension" | "textSample">): LanguageDefinition[] {
-  return languageAdapterForFile(file)?.extractDefinitions(file.textSample) ?? [];
+export function extractLanguageDefinitions(file: Pick<RepoFile, "extension" | "textSample" | "searchTextSample">): LanguageDefinition[] {
+  const cached = DEFINITION_CACHE.get(file);
+  if (cached) return cached;
+  const definitions = languageAdapterForFile(file)?.extractDefinitions(file.searchTextSample ?? file.textSample) ?? [];
+  DEFINITION_CACHE.set(file, definitions);
+  return definitions;
 }
 
 export function isLanguageTestPath(path: string, extension: string): boolean {

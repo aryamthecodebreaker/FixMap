@@ -31,6 +31,8 @@ export type RepoFile = {
   isSource: boolean;
   kind: "code" | "config" | "documentation" | "other";
   textSample: string;
+  /** Distributed bounded windows used only for retrieval when the full file is too large. */
+  searchTextSample?: string;
   textSampleComplete?: boolean;
   textSampleSkipReason?: TextSampleSkipReason;
 };
@@ -50,6 +52,7 @@ export type ScanDiagnostic = {
     | "scan-limit-reached"
     | "tracked-paths-absent"
     | "duplicate-real-path"
+    | "linked-paths-skipped"
     | "submodules-skipped"
     | "repo-root-missing"
     | "gated-test-skipped"
@@ -89,6 +92,7 @@ export type ScanDiagnostic = {
     | "semantic-provider-invalid"
     | "semantic-provider-failed"
     | "semantic-candidates-truncated"
+    | "fixmap-artifact-excluded"
     | "annotation-store-invalid"
     | "annotation-source-incomplete"
     | "annotation-target-stale"
@@ -154,6 +158,7 @@ export type RankedFile = {
     structuralRank?: number;
     structuralScore?: number;
     lexicalRank?: number;
+    symbolRank?: number;
     semanticRank?: number;
     semanticSimilarity?: number;
   };

@@ -1,5 +1,5 @@
-import { rankContextFilesDetailed } from "./rank.js";
-import { rankByBm25 } from "./retrieval.js";
+import { rankContextFilesDetailed, rankContextFilesEvidenceDetailed } from "./rank.js";
+import { isFixMapArtifact } from "./artifacts.js";
 import type { PathExcluder } from "./exclude.js";
 import type { RankedFile, RepoMap } from "./types.js";
 import type { RankingShape } from "./grounding.js";
@@ -26,6 +26,7 @@ export type HybridRetrievalSignal = {
   structuralRank?: number;
   structuralScore?: number;
   lexicalRank?: number;
+  symbolRank?: number;
   semanticRank?: number;
   semanticSimilarity?: number;
 };
@@ -102,24 +103,31 @@ export async function rankContextFilesHybrid(
     semantic: positiveNumber(options.weights?.semantic, DEFAULT_WEIGHTS.semantic),
     reciprocalRankConstant: DEFAULT_WEIGHTS.reciprocalRankConstant
   };
-  const detailed = rankContextFilesDetailed(
+  const structuralDetailed = rankContextFilesDetailed(
     repo,
     { ...input, exclude: options.exclude },
     Number.MAX_SAFE_INTEGER,
     options.minStructuralScore ?? Number.NEGATIVE_INFINITY
   );
-  const structural = detailed.contextFiles;
-  const structuralByPath = new Map(structural.map((file) => [file.path, file]));
+  const detailed = rankContextFilesEvidenceDetailed(
+    repo,
+    { ...input, exclude: options.exclude },
+    Number.MAX_SAFE_INTEGER,
+    options.minStructuralScore ?? Number.NEGATIVE_INFINITY
+  );
+  const structuralByPath = new Map(structuralDetailed.contextFiles.map((file) => [file.path, file]));
+  const evidenceByPath = new Map(detailed.contextFiles.map((file) => [file.path, file]));
   const task = [input.issueText ?? "", input.diffText ?? ""].filter(Boolean).join("\n");
-  const lexical = rankByBm25(repo.files.filter((file) => structuralByPath.has(file.path)), task, structural.length);
   const signals = new Map<string, HybridRetrievalSignal>();
-  structural.forEach((file, index) => signals.set(file.path, {
-    structuralRank: index + 1,
-    structuralScore: file.score
-  }));
-  lexical.forEach((path, index) => {
-    const signal = signals.get(path);
-    if (signal) signal.lexicalRank = index + 1;
+  detailed.profiles.forEach((profile) => {
+    signals.set(profile.path, {
+      ...(profile.structuralRank === undefined ? {} : {
+        structuralRank: profile.structuralRank,
+        structuralScore: profile.structuralScore
+      }),
+      ...(profile.lexicalRank === undefined ? {} : { lexicalRank: profile.lexicalRank }),
+      ...(profile.symbolRank === undefined ? {} : { symbolRank: profile.symbolRank })
+    });
   });
 
   const diagnostics: HybridRetrievalDiagnostic[] = [];
@@ -141,10 +149,22 @@ export async function rankContextFilesHybrid(
     const providerError = validateProvider(provider);
     if (providerError) {
       diagnostics.push({ code: "semantic-provider-invalid", severity: "warning", message: providerError });
-    } else if (task.trim() && structural.length > 0) {
+    } else if (task.trim() && structuralDetailed.contextFiles.length > 0) {
       const maxCandidates = positiveInteger(options.maxSemanticCandidates, DEFAULT_MAX_SEMANTIC_CANDIDATES);
-      const semanticCandidates = structural.slice(0, maxCandidates);
-      const truncatedFiles = structural.length - semanticCandidates.length;
+      const semanticCandidates = repo.files
+        .filter((file) =>
+          file.isSource && !file.isTest && file.kind === "code" &&
+          !isFixMapArtifact(file) &&
+          !(options.exclude?.excludes(file.path) ?? false)
+        )
+        .sort((left, right) => left.path.localeCompare(right.path))
+        .slice(0, maxCandidates);
+      const semanticEligibleCount = repo.files.filter((file) =>
+        file.isSource && !file.isTest && file.kind === "code" &&
+        !isFixMapArtifact(file) &&
+        !(options.exclude?.excludes(file.path) ?? false)
+      ).length;
+      const truncatedFiles = semanticEligibleCount - semanticCandidates.length;
       if (truncatedFiles > 0) {
         diagnostics.push({
           code: "semantic-candidates-truncated",
@@ -162,13 +182,16 @@ export async function rankContextFilesHybrid(
         const semanticScores = semanticCandidates.map((file, index) => ({
           path: file.path,
           similarity: cosineSimilarity(query, vectors[index + 1]!)
-        })).sort((a, b) => b.similarity - a.similarity || a.path.localeCompare(b.path));
+        }))
+          // Rank fusion must not turn an unrelated or negatively related vector into
+          // evidence merely because every indexed document receives an ordinal position.
+          .filter((entry) => entry.similarity > 0)
+          .sort((a, b) => b.similarity - a.similarity || a.path.localeCompare(b.path));
         semanticScores.forEach((entry, index) => {
-          const signal = signals.get(entry.path);
-          if (signal) {
-            signal.semanticRank = index + 1;
-            signal.semanticSimilarity = round(entry.similarity, 6);
-          }
+          const signal = signals.get(entry.path) ?? {};
+          signal.semanticRank = index + 1;
+          signal.semanticSimilarity = round(entry.similarity, 6);
+          signals.set(entry.path, signal);
         });
         semantic = {
           id: provider.id,
@@ -193,18 +216,20 @@ export async function rankContextFilesHybrid(
     }
   }
 
-  const fused = structural.map((file) => {
-    const signal = signals.get(file.path)!;
+  const fused = [...signals.entries()].flatMap(([path, signal]): HybridRankedFile[] => {
+    const file = evidenceByPath.get(path) ?? structuralByPath.get(path);
+    if (!file) return [];
     const fusionScore =
       reciprocalContribution(signal.structuralRank, weights.structural, weights.reciprocalRankConstant) +
       reciprocalContribution(signal.lexicalRank, weights.lexical, weights.reciprocalRankConstant) +
+      reciprocalContribution(signal.symbolRank, weights.lexical, weights.reciprocalRankConstant) +
       reciprocalContribution(signal.semanticRank, weights.semantic, weights.reciprocalRankConstant);
     const reasons = [...file.reasons];
     if (signal.lexicalRank !== undefined) reasons.push(`BM25 lexical rank #${signal.lexicalRank}`);
     if (signal.semanticRank !== undefined && signal.semanticSimilarity !== undefined && semantic) {
       reasons.push(`semantic rank #${signal.semanticRank} (cosine ${signal.semanticSimilarity.toFixed(3)}) via ${semantic.id}/${semantic.model}`);
     }
-    return { ...file, fusionScore: round(fusionScore, 8), retrieval: signal, reasons };
+    return [{ ...file, fusionScore: round(fusionScore, 8), retrieval: signal, reasons }];
   }).sort((a, b) =>
     Number(isFusionAnchor(b)) - Number(isFusionAnchor(a)) ||
     b.fusionScore - a.fusionScore ||
@@ -218,7 +243,7 @@ export async function rankContextFilesHybrid(
     weights,
     ...(semantic ? { semantic } : {}),
     diagnostics,
-    structuralRanking: detailed.ranking
+    structuralRanking: structuralDetailed.ranking
   };
 }
 
@@ -293,7 +318,7 @@ function cosineSimilarity(left: number[], right: number[]): number {
 
 function semanticDocument(repo: RepoMap, path: string): string {
   const file = repo.files.find((candidate) => candidate.path === path);
-  return `${path}\n${file?.textSample ?? ""}`.slice(0, 16_000);
+  return `${path}\n${file?.searchTextSample ?? file?.textSample ?? ""}`.slice(0, 16_000);
 }
 
 function reciprocalContribution(rank: number | undefined, weight: number, constant: number): number {
