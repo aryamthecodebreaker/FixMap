@@ -122,6 +122,8 @@ export type RetrievalEvidenceProfile = {
 
 export type EvidenceRankingResult = {
   contextFiles: RankedFile[];
+  /** Complete structural ranking from the single shared pass; used by semantic union. */
+  structuralFiles: RankedFile[];
   profiles: RetrievalEvidenceProfile[];
   ranking: import("./grounding.js").RankingShape;
   candidateCounts: { structural: number; lexical: number; symbol: number; union: number };
@@ -265,6 +267,7 @@ export function rankContextFilesEvidenceDetailed(
   const finishedAt = performance.now();
   return {
     contextFiles,
+    structuralFiles: structural,
     profiles,
     ranking: structuralResult.ranking,
     candidateCounts: {

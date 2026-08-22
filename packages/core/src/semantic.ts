@@ -1,4 +1,4 @@
-import { rankContextFilesDetailed, rankContextFilesEvidenceDetailed } from "./rank.js";
+import { rankContextFilesEvidenceDetailed } from "./rank.js";
 import { isFixMapArtifact } from "./artifacts.js";
 import type { PathExcluder } from "./exclude.js";
 import type { RankedFile, RepoMap } from "./types.js";
@@ -103,19 +103,15 @@ export async function rankContextFilesHybrid(
     semantic: positiveNumber(options.weights?.semantic, DEFAULT_WEIGHTS.semantic),
     reciprocalRankConstant: DEFAULT_WEIGHTS.reciprocalRankConstant
   };
-  const structuralDetailed = rankContextFilesDetailed(
-    repo,
-    { ...input, exclude: options.exclude },
-    Number.MAX_SAFE_INTEGER,
-    options.minStructuralScore ?? Number.NEGATIVE_INFINITY
-  );
   const detailed = rankContextFilesEvidenceDetailed(
     repo,
     { ...input, exclude: options.exclude },
     Number.MAX_SAFE_INTEGER,
     options.minStructuralScore ?? Number.NEGATIVE_INFINITY
   );
-  const structuralByPath = new Map(structuralDetailed.contextFiles.map((file) => [file.path, file]));
+  // Evidence ranking already performs the structural pass and retains every candidate at
+  // this unbounded limit. Reusing it avoids a second full graph/grounding/scoring traversal.
+  const structuralByPath = new Map(detailed.structuralFiles.map((file) => [file.path, file]));
   const evidenceByPath = new Map(detailed.contextFiles.map((file) => [file.path, file]));
   const task = [input.issueText ?? "", input.diffText ?? ""].filter(Boolean).join("\n");
   const signals = new Map<string, HybridRetrievalSignal>();
@@ -149,7 +145,7 @@ export async function rankContextFilesHybrid(
     const providerError = validateProvider(provider);
     if (providerError) {
       diagnostics.push({ code: "semantic-provider-invalid", severity: "warning", message: providerError });
-    } else if (task.trim() && structuralDetailed.contextFiles.length > 0) {
+    } else if (task.trim() && detailed.contextFiles.length > 0) {
       const maxCandidates = positiveInteger(options.maxSemanticCandidates, DEFAULT_MAX_SEMANTIC_CANDIDATES);
       const semanticCandidates = repo.files
         .filter((file) =>
@@ -243,7 +239,7 @@ export async function rankContextFilesHybrid(
     weights,
     ...(semantic ? { semantic } : {}),
     diagnostics,
-    structuralRanking: structuralDetailed.ranking
+      structuralRanking: detailed.ranking
   };
 }
 
