@@ -1,0 +1,280 @@
+{
+  "generatedAt": "2026-08-22",
+  "status": "development-only",
+  "taskTextRule": "Closing issue title plus the first 600 characters of its body.",
+  "selectionRule": "Per configured repository and language: the first of the 100 most recently updated merged pull requests that closes an issue with at least 80 body characters, is not docs-titled, changes no more than 20 files total, and modifies 1-3 non-test implementation files in that language. The PR base commit and exact fixing source paths are frozen before FixMap is measured.",
+  "languages": [
+    "go",
+    "rust",
+    "ruby",
+    "php",
+    "dotnet"
+  ],
+  "cases": [
+    {
+      "slug": "gin-gonic/gin",
+      "language": "go",
+      "repo": "https://github.com/gin-gonic/gin.git",
+      "license": "MIT",
+      "sha": "293ad7edebb3ae30369288bd6416ca0d78474727",
+      "issue": 2088,
+      "pullRequest": 4698,
+      "task": "Recovery middleware does not add error to context\n\n- go version: go version go1.12.1 darwin/amd64\r\n- gin version (or commit ref): v1.4.0\r\n- operating system: OSX 10.14.3\r\n\r\n## Description\r\nCurrently the recovery middleware only adds a recovered error to context when there is a broken pipe:  https://github.com/gin-gonic/gin/blob/master/recovery.go#L75\r\n```\r\nif brokenPipe {\r\n    c.Error(err.(error)) // nolint: errcheck\r\n    c.Abort()\r\n} else {\r\n    c.AbortWithStatus(http.StatusInternalServerError)\r\n}\r\n````\r\n\r\nIt would be great to have the else case also add the error to the context so that middleware higher in the chain can process those errors ",
+      "expected": [
+        "recovery.go"
+      ]
+    },
+    {
+      "slug": "prometheus/prometheus",
+      "language": "go",
+      "repo": "https://github.com/prometheus/prometheus.git",
+      "license": "Apache-2.0",
+      "sha": "2690761582555fe70391b79227d982d608e6a2b3",
+      "issue": 11486,
+      "pullRequest": 16601,
+      "task": "parse alerting before loading WAL\n\n### Proposal\n\nJust like we parse the configuration file before the WAL (#7399, #7322), we should parse rules files before loading the WAL.\r\n\r\nI have just had a pretty nasty incident where this problem, combined with a systemd unit that would `Restart=on-failure`, lead to a total disk exhaustion after systemd infinitely retried to reload a config broken before the weekend (well, two days before, but it seems no one noticed before the weekend).\r\n\r\nThe gory details of that incident are in:\r\n\r\nhttps://gitlab.torproject.org/tpo/tpa/team/-/issues/40939\r\n\r\nI have also filed this bug against the Debia",
+      "expected": [
+        "cmd/prometheus/main.go",
+        "rules/manager.go"
+      ]
+    },
+    {
+      "slug": "go-gorm/gorm",
+      "language": "go",
+      "repo": "https://github.com/go-gorm/gorm.git",
+      "license": "MIT",
+      "sha": "d0ee5e2296150d691364c5f4f7f2b32abde04545",
+      "issue": 7790,
+      "pullRequest": 7798,
+      "task": "Bug: rows.Close() not deferred in delete/update returning paths — connection leak on panic\n\n## Describe the feature\n\nFix resource leaks where `*sql.Rows` are not deferred in the delete and update returning paths, risking connection pool exhaustion if `gorm.Scan` panics.\n\n## Motivation\n\n`callbacks/query.go` and `callbacks/create.go` correctly use `defer rows.Close()`. However, `callbacks/delete.go:173-179` and `callbacks/update.go:89-99` call `rows.Close()` inline without defer. If `gorm.Scan` panics (possible given heavy reflect usage), `rows.Close()` is never called, leaking the underlying database connection. Under panic conditions, this can exhaust the connection pool.\n\n### `callb",
+      "expected": [
+        "callbacks/delete.go",
+        "callbacks/update.go",
+        "finisher_api.go"
+      ]
+    },
+    {
+      "slug": "spf13/cobra",
+      "language": "go",
+      "repo": "https://github.com/spf13/cobra.git",
+      "license": "Apache-2.0",
+      "sha": "61968e893eee2f27696c2fbc8e34fa5c4afaf7c4",
+      "issue": 2257,
+      "pullRequest": 2356,
+      "task": "Completions modify os.Args\n\nI'm trying to workaround https://github.com/spf13/cobra/issues/1877 by inspecting `os.Args` by hand. In some cases cobra accidentally inserts `--` into `os.Args`.\n\nMinimal example:\n```go\npackage main\n\nimport (\n\t\"os\"\n\t\"strings\"\n\n\t\"github.com/spf13/cobra\"\n)\n\nfunc main() {\n\tcmd := &cobra.Command{\n\t\tTraverseChildren: true,\n\t\tValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {\n\t\t\tcobra.CompErrorln(strings.Join(os.Args[1:], \", \"))\n\t\t\treturn nil, cobra.ShellCompDirectiveDefault\n\t\t},\n\t}\n\tif err := cmd.Execute(); err != nil {\n\t\t",
+      "expected": [
+        "completions.go"
+      ]
+    },
+    {
+      "slug": "tokio-rs/tokio",
+      "language": "rust",
+      "repo": "https://github.com/tokio-rs/tokio.git",
+      "license": "MIT",
+      "sha": "8b13642a1f7346814f189937b2d6e1e80b210db1",
+      "issue": 6895,
+      "pullRequest": 8355,
+      "task": "LengthDelimitedCodec should support [u8]\n\n**Is your feature request related to a problem? Please describe.**\r\nLengthDelimitedCodec provides a default implementation of `Encode` for `bytes::Bytes`. This forces users to import `bytes`, when there is no reason not to provide `Encode` for `[u8]`\r\n\r\nFurthermore, LengthDelimitedCodec makes it difficult to write your own `Encode` implementation as the length handling is manual, so using the default implementation should probably be strongly recommended.\r\n\r\n**Additional context**\r\nWould be willing to write a PR for this if the feature seems useful.",
+      "expected": [
+        "tokio-util/src/codec/length_delimited.rs"
+      ]
+    },
+    {
+      "slug": "clap-rs/clap",
+      "language": "rust",
+      "repo": "https://github.com/clap-rs/clap.git",
+      "license": "Apache-2.0",
+      "sha": "8e50ec891e30cd2af4f9a62a405a5b7ee31aac4f",
+      "issue": 6481,
+      "pullRequest": 6482,
+      "task": "clap_mangen: SYNOPSIS shows positional arguments marked with `Arg::hide(true)`\n\n### Please complete the following tasks\n\n- [x] I have searched the [discussions](https://github.com/clap-rs/clap/discussions)\n- [x] I have searched the [open](https://github.com/clap-rs/clap/issues) and [rejected](https://github.com/clap-rs/clap/issues?q=is%3Aissue+label%3AS-wont-fix+is%3Aclosed) issues\n\n### Rust Version\n\nrustc 1.95.0 (59807616e 2026-04-14)\n\n### Clap Version\n\nmaster (8e50ec8), clap_mangen 0.3.2\n\n### Minimal reproducible code\n\n```rust\nfn main() {\n    let mut cmd = clap::Command::new(\"my-app\")\n        .arg(clap::Arg::new(\"visible\").help(\"A visible positional\"))\n        .arg(\n   ",
+      "expected": [
+        "clap_mangen/src/render.rs"
+      ]
+    },
+    {
+      "slug": "serde-rs/serde",
+      "language": "rust",
+      "repo": "https://github.com/serde-rs/serde.git",
+      "license": "Apache-2.0",
+      "sha": "415d9fc5601add94aac3c1882bd63e3f555ce2a2",
+      "issue": 2994,
+      "pullRequest": 2995,
+      "task": "docs rs build failing since version 1.0.227\n\nRunning `RUSTDOCFLAGS=\"--cfg docsrs\" cargo +nightly doc` on my dependent crate works when I specify serde version `=1.0.226`, but fails with several errors with the latest 1.0.227 version.\n\nMy code, including the successful and failed workflows, is available at https://github.com/garro95/priority-queue",
+      "expected": [
+        "serde/build.rs",
+        "serde_core/build.rs",
+        "serde_core/src/crate_root.rs"
+      ]
+    },
+    {
+      "slug": "rust-lang/cargo",
+      "language": "rust",
+      "repo": "https://github.com/rust-lang/cargo.git",
+      "license": "Apache-2.0",
+      "sha": "8a0d8afba810304bcf9a10bac430be80dd470233",
+      "issue": 17270,
+      "pullRequest": 17274,
+      "task": "`cargo -Zscript` panics on frontmatter including Unicode chars\n\n### Problem\n\nWhen running `cargo -Zscript` on file whose frontmatter contains Unicode chars, Cargo panics with:\n```none\nthread 'main' (166781) panicked at /rustc/375b1431b7d89d1c2e2bc168c011848ae12b7d14/library/core/src/str/mod.rs:861:21:\nend byte index 2 is not a char boundary; it is inside '│' (bytes 1..4 of string)\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n```\n\n### Steps\n\n1. Create a file `script.rs` containing:\n   ```rust\n   ---  \n   -│\n   ```\n   (The `│` is a Unicode char and not ASCII).\n2. Run `cargo +nightly -Zscript script.rs`. Observe Cargo panics.\n",
+      "expected": [
+        "src/util/frontmatter.rs"
+      ]
+    },
+    {
+      "slug": "rails/rails",
+      "language": "ruby",
+      "repo": "https://github.com/rails/rails.git",
+      "license": "MIT",
+      "sha": "ef8d9606d9a0ac715a481b83aa70fd6b2fcb504a",
+      "issue": 58470,
+      "pullRequest": 58471,
+      "task": "Add --no-banner to bin/rails console\n\n### Motivation\n\n`bin/rails console` now prints a startup banner (logo, version, tip, path), similar to IRB after [ruby/irb#1183](https://github.com/ruby/irb/pull/1183).\n\nYou can turn it off permanently with `IRB.conf[:SHOW_BANNER] = false` in `.irbrc`. IRB also has a one-shot CLI flag for this: `--nobanner` ([ruby/irb#1200](https://github.com/ruby/irb/pull/1200)). Rails has no equivalent.\n\nThat makes it awkward for scripts, CI, or a single session where you do not want to edit config.\n\n### Proposal\n\nSupport something like:\n\n```bash\nbin/rails console --no-banner\n```\n\nBehavior should match `IRB.",
+      "expected": [
+        "railties/lib/rails/commands/console/console_command.rb",
+        "railties/lib/rails/commands/console/irb_console.rb"
+      ]
+    },
+    {
+      "slug": "rubocop/rubocop",
+      "language": "ruby",
+      "repo": "https://github.com/rubocop/rubocop.git",
+      "license": "MIT",
+      "sha": "ea712edf2b1b14cb9b3f748bb1003a6141c95c5e",
+      "issue": 15590,
+      "pullRequest": 15595,
+      "task": "Infinite loop caused by caused by Layout/ArgumentAlignment, Layout/ClosingParenthesisIndentation -> Layout/ClosingParenthesisIndentation, Layout/FirstArgumentIndentation\n\n### Before submitting\n\n- [x] I have searched the existing issues and this hasn't been reported yet.\n- [x] I am running the latest stable version of RuboCop.\n\n### Issue type\n\nCrash/error\n\n### Cop name\n\nLayout/ArgumentAlignment, Layout/ClosingParenthesisIndentation -> Layout/ClosingParenthesisIndentation, Layout/FirstArgumentIndentation\n\n### Steps to reproduce the problem\n\n**Note**: This issue looks similar to https://github.com/rubocop/rubocop/issues/14858 but is _not_ a dup - I have reproduced this on v1.89.0.\n\nReproducible Example file (usage context: `Rack::Attack` spec):\n```\n# frozen_string",
+      "expected": [
+        "lib/rubocop/cop/layout/first_argument_indentation.rb"
+      ]
+    },
+    {
+      "slug": "rspec/rspec-core",
+      "language": "ruby",
+      "repo": "https://github.com/rspec/rspec-core.git",
+      "license": "MIT",
+      "sha": "87fb8b560595d282a7d597d07897d48288994beb",
+      "issue": 3123,
+      "pullRequest": 3124,
+      "task": "rspec testsuite error with ruby3.4.0dev\n\nWith using ruby3.4.0dev ( `ruby 3.4.0dev (2024-11-15 master 51666c827b) +PRISM [x86_64-linux]` ),\r\nexecuting rspec-core 3.13.2 rspec testsuite causes errors like:\r\n\r\n```\r\nFailures:\r\n\r\n  1) RSpec::Core::DRbOptions DRB args with tags leaves inclusion tags with values intact\r\n     Failure/Error: @example_group_instance.instance_exec(*args, &block)\r\n\r\n     RuntimeError:\r\n       Warnings were generated: /builddir/build/BUILD/rubygem-rspec-core-3.13.2-build/rspec-core-3.13.2/lib/rspec/core/drb.rb:95: warning: warning: string returned by :tag.to_s will be frozen in the future\r\n     # ./spec/spec_help",
+      "expected": [
+        "lib/rspec/core/drb.rb"
+      ]
+    },
+    {
+      "slug": "sidekiq/sidekiq",
+      "language": "ruby",
+      "repo": "https://github.com/sidekiq/sidekiq.git",
+      "license": "NOASSERTION",
+      "sha": "e3753389e5a71c2dd26ec0691fae175d6e1e4c9a",
+      "issue": 7053,
+      "pullRequest": 7056,
+      "task": "Metrics: deploy marks from previous days are never drawn (fetch_marks only reads today's key)\n\n`Sidekiq::Deploy#mark!` stores marks under a **per-day** key (`YYYYMMDD-marks`, 90-day TTL), but `Metrics::Query#fetch_marks` only reads **today's** key and then filters by the window. On any period longer than the current UTC day — including the Metrics page's own `?period=72h` — deploys from previous days silently disappear from the graph, while their data is still sitting in Redis.\n\nNothing raises, so there is no backtrace: the marks are simply dropped from the result.\n\n### Versions\n\nRuby 3.4.10, Rails 8.1.3, Sidekiq 8.1.6 (also present on `main` today), redis-client 0.30.0, Redis 7, Debian",
+      "expected": [
+        "lib/sidekiq/metrics/query.rb"
+      ]
+    },
+    {
+      "slug": "symfony/symfony",
+      "language": "php",
+      "repo": "https://github.com/symfony/symfony.git",
+      "license": "MIT",
+      "sha": "453d5416f6907ce2979c16c8469ddf68bdb31023",
+      "issue": 63205,
+      "pullRequest": 63277,
+      "task": "[Messenger] BatchHandler no longer flushes on idle\n\n### Symfony version(s) affected\n\n6.4.32 7.3.10 7.4.4 8.0.4\n\n### Description\n\nSince the release of the latest symfony version the batch handling has changed it behavior.\n\nAfter our testing on 7.3.10, we've found that the default behavior is altered where the batch handling is now waiting for the batchsize to be filled before processing the batch. In the case described by @wazum this is unwanted behavior, but for our case that is very much wanted behavior.\n\nWe have an fluctuating workload which we batch handle to improve efficiency, but when the worker is idle it should handle the message asap. ",
+      "expected": [
+        "src/Symfony/Component/Messenger/Handler/BatchHandlerTrait.php",
+        "src/Symfony/Component/Messenger/Middleware/SendMessageMiddleware.php",
+        "src/Symfony/Component/Messenger/Worker.php"
+      ]
+    },
+    {
+      "slug": "composer/composer",
+      "language": "php",
+      "repo": "https://github.com/composer/composer.git",
+      "license": "MIT",
+      "sha": "8fbad13554162188f900ff149454932500d508a8",
+      "issue": 12976,
+      "pullRequest": 12977,
+      "task": "Race condition in cache with multiple parallel builds\n\nIn our CI, we run tests and builds for multiple projects in our monorepo in parallel. Occasionally we run into an error like the following:\n```\n  - Downloading brain/monkey (2.7.0)\n    Failed to download brain/monkey from dist: /home/runner/.cache/composer/files/brain/monkey does not exist and could not be created: \n    Source fallback is disabled. Not trying alternative sources.\n::error ::/home/runner/.cache/composer/files/brain/monkey does not exist and could not be created: \n\nIn Filesystem.php line 261:\n                                                                               \n  /home/",
+      "expected": [
+        "src/Composer/Util/Filesystem.php"
+      ]
+    },
+    {
+      "slug": "guzzle/guzzle",
+      "language": "php",
+      "repo": "https://github.com/guzzle/guzzle.git",
+      "license": "MIT",
+      "sha": "429a11fa9f6cdcb06145b2033cd5870575fca6a9",
+      "issue": 3871,
+      "pullRequest": 3874,
+      "task": "`delay` affects unrelated requests\n\n**PHP version**: 8.5.8 (hint: `php --version`)\n\n**Description**\n\nWhen I use the `delay` option on a some requests and `->wait()` on a Promise of another request without delay, the other request will also be delayed.\n\n**How to reproduce**\n\n```php\n<?php\n\nuse GuzzleHttp\\Client;\n\nrequire('vendor/autoload.php');\n\n$client = new Client();\n\n$response = $client->getAsync('https://www.example.com/');\n$response2 = $client->getAsync('https://www.example.com/', ['delay' => 1000]);\n\necho (new DateTimeImmutable())->format( DateTimeInterface::RFC3339_EXTENDED), PHP_EOL;\nvar_dump($response->wait()->getStatusCo",
+      "expected": [
+        "src/Handler/CurlMultiHandler.php",
+        "src/RedirectMiddleware.php"
+      ]
+    },
+    {
+      "slug": "dotnet/runtime",
+      "language": "dotnet",
+      "repo": "https://github.com/dotnet/runtime.git",
+      "license": "MIT",
+      "sha": "45218813655f28bf4f5285ae92f09abd85c02d44",
+      "issue": 117718,
+      "pullRequest": 125872,
+      "task": "Excessive exceptions in NamedPipeClientStream on Linux when connecting to a non-existent target\n\n### Description\n\nWhen using `NamedPipeClientStream` on Linux to connect to a non-existent target, the .NET runtime continuously throws `SocketException` internally, which severely impacts performance.\n\n### Reproduction Steps\n\nThe issue can be reproduced with the following simple code:\n\n```csharp\nusing System.IO.Pipes;\n\nAppDomain.CurrentDomain.FirstChanceException += (sender, eventArgs) =>\n{\n    Console.WriteLine($\"FirstChanceException: {eventArgs.Exception.GetType().FullName} {eventArgs.Exception.Message}\");\n};\n\nvar namedPipeClientStream = new NamedPipeClientStream(\"DoNotExistFoo\");\nnamedPipeC",
+      "expected": [
+        "src/libraries/System.IO.Pipes/src/System/IO/Pipes/NamedPipeClientStream.Unix.cs"
+      ]
+    },
+    {
+      "slug": "AutoMapper/AutoMapper",
+      "language": "dotnet",
+      "repo": "https://github.com/AutoMapper/AutoMapper.git",
+      "license": "NOASSERTION",
+      "sha": "b57c206dc7291821e42bdf816a5637a5c1d8cb54",
+      "issue": 4631,
+      "pullRequest": 4634,
+      "task": "Support automatic discovery of license keys\n\nToday AutoMapper requires manual setting of the license key:\n\n```csharp\nservices.AddAutoMapper(cfg => {\n    cfg.LicenseKey = \"License key here\";\n\n    // Other configuration\n});\n```\n\nWhile this allows for unlimited options for retrieving the license key (typically via the .NET configuration system), it still requires manual setting. This can be problematic for larger enterprises that share the license key amongst many systems/applications. This also requires code changes to set the license key.\n\nInstead, we can support automatic discovery of license key, via:\n- .NET configuration system (via a ",
+      "expected": [
+        "src/AutoMapper/Licensing/LicenseAccessor.cs"
+      ]
+    },
+    {
+      "slug": "serilog/serilog",
+      "language": "dotnet",
+      "repo": "https://github.com/serilog/serilog.git",
+      "license": "Apache-2.0",
+      "sha": "63f1da33b80672e69d067acf32405b62eaedb110",
+      "issue": 2231,
+      "pullRequest": 2234,
+      "task": "RestrictedSink does not forward ISetLoggingFailureListener to inner sink\n\n**Description**\n\n`Serilog.Core.Sinks.RestrictedSink` — the wrapper applied by `LoggerSinkConfiguration.Sink(sink, restrictedToMinimumLevel)` whenever `restrictedToMinimumLevel` is anything other than `LevelAlias.Minimum` — does not implement `ISetLoggingFailureListener`. As a result, when an inner sink supports `ISetLoggingFailureListener` (directly or via `BatchingSink`), the failure listener installed by `FailureListenerSink` (used internally by `WriteTo.FallbackChain(...)` and `WriteTo.Fallible(...)`, introduced in #2108) never reaches it.\n\nFor synchronous sinks the gap is masked: `FailureL",
+      "expected": [
+        "src/Serilog/Configuration/LoggerSinkConfiguration.cs",
+        "src/Serilog/Core/Sinks/RestrictedSink.cs"
+      ]
+    },
+    {
+      "slug": "JamesNK/Newtonsoft.Json",
+      "language": "dotnet",
+      "repo": "https://github.com/JamesNK/Newtonsoft.Json.git",
+      "license": "MIT",
+      "sha": "e5f67150a0a2cd6fafcee483add00c1bb0fae306",
+      "issue": 3095,
+      "pullRequest": 3104,
+      "task": "System.MissingMethodException: Method not found: \"Void Newtonsoft.Json.Linq.JToken.WriteTo(Newtonsoft.Json.JsonWriter)\n\n# Problem Summary\n\nNewtonsoft.Json uses the same Assembly Version (`13.0.0.0`) and Public Key Token across all 13.x releases. This makes it impossible to use Assembly Binding Redirects to enforce a specific version, and creates a security vulnerability where older, vulnerable versions can hijack applications built against newer versions.\n\n# Technical Details\n\n## The Issue\n\nWhen multiple Newtonsoft.Json versions exist on a system (e.g., 13.0.1 in GAC and 13.0.4 in the application folder), the runtime may load the wrong version because:\n\n1. All 13.x versions share the same Assembly Version: `13.",
+      "expected": [
+        "Src/Newtonsoft.Json/JsonValidatingReader.cs",
+        "Src/Newtonsoft.Json/Linq/JToken.cs"
+      ]
+    }
+  ],
+  "skipped": [
+    {
+      "slug": "sebastianbergmann/phpunit",
+      "language": "php",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    }
+  ]
+}

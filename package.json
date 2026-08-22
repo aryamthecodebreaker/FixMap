@@ -63,6 +63,7 @@
     "lint": "npm run lint --workspaces --if-present",
     "evaluate:heldout": "npm run build:core && node scripts/evaluate-external.mjs --suite heldout",
     "evaluate:multilanguage": "npm run build:core && node scripts/evaluate-baseline.mjs --suite multilanguage-dev",
+    "evaluate:polyglot": "npm run build:core && node scripts/evaluate-baseline.mjs --suite polyglot-dev",
     "evaluate:heldout:gate": "npm run build:core && node scripts/evaluate-external.mjs --suite heldout --gate --check-recorded",
     "evaluate:heldout:record": "npm run build:core && node scripts/evaluate-external.mjs --suite heldout --record",
     "evaluate:adversarial": "npm run build:core && node scripts/evaluate-adversarial.mjs",

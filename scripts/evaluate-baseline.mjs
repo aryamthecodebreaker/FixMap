@@ -39,7 +39,7 @@ import { wilsonInterval } from "./lib/wilson.mjs";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
   process.stdout.write(
-    "Usage: node scripts/evaluate-baseline.mjs [--suite external|heldout|multilanguage-dev] [--case owner/repo] [--record] [--check-recorded]\n"
+    "Usage: node scripts/evaluate-baseline.mjs [--suite external|heldout|multilanguage-dev|polyglot-dev] [--case owner/repo] [--record] [--check-recorded]\n"
   );
   process.exit(0);
 }
@@ -49,8 +49,8 @@ const { scanRepo, rankContextFilesEvidenceDetailed } = await import(
 
 const suiteIndex = process.argv.indexOf("--suite");
 const suite = suiteIndex === -1 ? "external" : process.argv[suiteIndex + 1];
-if (!["external", "heldout", "multilanguage-dev"].includes(suite)) {
-  process.stderr.write(`Unknown suite "${suite}"; expected "external", "heldout", or "multilanguage-dev".\n`);
+if (!["external", "heldout", "multilanguage-dev", "polyglot-dev"].includes(suite)) {
+  process.stderr.write(`Unknown suite "${suite}"; expected "external", "heldout", "multilanguage-dev", or "polyglot-dev".\n`);
   process.exit(1);
 }
 
