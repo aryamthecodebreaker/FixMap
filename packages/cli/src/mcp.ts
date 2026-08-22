@@ -5,6 +5,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
+  answerFixMapQuestion,
   compareReports,
   buildFixMapGraph,
   explainFile,
@@ -26,6 +27,7 @@ import { renderDoctorReport, runDoctorChecks } from "./doctor.js";
 import { describeInputReadError, readDecodedTextFile } from "./decode-input.js";
 import { clarifyMissingPath } from "./explain-path.js";
 import { analyzeRepository, contextFromAnalysis } from "./analysis-source.js";
+import { renderAskMarkdown } from "./ask-command.js";
 import { runWorkspaceCommand } from "./workspace-command.js";
 import {
   buildReportForRepository,
@@ -251,6 +253,27 @@ const WORKSPACE_TOOL = {
   }
 };
 
+const ASK_TOOL = {
+  name: "fixmap_ask",
+  title: "FixMap ask",
+  description:
+    "Answer structural questions from a saved FixMap report using ranked context, impact, tests, risks, diagnostics, annotations, ADRs, and architecture policy. " +
+    "Deterministic mode reads no source content, calls no model, cites report evidence, and preserves unknowns instead of guessing.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      report: {
+        description: "FixMap report JSON object or local report path",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
+      question: { type: "string", description: "Structural question of at most 5,000 characters" },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    required: ["report", "question"],
+    additionalProperties: false
+  }
+};
+
 const VERIFY_TOOL = {
   name: "fixmap_verify",
   title: "FixMap verify",
@@ -320,7 +343,7 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, ASK_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -392,6 +415,34 @@ export function createFixMapMcpServer(
         ...(exitCode === 0 ? {} : { isError: true }),
         content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }]
       };
+    }
+    if (request.params.name === ASK_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["report", "question", "format"].includes(key));
+      if (unknown.length > 0) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }]
+        };
+      }
+      const loaded = loadReportInput(record?.report, '"report"');
+      if (!loaded.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${loaded.message}` }] };
+      if (typeof record?.question !== "string" || !record.question.trim() || record.question.length > 5_000 || record.question.includes("\0")) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "question" is required and must contain at most 5,000 characters and no null bytes.' }] };
+      }
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      try {
+        const answer = await answerFixMapQuestion(loaded.report, record.question);
+        return {
+          content: [{
+            type: "text",
+            text: format.value === "json" ? `${JSON.stringify(answer, null, 2)}\n` : renderAskMarkdown(answer)
+          }]
+        };
+      } catch (error) {
+        return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }] };
+      }
     }
     if (request.params.name === COMPARE_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;

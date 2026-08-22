@@ -173,13 +173,13 @@ describe("fixmap mcp server", () => {
     expect(report.contextFiles).toHaveLength(1);
   });
 
-  it("advertises the complete plan, context, graph, workspace, explain, compare, verify, and doctor workflow", async () => {
+  it("advertises the complete plan, context, graph, workspace, ask, explain, compare, verify, and doctor workflow", async () => {
     const client = await connectClient();
 
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_ask", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
@@ -201,6 +201,10 @@ describe("fixmap mcp server", () => {
     expect(Object.keys(workspace?.inputSchema.properties ?? {}).sort()).toEqual(["config", "seeds", "format", "noCache"].sort());
     expect(workspace?.inputSchema.required).toEqual(["config"]);
     expect(workspace?.inputSchema.additionalProperties).toBe(false);
+    const ask = tools.tools.find((tool) => tool.name === "fixmap_ask");
+    expect(Object.keys(ask?.inputSchema.properties ?? {}).sort()).toEqual(["report", "question", "format"].sort());
+    expect(ask?.inputSchema.required).toEqual(["report", "question"]);
+    expect(ask?.inputSchema.additionalProperties).toBe(false);
     expect(verify).toBeDefined();
     expect(Object.keys(verify?.inputSchema.properties ?? {}).sort()).toEqual(
       ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache"].sort()
@@ -257,6 +261,45 @@ describe("fixmap mcp server", () => {
       consumerRepository: "payments", providerRepository: "auth"
     }));
     expect(report.impact.repositories).toContainEqual(expect.objectContaining({ repository: "payments" }));
+  });
+
+  it("answers report-only structural questions through MCP with citations", async () => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_ask",
+      arguments: {
+        report: {
+          reportVersion: 1,
+          summary: "Authentication context",
+          contextFiles: [{
+            rank: 1,
+            path: "src/auth/reset-password.ts",
+            score: 20,
+            confidence: "high",
+            reasons: ["defines resetPassword"]
+          }],
+          testRoutes: [{
+            command: "npm run test:auth",
+            kind: "test",
+            reason: "package script",
+            relatedFiles: ["test/auth/reset-password.test.ts"]
+          }],
+          risks: [],
+          changedFiles: [],
+          diagnostics: []
+        },
+        question: "Which test should I run?",
+        format: "json"
+      }
+    });
+    expect(result.isError).toBeFalsy();
+    const answer = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+    expect(answer).toMatchObject({
+      fixMapAnswerVersion: 1,
+      mode: "deterministic-structural",
+      claimsVerified: false
+    });
+    expect(answer.citations).toContainEqual(expect.objectContaining({ kind: "test" }));
   });
 
   it("compares two reports through MCP", async () => {
