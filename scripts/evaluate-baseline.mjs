@@ -496,7 +496,7 @@ const summary = {
   configuration: {
     topN: TOP_N,
     corpus: "one scanRepo() result per case, shared by every arm",
-    recordedCorpusFields: "rankings and hit outcomes only; platform-dependent checkout file counts are deliberately omitted",
+    recordedCorpusFields: "rankings, hit outcomes, and deterministic evidence only; platform-dependent checkout counts and timings are deliberately omitted",
     searchField: "file path + scanner text sample (files over the scanner's sample limit are truncated for every arm alike)",
     tokenizer: "lowercase [A-Za-z0-9_$]+ of length >= 3, plus camelCase and underscore sub-tokens",
     stopwords: STOPWORDS.size,
@@ -546,8 +546,37 @@ const summary = {
 const rendered = `${JSON.stringify(summary, null, 2)}\n`;
 process.stdout.write(rendered);
 
+// Performance telemetry is useful while a run is happening, but it is not a reproducible
+// release artifact: filesystem cache state, antivirus, operating system, and CI load all
+// move these values. Keep it in stdout and compare only deterministic ranking evidence in
+// --record / --check-recorded. Candidate counts are omitted for the same reason: sparse or
+// partially materialized checkouts can vary by filesystem while the ranked paths remain the
+// cross-platform contract.
+function toRecordedSummary(liveSummary) {
+  return {
+    ...liveSummary,
+    diagnostics: {
+      meanReciprocalRankAt5: liveSummary.diagnostics.meanReciprocalRankAt5,
+      candidateRecallAt50: liveSummary.diagnostics.candidateRecallAt50,
+      failureClasses: liveSummary.diagnostics.failureClasses,
+      cases: liveSummary.diagnostics.cases.map((entry) => {
+        const {
+          candidateCounts: _candidateCounts,
+          timingsMs: _timingsMs,
+          rankingMs: _rankingMs,
+          pipelineTimingsMs: _pipelineTimingsMs,
+          ...deterministic
+        } = entry;
+        return deterministic;
+      })
+    }
+  };
+}
+
+const recordedRendered = `${JSON.stringify(toRecordedSummary(summary), null, 2)}\n`;
+
 if (process.argv.includes("--record") && !caseSlug) {
-  await writeFile(recordedResultsPath, rendered, "utf8");
+  await writeFile(recordedResultsPath, recordedRendered, "utf8");
 } else if (process.argv.includes("--record")) {
   process.stderr.write("Refusing to record a filtered benchmark run; omit --case to update the suite artifact.\n");
   process.exit(1);
@@ -560,7 +589,7 @@ if (process.argv.includes("--check-recorded")) {
   } catch {
     // The mismatch message below also covers a missing or unreadable artifact.
   }
-  if (recorded !== rendered) {
+  if (recorded !== recordedRendered) {
     process.stderr.write(
       `Baseline evaluation differs from benchmarks/${suite}/baseline-results.json; rerun with --record and review the change.\n`
     );

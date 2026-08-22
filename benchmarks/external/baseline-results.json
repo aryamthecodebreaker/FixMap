@@ -4,7 +4,7 @@
   "configuration": {
     "topN": 5,
     "corpus": "one scanRepo() result per case, shared by every arm",
-    "recordedCorpusFields": "rankings and hit outcomes only; platform-dependent checkout file counts are deliberately omitted",
+    "recordedCorpusFields": "rankings, hit outcomes, and deterministic evidence only; platform-dependent checkout counts and timings are deliberately omitted",
     "searchField": "file path + scanner text sample (files over the scanner's sample limit are truncated for every arm alike)",
     "tokenizer": "lowercase [A-Za-z0-9_$]+ of length >= 3, plus camelCase and underscore sub-tokens",
     "stopwords": 158,
@@ -789,16 +789,6 @@
     "failureClasses": {
       "none": 16
     },
-    "latencyMs": {
-      "median": 656.736,
-      "p95": 2476.916
-    },
-    "pipelineLatencyMs": {
-      "median": 1971.264,
-      "p95": 16163.978,
-      "scanMedian": 1228.276,
-      "scanP95": 13619.172
-    },
     "cases": [
       {
         "slug": "expressjs/express",
@@ -818,19 +808,6 @@
           "structural": 1,
           "lexical": 1,
           "symbol": 1
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 49,
-          "symbol": 20,
-          "union": 55
-        },
-        "timingsMs": {
-          "structural": 132.4979,
-          "lexical": 12.5529,
-          "symbol": 49.4421,
-          "rerank": 1.621,
-          "total": 196.1139
         },
         "intent": "presentation",
         "queryExpansions": [
@@ -1014,14 +991,7 @@
             ],
             "fusionScore": 107
           }
-        ],
-        "rankingMs": 196.484,
-        "pipelineTimingsMs": {
-          "materialize": 100.218,
-          "scan": 616.305,
-          "ranking": 196.484,
-          "total": 913.923
-        }
+        ]
       },
       {
         "slug": "axios/axios",
@@ -1041,19 +1011,6 @@
           "structural": 1,
           "lexical": 6,
           "symbol": 3
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 27,
-          "union": 58
-        },
-        "timingsMs": {
-          "structural": 725.2555,
-          "lexical": 30.4483,
-          "symbol": 126.2669,
-          "rerank": 0.5509,
-          "total": 882.5216
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -1227,14 +1184,7 @@
             ],
             "fusionScore": 33.62
           }
-        ],
-        "rankingMs": 882.553,
-        "pipelineTimingsMs": {
-          "materialize": 104.204,
-          "scan": 1395.344,
-          "ranking": 882.553,
-          "total": 2382.278
-        }
+        ]
       },
       {
         "slug": "debug-js/debug",
@@ -1254,19 +1204,6 @@
           "structural": 3,
           "lexical": 1,
           "symbol": 1
-        },
-        "candidateCounts": {
-          "structural": 14,
-          "lexical": 5,
-          "symbol": 4,
-          "union": 14
-        },
-        "timingsMs": {
-          "structural": 44.7196,
-          "lexical": 3.3989,
-          "symbol": 8.9837,
-          "rerank": 0.273,
-          "total": 57.3752
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -1420,14 +1357,7 @@
             ],
             "fusionScore": 42
           }
-        ],
-        "rankingMs": 57.424,
-        "pipelineTimingsMs": {
-          "materialize": 96.637,
-          "scan": 273.376,
-          "ranking": 57.424,
-          "total": 427.505
-        }
+        ]
       },
       {
         "slug": "sindresorhus/ky",
@@ -1447,19 +1377,6 @@
           "structural": 1,
           "lexical": 1,
           "symbol": 2
-        },
-        "candidateCounts": {
-          "structural": 40,
-          "lexical": 25,
-          "symbol": 15,
-          "union": 40
-        },
-        "timingsMs": {
-          "structural": 152.9592,
-          "lexical": 10.2909,
-          "symbol": 29.3136,
-          "rerank": 0.453,
-          "total": 193.0167
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -1673,14 +1590,7 @@
             ],
             "fusionScore": 126.96
           }
-        ],
-        "rankingMs": 193.081,
-        "pipelineTimingsMs": {
-          "materialize": 101.627,
-          "scan": 446.248,
-          "ranking": 193.081,
-          "total": 741.123
-        }
+        ]
       },
       {
         "slug": "colinhacks/zod",
@@ -1700,19 +1610,6 @@
           "structural": 2,
           "lexical": 36,
           "symbol": null
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 46,
-          "union": 78
-        },
-        "timingsMs": {
-          "structural": 683.3274,
-          "lexical": 71.5963,
-          "symbol": 377.1451,
-          "rerank": 1.1436,
-          "total": 1133.2124
         },
         "intent": "types",
         "queryExpansions": [
@@ -1893,14 +1790,7 @@
             ],
             "fusionScore": 98.4
           }
-        ],
-        "rankingMs": 1133.255,
-        "pipelineTimingsMs": {
-          "materialize": 91.306,
-          "scan": 1673.347,
-          "ranking": 1133.255,
-          "total": 2898.11
-        }
+        ]
       },
       {
         "slug": "pinojs/pino",
@@ -1921,19 +1811,6 @@
           "structural": 1,
           "lexical": 3,
           "symbol": 3
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 39,
-          "symbol": 15,
-          "union": 54
-        },
-        "timingsMs": {
-          "structural": 105.9411,
-          "lexical": 9.1659,
-          "symbol": 77.814,
-          "rerank": 0.6027,
-          "total": 193.5237
         },
         "intent": "tests",
         "queryExpansions": [
@@ -2088,14 +1965,7 @@
             ],
             "fusionScore": 72.8
           }
-        ],
-        "rankingMs": 193.616,
-        "pipelineTimingsMs": {
-          "materialize": 109.156,
-          "scan": 660.694,
-          "ranking": 193.616,
-          "total": 963.561
-        }
+        ]
       },
       {
         "slug": "fastify/fastify",
@@ -2115,19 +1985,6 @@
           "structural": 1,
           "lexical": 38,
           "symbol": 8
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 32,
-          "union": 95
-        },
-        "timingsMs": {
-          "structural": 169.5921,
-          "lexical": 60.935,
-          "symbol": 92.1006,
-          "rerank": 0.8095,
-          "total": 323.4372
         },
         "intent": "documentation",
         "queryExpansions": [
@@ -2271,14 +2128,7 @@
             ],
             "fusionScore": 32.5
           }
-        ],
-        "rankingMs": 323.454,
-        "pipelineTimingsMs": {
-          "materialize": 83.09,
-          "scan": 738.161,
-          "ranking": 323.454,
-          "total": 1144.771
-        }
+        ]
       },
       {
         "slug": "chalk/chalk",
@@ -2298,19 +2148,6 @@
           "structural": 1,
           "lexical": 1,
           "symbol": 1
-        },
-        "candidateCounts": {
-          "structural": 23,
-          "lexical": 12,
-          "symbol": 11,
-          "union": 23
-        },
-        "timingsMs": {
-          "structural": 66.0091,
-          "lexical": 1.992,
-          "symbol": 10.6808,
-          "rerank": 0.2435,
-          "total": 78.9254
         },
         "intent": "tests",
         "queryExpansions": [
@@ -2454,14 +2291,7 @@
             ],
             "fusionScore": 70
           }
-        ],
-        "rankingMs": 78.934,
-        "pipelineTimingsMs": {
-          "materialize": 72.151,
-          "scan": 240.868,
-          "ranking": 78.934,
-          "total": 392.045
-        }
+        ]
       },
       {
         "slug": "vitest-dev/vitest",
@@ -2481,19 +2311,6 @@
           "structural": 2,
           "lexical": 2,
           "symbol": 1
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 43,
-          "union": 91
-        },
-        "timingsMs": {
-          "structural": 884.5419,
-          "lexical": 126.1986,
-          "symbol": 591.301,
-          "rerank": 0.8876,
-          "total": 1602.9291
         },
         "intent": "tests",
         "queryExpansions": [
@@ -2647,14 +2464,7 @@
             ],
             "fusionScore": 38.94
           }
-        ],
-        "rankingMs": 1602.941,
-        "pipelineTimingsMs": {
-          "materialize": 81.682,
-          "scan": 4497.002,
-          "ranking": 1602.941,
-          "total": 6181.765
-        }
+        ]
       },
       {
         "slug": "eslint/eslint",
@@ -2674,19 +2484,6 @@
           "structural": 1,
           "lexical": null,
           "symbol": null
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 50,
-          "union": 115
-        },
-        "timingsMs": {
-          "structural": 1007.9643,
-          "lexical": 144.6713,
-          "symbol": 619.9028,
-          "rerank": 1.0854,
-          "total": 1773.6238
         },
         "intent": "types",
         "queryExpansions": [
@@ -2865,14 +2662,7 @@
             ],
             "fusionScore": 82
           }
-        ],
-        "rankingMs": 1773.633,
-        "pipelineTimingsMs": {
-          "materialize": 70.382,
-          "scan": 2793.688,
-          "ranking": 1773.633,
-          "total": 4637.851
-        }
+        ]
       },
       {
         "slug": "webpack/webpack",
@@ -2892,19 +2682,6 @@
           "structural": 1,
           "lexical": 39,
           "symbol": 17
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 40,
-          "union": 93
-        },
-        "timingsMs": {
-          "structural": 1122.7426,
-          "lexical": 271.8305,
-          "symbol": 1081.8566,
-          "rerank": 0.4789,
-          "total": 2476.9086
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -3058,14 +2835,7 @@
             ],
             "fusionScore": 61.08
           }
-        ],
-        "rankingMs": 2476.916,
-        "pipelineTimingsMs": {
-          "materialize": 67.808,
-          "scan": 13619.172,
-          "ranking": 2476.916,
-          "total": 16163.978
-        }
+        ]
       },
       {
         "slug": "nodejs/undici",
@@ -3085,19 +2855,6 @@
           "structural": 9,
           "lexical": 2,
           "symbol": 1
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 28,
-          "union": 67
-        },
-        "timingsMs": {
-          "structural": 695.8227,
-          "lexical": 68.1633,
-          "symbol": 224.882,
-          "rerank": 0.6197,
-          "total": 989.4877
         },
         "intent": "presentation",
         "queryExpansions": [
@@ -3241,14 +2998,7 @@
             ],
             "fusionScore": 45.94
           }
-        ],
-        "rankingMs": 989.493,
-        "pipelineTimingsMs": {
-          "materialize": 80.35,
-          "scan": 1399.391,
-          "ranking": 989.493,
-          "total": 2469.312
-        }
+        ]
       },
       {
         "slug": "reduxjs/redux-toolkit",
@@ -3268,19 +3018,6 @@
           "structural": 1,
           "lexical": 3,
           "symbol": 3
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 11,
-          "union": 73
-        },
-        "timingsMs": {
-          "structural": 625.0978,
-          "lexical": 80.3417,
-          "symbol": 350.6826,
-          "rerank": 0.4508,
-          "total": 1056.5729
         },
         "intent": "types",
         "queryExpansions": [
@@ -3464,14 +3201,7 @@
             ],
             "fusionScore": 167.8
           }
-        ],
-        "rankingMs": 1056.579,
-        "pipelineTimingsMs": {
-          "materialize": 74.786,
-          "scan": 2595.665,
-          "ranking": 1056.579,
-          "total": 3727.392
-        }
+        ]
       },
       {
         "slug": "prettier/prettier",
@@ -3491,19 +3221,6 @@
           "structural": 2,
           "lexical": 6,
           "symbol": 1
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 46,
-          "union": 79
-        },
-        "timingsMs": {
-          "structural": 594.705,
-          "lexical": 151.7211,
-          "symbol": 413.2481,
-          "rerank": 0.4001,
-          "total": 1160.0743
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -3687,14 +3404,7 @@
             ],
             "fusionScore": 34.7
           }
-        ],
-        "rankingMs": 1160.08,
-        "pipelineTimingsMs": {
-          "materialize": 72.124,
-          "scan": 10961.207,
-          "ranking": 1160.08,
-          "total": 12193.512
-        }
+        ]
       },
       {
         "slug": "honojs/hono",
@@ -3714,19 +3424,6 @@
           "structural": 1,
           "lexical": 1,
           "symbol": 2
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 23,
-          "union": 68
-        },
-        "timingsMs": {
-          "structural": 205.7298,
-          "lexical": 43.1418,
-          "symbol": 181.6934,
-          "rerank": 0.3502,
-          "total": 430.9152
         },
         "intent": "types",
         "queryExpansions": [
@@ -3890,14 +3587,7 @@
             ],
             "fusionScore": 77.96
           }
-        ],
-        "rankingMs": 430.92,
-        "pipelineTimingsMs": {
-          "materialize": 68.06,
-          "scan": 1061.209,
-          "ranking": 430.92,
-          "total": 1560.25
-        }
+        ]
       },
       {
         "slug": "sindresorhus/got",
@@ -3917,19 +3607,6 @@
           "structural": 1,
           "lexical": 5,
           "symbol": 4
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 16,
-          "union": 58
-        },
-        "timingsMs": {
-          "structural": 92.1847,
-          "lexical": 22.6299,
-          "symbol": 57.708,
-          "rerank": 0.3118,
-          "total": 172.8344
         },
         "intent": "documentation",
         "queryExpansions": [
@@ -4073,14 +3750,7 @@
             ],
             "fusionScore": 94.64
           }
-        ],
-        "rankingMs": 172.839,
-        "pipelineTimingsMs": {
-          "materialize": 71.226,
-          "scan": 420.148,
-          "ranking": 172.839,
-          "total": 664.402
-        }
+        ]
       }
     ]
   },

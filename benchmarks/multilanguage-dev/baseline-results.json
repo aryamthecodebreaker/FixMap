@@ -4,7 +4,7 @@
   "configuration": {
     "topN": 5,
     "corpus": "one scanRepo() result per case, shared by every arm",
-    "recordedCorpusFields": "rankings and hit outcomes only; platform-dependent checkout file counts are deliberately omitted",
+    "recordedCorpusFields": "rankings, hit outcomes, and deterministic evidence only; platform-dependent checkout counts and timings are deliberately omitted",
     "searchField": "file path + scanner text sample (files over the scanner's sample limit are truncated for every arm alike)",
     "tokenizer": "lowercase [A-Za-z0-9_$]+ of length >= 3, plus camelCase and underscore sub-tokens",
     "stopwords": 158,
@@ -700,16 +700,6 @@
       "none": 11,
       "rerank-miss": 4
     },
-    "latencyMs": {
-      "median": 708.023,
-      "p95": 9247.055
-    },
-    "pipelineLatencyMs": {
-      "median": 2458.417,
-      "p95": 33870.453,
-      "scanMedian": 1919.623,
-      "scanP95": 24531.297
-    },
     "cases": [
       {
         "slug": "pydantic/pydantic",
@@ -729,19 +719,6 @@
           "structural": 3,
           "lexical": 2,
           "symbol": 4
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 33,
-          "union": 78
-        },
-        "timingsMs": {
-          "structural": 1303.3499,
-          "lexical": 158.7076,
-          "symbol": 178.3634,
-          "rerank": 1.9248,
-          "total": 1642.3457
         },
         "intent": "types",
         "queryExpansions": [
@@ -905,14 +882,7 @@
             ],
             "fusionScore": 96.82
           }
-        ],
-        "rankingMs": 1642.66,
-        "pipelineTimingsMs": {
-          "materialize": 83.609,
-          "scan": 2010.005,
-          "ranking": 1642.66,
-          "total": 3736.942
-        }
+        ]
       },
       {
         "slug": "pallets/flask",
@@ -932,19 +902,6 @@
           "structural": 13,
           "lexical": 6,
           "symbol": 7
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 33,
-          "symbol": 19,
-          "union": 50
-        },
-        "timingsMs": {
-          "structural": 136.0281,
-          "lexical": 50.4812,
-          "symbol": 115.3347,
-          "rerank": 1.1576,
-          "total": 303.0016
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -1118,14 +1075,7 @@
             ],
             "fusionScore": 36.46
           }
-        ],
-        "rankingMs": 303.16,
-        "pipelineTimingsMs": {
-          "materialize": 122.119,
-          "scan": 960.601,
-          "ranking": 303.16,
-          "total": 1386.025
-        }
+        ]
       },
       {
         "slug": "fastapi/fastapi",
@@ -1145,19 +1095,6 @@
           "structural": 1,
           "lexical": 3,
           "symbol": 7
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 50,
-          "union": 79
-        },
-        "timingsMs": {
-          "structural": 5535.8617,
-          "lexical": 57.0505,
-          "symbol": 122.7986,
-          "rerank": 1.1061,
-          "total": 5716.8169
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -1331,14 +1268,7 @@
             ],
             "fusionScore": 130.64
           }
-        ],
-        "rankingMs": 5716.875,
-        "pipelineTimingsMs": {
-          "materialize": 129.167,
-          "scan": 12870.582,
-          "ranking": 5716.875,
-          "total": 18716.758
-        }
+        ]
       },
       {
         "slug": "encode/httpx",
@@ -1359,19 +1289,6 @@
           "structural": 8,
           "lexical": 4,
           "symbol": 1
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 43,
-          "symbol": 23,
-          "union": 50
-        },
-        "timingsMs": {
-          "structural": 96.6151,
-          "lexical": 12.8796,
-          "symbol": 34.447,
-          "rerank": 0.4607,
-          "total": 144.4024
         },
         "intent": "documentation",
         "queryExpansions": [
@@ -1571,14 +1488,7 @@
             ],
             "fusionScore": 17.5
           }
-        ],
-        "rankingMs": 144.427,
-        "pipelineTimingsMs": {
-          "materialize": 81.413,
-          "scan": 397.731,
-          "ranking": 144.427,
-          "total": 623.689
-        }
+        ]
       },
       {
         "slug": "psf/requests",
@@ -1598,19 +1508,6 @@
           "structural": 3,
           "lexical": 3,
           "symbol": 3
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 20,
-          "symbol": 16,
-          "union": 50
-        },
-        "timingsMs": {
-          "structural": 83.2618,
-          "lexical": 13.5493,
-          "symbol": 26.252,
-          "rerank": 0.3672,
-          "total": 123.4303
         },
         "intent": "types",
         "queryExpansions": [
@@ -1774,14 +1671,7 @@
             ],
             "fusionScore": 42.8
           }
-        ],
-        "rankingMs": 123.445,
-        "pipelineTimingsMs": {
-          "materialize": 80.939,
-          "scan": 462.604,
-          "ranking": 123.445,
-          "total": 667.089
-        }
+        ]
       },
       {
         "slug": "python-poetry/poetry",
@@ -1801,19 +1691,6 @@
           "structural": null,
           "lexical": 25,
           "symbol": 34
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 50,
-          "union": 75
-        },
-        "timingsMs": {
-          "structural": 288.4159,
-          "lexical": 39.2478,
-          "symbol": 125.7618,
-          "rerank": 0.3534,
-          "total": 453.7789
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -1955,14 +1832,7 @@
             ],
             "fusionScore": 31.74
           }
-        ],
-        "rankingMs": 453.837,
-        "pipelineTimingsMs": {
-          "materialize": 84.824,
-          "scan": 1919.623,
-          "ranking": 453.837,
-          "total": 2458.417
-        }
+        ]
       },
       {
         "slug": "pytest-dev/pytest",
@@ -1982,19 +1852,6 @@
           "structural": 26,
           "lexical": 7,
           "symbol": 8
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 9,
-          "union": 58
-        },
-        "timingsMs": {
-          "structural": 799.7651,
-          "lexical": 74.4758,
-          "symbol": 210.659,
-          "rerank": 0.383,
-          "total": 1085.2829
         },
         "intent": "tests",
         "queryExpansions": [
@@ -2128,14 +1985,7 @@
             ],
             "fusionScore": 33.36
           }
-        ],
-        "rankingMs": 1085.3,
-        "pipelineTimingsMs": {
-          "materialize": 79.367,
-          "scan": 1087.085,
-          "ranking": 1085.3,
-          "total": 2251.841
-        }
+        ]
       },
       {
         "slug": "scrapy/scrapy",
@@ -2155,19 +2005,6 @@
           "structural": 5,
           "lexical": 44,
           "symbol": 15
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 50,
-          "union": 87
-        },
-        "timingsMs": {
-          "structural": 473.7542,
-          "lexical": 62.5993,
-          "symbol": 170.6677,
-          "rerank": 0.9878,
-          "total": 708.009
         },
         "intent": "documentation",
         "queryExpansions": [
@@ -2351,14 +2188,7 @@
             ],
             "fusionScore": 86.86
           }
-        ],
-        "rankingMs": 708.023,
-        "pipelineTimingsMs": {
-          "materialize": 81.272,
-          "scan": 1410.132,
-          "ranking": 708.023,
-          "total": 2199.508
-        }
+        ]
       },
       {
         "slug": "google/guava",
@@ -2379,19 +2209,6 @@
           "structural": 7,
           "lexical": 1,
           "symbol": 1
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 50,
-          "union": 98
-        },
-        "timingsMs": {
-          "structural": 2785.0331,
-          "lexical": 1114.3451,
-          "symbol": 918.1734,
-          "rerank": 1.2006,
-          "total": 4818.7522
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -2591,14 +2408,7 @@
             ],
             "fusionScore": 34.9
           }
-        ],
-        "rankingMs": 4818.767,
-        "pipelineTimingsMs": {
-          "materialize": 110.839,
-          "scan": 12106.961,
-          "ranking": 4818.767,
-          "total": 17036.656
-        }
+        ]
       },
       {
         "slug": "spring-projects/spring-framework",
@@ -2618,19 +2428,6 @@
           "structural": 37,
           "lexical": 31,
           "symbol": 11
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 50,
-          "union": 107
-        },
-        "timingsMs": {
-          "structural": 6389.5367,
-          "lexical": 1455.767,
-          "symbol": 1401.1132,
-          "rerank": 0.6303,
-          "total": 9247.0472
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -2834,14 +2631,7 @@
             ],
             "fusionScore": 63.8
           }
-        ],
-        "rankingMs": 9247.055,
-        "pipelineTimingsMs": {
-          "materialize": 92.013,
-          "scan": 24531.297,
-          "ranking": 9247.055,
-          "total": 33870.453
-        }
+        ]
       },
       {
         "slug": "mockito/mockito",
@@ -2863,19 +2653,6 @@
           "structural": 3,
           "lexical": 2,
           "symbol": 1
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 50,
-          "union": 83
-        },
-        "timingsMs": {
-          "structural": 311.1605,
-          "lexical": 74.1688,
-          "symbol": 122.2527,
-          "rerank": 0.5358,
-          "total": 508.1178
         },
         "intent": "tests",
         "queryExpansions": [
@@ -3111,14 +2888,7 @@
             ],
             "fusionScore": 23.32
           }
-        ],
-        "rankingMs": 508.124,
-        "pipelineTimingsMs": {
-          "materialize": 86.008,
-          "scan": 2550.62,
-          "ranking": 508.124,
-          "total": 3144.866
-        }
+        ]
       },
       {
         "slug": "FasterXML/jackson-databind",
@@ -3139,19 +2909,6 @@
           "structural": 1,
           "lexical": 1,
           "symbol": 1
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 50,
-          "union": 98
-        },
-        "timingsMs": {
-          "structural": 2136.4984,
-          "lexical": 254.6025,
-          "symbol": 257.7088,
-          "rerank": 0.8991,
-          "total": 2649.7088
         },
         "intent": "configuration",
         "queryExpansions": [
@@ -3396,14 +3153,7 @@
             ],
             "fusionScore": 80.46
           }
-        ],
-        "rankingMs": 2649.715,
-        "pipelineTimingsMs": {
-          "materialize": 70.907,
-          "scan": 3476.75,
-          "ranking": 2649.715,
-          "total": 6197.455
-        }
+        ]
       },
       {
         "slug": "brettwooldridge/HikariCP",
@@ -3423,19 +3173,6 @@
           "structural": 1,
           "lexical": 1,
           "symbol": 1
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 32,
-          "symbol": 28,
-          "union": 50
-        },
-        "timingsMs": {
-          "structural": 130.0217,
-          "lexical": 15.377,
-          "symbol": 20.7733,
-          "rerank": 0.3044,
-          "total": 166.4764
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -3639,14 +3376,7 @@
             ],
             "fusionScore": 89
           }
-        ],
-        "rankingMs": 166.482,
-        "pipelineTimingsMs": {
-          "materialize": 75.812,
-          "scan": 488.198,
-          "ranking": 166.482,
-          "total": 730.615
-        }
+        ]
       },
       {
         "slug": "google/gson",
@@ -3666,19 +3396,6 @@
           "structural": 2,
           "lexical": 1,
           "symbol": 3
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 50,
-          "union": 63
-        },
-        "timingsMs": {
-          "structural": 378.8435,
-          "lexical": 50.4452,
-          "symbol": 51.3264,
-          "rerank": 0.4565,
-          "total": 481.0716
         },
         "intent": "types",
         "queryExpansions": [
@@ -3842,14 +3559,7 @@
             ],
             "fusionScore": 77.92
           }
-        ],
-        "rankingMs": 481.084,
-        "pipelineTimingsMs": {
-          "materialize": 79.412,
-          "scan": 884.037,
-          "ranking": 481.084,
-          "total": 1444.7
-        }
+        ]
       },
       {
         "slug": "netty/netty",
@@ -3869,19 +3579,6 @@
           "structural": 1,
           "lexical": 1,
           "symbol": 1
-        },
-        "candidateCounts": {
-          "structural": 50,
-          "lexical": 50,
-          "symbol": 50,
-          "union": 94
-        },
-        "timingsMs": {
-          "structural": 2053.5342,
-          "lexical": 681.3999,
-          "symbol": 630.4593,
-          "rerank": 0.668,
-          "total": 3366.0614
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -4055,14 +3752,7 @@
             ],
             "fusionScore": 95
           }
-        ],
-        "rankingMs": 3366.067,
-        "pipelineTimingsMs": {
-          "materialize": 181.119,
-          "scan": 11209.179,
-          "ranking": 3366.067,
-          "total": 14756.442
-        }
+        ]
       }
     ]
   },
