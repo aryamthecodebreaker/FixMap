@@ -144,6 +144,14 @@ fixmap runtime --input examples/runtime-evidence/input.json
 
 Every mapped record requires an explicit repository ID and safe repository-relative path. Unmapped evidence stays visible, and the report never equates span duration with CPU time, profile samples with wall-clock time, or correlation with causality.
 
+Run exactly one declared command in an already-present digest-pinned Docker image:
+
+```bash
+fixmap sandbox --request sandbox.json --execute-declared-command
+```
+
+The version-1 request contains `executionId`, an absolute `repoRoot`, `image`, `command`, `declaredCommands`, optional bounded `limits`, and optional `network: { "enabled": true }`. Consent is accepted only from the command line; network also requires `--allow-sandbox-network`. Source and container root are read-only, image pulls and inherited container environment are disabled, and failures never count as passes.
+
 Public GitHub issue, pull request, and repository URL modes are available in the CLI and MCP server for issue-only analysis. FixMap fetches task context anonymously, shallow-clones the default branch into an isolated temporary directory, disables credentials and repository execution surfaces, and removes the checkout before returning. Clone locally to use `--diff`, `--base`, `--head`, or working-tree inputs.
 
 For long task text, use `--issue-file task.md`, pipe it directly to `fixmap plan`, or use explicit stdin with `--issue-file -` / `--issue -`. A leading `@` in `--issue` is ordinary task text; only the explicit file flag reads from disk. A one-off `npx -y @aryam/fixmap@latest ...` run is also available, but npm may choose an existing project-local FixMap first. Run `fixmap doctor`, treat its printed running version as authoritative, and update or remove a stale install. For a reproducible clean test, install the exact version into an isolated npm prefix and invoke that prefix's `fixmap` shim directly; the repository README includes complete PowerShell and POSIX commands.
@@ -160,6 +168,7 @@ For long task text, use `--issue-file task.md`, pipe it directly to `fixmap plan
 - **Architecture history** — use `fixmap history --repo . --from <ref> --to <ref>` to compare immutable committed snapshots without checkout or worktree mutation.
 - **Supply-chain evidence** — use `fixmap supply-chain --input <bundle.json>` to validate normalized package/security/license evidence without executing a scanner or inventing advisory truth.
 - **Runtime evidence** — use `fixmap runtime --input <runtime.json>` to map redaction-reviewed traces and profiles only through exact repository paths and fingerprints.
+- **Execution sandbox** — use `fixmap sandbox --request <sandbox.json> --execute-declared-command` to run one exact reviewed command with a pinned local image, network off, read-only source/root, and resource limits.
 - **Explain** — use `--explain <path>` to distinguish ranked, below-cutoff, tie-truncated, excluded, and not-scanned paths.
 - **Compare** — use `--compare <report.json>` to measure how a refined task changed ranks, scores, confidence, and grounding.
 - **Verify** — compare a saved plan with the completed diff or working tree and recalculate impact around the files actually changed; errors fail by default and `--fail-on warning` provides an opt-in strict CI gate without pretending FixMap ran tests or proved correctness.
@@ -216,6 +225,7 @@ fixmap reverse-docs    Draft review-only documentation from exact structural evi
 fixmap history         Compare architecture at two committed refs without checkout
 fixmap supply-chain    Import normalized external scanner and SBOM evidence
 fixmap runtime         Map redaction-reviewed runtime evidence to exact files
+fixmap sandbox         Run one explicitly consented command in an isolated container
 fixmap verify          Compare a saved plan with the diff that followed
 fixmap benchmark       Backtest BM25, FixMap, and Impact Graph on local Git history
 fixmap watch           Recheck working-tree drift and impact whenever edits change

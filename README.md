@@ -165,6 +165,14 @@ fixmap runtime --input examples/runtime-evidence/input.json
 
 Runtime labels or symbols never establish identity. The output preserves unmapped records and explicitly avoids treating span duration as CPU time, samples as wall-clock time, or correlation as causality.
 
+Run one reviewed, already-declared test command in an isolated local container:
+
+```bash
+fixmap sandbox --request sandbox.json --execute-declared-command
+```
+
+The request must name an absolute repository path, an already-present digest-pinned image, and an exact command included in `declaredCommands`. The request file cannot self-authorize execution. Network is off unless both the reviewed request enables it and the separate `--allow-sandbox-network` flag is supplied.
+
 Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked` when new files should count as changes, `--exclude` or `.fixmapignore` to focus the map, and `--no-cache` to force a fresh scan. `--semantic-model <dir>` explicitly opts into local hybrid retrieval using a model already on disk. Add `--fail-on warning` to Verify when advisory findings must fail CI. Run `fixmap --help` for the complete command reference.
 
 Map impact across local service repositories with a reviewed workspace config:

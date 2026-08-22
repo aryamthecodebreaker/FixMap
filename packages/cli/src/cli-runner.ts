@@ -109,6 +109,7 @@ Usage:
   fixmap history --repo . --from v0.9.0 --to HEAD
   fixmap supply-chain --input supply-chain.json
   fixmap runtime --input runtime.json
+  fixmap sandbox --request sandbox.json --execute-declared-command
   fixmap watch --report plan.json --repo .
   fixmap annotate src/auth/token.ts --note "Do not refactor; external contract"
   fixmap features
@@ -130,6 +131,7 @@ Commands:
   history             Compare architecture at two committed Git refs without checkout
   supply-chain        Import normalized external scanner and SBOM evidence
   runtime             Map redaction-reviewed runtime evidence to exact files
+  sandbox             Run one explicitly consented command in an isolated container
   watch               Recheck working-tree drift and impact whenever edits change
   annotate            Attach reviewable tribal knowledge to files, symbols, services, or contracts
   features            List every FixMap capability and its command
@@ -514,6 +516,15 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   if (args[0] === "runtime") {
     const { runRuntimeCommand } = await import("./runtime-command.js");
     return runRuntimeCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "sandbox") {
+    const { runSandboxCommand } = await import("./sandbox-command.js");
+    return runSandboxCommand(args.slice(1), {
       stdout,
       stderr,
       ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})

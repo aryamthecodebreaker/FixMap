@@ -17,6 +17,7 @@ export const FIXMAP_FEATURES = [
   { name: "Architecture history", command: "fixmap history --repo . --from <ref> --to <ref>", detail: "Compare exact committed architecture snapshots without checking out either ref or changing the worktree." },
   { name: "Supply-chain evidence", command: "fixmap supply-chain --input <bundle.json>", detail: "Validate normalized external scanner or SBOM evidence with exact tool, database, document, advisory, version, and license provenance." },
   { name: "Runtime evidence", command: "fixmap runtime --input <runtime.json>", detail: "Map redaction-reviewed OpenTelemetry, APM, Speedscope, or pprof observations only through exact repository paths and file fingerprints." },
+  { name: "Execution sandbox", command: "fixmap sandbox --request <sandbox.json> --execute-declared-command", detail: "Run exactly one reviewed command in an already-present digest-pinned Docker image with network off and source/root read-only by default." },
   { name: "Explain", command: "fixmap plan --explain <path>", detail: "Show whether a path ranked, tied below the limit, was excluded, or was never scanned." },
   { name: "Compare", command: "fixmap plan --compare <report.json>", detail: "Compare a refined task and current plan with an earlier JSON report." },
   { name: "Verify", command: "fixmap verify --report <report.json>", detail: "Compare the completed diff or working tree with the saved plan; add --fail-on warning for a strict CI gate." },
@@ -63,7 +64,7 @@ When this command is invoked without a task, run \`fixmap features\` and present
 When the invocation includes a task, issue URL, diff, file path, or workflow name:
 
 1. Run \`fixmap features\` if the requested capability is ambiguous.
-2. Use the matching local command: Plan, Context, Graph, Workspace, Ask, Migrate, Reverse Docs, History, Supply Chain, Runtime, Explain, Compare, Verify, Watch, Annotate, Benchmark, Validate, Doctor, or MCP.
+2. Use the matching local command: Plan, Context, Graph, Workspace, Ask, Migrate, Reverse Docs, History, Supply Chain, Runtime, Sandbox, Explain, Compare, Verify, Watch, Annotate, Benchmark, Validate, Doctor, or MCP.
 3. Read the Impact Graph as files to inspect, not a claim that each file must change. Preserve each relationship's evidence.
 4. Prefer \`--format agent\` when context is constrained, \`fixmap watch\` while an agent is editing, and \`fixmap benchmark\` when the user asks whether FixMap works on this repository.
 5. Preserve the user's repository and never imply that FixMap ran tests or proved correctness; it produces a starting map and verification findings.
