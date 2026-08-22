@@ -26,6 +26,7 @@ import { renderDoctorReport, runDoctorChecks } from "./doctor.js";
 import { describeInputReadError, readDecodedTextFile } from "./decode-input.js";
 import { clarifyMissingPath } from "./explain-path.js";
 import { analyzeRepository, contextFromAnalysis } from "./analysis-source.js";
+import { runWorkspaceCommand } from "./workspace-command.js";
 import {
   buildReportForRepository,
   isSafeGitRefName,
@@ -226,6 +227,30 @@ const GRAPH_TOOL = {
   }
 };
 
+const WORKSPACE_TOOL = {
+  name: "fixmap_workspace",
+  title: "FixMap workspace",
+  description:
+    "Build a versioned package and impact graph across 1-32 local repository checkouts from a reviewed JSON config. " +
+    "Resolves Node, Python, and Maven package versions plus manifest/import/submodule evidence without executing repository code. " +
+    "Use seeds to trace provider-to-consumer impact.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      config: { type: "string", description: "Local workspace JSON config path; repository paths inside it are relative to this file" },
+      seeds: {
+        type: "array",
+        items: { type: "string" },
+        description: "Repository IDs whose downstream consumers should be traced"
+      },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" },
+      noCache: { type: "boolean", description: "Bypass the exact-state scan cache in every workspace repository" }
+    },
+    required: ["config"],
+    additionalProperties: false
+  }
+};
+
 const VERIFY_TOOL = {
   name: "fixmap_verify",
   title: "FixMap verify",
@@ -295,7 +320,7 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -330,6 +355,43 @@ export function createFixMapMcpServer(
       } catch (error) {
         return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }] };
       }
+    }
+    if (request.params.name === WORKSPACE_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["config", "seeds", "format", "noCache"].includes(key));
+      if (unknown.length > 0) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }]
+        };
+      }
+      if (typeof record?.config !== "string" || !record.config.trim()) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "config" is required and must be a non-empty local path.' }] };
+      }
+      if (record.seeds !== undefined && (
+        !Array.isArray(record.seeds) || record.seeds.length > 32 ||
+        record.seeds.some((seed) => typeof seed !== "string" || !seed.trim())
+      )) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "seeds" must be an array of at most 32 non-empty repository IDs.' }] };
+      }
+      if (record.noCache !== undefined && typeof record.noCache !== "boolean") {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "noCache" must be a boolean.' }] };
+      }
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const commandArgs = ["--config", record.config.trim(), "--format", format.value ?? "markdown"];
+      for (const seed of (record.seeds as string[] | undefined) ?? []) commandArgs.push("--seed", seed.trim());
+      if (record.noCache === true) commandArgs.push("--no-cache");
+      const exitCode = await runWorkspaceCommand(commandArgs, {
+        stdout: (text) => stdout.push(text),
+        stderr: (text) => stderr.push(text)
+      });
+      return {
+        ...(exitCode === 0 ? {} : { isError: true }),
+        content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }]
+      };
     }
     if (request.params.name === COMPARE_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;

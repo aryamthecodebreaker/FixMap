@@ -75,6 +75,14 @@ Export the Impact Graph for an issue as Mermaid or JSON:
 fixmap graph --issue "password reset emails fail" --format mermaid
 ```
 
+Map package dependencies and downstream impact across local repositories:
+
+```bash
+fixmap workspace --config .fixmap/workspace.json --seed auth --format json
+```
+
+The JSON config uses `"workspaceConfigVersion": 1`, a stable `workspace` name, and 1–32 `{ "id", "path" }` repository entries. Paths are relative to the config file. Optional submodule entries use `relationship: { "kind": "submodule", "parentRepository": "auth", "path": "vendor/contracts" }`. FixMap scans at most four checkouts concurrently, never executes their code, and resolves Node, Python, and Maven package/version identities plus manifest/import evidence.
+
 Continuously compare agent edits with a saved plan and recalculate impact:
 
 ```bash
@@ -97,6 +105,7 @@ For long task text, use `--issue-file task.md`, pipe it directly to `fixmap plan
 - **Plan** — rank primary context, then map likely impact from imports, reverse dependents, related tests, and repeated Git co-change relationships. Impact paths are inspection candidates, not assumed edits.
 - **Context Pack** — use `fixmap context` to package deterministic line ranges from primary and impact files within an estimated source-token budget. Markdown is readable by people and agents; JSON preserves roles, reasons, line ranges, truncation, and omitted-file diagnostics.
 - **Graph export** — use `fixmap graph` to export the evidence-backed Impact Graph as portable Mermaid or versioned JSON while preserving relationship direction.
+- **Cross-repository workspace** — use `fixmap workspace --config <file> --seed <repository-id>` to resolve local Node, Python, and Maven package providers and trace downstream consumers with versioned identity, manifest, import, and submodule evidence.
 - **Explain** — use `--explain <path>` to distinguish ranked, below-cutoff, tie-truncated, excluded, and not-scanned paths.
 - **Compare** — use `--compare <report.json>` to measure how a refined task changed ranks, scores, confidence, and grounding.
 - **Verify** — compare a saved plan with the completed diff or working tree and recalculate impact around the files actually changed; errors fail by default and `--fail-on warning` provides an opt-in strict CI gate without pretending FixMap ran tests or proved correctness.
@@ -110,14 +119,14 @@ For long task text, use `--issue-file task.md`, pipe it directly to `fixmap plan
 - **Opt-in local hybrid retrieval** — `--semantic-model <dir>` fuses structural, BM25, and cosine ranks while retaining each signal and model provenance. The model must already exist locally; FixMap forces local-files-only loading, persists model-isolated vectors outside the repository, and never uploads source. FixMap does not bundle the optional Transformers.js runtime, so install a compatible version in the host only after auditing its dependency tree.
 - **Artifact isolation** — current issue, comparison, verification, and output files are removed from ranking, change detection, and cache state, so a saved plan cannot recommend or invalidate itself.
 - **Doctor** — report the running version, resolved binary, global/PATH shadows, Node compatibility, and an optionally requested npm version.
-- **MCP** — expose Plan, Context, Graph, Explain, Compare, Verify, and Doctor as seven local stdio tools.
+- **MCP** — expose Plan, Context, Graph, Workspace, Explain, Compare, Verify, and Doctor as eight local stdio tools.
 - **Slash-command discovery** — `fixmap setup` previews without writes, `fixmap setup --agent all` installs `/fixmap`, and `fixmap features` prints the same complete catalog in Markdown or JSON.
 - **Safe repository handling** — public repositories use isolated temporary checkouts with credentials, hooks, filters, and submodule recursion disabled. Local source is read without installing dependencies or running repository scripts.
 - **Human, agent, and machine output** — Markdown is the default; `--format agent` is a compact handoff, and JSON reports carry `reportVersion: 1` with the documented additive compatibility policy.
 
 ## MCP server
 
-FixMap ships seven Model Context Protocol tools: `fixmap_plan`, `fixmap_context`, `fixmap_graph`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor`. Plan, Context, Graph, Explain, and Verify accept `noCache: true` when an agent needs a fresh repository scan rather than an exact-state cache hit.
+FixMap ships eight Model Context Protocol tools: `fixmap_plan`, `fixmap_context`, `fixmap_graph`, `fixmap_workspace`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor`. Plan, Context, Graph, Workspace, Explain, and Verify accept `noCache: true` when an agent needs a fresh repository scan rather than an exact-state cache hit.
 
 Context budgets use a deterministic estimate of one token per four UTF-8 bytes of source. Metadata does not consume that source budget. Scanner sample limits are reported per snippet with `sourceTruncated`, so consumers can distinguish a complete file from a bounded sample.
 
@@ -146,6 +155,7 @@ Cursor, Windsurf, or any MCP client:
 fixmap plan            Generate a FixMap report for a task or diff
 fixmap context         Build a budgeted Markdown or JSON source pack
 fixmap graph           Export the Impact Graph as Mermaid or JSON
+fixmap workspace       Map package dependencies and impact across local repositories
 fixmap verify          Compare a saved plan with the diff that followed
 fixmap benchmark       Backtest BM25, FixMap, and Impact Graph on local Git history
 fixmap watch           Recheck working-tree drift and impact whenever edits change

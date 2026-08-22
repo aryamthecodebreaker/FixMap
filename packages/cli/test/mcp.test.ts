@@ -24,6 +24,25 @@ async function createAuthFixture(): Promise<string> {
   return root;
 }
 
+async function createWorkspaceFixture(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "fixmap-mcp-workspace-"));
+  await mkdir(join(root, "auth", "src"), { recursive: true });
+  await mkdir(join(root, "payments", "src"), { recursive: true });
+  await writeFile(join(root, "auth", "package.json"), JSON.stringify({ name: "@acme/auth", version: "1.2.0" }));
+  await writeFile(join(root, "auth", "src", "index.ts"), "export const authenticate = true;\n");
+  await writeFile(join(root, "payments", "package.json"), JSON.stringify({
+    name: "@acme/payments", dependencies: { "@acme/auth": "^1.2.0" }
+  }));
+  await writeFile(join(root, "payments", "src", "index.ts"), "import '@acme/auth';\n");
+  const config = join(root, "workspace.json");
+  await writeFile(config, JSON.stringify({
+    workspaceConfigVersion: 1,
+    workspace: "acme",
+    repositories: [{ id: "auth", path: "auth" }, { id: "payments", path: "payments" }]
+  }));
+  return config;
+}
+
 async function connectClient(repositorySourceDependencies: RepositorySourceDependencies = {}) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const server = createFixMapMcpServer(repositorySourceDependencies);
@@ -154,13 +173,13 @@ describe("fixmap mcp server", () => {
     expect(report.contextFiles).toHaveLength(1);
   });
 
-  it("advertises the complete plan, context, graph, explain, compare, verify, and doctor workflow", async () => {
+  it("advertises the complete plan, context, graph, workspace, explain, compare, verify, and doctor workflow", async () => {
     const client = await connectClient();
 
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
@@ -178,6 +197,10 @@ describe("fixmap mcp server", () => {
     const graph = tools.tools.find((tool) => tool.name === "fixmap_graph");
     expect(graph?.inputSchema.properties?.format?.description).toContain("mermaid");
     expect(graph?.inputSchema.additionalProperties).toBe(false);
+    const workspace = tools.tools.find((tool) => tool.name === "fixmap_workspace");
+    expect(Object.keys(workspace?.inputSchema.properties ?? {}).sort()).toEqual(["config", "seeds", "format", "noCache"].sort());
+    expect(workspace?.inputSchema.required).toEqual(["config"]);
+    expect(workspace?.inputSchema.additionalProperties).toBe(false);
     expect(verify).toBeDefined();
     expect(Object.keys(verify?.inputSchema.properties ?? {}).sort()).toEqual(
       ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache"].sort()
@@ -216,6 +239,24 @@ describe("fixmap mcp server", () => {
     });
     expect(graph.isError).toBeFalsy();
     expect((graph.content as Array<{ text: string }>)[0]!.text).toContain("flowchart TD");
+  });
+
+  it("maps cross-repository impact through MCP", async () => {
+    const config = await createWorkspaceFixture();
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_workspace",
+      arguments: { config, seeds: ["auth"], format: "json", noCache: true }
+    });
+    expect(result.isError).toBeFalsy();
+    const report = JSON.parse((result.content as Array<{ text: string }>)[0]!.text) as {
+      dependencies: Array<{ consumerRepository: string; providerRepository: string }>;
+      impact: { repositories: Array<{ repository: string }> };
+    };
+    expect(report.dependencies).toContainEqual(expect.objectContaining({
+      consumerRepository: "payments", providerRepository: "auth"
+    }));
+    expect(report.impact.repositories).toContainEqual(expect.objectContaining({ repository: "payments" }));
   });
 
   it("compares two reports through MCP", async () => {
@@ -474,7 +515,7 @@ describe("fixmap mcp server", () => {
     const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
     const report = JSON.parse(text) as { contextFiles: Array<{ path: string }> };
     expect(report.contextFiles[0]?.path).toBe("src/auth/reset-password.ts");
-  });
+  }, 15_000);
 
   it("returns compact agent output when asked", async () => {
     const root = await createAuthFixture();

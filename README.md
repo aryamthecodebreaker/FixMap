@@ -121,6 +121,38 @@ fixmap validate plan.json
 
 Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked` when new files should count as changes, `--exclude` or `.fixmapignore` to focus the map, and `--no-cache` to force a fresh scan. `--semantic-model <dir>` explicitly opts into local hybrid retrieval using a model already on disk. Add `--fail-on warning` to Verify when advisory findings must fail CI. Run `fixmap --help` for the complete command reference.
 
+Map impact across local service repositories with a reviewed workspace config:
+
+```json
+{
+  "workspaceConfigVersion": 1,
+  "workspace": "acme",
+  "repositories": [
+    { "id": "auth", "path": "../auth-service" },
+    { "id": "payments", "path": "../payments-service" },
+    {
+      "id": "shared-contracts",
+      "path": "../auth-service/vendor/contracts",
+      "relationship": {
+        "kind": "submodule",
+        "parentRepository": "auth",
+        "path": "vendor/contracts"
+      }
+    }
+  ]
+}
+```
+
+Repository paths are resolved relative to the config file. The command accepts 1–32 local checkouts, scans at most four concurrently, never executes repository code, and resolves Node, Python, and Maven package/version identities from manifests and imports:
+
+```bash
+fixmap workspace --config .fixmap/workspace.json --seed auth --format json
+```
+
+Run the checked-in two-service example with `fixmap workspace --config examples/cross-repo-workspace/workspace.json --seed auth`.
+
+Repeat `--seed` to trace downstream provider-to-consumer impact from multiple repositories. Duplicate IDs, duplicate real checkout paths, unknown seeds, remote URLs, invalid submodule parents, and ambiguous package providers are rejected or diagnosed instead of silently merged.
+
 ## Complete feature catalog
 
 ### Inputs and repository mapping
@@ -161,6 +193,13 @@ Use `--working-tree` for staged and unstaged tracked edits, `--include-untracked
 - `fixmap benchmark --repo . --last 50` evaluates BM25-over-code, ordinary FixMap context, and Impact Graph against historical parent snapshots. Every case's history stops before its target change, all arms see one scanned corpus, generated twins are not scored as primary answers, and mentioned/unmentioned tasks are reported separately.
 - `fixmap watch --report plan.json --repo .` monitors a local working tree, re-runs Verify, and recalculates impact only when edits change. It never executes repository code; `--format json` produces one JSON object per update.
 - Benchmark Markdown and versioned JSON include Wilson intervals, excluded-case counts, secondary-file recall, safeguards, and raw per-case outcomes. Historical commit messages are a repository-specific backtest, never proof of agent savings.
+
+### Cross-repository workspace impact
+
+- `fixmap workspace --config .fixmap/workspace.json` composes 1–32 local checkouts into one versioned identity graph without installing dependencies or executing repository code.
+- Node `package.json`, Python `pyproject.toml`, and Maven `pom.xml` manifests contribute package names and versions. Manifest declarations and cross-repository source imports remain separate, inspectable evidence on each dependency.
+- `--seed <repository-id>` traverses package providers to downstream consumers and reports distance plus the exact manifest/import paths that justify every link. Repeat the flag for multiple seeds.
+- Paths are relative to the config file; canonical real-path checks prevent one checkout from being entered twice through aliases. Submodules require an explicit parent relationship, and duplicate package providers remain unresolved with diagnostics.
 
 ### Context packs and graph export
 
@@ -230,7 +269,7 @@ Architecture rules live in a reviewed `.fixmap/policy.json` file. Every rule has
 ### Agent and automation interfaces
 
 - `fixmap setup` installs `/fixmap` discovery for Claude Code, Cursor, GitHub Copilot prompt files, and the open Agent Skills layout; the no-argument command lists every FixMap workflow before making changes.
-- The MCP server exposes `fixmap_plan`, `fixmap_context`, `fixmap_graph`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor` over local stdio and is published in the official MCP Registry.
+- The MCP server exposes `fixmap_plan`, `fixmap_context`, `fixmap_graph`, `fixmap_workspace`, `fixmap_explain`, `fixmap_compare`, `fixmap_verify`, and `fixmap_doctor` over local stdio and is published in the official MCP Registry.
 - The GitHub Action runs Plan or Verify on pull requests, appends within the job summary's remaining 1 MiB budget, bounds its report output and comment, and creates or updates one FixMap comment instead of posting duplicates.
 - The Action accepts explicit task input or pull-request context, uses the same report validator as the CLI and MCP server, and fails clearly when a requested diff cannot be resolved.
 - The homepage task mapper runs real Plan logic against the bundled `sample-api` repository and preserves the engine's uncertainty state instead of inventing fallback results.

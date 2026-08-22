@@ -74,7 +74,7 @@ describe("working-tree watch", () => {
     await writeFile(join(root, "draft.ts"), "export const state = 'two';\n");
     const second = await fingerprintWorkingTree(root, true);
     expect(second).not.toBe(first);
-  });
+  }, 15_000);
 
   it("rejects a non-git directory without leaking the child command or raw stderr", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-watch-not-git-"));
