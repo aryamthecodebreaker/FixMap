@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="860" height="998" viewBox="0 0 860 998" role="img" aria-label="Animated terminal recording: one fixmap plan command produces ranked context files, a test route, an authentication risk note, and empty-state diagnostics.">
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="1040" viewBox="0 0 860 1040" role="img" aria-label="Animated terminal recording: one fixmap plan command produces ranked context files, a test route, an authentication risk note, and empty-state diagnostics.">
   <style>
     text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 13.5px; white-space: pre; }
     .l { opacity: 0; animation: fadein 0.45s ease-out forwards; }
@@ -7,7 +7,7 @@
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
     @media (prefers-reduced-motion: reduce) { .l { animation: none; opacity: 1; } .cursor { animation: none; opacity: 0; } }
   </style>
-  <rect width="860" height="998" rx="10" fill="#0d1117" stroke="#30363d"/>
+  <rect width="860" height="1040" rx="10" fill="#0d1117" stroke="#30363d"/>
   <rect width="860" height="44" rx="10" fill="#161b22"/>
   <rect y="32" width="860" height="12" fill="#161b22"/>
   <circle cx="24" cy="22" r="6" fill="#ff5f57"/>
@@ -21,26 +21,28 @@
   <text class="l" style="animation-delay:3.60s" x="22" y="205" fill="#e6edf3"><tspan>- </tspan><tspan fill="#79c0ff">src/auth/reset-password.ts</tspan><tspan> (medium confidence, score 28): path matches task terms:</tspan></text>
   <text class="l" style="animation-delay:3.85s" x="22" y="226" fill="#e6edf3"><tspan>    reset, password; multiple task terms converge in the file path; content matches task</tspan></text>
   <text class="l" style="animation-delay:4.10s" x="22" y="247" fill="#e6edf3"><tspan>    terms: reset, password, email; defines symbols matching task terms:</tspan></text>
-  <text class="l" style="animation-delay:4.35s" x="22" y="268" fill="#e6edf3"><tspan>    ResetPasswordRequest, buildResetPasswordEmail; auth-related task signal</tspan></text>
-  <text class="l" style="animation-delay:5.50s" x="22" y="310" fill="#e6edf3"><tspan fill="#74f0ba" font-weight="bold">## Impact Graph</tspan></text>
-  <text class="l" style="animation-delay:5.75s" x="22" y="352" fill="#e6edf3"><tspan>- </tspan><tspan fill="#79c0ff">test/auth/reset-password.test.ts</tspan><tspan> (high confidence, impact 13): this file imports</tspan></text>
-  <text class="l" style="animation-delay:6.00s" x="22" y="373" fill="#e6edf3"><tspan>    src/auth/reset-password.ts; routed test for src/auth/reset-password.ts via npm run test</tspan></text>
-  <text class="l" style="animation-delay:6.25s" x="22" y="415" fill="#e6edf3"><tspan>Inspection order: </tspan><tspan fill="#79c0ff">src/auth/reset-password.ts</tspan><tspan> → </tspan><tspan fill="#79c0ff">test/auth/reset-password.test.ts</tspan><tspan>.</tspan></text>
-  <text class="l" style="animation-delay:6.50s" x="22" y="436" fill="#e6edf3"><tspan>History evidence: 30 eligible commits.</tspan></text>
-  <text class="l" style="animation-delay:7.65s" x="22" y="478" fill="#e6edf3"><tspan fill="#74f0ba" font-weight="bold">## Test Routes</tspan></text>
-  <text class="l" style="animation-delay:7.90s" x="22" y="520" fill="#e6edf3"><tspan>- </tspan><tspan fill="#79c0ff">npm run test</tspan><tspan>: repository root script named test. Related:</tspan></text>
-  <text class="l" style="animation-delay:8.15s" x="22" y="541" fill="#e6edf3"><tspan>    </tspan><tspan fill="#79c0ff">test/auth/reset-password.test.ts</tspan><tspan>.</tspan></text>
-  <text class="l" style="animation-delay:9.30s" x="22" y="583" fill="#e6edf3"><tspan fill="#74f0ba" font-weight="bold">## Risk Map</tspan></text>
-  <text class="l" style="animation-delay:9.55s" x="22" y="625" fill="#e6edf3"><tspan>- </tspan><tspan fill="#8b949e" font-weight="bold">low</tspan><tspan> authentication: ranked files touch authentication; review this area before</tspan></text>
-  <text class="l" style="animation-delay:9.80s" x="22" y="646" fill="#e6edf3"><tspan>    editing, but no diff evidence is available yet</tspan></text>
-  <text class="l" style="animation-delay:10.95s" x="22" y="688" fill="#e6edf3"><tspan fill="#74f0ba" font-weight="bold">## Changed Files</tspan></text>
-  <text class="l" style="animation-delay:11.20s" x="22" y="730" fill="#8b949e"><tspan>- None found</tspan></text>
-  <text class="l" style="animation-delay:12.35s" x="22" y="772" fill="#e6edf3"><tspan fill="#74f0ba" font-weight="bold">## Analysis</tspan></text>
-  <text class="l" style="animation-delay:12.60s" x="22" y="814" fill="#e6edf3"><tspan>- Task grounding: **descriptive**</tspan></text>
-  <text class="l" style="animation-delay:12.85s" x="22" y="835" fill="#e6edf3"><tspan>- Repository scan: **complete**</tspan></text>
-  <text class="l" style="animation-delay:13.10s" x="22" y="856" fill="#e6edf3"><tspan>- Ranking shape: **separated**</tspan></text>
-  <text class="l" style="animation-delay:13.35s" x="22" y="877" fill="#e6edf3"><tspan>- Next action: Inspect src/auth/reset-password.ts and its routed tests before editing.</tspan></text>
-  <text class="l" style="animation-delay:14.50s" x="22" y="919" fill="#e6edf3"><tspan fill="#74f0ba" font-weight="bold">## Diagnostics</tspan></text>
-  <text class="l" style="animation-delay:14.75s" x="22" y="961" fill="#e6edf3"><tspan>- **info** Repository scan caching was bypassed by --no-cache; this report used a fresh</tspan></text>
-  <text class="l" style="animation-delay:15.00s" x="22" y="982" fill="#e6edf3"><tspan>    scan.</tspan></text>
+  <text class="l" style="animation-delay:4.35s" x="22" y="268" fill="#e6edf3"><tspan>    ResetPasswordRequest, buildResetPasswordEmail; auth-related task signal; BM25 whole-file</tspan></text>
+  <text class="l" style="animation-delay:4.60s" x="22" y="289" fill="#e6edf3"><tspan>    candidate #1; BM25 symbol candidate #1: buildResetPasswordEmail; corroborated by</tspan></text>
+  <text class="l" style="animation-delay:4.85s" x="22" y="310" fill="#e6edf3"><tspan>    independent retrieval sources</tspan></text>
+  <text class="l" style="animation-delay:6.00s" x="22" y="352" fill="#e6edf3"><tspan fill="#74f0ba" font-weight="bold">## Impact Graph</tspan></text>
+  <text class="l" style="animation-delay:6.25s" x="22" y="394" fill="#e6edf3"><tspan>- </tspan><tspan fill="#79c0ff">test/auth/reset-password.test.ts</tspan><tspan> (high confidence, impact 13): this file imports</tspan></text>
+  <text class="l" style="animation-delay:6.50s" x="22" y="415" fill="#e6edf3"><tspan>    src/auth/reset-password.ts; routed test for src/auth/reset-password.ts via npm run test</tspan></text>
+  <text class="l" style="animation-delay:6.75s" x="22" y="457" fill="#e6edf3"><tspan>Inspection order: </tspan><tspan fill="#79c0ff">src/auth/reset-password.ts</tspan><tspan> → </tspan><tspan fill="#79c0ff">test/auth/reset-password.test.ts</tspan><tspan>.</tspan></text>
+  <text class="l" style="animation-delay:7.00s" x="22" y="478" fill="#e6edf3"><tspan>History evidence: 31 eligible commits.</tspan></text>
+  <text class="l" style="animation-delay:8.15s" x="22" y="520" fill="#e6edf3"><tspan fill="#74f0ba" font-weight="bold">## Test Routes</tspan></text>
+  <text class="l" style="animation-delay:8.40s" x="22" y="562" fill="#e6edf3"><tspan>- </tspan><tspan fill="#79c0ff">npm run test</tspan><tspan>: repository root script named test. Related:</tspan></text>
+  <text class="l" style="animation-delay:8.65s" x="22" y="583" fill="#e6edf3"><tspan>    </tspan><tspan fill="#79c0ff">test/auth/reset-password.test.ts</tspan><tspan>.</tspan></text>
+  <text class="l" style="animation-delay:9.80s" x="22" y="625" fill="#e6edf3"><tspan fill="#74f0ba" font-weight="bold">## Risk Map</tspan></text>
+  <text class="l" style="animation-delay:10.05s" x="22" y="667" fill="#e6edf3"><tspan>- </tspan><tspan fill="#8b949e" font-weight="bold">low</tspan><tspan> authentication: ranked files touch authentication; review this area before</tspan></text>
+  <text class="l" style="animation-delay:10.30s" x="22" y="688" fill="#e6edf3"><tspan>    editing, but no diff evidence is available yet</tspan></text>
+  <text class="l" style="animation-delay:11.45s" x="22" y="730" fill="#e6edf3"><tspan fill="#74f0ba" font-weight="bold">## Changed Files</tspan></text>
+  <text class="l" style="animation-delay:11.70s" x="22" y="772" fill="#8b949e"><tspan>- None found</tspan></text>
+  <text class="l" style="animation-delay:12.85s" x="22" y="814" fill="#e6edf3"><tspan fill="#74f0ba" font-weight="bold">## Analysis</tspan></text>
+  <text class="l" style="animation-delay:13.10s" x="22" y="856" fill="#e6edf3"><tspan>- Task grounding: **descriptive**</tspan></text>
+  <text class="l" style="animation-delay:13.35s" x="22" y="877" fill="#e6edf3"><tspan>- Repository scan: **complete**</tspan></text>
+  <text class="l" style="animation-delay:13.60s" x="22" y="898" fill="#e6edf3"><tspan>- Ranking shape: **separated**</tspan></text>
+  <text class="l" style="animation-delay:13.85s" x="22" y="919" fill="#e6edf3"><tspan>- Next action: Inspect src/auth/reset-password.ts and its routed tests before editing.</tspan></text>
+  <text class="l" style="animation-delay:15.00s" x="22" y="961" fill="#e6edf3"><tspan fill="#74f0ba" font-weight="bold">## Diagnostics</tspan></text>
+  <text class="l" style="animation-delay:15.25s" x="22" y="1003" fill="#e6edf3"><tspan>- **info** Repository scan caching was bypassed by --no-cache; this report used a fresh</tspan></text>
+  <text class="l" style="animation-delay:15.50s" x="22" y="1024" fill="#e6edf3"><tspan>    scan.</tspan></text>
 </svg>
