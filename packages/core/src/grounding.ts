@@ -31,7 +31,13 @@ export function analyzeTaskGrounding(
   });
   const anchorIdentifiers = [...signals.identifiers]
     .filter((identifier) => isAnchorIdentifier(identifier, issueText));
-  const identifiers = anchorIdentifiers.map((identifier) => groundIdentifier(repo, identifier));
+  const batchedMatches = collectBatchedIdentifierMatches(repo, anchorIdentifiers);
+  const identifiers = anchorIdentifiers.map((identifier) => groundIdentifier(
+    repo,
+    identifier,
+    batchedMatches.definitions.get(identifier),
+    batchedMatches.text.get(identifier)
+  ));
   const unresolvedIdentifiers = identifiers
     .filter((entry) => entry.status === "not-found")
     .map((entry) => entry.identifier);
@@ -163,7 +169,56 @@ export function buildNextAction(
   return "Add a concrete repository anchor and rerun FixMap.";
 }
 
-function groundIdentifier(repo: RepoMap, identifier: string): IdentifierGrounding {
+/** Match all task identifiers in two repository passes instead of rescanning per identifier. */
+function collectBatchedIdentifierMatches(
+  repo: RepoMap,
+  identifiers: string[]
+): { definitions: Map<string, string[]>; text: Map<string, string[]> } {
+  const definitions = collectIdentifierMatches(repo, identifiers, true);
+  const withoutDefinitions = identifiers.filter((identifier) => (definitions.get(identifier)?.length ?? 0) === 0);
+  return { definitions, text: collectIdentifierMatches(repo, withoutDefinitions, false) };
+}
+
+function collectIdentifierMatches(repo: RepoMap, identifiers: string[], definitions: boolean): Map<string, string[]> {
+  const matches = new Map(identifiers.map((identifier) => [identifier, [] as string[]]));
+  if (identifiers.length === 0) return matches;
+  const wanted = new Set(identifiers);
+  const alternatives = [...identifiers]
+    .sort((a, b) => b.length - a.length || a.localeCompare(b))
+    .map(escapeRegExp)
+    .join("|");
+  const prefix = definitions
+    ? "(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\\s+)"
+    : "";
+  const pattern = new RegExp(
+    "(?<![\\p{L}\\p{N}_$])" + prefix + "(" + alternatives + ")(?![\\p{L}\\p{N}_$])",
+    "gu"
+  );
+
+  for (const file of repo.files) {
+    const found = new Set<string>();
+    if (definitions) {
+      for (const definition of extractLanguageDefinitions(file)) {
+        if (wanted.has(definition.name)) found.add(definition.name);
+      }
+    }
+    for (const match of file.textSample.matchAll(pattern)) {
+      if (match[1]) found.add(match[1]);
+    }
+    for (const identifier of found) {
+      const paths = matches.get(identifier);
+      if (paths && paths.length < MAX_IDENTIFIER_MATCHED_FILES) paths.push(file.path);
+    }
+  }
+  return matches;
+}
+
+function groundIdentifier(
+  repo: RepoMap,
+  identifier: string,
+  precomputedDefinitionFiles?: string[],
+  precomputedTextFiles?: string[]
+): IdentifierGrounding {
   const definitionPattern = new RegExp(
     `(?<![\\p{L}\\p{N}_$])(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\\s+)${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`,
     "u"
@@ -172,7 +227,7 @@ function groundIdentifier(repo: RepoMap, identifier: string): IdentifierGroundin
     `(?<![\\p{L}\\p{N}_$])${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`,
     "u"
   );
-  const definitionFiles = repo.files
+  const definitionFiles = precomputedDefinitionFiles ?? repo.files
     .filter((file) =>
       extractLanguageDefinitions(file).some((entry) => entry.name === identifier) ||
       definitionPattern.test(file.textSample)
@@ -188,7 +243,7 @@ function groundIdentifier(repo: RepoMap, identifier: string): IdentifierGroundin
     };
   }
 
-  const textFiles = repo.files
+  const textFiles = precomputedTextFiles ?? repo.files
     .filter((file) => exactPattern.test(file.textSample))
     .map((file) => file.path)
     .slice(0, MAX_IDENTIFIER_MATCHED_FILES);

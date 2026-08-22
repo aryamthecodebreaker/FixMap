@@ -48,6 +48,29 @@ describe("task grounding", () => {
     expect(grounding.specificity).toBe("anchored");
   });
 
+  it("batches multiple identifiers without collapsing definition, text, and missing states", () => {
+    const repo = createRepo();
+    repo.files.push({
+      path: "src/cache/caller.ts",
+      extension: ".ts",
+      sizeBytes: 100,
+      isSource: true,
+      isTest: false,
+      kind: "code",
+      textSample: "invokeCacheHook();"
+    });
+
+    const grounding = analyzeTaskGrounding(repo, {
+      issueText: "transitionCacheState invokeCacheHook MissingCacheHook"
+    });
+
+    expect(grounding.identifiers).toEqual([
+      { identifier: "transitionCacheState", status: "exact-definition", matchedFiles: ["src/cache/state.ts"] },
+      { identifier: "invokeCacheHook", status: "exact-text", matchedFiles: ["src/cache/caller.ts"] },
+      { identifier: "MissingCacheHook", status: "not-found", matchedFiles: [] }
+    ]);
+  });
+
   it("grounds a Java method through the language adapter instead of treating its call sites as definitions", () => {
     const repo = createRepo();
     repo.files = [
