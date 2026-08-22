@@ -6,6 +6,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
   answerFixMapQuestion,
+  buildMigrationPlan,
   compareReports,
   buildFixMapGraph,
   explainFile,
@@ -28,6 +29,7 @@ import { describeInputReadError, readDecodedTextFile } from "./decode-input.js";
 import { clarifyMissingPath } from "./explain-path.js";
 import { analyzeRepository, contextFromAnalysis } from "./analysis-source.js";
 import { renderAskMarkdown } from "./ask-command.js";
+import { parseMigrationInput, renderMigrationPlanMarkdown } from "./migration-command.js";
 import { runWorkspaceCommand } from "./workspace-command.js";
 import {
   buildReportForRepository,
@@ -274,6 +276,27 @@ const ASK_TOOL = {
   }
 };
 
+const MIGRATION_TOOL = {
+  name: "fixmap_migrate",
+  title: "FixMap migrate",
+  description:
+    "Build dependency-ordered, review-only migration phases against one exact identity graph. " +
+    "Every explicit step must declare edits, compatibility, tests, and rollback; cycles, unknown identities, and unsafe parallel overlap fail closed. " +
+    "This tool never executes commands or applies changes.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      input: {
+        description: "Version-1 migration input object or path to a local JSON input file",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    required: ["input"],
+    additionalProperties: false
+  }
+};
+
 const VERIFY_TOOL = {
   name: "fixmap_verify",
   title: "FixMap verify",
@@ -343,7 +366,7 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, ASK_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -442,6 +465,39 @@ export function createFixMapMcpServer(
         };
       } catch (error) {
         return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }] };
+      }
+    }
+    if (request.params.name === MIGRATION_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["input", "format"].includes(key));
+      if (unknown.length > 0) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }]
+        };
+      }
+      if (record?.input === undefined) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "input" is required and must be a migration object or local JSON path.' }] };
+      }
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      try {
+        const raw: unknown = typeof record.input === "string"
+          ? JSON.parse(readDecodedTextFile(record.input))
+          : record.input;
+        const input = parseMigrationInput(raw);
+        const plan = buildMigrationPlan(input.graph, input.steps);
+        return {
+          content: [{
+            type: "text",
+            text: format.value === "json" ? `${JSON.stringify(plan, null, 2)}\n` : renderMigrationPlanMarkdown(plan)
+          }]
+        };
+      } catch (error) {
+        const message = typeof record.input === "string"
+          ? describeInputReadError(record.input, error)
+          : error instanceof Error ? error.message : String(error);
+        return { isError: true, content: [{ type: "text", text: message }] };
       }
     }
     if (request.params.name === COMPARE_TOOL.name) {

@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
+import { buildIdentityGraph, createGraphIdentity } from "@aryam/fixmap-core";
 import { createFixMapMcpServer, parseExplainArguments, parsePlanArguments, parseVerifyArguments } from "../src/mcp.js";
 import type { RepositorySourceDependencies } from "../src/repository-source.js";
 
@@ -173,13 +174,13 @@ describe("fixmap mcp server", () => {
     expect(report.contextFiles).toHaveLength(1);
   });
 
-  it("advertises the complete plan, context, graph, workspace, ask, explain, compare, verify, and doctor workflow", async () => {
+  it("advertises the complete plan, context, graph, workspace, ask, migrate, explain, compare, verify, and doctor workflow", async () => {
     const client = await connectClient();
 
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_ask", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
@@ -205,6 +206,10 @@ describe("fixmap mcp server", () => {
     expect(Object.keys(ask?.inputSchema.properties ?? {}).sort()).toEqual(["report", "question", "format"].sort());
     expect(ask?.inputSchema.required).toEqual(["report", "question"]);
     expect(ask?.inputSchema.additionalProperties).toBe(false);
+    const migrate = tools.tools.find((tool) => tool.name === "fixmap_migrate");
+    expect(Object.keys(migrate?.inputSchema.properties ?? {}).sort()).toEqual(["input", "format"].sort());
+    expect(migrate?.inputSchema.required).toEqual(["input"]);
+    expect(migrate?.inputSchema.additionalProperties).toBe(false);
     expect(verify).toBeDefined();
     expect(Object.keys(verify?.inputSchema.properties ?? {}).sort()).toEqual(
       ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache"].sort()
@@ -300,6 +305,49 @@ describe("fixmap mcp server", () => {
       claimsVerified: false
     });
     expect(answer.citations).toContainEqual(expect.objectContaining({ kind: "test" }));
+  });
+
+  it("builds dependency-ordered review-only migrations through MCP", async () => {
+    const repository = createGraphIdentity({ workspace: "acme", kind: "repository", key: "users" });
+    const schema = createGraphIdentity({ workspace: "acme", kind: "file", parent: repository, key: "db/schema.sql" });
+    const service = createGraphIdentity({ workspace: "acme", kind: "file", parent: repository, key: "src/users.ts" });
+    const graph = buildIdentityGraph({
+      workspace: "acme",
+      nodes: [
+        { id: repository, kind: "repository", key: "users", derivedFrom: [] },
+        { id: schema, kind: "file", key: "db/schema.sql", repository: "users", parent: repository, derivedFrom: [] },
+        { id: service, kind: "file", key: "src/users.ts", repository: "users", parent: repository, derivedFrom: [] }
+      ],
+      edges: []
+    });
+    const migrationStep = (id: string, dependsOn: string[], edits: string[]) => ({
+      id,
+      summary: `Perform ${id}`,
+      dependsOn,
+      edits,
+      impacts: [],
+      contracts: [],
+      compatibility: { mode: "not-required" as const, reason: "Internal-only atomic change." },
+      tests: [{ command: `npm test -- ${id}`, reason: `Verify ${id}.` }],
+      rollback: { trigger: `${id} verification fails.`, action: `Revert ${id}.` }
+    });
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_migrate",
+      arguments: {
+        input: {
+          migrationInputVersion: 1,
+          graph,
+          steps: [migrationStep("contract", ["expand"], [service]), migrationStep("expand", [], [schema])]
+        },
+        format: "json"
+      }
+    });
+
+    expect(result.isError).toBeFalsy();
+    const plan = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+    expect(plan).toMatchObject({ migrationPlanVersion: 1, graphFingerprint: graph.version.fingerprint });
+    expect(plan.phases.map((phase: { stepIds: string[] }) => phase.stepIds)).toEqual([["expand"], ["contract"]]);
   });
 
   it("compares two reports through MCP", async () => {
