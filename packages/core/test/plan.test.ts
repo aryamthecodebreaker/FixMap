@@ -61,6 +61,38 @@ describe("buildFixMapReport", () => {
     expect(report.summary).toContain("context file");
   });
 
+  it("scans .NET project references and routes the owning test project end to end", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-plan-dotnet-"));
+    await mkdir(join(root, "src", "Auth"), { recursive: true });
+    await mkdir(join(root, "tests", "Auth.Tests"), { recursive: true });
+    await writeFile(join(root, "src", "Auth", "Auth.csproj"), "<Project />\n");
+    await writeFile(
+      join(root, "src", "Auth", "RefreshToken.cs"),
+      "namespace Acme.Auth;\npublic class RefreshToken { public bool IsExpired() => false; }\n"
+    );
+    await writeFile(
+      join(root, "tests", "Auth.Tests", "Auth.Tests.csproj"),
+      [
+        "<Project>",
+        '  <ProjectReference Include="..\\..\\src\\Auth\\Auth.csproj" />',
+        '  <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.0.0" />',
+        "</Project>"
+      ].join("\n")
+    );
+    await writeFile(
+      join(root, "tests", "Auth.Tests", "RefreshTokenTests.cs"),
+      "namespace Acme.Auth.Tests;\npublic class RefreshTokenTests {}\n"
+    );
+
+    const report = await buildFixMapReport({ repoRoot: root, issueText: "RefreshToken IsExpired returns the wrong value" });
+
+    expect(report.contextFiles[0]?.path).toBe("src/Auth/RefreshToken.cs");
+    expect(report.testRoutes[0]).toMatchObject({
+      command: "dotnet test tests/Auth.Tests/Auth.Tests.csproj",
+      relatedFiles: ["tests/Auth.Tests/RefreshTokenTests.cs"]
+    });
+  });
+
   it("uses an injected local embedding provider in the shared scan-to-report path", async () => {
     const root = await createAuthFixture();
     const embeddingProvider: EmbeddingProvider = {

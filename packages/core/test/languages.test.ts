@@ -108,6 +108,52 @@ describe("test routing beyond package scripts", () => {
     expect(buildTestRoutes(repo, ["src/parser.rs"])[0]?.command).toBe("cargo test");
   });
 
+  it("routes .NET source changes through an explicit referencing test project", () => {
+    const repo = repoOf([
+      file("src/Auth/Auth.csproj", { kind: "config", textSample: "<Project />" }),
+      file("src/Auth/Token.cs"),
+      file("tests/Auth.Tests/Auth.Tests.csproj", {
+        kind: "config",
+        textSample: [
+          "<Project>",
+          '  <ProjectReference Include="..\\..\\src\\Auth\\Auth.csproj" />',
+          '  <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.0.0" />',
+          "</Project>"
+        ].join("\n")
+      }),
+      file("tests/Auth.Tests/TokenTests.cs", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(repo, ["src/Auth/Token.cs"])[0]).toEqual({
+      command: "dotnet test tests/Auth.Tests/Auth.Tests.csproj",
+      kind: "test",
+      reason: "tests/Auth.Tests/Auth.Tests.csproj is a test project that references src/Auth/Auth.csproj",
+      relatedFiles: ["tests/Auth.Tests/TokenTests.cs"]
+    });
+  });
+
+  it("routes .NET to the nearest exact project when no test project is declared", () => {
+    const repo = repoOf([
+      file("src/Auth/Auth.csproj", { kind: "config", textSample: "<Project />" }),
+      file("src/Auth/Token.cs"),
+      file("src/Billing/Billing.csproj", { kind: "config", textSample: "<Project />" }),
+      file("src/Billing/Invoice.cs")
+    ]);
+
+    expect(buildTestRoutes(repo, ["src/Auth/Token.cs"])[0]?.command)
+      .toBe("dotnet test src/Auth/Auth.csproj");
+  });
+
+  it("does not invent a .NET project when multiple root projects own the same path", () => {
+    const repo = repoOf([
+      file("App.csproj", { kind: "config", textSample: "<Project />" }),
+      file("Tools.csproj", { kind: "config", textSample: "<Project />" }),
+      file("Program.cs")
+    ]);
+
+    expect(buildTestRoutes(repo, ["Program.cs"])).toEqual([]);
+  });
+
   it("scopes a workspace cargo command to the crate being edited", () => {
     const repo = repoOf([
       file("Cargo.toml", { isSource: false, kind: "config" }),

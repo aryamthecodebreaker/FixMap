@@ -25,6 +25,8 @@ export { buildContextPack, estimateContextTokens, renderContextPackMarkdown, typ
 export { fixMapArtifactKind, isFixMapArtifact } from "./artifacts.js";
 export { buildFixMapGraph, renderFixMapGraphMermaid, type FixMapGraph } from "./graph.js";
 export { buildImpactMap } from "./impact.js";
+export { buildDotnetProjects, dotnetProjectForPath, dotnetReferenceClosure, referencingDotnetTestProjects } from "./dotnet-projects.js";
+export type { DotnetProject } from "./dotnet-projects.js";
 export { buildWorkspaceImpact, buildWorkspaceMap } from "./workspace.js";
 export type {
   WorkspaceDependency,

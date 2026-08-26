@@ -174,6 +174,29 @@ describe("buildImportGraph", () => {
     expect([...(graph.imports.get("Auth/ResetService.cs") ?? [])]).toEqual(["Accounts/User.cs"]);
   });
 
+  it("uses explicit .NET project references to scope namespace imports and graph projects", () => {
+    const files = [
+      codeFile("src/Auth/Auth.csproj", '<ProjectReference Include="..\\Accounts\\Accounts.csproj" />'),
+      codeFile("src/Auth/ResetService.cs", "using Acme.Accounts;\nusing Acme.Contracts;\nnamespace Acme.Auth;\nclass ResetService {}"),
+      codeFile("src/Accounts/Accounts.csproj", '<ProjectReference Include="..\\Contracts\\Contracts.csproj" />'),
+      codeFile("src/Accounts/User.cs", "namespace Acme.Accounts;\nclass User {}"),
+      codeFile("src/Contracts/Contracts.csproj", "<Project />"),
+      codeFile("src/Contracts/Role.cs", "namespace Acme.Contracts;\nclass Role {}"),
+      codeFile("src/Shadow/Shadow.csproj", "<Project />"),
+      codeFile("src/Shadow/User.cs", "namespace Acme.Accounts;\nclass User {}")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("src/Auth/ResetService.cs") ?? [])].sort()).toEqual([
+      "src/Accounts/User.cs",
+      "src/Contracts/Role.cs"
+    ]);
+    expect([...(graph.imports.get("src/Auth/Auth.csproj") ?? [])]).toEqual(["src/Accounts/Accounts.csproj"]);
+    expect([...(graph.imports.get("src/Accounts/Accounts.csproj") ?? [])]).toEqual(["src/Contracts/Contracts.csproj"]);
+    expect([...(graph.importedBy.get("src/Accounts/Accounts.csproj") ?? [])]).toEqual(["src/Auth/Auth.csproj"]);
+  });
+
   it("reports when the graph file budget truncates parseable modules", () => {
     const files = Array.from({ length: 5_001 }, (_, index) =>
       codeFile(`src/module-${index}.ts`, `export const module${index} = ${index};`)

@@ -86,6 +86,8 @@ export type {
 } from "./evidence.js";
 export { detectPrimaryLanguage } from "./languages.js";
 export type { LanguageDetection, PrimaryLanguage } from "./languages.js";
+export { buildDotnetProjects, dotnetProjectForPath, dotnetReferenceClosure, referencingDotnetTestProjects } from "./dotnet-projects.js";
+export type { DotnetProject } from "./dotnet-projects.js";
 export { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
 export { rankContextFiles, rankContextFilesEvidenceDetailed } from "./rank.js";
 export type {

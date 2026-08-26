@@ -4,7 +4,7 @@ import {
 } from "./grounding.js";
 import type { RankingShape, TaskGrounding } from "./grounding.js";
 import type { PathExcluder } from "./exclude.js";
-import { detectPrimaryLanguage, manifestTestCommand, suggestedRunner } from "./languages.js";
+import { detectPrimaryLanguage, dotnetTestCommandForPath, manifestTestCommand, suggestedRunner } from "./languages.js";
 import { buildImpactMap } from "./impact.js";
 import { DEFAULT_CONTEXT_FILE_LIMIT, rankContextFiles, rankContextFilesEvidenceDetailed } from "./rank.js";
 import { extractTaskSignals, tokenizePath } from "./signals.js";
@@ -548,7 +548,10 @@ export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRout
     return [];
   }
 
-  const relatedTests = findRelatedTests(repo, contextPaths);
+  const relatedTests = findRelatedTests(repo, contextPaths).filter((path) => {
+    const file = repo.files.find((entry) => entry.path === path);
+    return file?.isTest === true && file.kind === "code";
+  });
   const candidates = repo.packageScripts
     .map((script) => ({ script, kind: classifyScript(script.name) }))
     .filter((candidate): candidate is { script: PackageScript; kind: ScriptKind } => candidate.kind !== undefined)
@@ -603,7 +606,10 @@ function buildManifestTestRoute(
       : language === "java"
         ? nearestManifestDir(repo, codeContextPaths, ["pom.xml", "build.gradle", "build.gradle.kts"])
         : "";
-  const route = manifestTestCommand(language, packageDir, repo.files);
+  const route = language === "dotnet"
+    ? codeContextPaths.map((path) => dotnetTestCommandForPath(repo.files, path)).find((entry) => entry !== undefined) ??
+      manifestTestCommand(language, packageDir, repo.files)
+    : manifestTestCommand(language, packageDir, repo.files);
   if (!route) {
     return undefined;
   }
@@ -614,7 +620,7 @@ function buildManifestTestRoute(
     reason: route.reason,
     // Only real test files count as related here. Falling back to the implementation made
     // nextAction claim routed tests for a Go module that had none.
-    relatedFiles: scopeToPackage(relatedTests, packageDir)
+    relatedFiles: scopeToPackage(relatedTests, route.scopeDir ?? packageDir)
   };
 }
 

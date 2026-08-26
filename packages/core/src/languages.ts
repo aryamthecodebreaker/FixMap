@@ -11,6 +11,7 @@
 // code get a vote.
 
 import type { RepoFile, RepoMap } from "./types.js";
+import { buildDotnetProjects, dotnetProjectForPath, referencingDotnetTestProjects, type DotnetProject } from "./dotnet-projects.js";
 
 export type PrimaryLanguage = "node" | "python" | "go" | "rust" | "ruby" | "php" | "java" | "dotnet" | "unknown";
 
@@ -172,7 +173,7 @@ export function manifestTestCommand(
   language: PrimaryLanguage,
   packageDir: string,
   files: RepoFile[] = []
-): { command: string; reason: string } | undefined {
+): { command: string; reason: string; scopeDir?: string } | undefined {
   if (language === "go") {
     // The reason used to assert "go.mod at the repository root" unconditionally, including
     // when Go had been inferred purely from extension share and no root go.mod existed. A
@@ -265,11 +266,47 @@ export function manifestTestCommand(
     };
   }
   if (language === "dotnet") {
-    return manifest
-      ? { command: `dotnet test${manifest.packageDir ? ` ${manifest.path}` : ""}`, reason: `${manifest.path} declares a .NET project` }
-      : { command: "dotnet test", reason: ".NET source files; no project file was found" };
+    const projects = buildDotnetProjects(files);
+    if (projects.length === 0) {
+      return { command: "dotnet test", reason: ".NET source files; no project file was found" };
+    }
+    const candidates = packageDir
+      ? projects.filter((project) => project.root === packageDir)
+      : projects;
+    return candidates.length === 1 ? dotnetCommandForProject(projects, candidates[0]!) : undefined;
   }
   return undefined;
+}
+
+/** Route a C#/F#/VB source path through its exact project and, when declared, its test project. */
+export function dotnetTestCommandForPath(
+  files: RepoFile[],
+  sourcePath: string
+): { command: string; reason: string; scopeDir?: string } | undefined {
+  const projects = buildDotnetProjects(files);
+  const sourceProject = dotnetProjectForPath(projects, sourcePath);
+  return sourceProject ? dotnetCommandForProject(projects, sourceProject) : undefined;
+}
+
+function dotnetCommandForProject(
+  projects: DotnetProject[],
+  sourceProject: DotnetProject
+): { command: string; reason: string; scopeDir?: string } {
+  const testProject = sourceProject.test
+    ? sourceProject
+    : referencingDotnetTestProjects(projects, sourceProject.path)[0];
+  if (testProject && testProject.path !== sourceProject.path) {
+    return {
+      command: `dotnet test ${testProject.path}`,
+      reason: `${testProject.path} is a test project that references ${sourceProject.path}`,
+      scopeDir: testProject.root
+    };
+  }
+  return {
+    command: `dotnet test ${sourceProject.path}`,
+    reason: `${sourceProject.path} declares the nearest .NET ${sourceProject.test ? "test " : ""}project`,
+    scopeDir: sourceProject.root
+  };
 }
 
 type PythonTestRunner = "pytest" | "tox" | "nox" | "unittest";
