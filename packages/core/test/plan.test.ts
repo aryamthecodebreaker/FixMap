@@ -115,6 +115,28 @@ describe("buildFixMapReport", () => {
     });
   });
 
+  it("scans Ruby test evidence without treating a Gemfile as RSpec evidence", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-plan-ruby-"));
+    await mkdir(join(root, "lib"), { recursive: true });
+    await mkdir(join(root, "test"), { recursive: true });
+    await writeFile(join(root, "Gemfile"), 'gem "minitest"\n');
+    await writeFile(join(root, "Rakefile"), "Rake::TestTask.new(:test)\n");
+    await writeFile(join(root, "lib", "token.rb"), "class Token\n  def expired? = false\nend\n");
+    await writeFile(join(root, "test", "token_test.rb"), "class TokenTest < Minitest::Test; end\n");
+
+    const analysis = await buildFixMapAnalysis({ repoRoot: root, issueText: "Token expired returns the wrong value" });
+
+    expect(analysis.repo.files.find((file) => file.path === "Rakefile")).toMatchObject({
+      kind: "config",
+      textSample: "Rake::TestTask.new(:test)\n"
+    });
+    expect(analysis.report.contextFiles[0]?.path).toBe("lib/token.rb");
+    expect(analysis.report.testRoutes[0]).toMatchObject({
+      command: "bundle exec rake test",
+      relatedFiles: ["test/token_test.rb"]
+    });
+  });
+
   it("uses an injected local embedding provider in the shared scan-to-report path", async () => {
     const root = await createAuthFixture();
     const embeddingProvider: EmbeddingProvider = {

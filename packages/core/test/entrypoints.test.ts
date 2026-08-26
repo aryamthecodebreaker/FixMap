@@ -9,6 +9,7 @@ describe("public entrypoint parity", () => {
     "renderMarkdownReport",
     "renderAgentReport",
     "buildImpactMap",
+    "buildRubyProjects",
     "validateFixMapReport",
     "quoteCliValue"
   ])("exports deterministic API %s from both node and browser entries", (name) => {

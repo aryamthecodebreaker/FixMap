@@ -108,6 +108,32 @@ describe("test routing beyond package scripts", () => {
     expect(buildTestRoutes(repo, ["src/parser.rs"])[0]?.command).toBe("cargo test");
   });
 
+  it("does not invent RSpec from a bare Gemfile", () => {
+    const repo = repoOf([
+      file("Gemfile", { kind: "config", textSample: 'source "https://rubygems.org"\n' }),
+      file("lib/token.rb")
+    ]);
+
+    expect(buildTestRoutes(repo, ["lib/token.rb"])).toEqual([]);
+    const report = buildReportFromRepo(repo, { issueText: "Token fails" });
+    expect(report.diagnostics.find((entry) => entry.code === "no-test-route")?.message)
+      .not.toContain("rspec");
+  });
+
+  it("scopes an evidence-backed RSpec route to the owning Ruby project", () => {
+    const repo = repoOf([
+      file("Gemfile", { kind: "config", textSample: 'gem "minitest"\n' }),
+      file("services/api/Gemfile", { kind: "config", textSample: 'gem "rspec-rails"\n' }),
+      file("services/api/lib/token.rb"),
+      file("services/api/spec/token_spec.rb", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(repo, ["services/api/lib/token.rb"])[0]).toMatchObject({
+      command: "ruby -C services/api -S bundle exec rspec",
+      relatedFiles: ["services/api/spec/token_spec.rb"]
+    });
+  });
+
   it("routes .NET source changes through an explicit referencing test project", () => {
     const repo = repoOf([
       file("src/Auth/Auth.csproj", { kind: "config", textSample: "<Project />" }),

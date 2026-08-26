@@ -13,6 +13,7 @@
 import type { RepoFile, RepoMap } from "./types.js";
 import { buildComposerProjects, composerProjectForPath, composerTestCommandForProject } from "./composer-projects.js";
 import { buildDotnetProjects, dotnetProjectForPath, referencingDotnetTestProjects, type DotnetProject } from "./dotnet-projects.js";
+import { buildRubyProjects, rubyProjectForPath, rubyTestCommandForProject } from "./ruby-projects.js";
 
 export type PrimaryLanguage = "node" | "python" | "go" | "rust" | "ruby" | "php" | "java" | "dotnet" | "unknown";
 
@@ -166,9 +167,9 @@ function countCodeFiles(files: RepoFile[]): Map<PrimaryLanguage, number> {
  * unambiguous about it. Go and Rust each have exactly one, which is why they can be routed
  * rather than merely suggested.
  *
- * Python is routed only when a runner is explicitly configured. A bare pyproject.toml is
- * not enough evidence: pytest, tox, unittest and nox are all plausible, so FixMap keeps the
- * actionable suggestion instead of inventing a command.
+ * Python and Ruby are routed only when a runner is explicitly configured or evidenced. A
+ * bare pyproject.toml or Gemfile is not enough evidence: each ecosystem has multiple
+ * plausible runners, so FixMap keeps the uncertainty instead of inventing a command.
  */
 export function manifestTestCommand(
   language: PrimaryLanguage,
@@ -235,9 +236,12 @@ export function manifestTestCommand(
       reason: `${config.path} explicitly configures pytest`
     };
   }
-  const manifest = nearestManifest(files, language);
-  if (language === "ruby" && manifest) {
-    return { command: "bundle exec rspec", reason: `${manifest.path} declares the Ruby bundle` };
+  if (language === "ruby") {
+    const projects = buildRubyProjects(files);
+    const candidates = packageDir
+      ? projects.filter((project) => project.root === packageDir)
+      : projects;
+    return candidates.length === 1 ? rubyTestCommandForProject(candidates[0]!) : undefined;
   }
   if (language === "php") {
     const projects = buildComposerProjects(files);
@@ -300,6 +304,16 @@ export function phpTestCommandForPath(
   const projects = buildComposerProjects(files);
   const project = composerProjectForPath(projects, sourcePath);
   return project ? composerTestCommandForProject(project) : undefined;
+}
+
+export function rubyTestCommandForPath(
+  files: RepoFile[],
+  sourcePath: string,
+  relatedTests: string[] = []
+): { command: string; reason: string; scopeDir?: string } | undefined {
+  const projects = buildRubyProjects(files);
+  const project = rubyProjectForPath(projects, sourcePath);
+  return project ? rubyTestCommandForProject(project, relatedTests) : undefined;
 }
 
 function dotnetCommandForProject(
@@ -429,7 +443,12 @@ export function suggestedRunner(language: PrimaryLanguage, files: RepoFile[]): s
   if (language === "rust") {
     return "cargo test";
   }
-  if (language === "ruby") return "bundle exec rspec";
+  if (language === "ruby") {
+    const commands = [...new Set(buildRubyProjects(files)
+      .map((project) => rubyTestCommandForProject(project)?.command)
+      .filter((command): command is string => command !== undefined))];
+    return commands.length === 1 ? commands[0] : undefined;
+  }
   if (language === "php") return "composer test or vendor/bin/phpunit";
   if (language === "java") return "mvn test or ./gradlew test";
   if (language === "dotnet") return "dotnet test";

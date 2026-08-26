@@ -90,6 +90,8 @@ export { buildDotnetProjects, dotnetProjectForPath, dotnetReferenceClosure, refe
 export type { DotnetProject } from "./dotnet-projects.js";
 export { buildComposerProjects, composerProjectForPath, composerTestCommandForProject, resolveComposerSymbol } from "./composer-projects.js";
 export type { ComposerProject } from "./composer-projects.js";
+export { buildRubyProjects, rubyProjectForPath, rubyTestCommandForProject } from "./ruby-projects.js";
+export type { RubyProject } from "./ruby-projects.js";
 export { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
 export { rankContextFiles, rankContextFilesEvidenceDetailed } from "./rank.js";
 export type {
