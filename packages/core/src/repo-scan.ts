@@ -25,7 +25,7 @@ const CONVENTIONAL_CONFIG_NAMES = new Set([
   ".dockerignore", ".editorconfig", ".gitattributes", ".gitignore", ".npmignore",
   "codeowners", "dockerfile", "gemfile", "jenkinsfile", "makefile", "procfile", "rakefile", "vagrantfile",
   "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "gradlew", "gradlew.bat",
-  "mvnw", "mvnw.cmd", "pyproject.toml", "pytest.ini", "setup.cfg", "tox.ini"
+  "mvnw", "mvnw.cmd", "phpunit.xml", "phpunit.xml.dist", "pyproject.toml", "pytest.ini", "setup.cfg", "tox.ini"
 ]);
 
 /**

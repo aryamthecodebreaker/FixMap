@@ -4,7 +4,7 @@ import {
 } from "./grounding.js";
 import type { RankingShape, TaskGrounding } from "./grounding.js";
 import type { PathExcluder } from "./exclude.js";
-import { detectPrimaryLanguage, dotnetTestCommandForPath, manifestTestCommand, suggestedRunner } from "./languages.js";
+import { detectPrimaryLanguage, dotnetTestCommandForPath, manifestTestCommand, phpTestCommandForPath, suggestedRunner } from "./languages.js";
 import { buildImpactMap } from "./impact.js";
 import { DEFAULT_CONTEXT_FILE_LIMIT, rankContextFiles, rankContextFilesEvidenceDetailed } from "./rank.js";
 import { extractTaskSignals, tokenizePath } from "./signals.js";
@@ -609,6 +609,9 @@ function buildManifestTestRoute(
   const route = language === "dotnet"
     ? codeContextPaths.map((path) => dotnetTestCommandForPath(repo.files, path)).find((entry) => entry !== undefined) ??
       manifestTestCommand(language, packageDir, repo.files)
+    : language === "php"
+      ? codeContextPaths.map((path) => phpTestCommandForPath(repo.files, path)).find((entry) => entry !== undefined) ??
+        manifestTestCommand(language, packageDir, repo.files)
     : manifestTestCommand(language, packageDir, repo.files);
   if (!route) {
     return undefined;

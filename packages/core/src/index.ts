@@ -88,6 +88,8 @@ export { detectPrimaryLanguage } from "./languages.js";
 export type { LanguageDetection, PrimaryLanguage } from "./languages.js";
 export { buildDotnetProjects, dotnetProjectForPath, dotnetReferenceClosure, referencingDotnetTestProjects } from "./dotnet-projects.js";
 export type { DotnetProject } from "./dotnet-projects.js";
+export { buildComposerProjects, composerProjectForPath, composerTestCommandForProject, resolveComposerSymbol } from "./composer-projects.js";
+export type { ComposerProject } from "./composer-projects.js";
 export { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
 export { rankContextFiles, rankContextFilesEvidenceDetailed } from "./rank.js";
 export type {

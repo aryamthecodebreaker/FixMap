@@ -1,4 +1,5 @@
 import { extractLanguageDefinitions, extractLanguageImports, languageAdapterForFile, type LanguageImport } from "./language-adapters.js";
+import { buildComposerProjects, resolveComposerSymbol, type ComposerProject } from "./composer-projects.js";
 import { buildDotnetProjects, dotnetReferenceClosure, type DotnetProject } from "./dotnet-projects.js";
 import type { RepoFile } from "./types.js";
 
@@ -36,13 +37,15 @@ type ResolverIndex = {
   dotnetProjects: DotnetProject[];
   dotnetProjectByFile: Map<string, DotnetProject>;
   dotnetReferenceClosures: Map<string, Set<string>>;
+  composerProjectByFile: Map<string, ComposerProject>;
 };
 
 export function buildImportGraph(files: RepoFile[]): ImportGraph {
   const allParseable = files.filter((file) => languageAdapterForFile(file) && file.textSample.length > 0);
   const parseable = allParseable.slice(0, MAX_GRAPH_FILES);
   const dotnetProjects = buildDotnetProjects(files);
-  const resolverIndex = buildResolverIndex(files, dotnetProjects);
+  const composerProjects = buildComposerProjects(files);
+  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects);
   const aliases = buildAliases(files);
   const workspacePackages = buildWorkspacePackages(files);
   const imports = new Map<string, Set<string>>();
@@ -265,9 +268,24 @@ function resolvePhpImport(fromPath: string, imported: LanguageImport, resolverIn
   }
   const symbol = imported.specifier.replace(/^\\+/, "").toLowerCase();
   const exact = resolverIndex.phpSymbols.get(symbol);
-  if (exact?.length) return [...exact].sort(shortestPathFirst).slice(0, 1);
+  const sourceProject = resolverIndex.composerProjectByFile.get(fromPath);
+  if (exact?.length) {
+    const scoped = sourceProject
+      ? exact.filter((path) => resolverIndex.composerProjectByFile.get(path)?.path === sourceProject.path)
+      : exact;
+    if (scoped.length > 0) return [...scoped].sort(shortestPathFirst).slice(0, 1);
+  }
+  if (sourceProject) {
+    const mapped = resolveComposerSymbol(sourceProject, imported.specifier.replace(/^\\+/, ""), resolverIndex.repoPaths, resolverIndex.suffixPaths);
+    if (mapped.length > 0) return mapped;
+  }
   const namespace = symbol.split("\\").slice(0, -1).join("\\");
-  return [...(resolverIndex.phpNamespaces.get(namespace) ?? [])].sort(shortestPathFirst).slice(0, 20);
+  const namespacePaths = resolverIndex.phpNamespaces.get(namespace) ?? [];
+  return (sourceProject
+    ? namespacePaths.filter((path) => resolverIndex.composerProjectByFile.get(path)?.path === sourceProject.path)
+    : namespacePaths)
+    .sort(shortestPathFirst)
+    .slice(0, 20);
 }
 
 function resolveDotnetImport(fromPath: string, imported: LanguageImport, resolverIndex: ResolverIndex): string[] {
@@ -294,7 +312,11 @@ function resolveDotnetImport(fromPath: string, imported: LanguageImport, resolve
 /** Build once per graph instead of walking every repository path for every Python or Java
  * import. Each source path contributes its directory suffixes, preserving the old
  * path.endsWith() resolution semantics while changing repeated lookup from O(files) to O(1). */
-function buildResolverIndex(files: RepoFile[], dotnetProjects: DotnetProject[]): ResolverIndex {
+function buildResolverIndex(
+  files: RepoFile[],
+  dotnetProjects: DotnetProject[],
+  composerProjects: ComposerProject[]
+): ResolverIndex {
   const repoPaths = new Set(files.map((file) => file.path));
   const suffixPaths = new Map<string, string[]>();
   const javaPackagePaths = new Map<string, string[]>();
@@ -304,17 +326,24 @@ function buildResolverIndex(files: RepoFile[], dotnetProjects: DotnetProject[]):
   const phpNamespaces = new Map<string, string[]>();
   const dotnetNamespaces = new Map<string, string[]>();
   const dotnetProjectByFile = new Map<string, DotnetProject>();
+  const composerProjectByFile = new Map<string, ComposerProject>();
   const dotnetProjectsByRoot = new Map<string, DotnetProject[]>();
   for (const project of dotnetProjects) {
     const existing = dotnetProjectsByRoot.get(project.root);
     if (existing) existing.push(project);
     else dotnetProjectsByRoot.set(project.root, [project]);
   }
+  const composerProjectsByRoot = new Map<string, ComposerProject[]>();
+  for (const project of composerProjects) {
+    const existing = composerProjectsByRoot.get(project.root);
+    if (existing) existing.push(project);
+    else composerProjectsByRoot.set(project.root, [project]);
+  }
 
   for (const file of files) {
     const segments = file.path.split("/");
     addIndexedPath(directoryPaths, segments.slice(0, -1).join("/"), file.path);
-    if (/\.(?:py|pyi|java)$/i.test(file.path)) {
+    if (/\.(?:py|pyi|java|php)$/i.test(file.path)) {
       for (let start = 1; start < segments.length; start += 1) {
         addIndexedPath(suffixPaths, segments.slice(start).join("/"), file.path);
       }
@@ -330,6 +359,8 @@ function buildResolverIndex(files: RepoFile[], dotnetProjects: DotnetProject[]):
       if (name) goModules.push({ name, root: segments.slice(0, -1).join("/") });
     }
     if (file.path.toLowerCase().endsWith(".php")) {
+      const owner = projectForSourcePath(file.path, composerProjectsByRoot);
+      if (owner) composerProjectByFile.set(file.path, owner);
       const namespace = /^\s*namespace\s+([^;{\n]+)\s*[;{]/m.exec(file.textSample)?.[1]?.trim().replace(/^\\+|\\+$/g, "");
       if (namespace) {
         const normalizedNamespace = namespace.toLowerCase();
@@ -344,7 +375,7 @@ function buildResolverIndex(files: RepoFile[], dotnetProjects: DotnetProject[]):
     if (file.path.toLowerCase().endsWith(".cs")) {
       const namespace = /\bnamespace\s+([A-Za-z_][A-Za-z0-9_.]*)\s*(?:;|\{)/m.exec(file.textSample)?.[1]?.toLowerCase();
       if (namespace) addIndexedPath(dotnetNamespaces, namespace, file.path);
-      const owner = dotnetProjectForSourcePath(file.path, dotnetProjectsByRoot);
+      const owner = projectForSourcePath(file.path, dotnetProjectsByRoot);
       if (owner) dotnetProjectByFile.set(file.path, owner);
     }
   }
@@ -364,14 +395,15 @@ function buildResolverIndex(files: RepoFile[], dotnetProjects: DotnetProject[]):
     dotnetNamespaces,
     dotnetProjects,
     dotnetProjectByFile,
-    dotnetReferenceClosures: new Map()
+    dotnetReferenceClosures: new Map(),
+    composerProjectByFile
   };
 }
 
-function dotnetProjectForSourcePath(
+function projectForSourcePath<T extends { root: string }>(
   path: string,
-  projectsByRoot: ReadonlyMap<string, DotnetProject[]>
-): DotnetProject | undefined {
+  projectsByRoot: ReadonlyMap<string, T[]>
+): T | undefined {
   const directories = path.split("/").slice(0, -1);
   for (let length = directories.length; length >= 0; length -= 1) {
     const root = directories.slice(0, length).join("/");

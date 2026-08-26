@@ -93,6 +93,28 @@ describe("buildFixMapReport", () => {
     });
   });
 
+  it("scans Composer and PHPUnit evidence without inventing a Composer script", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-plan-php-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, "tests"), { recursive: true });
+    await writeFile(join(root, "composer.json"), JSON.stringify({ autoload: { "psr-4": { "Acme\\": "src/" } } }));
+    await writeFile(join(root, "phpunit.xml.dist"), "<phpunit />\n");
+    await writeFile(join(root, "src", "Token.php"), "<?php\nnamespace Acme;\nclass Token { public function expired() { return false; } }\n");
+    await writeFile(join(root, "tests", "TokenTest.php"), "<?php\nclass TokenTest {}\n");
+
+    const analysis = await buildFixMapAnalysis({ repoRoot: root, issueText: "Token expired returns the wrong value" });
+
+    expect(analysis.repo.files.find((file) => file.path === "phpunit.xml.dist")).toMatchObject({
+      kind: "config",
+      textSample: "<phpunit />\n"
+    });
+    expect(analysis.report.contextFiles[0]?.path).toBe("src/Token.php");
+    expect(analysis.report.testRoutes[0]).toMatchObject({
+      command: "phpunit -c phpunit.xml.dist",
+      relatedFiles: ["tests/TokenTest.php"]
+    });
+  });
+
   it("uses an injected local embedding provider in the shared scan-to-report path", async () => {
     const root = await createAuthFixture();
     const embeddingProvider: EmbeddingProvider = {

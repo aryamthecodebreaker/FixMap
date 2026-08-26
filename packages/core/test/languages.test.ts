@@ -154,6 +154,64 @@ describe("test routing beyond package scripts", () => {
     expect(buildTestRoutes(repo, ["Program.cs"])).toEqual([]);
   });
 
+  it("routes only explicitly declared Composer test scripts", () => {
+    const declared = repoOf([
+      file("composer.json", {
+        kind: "config",
+        textSample: JSON.stringify({ scripts: { test: "phpunit" } })
+      }),
+      file("src/App.php"),
+      file("tests/AppTest.php", { isTest: true })
+    ]);
+    const undeclared = repoOf([
+      file("composer.json", { kind: "config", textSample: "{}" }),
+      file("src/App.php")
+    ]);
+
+    expect(buildTestRoutes(declared, ["src/App.php"])[0]).toMatchObject({
+      command: "composer test",
+      relatedFiles: ["tests/AppTest.php"]
+    });
+    expect(buildTestRoutes(undeclared, ["src/App.php"])).toEqual([]);
+  });
+
+  it("scopes Composer scripts and PHPUnit configs to the owning PHP project", () => {
+    const composerScript = repoOf([
+      file("composer.json", { kind: "config", textSample: "{}" }),
+      file("services/api/composer.json", {
+        kind: "config",
+        textSample: JSON.stringify({ scripts: { test: ["@phpunit"] } })
+      }),
+      file("services/api/src/App.php"),
+      file("services/api/tests/AppTest.php", { isTest: true })
+    ]);
+    const phpunit = repoOf([
+      file("services/api/composer.json", { kind: "config", textSample: "{}" }),
+      file("services/api/phpunit.xml.dist", { kind: "config", textSample: "<phpunit />" }),
+      file("services/api/src/App.php"),
+      file("services/api/tests/AppTest.php", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(composerScript, ["services/api/src/App.php"])[0]?.command)
+      .toBe("composer --working-dir services/api test");
+    expect(buildTestRoutes(phpunit, ["services/api/src/App.php"])[0]).toMatchObject({
+      command: "phpunit -c services/api/phpunit.xml.dist",
+      relatedFiles: ["services/api/tests/AppTest.php"]
+    });
+  });
+
+  it("routes PHPUnit from an explicit require-dev dependency when no config exists", () => {
+    const repo = repoOf([
+      file("composer.json", {
+        kind: "config",
+        textSample: JSON.stringify({ "require-dev": { "phpunit/phpunit": "^11" } })
+      }),
+      file("src/App.php")
+    ]);
+
+    expect(buildTestRoutes(repo, ["src/App.php"])[0]?.command).toBe("vendor/bin/phpunit");
+  });
+
   it("scopes a workspace cargo command to the crate being edited", () => {
     const repo = repoOf([
       file("Cargo.toml", { isSource: false, kind: "config" }),

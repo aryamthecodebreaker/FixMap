@@ -27,6 +27,8 @@ export { buildFixMapGraph, renderFixMapGraphMermaid, type FixMapGraph } from "./
 export { buildImpactMap } from "./impact.js";
 export { buildDotnetProjects, dotnetProjectForPath, dotnetReferenceClosure, referencingDotnetTestProjects } from "./dotnet-projects.js";
 export type { DotnetProject } from "./dotnet-projects.js";
+export { buildComposerProjects, composerProjectForPath, composerTestCommandForProject, resolveComposerSymbol } from "./composer-projects.js";
+export type { ComposerProject } from "./composer-projects.js";
 export { buildWorkspaceImpact, buildWorkspaceMap } from "./workspace.js";
 export type {
   WorkspaceDependency,

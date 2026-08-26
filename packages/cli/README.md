@@ -159,7 +159,7 @@ For long task text, use `--issue-file task.md`, pipe it directly to `fixmap plan
 ## Complete feature catalog
 
 - **Plan** — rank primary context, then map likely impact from imports, reverse dependents, related tests, and repeated Git co-change relationships. Impact paths are inspection candidates, not assumed edits.
-- **Polyglot project scope** — Go, Rust, Ruby, PHP, and .NET use bounded language adapters; literal .NET `ProjectReference` evidence scopes namespace impact and routes `dotnet test` to the referencing test project or exact owning project.
+- **Polyglot project scope** — Go, Rust, Ruby, PHP, and .NET use bounded language adapters. Composer PSR-4/classmap evidence resolves PHP paths and test routing requires a declared script or PHPUnit evidence; literal .NET `ProjectReference` evidence scopes namespace impact and routes `dotnet test` to the referencing test project or exact owning project.
 - **Context Pack** — use `fixmap context` to package deterministic line ranges from primary and impact files within an estimated source-token budget. Markdown is readable by people and agents; JSON preserves roles, reasons, line ranges, truncation, and omitted-file diagnostics.
 - **Graph export** — use `fixmap graph` to export the evidence-backed Impact Graph as portable Mermaid or versioned JSON while preserving relationship direction.
 - **Cross-repository workspace** — use `fixmap workspace --config <file> --seed <repository-id>` to resolve local Node, Python, and Maven package providers and trace downstream consumers with versioned identity, manifest, import, and submodule evidence.

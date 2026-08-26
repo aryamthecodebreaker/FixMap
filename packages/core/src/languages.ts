@@ -11,6 +11,7 @@
 // code get a vote.
 
 import type { RepoFile, RepoMap } from "./types.js";
+import { buildComposerProjects, composerProjectForPath, composerTestCommandForProject } from "./composer-projects.js";
 import { buildDotnetProjects, dotnetProjectForPath, referencingDotnetTestProjects, type DotnetProject } from "./dotnet-projects.js";
 
 export type PrimaryLanguage = "node" | "python" | "go" | "rust" | "ruby" | "php" | "java" | "dotnet" | "unknown";
@@ -238,8 +239,12 @@ export function manifestTestCommand(
   if (language === "ruby" && manifest) {
     return { command: "bundle exec rspec", reason: `${manifest.path} declares the Ruby bundle` };
   }
-  if (language === "php" && manifest) {
-    return { command: "composer test", reason: `${manifest.path} declares Composer scripts` };
+  if (language === "php") {
+    const projects = buildComposerProjects(files);
+    const candidates = packageDir
+      ? projects.filter((project) => project.root === packageDir)
+      : projects;
+    return candidates.length === 1 ? composerTestCommandForProject(candidates[0]!) : undefined;
   }
   if (language === "java") {
     const javaManifest = requestedOrNearestManifest(files, "java", packageDir);
@@ -286,6 +291,15 @@ export function dotnetTestCommandForPath(
   const projects = buildDotnetProjects(files);
   const sourceProject = dotnetProjectForPath(projects, sourcePath);
   return sourceProject ? dotnetCommandForProject(projects, sourceProject) : undefined;
+}
+
+export function phpTestCommandForPath(
+  files: RepoFile[],
+  sourcePath: string
+): { command: string; reason: string; scopeDir?: string } | undefined {
+  const projects = buildComposerProjects(files);
+  const project = composerProjectForPath(projects, sourcePath);
+  return project ? composerTestCommandForProject(project) : undefined;
 }
 
 function dotnetCommandForProject(

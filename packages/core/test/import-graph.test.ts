@@ -163,6 +163,27 @@ describe("buildImportGraph", () => {
     ]);
   });
 
+  it("resolves PHP symbols through Composer PSR-4 and classmap evidence", () => {
+    const files = [
+      codeFile("composer.json", JSON.stringify({
+        autoload: {
+          "psr-4": { "Acme\\": "src/" },
+          classmap: ["legacy/"]
+        }
+      })),
+      codeFile("app/Checkout.php", "<?php\nuse Acme\\Domain\\User;\nuse Legacy\\Token;\nclass Checkout {}"),
+      codeFile("src/Domain/User.php", "<?php\nclass User {}"),
+      codeFile("legacy/models/Token.php", "<?php\nclass Token {}")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("app/Checkout.php") ?? [])].sort()).toEqual([
+      "legacy/models/Token.php",
+      "src/Domain/User.php"
+    ]);
+  });
+
   it("resolves .NET namespace imports without matching labels across namespaces", () => {
     const files = [
       codeFile("Auth/ResetService.cs", "using Acme.Accounts;\nnamespace Acme.Auth;\nclass ResetService {}"),
