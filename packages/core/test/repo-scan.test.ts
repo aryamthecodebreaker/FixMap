@@ -1091,6 +1091,36 @@ describe("scanRepo", () => {
 });
 
 describe("repository impact history", () => {
+  it("scopes history and file identities to a scanned repository subdirectory", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-nested-history-"));
+    const app = join(root, "app");
+    try {
+      await exec("git", ["init"], { cwd: root });
+      await exec("git", ["config", "user.name", "FixMap Test"], { cwd: root });
+      await exec("git", ["config", "user.email", "fixmap@example.invalid"], { cwd: root });
+      await mkdir(join(app, "src"), { recursive: true });
+      await writeFile(join(app, "src", "seed.ts"), "export const nestedSeed = 1;\n");
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "add nested app"], { cwd: root });
+
+      await mkdir(join(root, "src"), { recursive: true });
+      await writeFile(join(root, "src", "seed.ts"), "export const parentSeed = 1;\n");
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "add unrelated parent source"], { cwd: root });
+      await writeFile(join(root, "src", "seed.ts"), "export const parentSeed = 2;\n");
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "update unrelated parent source"], { cwd: root });
+
+      const repo = await scanRepo({ repoRoot: app, includeHistory: true });
+
+      expect(repo.history).toMatchObject({ inspectedCommits: 1, skippedLargeCommits: 0, truncated: false });
+      expect(repo.history?.commits).toHaveLength(1);
+      expect(repo.history?.commits[0]?.files).toEqual(["src/seed.ts"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("reads bounded pre-HEAD co-change evidence and excludes oversized commits", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-history-"));
     try {

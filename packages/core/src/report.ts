@@ -804,7 +804,7 @@ export function renderMarkdownReport(report: FixMapReport): string {
       "",
       `Inspection order: ${report.impact.inspectionOrder.map(markdownCode).join(" → ") || "None"}.`,
       `History evidence: ${report.impact.history.available
-        ? `${report.impact.history.eligibleCommits.toLocaleString()} eligible commits${report.impact.history.shallow ? " (shallow)" : ""}${report.impact.history.truncated ? " (bounded)" : ""}`
+        ? `${report.impact.history.eligibleCommits.toLocaleString()} eligible ${report.impact.history.eligibleCommits === 1 ? "commit" : "commits"}${report.impact.history.shallow ? " (shallow)" : ""}${report.impact.history.truncated ? " (bounded)" : ""}`
         : "not available; import and test evidence only"}.`
     ] : []),
     "",

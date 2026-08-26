@@ -1,10 +1,14 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { buildFixMapAnalysis, buildFixMapReport } from "../src/plan.js";
 import { renderMarkdownReport } from "../src/report.js";
 import type { EmbeddingProvider } from "../src/semantic.js";
+
+const exec = promisify(execFile);
 
 async function createAuthFixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "fixmap-plan-"));
@@ -34,11 +38,60 @@ describe("buildFixMapReport", () => {
 
     expect(analysis.report.contextFiles.map((file) => file.path)).not.toContain("plan.json");
     expect(analysis.report.impact?.files.map((file) => file.path) ?? []).not.toContain("plan.json");
+    expect(analysis.repo.files.map((file) => file.path)).not.toContain("plan.json");
     expect(analysis.report.diagnostics).toContainEqual(expect.objectContaining({
       code: "fixmap-artifact-excluded",
       paths: ["plan.json"]
     }));
   });
+
+  it("excludes generated setup commands from analysis while preserving team-owned files at the same path", async () => {
+    const root = await createAuthFixture();
+    await mkdir(join(root, ".claude", "skills", "fixmap"), { recursive: true });
+    const setupPath = join(root, ".claude", "skills", "fixmap", "SKILL.md");
+    await writeFile(setupPath, "You are the FixMap workflow assistant for this repository.\nRun `fixmap features`.\n");
+
+    const generated = await buildFixMapAnalysis({ repoRoot: root, issueText: "password reset FixMap workflow" });
+    expect(generated.report.contextFiles.map((file) => file.path)).not.toContain(".claude/skills/fixmap/SKILL.md");
+    expect(generated.repo.files.map((file) => file.path)).not.toContain(".claude/skills/fixmap/SKILL.md");
+
+    await writeFile(setupPath, "Team-owned instructions for password reset reviews.\n");
+    const owned = await buildFixMapAnalysis({ repoRoot: root, issueText: "password reset reviews" });
+    expect(owned.repo.files.map((file) => file.path)).toContain(".claude/skills/fixmap/SKILL.md");
+  });
+
+  it("keeps prior FixMap and setup artifacts out of a working-tree change map", async () => {
+    const root = await createAuthFixture();
+    await exec("git", ["init", "--quiet"], { cwd: root });
+    await exec("git", ["config", "user.email", "fixmap@example.test"], { cwd: root });
+    await exec("git", ["config", "user.name", "FixMap Test"], { cwd: root });
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "--quiet", "-m", "fixture"], { cwd: root });
+    await writeFile(join(root, "src", "auth", "reset-password.ts"), "export const resetPassword = false;\n");
+    await writeFile(join(root, "saved-report.json"), JSON.stringify({
+      reportVersion: 1,
+      summary: "FixMap report",
+      contextFiles: [], testRoutes: [], risks: [], changedFiles: [], diagnostics: []
+    }));
+    await mkdir(join(root, ".agents", "skills", "fixmap"), { recursive: true });
+    await writeFile(
+      join(root, ".agents", "skills", "fixmap", "SKILL.md"),
+      "You are the FixMap workflow assistant for this repository.\nRun `fixmap features`.\n"
+    );
+
+    const analysis = await buildFixMapAnalysis({
+      repoRoot: root,
+      issueText: "reset password",
+      workingTree: true,
+      includeUntracked: true,
+      useCache: false
+    });
+
+    expect(analysis.report.changedFiles).toEqual(["src/auth/reset-password.ts"]);
+    expect(analysis.repo.changedFiles).toEqual(["src/auth/reset-password.ts"]);
+    expect(analysis.report.contextFiles.map((file) => file.path)).not.toContain("saved-report.json");
+    expect(analysis.report.contextFiles.map((file) => file.path)).not.toContain(".agents/skills/fixmap/SKILL.md");
+  }, 15_000);
 
   it("returns the exact scanned repository snapshot with an analysis", async () => {
     const root = await createAuthFixture();

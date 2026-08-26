@@ -1,6 +1,20 @@
 import type { RepoFile } from "./types.js";
 
-export type FixMapArtifactKind = "context-json" | "context-markdown" | "report-json" | "report-markdown" | "verify-json";
+export type FixMapArtifactKind =
+  | "agent-command"
+  | "context-json"
+  | "context-markdown"
+  | "report-json"
+  | "report-markdown"
+  | "verify-json";
+
+const AGENT_COMMAND_PATHS = new Set([
+  ".agents/skills/fixmap/skill.md",
+  ".claude/skills/fixmap/skill.md",
+  ".cursor/commands/fixmap.md",
+  ".github/prompts/fixmap.prompt.md"
+]);
+const AGENT_COMMAND_MARKER = "You are the FixMap workflow assistant for this repository.";
 
 /**
  * Identifies FixMap's own generated documents from their contract, not their filename.
@@ -10,6 +24,9 @@ export type FixMapArtifactKind = "context-json" | "context-markdown" | "report-j
 export function fixMapArtifactKind(file: Pick<RepoFile, "path" | "textSample" | "textSampleComplete">): FixMapArtifactKind | undefined {
   const text = file.textSample.trimStart();
   if (!text) return undefined;
+  if (AGENT_COMMAND_PATHS.has(file.path.replace(/\\/g, "/").toLowerCase()) && text.includes(AGENT_COMMAND_MARKER)) {
+    return "agent-command";
+  }
   if (text.startsWith("# FixMap Report\n") && text.includes("\n## Context Files\n")) return "report-markdown";
   if (text.startsWith("# FixMap Context\n") && text.includes("\n## Task\n")) return "context-markdown";
   if (!file.path.toLowerCase().endsWith(".json") || file.textSampleComplete === false) return undefined;

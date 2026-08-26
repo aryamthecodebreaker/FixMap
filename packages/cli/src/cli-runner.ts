@@ -141,6 +141,7 @@ Commands:
 Options:
   --issue <text|url>  Task text, or a public GitHub issue or pull request URL
   --issue-file <file> Read task text from a UTF-8 or UTF-16 file (use - for stdin)
+                      For long text, use this flag or stdin; inline argv can exceed Windows' command-line limit
   --diff <spec>       Git diff spec, such as main...HEAD (the repository scan can still rank untracked candidates)
   --base <ref>        Base ref for diffing when --diff is not given
   --head <ref>        Head ref for diffing (defaults to HEAD)

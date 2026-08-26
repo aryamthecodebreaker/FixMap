@@ -7,7 +7,9 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 import { buildIdentityGraph, createGraphIdentity } from "@aryam/fixmap-core";
-import { createFixMapMcpServer, parseExplainArguments, parsePlanArguments, parseVerifyArguments } from "../src/mcp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import type { JSONRPCMessage, MessageExtraInfo } from "@modelcontextprotocol/sdk/types.js";
+import { createFixMapMcpServer, InitializationGuardTransport, parseExplainArguments, parsePlanArguments, parseVerifyArguments } from "../src/mcp.js";
 import type { RepositorySourceDependencies } from "../src/repository-source.js";
 
 const exec = promisify(execFile);
@@ -70,6 +72,58 @@ async function connectClient(repositorySourceDependencies: RepositorySourceDepen
 }
 
 describe("fixmap mcp server", () => {
+  it("requires initialization and answers malformed stdio JSON with protocol errors", async () => {
+    class FakeTransport implements Transport {
+      onclose?: () => void;
+      onerror?: (error: Error) => void;
+      onmessage?: <T extends JSONRPCMessage>(message: T, extra?: MessageExtraInfo) => void;
+      sent: JSONRPCMessage[] = [];
+      async start() {}
+      async send(message: JSONRPCMessage) { this.sent.push(message); }
+      async close() { this.onclose?.(); }
+    }
+    const inner = new FakeTransport();
+    const guarded = new InitializationGuardTransport(inner);
+    const delivered: JSONRPCMessage[] = [];
+    guarded.onmessage = (message) => delivered.push(message);
+    await guarded.start();
+
+    inner.onmessage?.({ jsonrpc: "2.0", id: 9, method: "tools/list" });
+    await Promise.resolve();
+    expect(inner.sent).toContainEqual({
+      jsonrpc: "2.0",
+      id: 9,
+      error: { code: -32002, message: "Server not initialized" }
+    });
+    expect(delivered).toEqual([]);
+
+    inner.onerror?.(new SyntaxError("Unexpected token"));
+    await Promise.resolve();
+    expect(inner.sent).toContainEqual({
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32700, message: "Parse error" }
+    });
+
+    inner.onmessage?.({ jsonrpc: "2.0", method: "notifications/initialized" });
+    inner.onmessage?.({ jsonrpc: "2.0", id: 10, method: "tools/list" });
+    await Promise.resolve();
+    expect(inner.sent).toContainEqual(expect.objectContaining({
+      id: 10,
+      error: { code: -32002, message: "Server not initialized" }
+    }));
+
+    inner.onmessage?.({
+      jsonrpc: "2.0",
+      id: 11,
+      method: "initialize",
+      params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "test", version: "1" } }
+    });
+    inner.onmessage?.({ jsonrpc: "2.0", method: "notifications/initialized" });
+    inner.onmessage?.({ jsonrpc: "2.0", id: 10, method: "tools/list" });
+    expect(delivered).toContainEqual({ jsonrpc: "2.0", id: 10, method: "tools/list" });
+  });
+
   it("rejects malformed runtime arguments before repository work begins", () => {
     expect(parsePlanArguments({ issue: 42 })).toEqual({
       success: false,

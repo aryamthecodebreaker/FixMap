@@ -1375,16 +1375,19 @@ async function readRepositoryHistory(
   try {
     const [{ stdout: shallowText }, { stdout: countText }, { stdout: logText }] = await Promise.all([
       exec("git", ["rev-parse", "--is-shallow-repository"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["rev-list", "--count", "--no-merges", "HEAD"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["rev-list", "--count", "--no-merges", "HEAD", "--", "."], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
       exec("git", [
         "-c", "core.quotepath=false",
         "log",
+        "--relative",
         "--no-merges",
         "-n", String(MAX_HISTORY_COMMITS),
         "--format=%x1e%H%x1f%ct%x1f%aN",
         "--name-only",
         "-z",
-        "HEAD"
+        "HEAD",
+        "--",
+        "."
       ], { cwd: root, maxBuffer: GIT_HISTORY_MAX_BUFFER })
     ]);
 

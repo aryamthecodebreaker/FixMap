@@ -103,6 +103,7 @@ function markdownCode(value) {
 // packages/core/dist/language-adapters.js
 var IDENTIFIER = "[A-Za-z_$][A-Za-z0-9_$]*";
 var JAVA_CONTROL_WORDS = /* @__PURE__ */ new Set(["catch", "do", "else", "for", "if", "new", "return", "switch", "synchronized", "throw", "while"]);
+var CSHARP_CONTROL_WORDS = /* @__PURE__ */ new Set(["catch", "do", "else", "for", "foreach", "if", "lock", "return", "switch", "throw", "using", "while"]);
 var javascriptAdapter = {
   id: "javascript-typescript",
   extensions: [".cjs", ".cts", ".js", ".jsx", ".mjs", ".mts", ".svelte", ".ts", ".tsx", ".vue"],
@@ -216,10 +217,153 @@ var javaAdapter = {
     return /(?:^|\/)src\/test\/|(?:Test|Tests|TestCase)\.java$/i.test(path);
   }
 };
+var goAdapter = {
+  id: "go",
+  extensions: [".go"],
+  extractImports(text) {
+    const imports = [];
+    for (const match of text.matchAll(/^\s*import\s+(?:[A-Za-z_.][A-Za-z0-9_.]*\s+)?["`]([^"`\n]+)["`]/gm)) {
+      if (match[1])
+        imports.push({ adapter: "go", specifier: match[1], importedNames: [], wildcard: false });
+    }
+    for (const block of text.matchAll(/^\s*import\s*\(([\s\S]*?)^\s*\)/gm)) {
+      for (const match of (block[1] ?? "").matchAll(/^\s*(?:[A-Za-z_.][A-Za-z0-9_.]*\s+)?["`]([^"`\n]+)["`]/gm)) {
+        if (match[1])
+          imports.push({ adapter: "go", specifier: match[1], importedNames: [], wildcard: false });
+      }
+    }
+    return uniqueImports(imports);
+  },
+  extractDefinitions(text) {
+    return definitionsFromPatterns("go", text, [
+      { pattern: /^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm, kind: "function" },
+      { pattern: /^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?:struct|interface)\b/gm, kind: "class" },
+      { pattern: /^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?!(?:struct|interface)\b)/gm, kind: "type" },
+      { pattern: /^\s*(?:var|const)\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "variable" }
+    ]);
+  },
+  isTestPath(path) {
+    return /(?:^|\/)[^/]+_test\.go$/i.test(path);
+  }
+};
+var rustAdapter = {
+  id: "rust",
+  extensions: [".rs"],
+  extractImports(text) {
+    const imports = [];
+    for (const match of text.matchAll(/^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([^;\n]+)\s*;/gm)) {
+      const specifier = (match[1] ?? "").replace(/\s+/g, "").replace(/::\{.*$/, "");
+      if (specifier)
+        imports.push({ adapter: "rust", specifier, importedNames: [], wildcard: specifier.endsWith("::*") });
+    }
+    for (const match of text.matchAll(/^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/gm)) {
+      if (match[1])
+        imports.push({ adapter: "rust", specifier: `self::${match[1]}`, importedNames: [], wildcard: false });
+    }
+    return uniqueImports(imports);
+  },
+  extractDefinitions(text) {
+    const visibility = "(?:pub(?:\\([^)]*\\))?\\s+)?";
+    return definitionsFromPatterns("rust", text, [
+      { pattern: new RegExp(`^\\s*${visibility}(?:async\\s+)?(?:unsafe\\s+)?fn\\s+([A-Za-z_][A-Za-z0-9_]*)\\b`, "gm"), kind: "function" },
+      { pattern: new RegExp(`^\\s*${visibility}(?:struct|enum)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b`, "gm"), kind: "class" },
+      { pattern: new RegExp(`^\\s*${visibility}trait\\s+([A-Za-z_][A-Za-z0-9_]*)\\b`, "gm"), kind: "interface" },
+      { pattern: new RegExp(`^\\s*${visibility}type\\s+([A-Za-z_][A-Za-z0-9_]*)\\b`, "gm"), kind: "type" },
+      { pattern: new RegExp(`^\\s*${visibility}(?:const|static(?:\\s+mut)?)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b`, "gm"), kind: "variable" }
+    ]);
+  },
+  isTestPath(path) {
+    return /(?:^|\/)(?:tests?|benches)\/[^/]+\.rs$|(?:^|\/)[^/]+_test\.rs$/i.test(path);
+  }
+};
+var rubyAdapter = {
+  id: "ruby",
+  extensions: [".rb", ".rake"],
+  extractImports(text) {
+    const imports = [];
+    for (const match of text.matchAll(/^\s*(require_relative|require|load)\s*\(?\s*["']([^"'\n]+)["']/gm)) {
+      if (match[2])
+        imports.push({ adapter: "ruby", specifier: `${match[1] === "require_relative" ? "relative:" : "absolute:"}${match[2]}`, importedNames: [], wildcard: false });
+    }
+    return uniqueImports(imports);
+  },
+  extractDefinitions(text) {
+    return definitionsFromPatterns("ruby", text, [
+      { pattern: /^\s*(?:async\s+)?def\s+(?:self\.)?([A-Za-z_][A-Za-z0-9_!?=]*)\b/gm, kind: "method" },
+      { pattern: /^\s*class\s+(?:[A-Za-z_][A-Za-z0-9_]*::)*([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "class" },
+      { pattern: /^\s*module\s+(?:[A-Za-z_][A-Za-z0-9_]*::)*([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "type" }
+    ]);
+  },
+  isTestPath(path) {
+    return /(?:^|\/)spec\/.*_spec\.rb$|(?:^|\/)test\/.*_test\.rb$/i.test(path);
+  }
+};
+var phpAdapter = {
+  id: "php",
+  extensions: [".php", ".phtml"],
+  extractImports(text) {
+    const imports = [];
+    for (const match of text.matchAll(/^\s*use\s+(?:function\s+|const\s+)?([^;\n]+)\s*;/gm)) {
+      for (const entry of (match[1] ?? "").split(",")) {
+        const specifier = entry.trim().replace(/^\\+/, "").split(/\s+as\s+/i)[0]?.trim();
+        if (specifier)
+          imports.push({ adapter: "php", specifier, importedNames: [], wildcard: false });
+      }
+    }
+    for (const match of text.matchAll(/\b(?:require|require_once|include|include_once)\s*(?:\(\s*)?["']([^"'\n]+)["']/g)) {
+      if (match[1])
+        imports.push({ adapter: "php", specifier: `file:${match[1]}`, importedNames: [], wildcard: false });
+    }
+    return uniqueImports(imports);
+  },
+  extractDefinitions(text) {
+    return definitionsFromPatterns("php", text, [
+      { pattern: /\b(?:final\s+|abstract\s+|readonly\s+)*(?:class|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g, kind: "class" },
+      { pattern: /\binterface\s+([A-Za-z_][A-Za-z0-9_]*)\b/g, kind: "interface" },
+      { pattern: /\bfunction\s+&?\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/g, kind: "function" }
+    ]);
+  },
+  isTestPath(path) {
+    return /(?:^|\/)tests?\/|(?:Test|Tests)\.php$/i.test(path);
+  }
+};
+var dotnetAdapter = {
+  id: "dotnet",
+  extensions: [".cs", ".csx"],
+  extractImports(text) {
+    const imports = [];
+    for (const match of text.matchAll(/^\s*(?:global\s+)?using\s+(?:static\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\s*=\s*)?([A-Za-z_][A-Za-z0-9_.]*)\s*;/gm)) {
+      if (match[1])
+        imports.push({ adapter: "dotnet", specifier: match[1], importedNames: [], wildcard: false });
+    }
+    return uniqueImports(imports);
+  },
+  extractDefinitions(text) {
+    const definitions = definitionsFromPatterns("dotnet", text, [
+      { pattern: /\b(?:class|record(?:\s+class)?|struct|enum)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g, kind: "class" },
+      { pattern: /\binterface\s+([A-Za-z_][A-Za-z0-9_]*)\b/g, kind: "interface" },
+      { pattern: /\bdelegate\s+[^;({]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g, kind: "type" }
+    ]);
+    const methodPattern = /(?:^|[;{}]\s*)(?:(?:public|protected|private|internal|static|virtual|override|abstract|sealed|async|extern|unsafe|new|partial)\s+)*(?:[A-Za-z_][A-Za-z0-9_<>,.?\[\]]*\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;{}]*\)\s*(?:where\s+[^={]+)?(?:=>|\{)/gm;
+    for (const match of text.matchAll(methodPattern)) {
+      if (match[1] && !CSHARP_CONTROL_WORDS.has(match[1]))
+        definitions.push({ adapter: "dotnet", name: match[1], kind: "method", offset: match.index });
+    }
+    return uniqueDefinitions(definitions.sort(byOffset));
+  },
+  isTestPath(path) {
+    return /(?:^|\/)(?:tests?|specs?)\/|(?:Test|Tests|TestCase)\.cs$/i.test(path);
+  }
+};
 var BUILT_IN_LANGUAGE_ADAPTERS = Object.freeze([
   javascriptAdapter,
   pythonAdapter,
-  javaAdapter
+  javaAdapter,
+  goAdapter,
+  rustAdapter,
+  rubyAdapter,
+  phpAdapter,
+  dotnetAdapter
 ]);
 var ADAPTER_BY_EXTENSION = new Map(BUILT_IN_LANGUAGE_ADAPTERS.flatMap((adapter) => adapter.extensions.map((extension) => [extension, adapter])));
 var IMPORT_CACHE = /* @__PURE__ */ new WeakMap();
@@ -271,6 +415,19 @@ function uniqueDefinitions(definitions) {
     seen.add(key);
     return true;
   });
+}
+function definitionsFromPatterns(adapter, text, patterns2) {
+  const definitions = [];
+  for (const { pattern, kind } of patterns2) {
+    for (const match of text.matchAll(pattern)) {
+      if (match[1])
+        definitions.push({ adapter, name: match[1], kind, offset: match.index });
+    }
+  }
+  return uniqueDefinitions(definitions.sort(byOffset));
+}
+function byOffset(left, right) {
+  return (left.offset ?? 0) - (right.offset ?? 0) || left.name.localeCompare(right.name) || left.kind.localeCompare(right.kind);
 }
 
 // packages/core/dist/paths.js
@@ -827,7 +984,8 @@ function analyzeTaskGrounding(repo, input) {
     changedFiles: repo.changedFiles
   });
   const anchorIdentifiers = [...signals.identifiers].filter((identifier) => isAnchorIdentifier(identifier, issueText));
-  const identifiers = anchorIdentifiers.map((identifier) => groundIdentifier(repo, identifier));
+  const batchedMatches = collectBatchedIdentifierMatches(repo, anchorIdentifiers);
+  const identifiers = anchorIdentifiers.map((identifier) => groundIdentifier(repo, identifier, batchedMatches.definitions.get(identifier), batchedMatches.text.get(identifier)));
   const unresolvedIdentifiers = identifiers.filter((entry) => entry.status === "not-found").map((entry) => entry.identifier);
   const partiallyResolvedIdentifiers = identifiers.filter((entry) => entry.status === "partial-definition").map((entry) => entry.identifier);
   const unverifiedIdentifiers = identifiers.filter((entry) => entry.status === "unverified").map((entry) => entry.identifier);
@@ -904,10 +1062,43 @@ function buildNextAction(grounding, ranking, contextFiles, hasRoutedTests = true
   }
   return "Add a concrete repository anchor and rerun FixMap.";
 }
-function groundIdentifier(repo, identifier) {
+function collectBatchedIdentifierMatches(repo, identifiers) {
+  const definitions = collectIdentifierMatches(repo, identifiers, true);
+  const withoutDefinitions = identifiers.filter((identifier) => (definitions.get(identifier)?.length ?? 0) === 0);
+  return { definitions, text: collectIdentifierMatches(repo, withoutDefinitions, false) };
+}
+function collectIdentifierMatches(repo, identifiers, definitions) {
+  const matches = new Map(identifiers.map((identifier) => [identifier, []]));
+  if (identifiers.length === 0)
+    return matches;
+  const wanted = new Set(identifiers);
+  const alternatives = [...identifiers].sort((a, b) => b.length - a.length || a.localeCompare(b)).map(escapeRegExp).join("|");
+  const prefix = definitions ? "(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\\s+)" : "";
+  const pattern = new RegExp("(?<![\\p{L}\\p{N}_$])" + prefix + "(" + alternatives + ")(?![\\p{L}\\p{N}_$])", "gu");
+  for (const file of repo.files) {
+    const found = /* @__PURE__ */ new Set();
+    if (definitions) {
+      for (const definition of extractLanguageDefinitions(file)) {
+        if (wanted.has(definition.name))
+          found.add(definition.name);
+      }
+    }
+    for (const match of file.textSample.matchAll(pattern)) {
+      if (match[1])
+        found.add(match[1]);
+    }
+    for (const identifier of found) {
+      const paths = matches.get(identifier);
+      if (paths && paths.length < MAX_IDENTIFIER_MATCHED_FILES)
+        paths.push(file.path);
+    }
+  }
+  return matches;
+}
+function groundIdentifier(repo, identifier, precomputedDefinitionFiles, precomputedTextFiles) {
   const definitionPattern = new RegExp(`(?<![\\p{L}\\p{N}_$])(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\\s+)${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`, "u");
   const exactPattern = new RegExp(`(?<![\\p{L}\\p{N}_$])${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`, "u");
-  const definitionFiles = repo.files.filter((file) => extractLanguageDefinitions(file).some((entry) => entry.name === identifier) || definitionPattern.test(file.textSample)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
+  const definitionFiles = precomputedDefinitionFiles ?? repo.files.filter((file) => extractLanguageDefinitions(file).some((entry) => entry.name === identifier) || definitionPattern.test(file.textSample)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
   if (definitionFiles.length > 0) {
     return {
       identifier,
@@ -915,7 +1106,7 @@ function groundIdentifier(repo, identifier) {
       matchedFiles: definitionFiles
     };
   }
-  const textFiles = repo.files.filter((file) => exactPattern.test(file.textSample)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
+  const textFiles = precomputedTextFiles ?? repo.files.filter((file) => exactPattern.test(file.textSample)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
   return textFiles.length > 0 ? { identifier, status: "exact-text", matchedFiles: textFiles } : groundPartialOrUnverifiedIdentifier(repo, identifier);
 }
 function groundPartialOrUnverifiedIdentifier(repo, identifier) {
@@ -986,6 +1177,299 @@ function removeIdentifiers(text, identifiers) {
 }
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// packages/core/dist/composer-projects.js
+function buildComposerProjects(files) {
+  const canonicalPaths = new Map(files.map((file) => [file.path.toLowerCase(), file.path]));
+  return files.filter((file) => file.path === "composer.json" || file.path.endsWith("/composer.json")).sort((left, right) => left.path.localeCompare(right.path)).flatMap((file) => {
+    let manifest;
+    try {
+      const parsed = JSON.parse(file.textSample);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+        return [];
+      manifest = parsed;
+    } catch {
+      return [];
+    }
+    const root = directoryOf(file.path);
+    const autoload = collectAutoload(manifest.autoload, root);
+    const autoloadDev = collectAutoload(manifest["autoload-dev"], root);
+    const scripts = isRecord(manifest.scripts) ? manifest.scripts : {};
+    const testScript = typeof scripts.test === "string" && scripts.test.trim().length > 0 || Array.isArray(scripts.test) && scripts.test.length > 0 && scripts.test.every((entry) => typeof entry === "string" && entry.trim().length > 0);
+    const requireDev = isRecord(manifest["require-dev"]) ? manifest["require-dev"] : {};
+    const required = isRecord(manifest.require) ? manifest.require : {};
+    const phpunitConfig = ["phpunit.xml", "phpunit.xml.dist"].map((name) => root ? `${root}/${name}` : name).map((path) => canonicalPaths.get(path.toLowerCase())).find((path) => path !== void 0);
+    return [{
+      path: file.path,
+      root,
+      psr4: [...autoload.psr4, ...autoloadDev.psr4].sort((left, right) => right.prefix.length - left.prefix.length || left.prefix.localeCompare(right.prefix)),
+      classmap: [.../* @__PURE__ */ new Set([...autoload.classmap, ...autoloadDev.classmap])].sort((left, right) => left.localeCompare(right)),
+      testScript,
+      phpunitDependency: typeof requireDev["phpunit/phpunit"] === "string" && requireDev["phpunit/phpunit"].trim().length > 0 || typeof required["phpunit/phpunit"] === "string" && required["phpunit/phpunit"].trim().length > 0,
+      ...phpunitConfig ? { phpunitConfig } : {}
+    }];
+  });
+}
+function composerProjectForPath(projects, path) {
+  const matching = projects.filter((project) => project.root ? path.startsWith(`${project.root}/`) : true);
+  if (matching.length === 0)
+    return void 0;
+  const deepest = Math.max(...matching.map((project) => depth(project.root)));
+  const nearest = matching.filter((project) => depth(project.root) === deepest);
+  return nearest.length === 1 ? nearest[0] : void 0;
+}
+function resolveComposerSymbol(project, symbol, repoPaths, suffixPaths) {
+  const targets = /* @__PURE__ */ new Set();
+  for (const mapping of project.psr4) {
+    if (!symbol.startsWith(mapping.prefix))
+      continue;
+    const relative2 = symbol.slice(mapping.prefix.length).replace(/\\/g, "/");
+    if (!relative2)
+      continue;
+    for (const root of mapping.roots) {
+      const candidate = [root, `${relative2}.php`].filter(Boolean).join("/");
+      if (repoPaths.has(candidate))
+        targets.add(candidate);
+    }
+  }
+  const shortName = symbol.split("\\").pop();
+  if (shortName) {
+    const suffix = `${shortName}.php`;
+    for (const classmapRoot of project.classmap) {
+      if (classmapRoot.toLowerCase().endsWith(".php"))
+        continue;
+      for (const candidate of suffixPaths.get(suffix) ?? []) {
+        if (!classmapRoot || candidate.startsWith(`${classmapRoot}/`))
+          targets.add(candidate);
+      }
+    }
+  }
+  return [...targets].sort((left, right) => left.localeCompare(right)).slice(0, 20);
+}
+function composerTestCommandForProject(project) {
+  if (project.testScript) {
+    return {
+      command: project.root ? `composer --working-dir ${project.root} test` : "composer test",
+      reason: `${project.path} explicitly declares the Composer test script`,
+      scopeDir: project.root
+    };
+  }
+  if (project.phpunitConfig || project.phpunitDependency) {
+    const executable = project.phpunitDependency ? project.root ? `${project.root}/vendor/bin/phpunit` : "vendor/bin/phpunit" : "phpunit";
+    return {
+      command: `${executable}${project.phpunitConfig ? ` -c ${project.phpunitConfig}` : ""}`,
+      reason: project.phpunitConfig ? `${project.phpunitConfig} explicitly configures PHPUnit` : `${project.path} declares phpunit/phpunit in require-dev`,
+      scopeDir: project.root
+    };
+  }
+  return void 0;
+}
+function collectAutoload(value, root) {
+  if (!isRecord(value))
+    return { psr4: [], classmap: [] };
+  const rawPsr4 = isRecord(value["psr-4"]) ? value["psr-4"] : {};
+  const psr4 = Object.entries(rawPsr4).flatMap(([prefix, rawRoots]) => {
+    const roots = (typeof rawRoots === "string" ? [rawRoots] : Array.isArray(rawRoots) ? rawRoots : []).filter((entry) => typeof entry === "string").map((entry) => resolveManifestPath(root, entry)).filter((entry) => entry !== void 0);
+    return prefix && roots.length > 0 ? [{ prefix, roots: [...new Set(roots)] }] : [];
+  });
+  const classmap = (Array.isArray(value.classmap) ? value.classmap : []).filter((entry) => typeof entry === "string").map((entry) => resolveManifestPath(root, entry)).filter((entry) => entry !== void 0);
+  return { psr4, classmap };
+}
+function normalizeRepositoryPath(path) {
+  const segments = [];
+  for (const segment of path.replace(/\\/g, "/").split("/")) {
+    if (!segment || segment === ".")
+      continue;
+    if (segment === "..") {
+      if (segments.length === 0)
+        return void 0;
+      segments.pop();
+    } else {
+      segments.push(segment);
+    }
+  }
+  return segments.join("/").replace(/\/$/, "");
+}
+function resolveManifestPath(root, value) {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === ".")
+    return root;
+  if (/[$*?]/.test(trimmed) || /^[A-Za-z]:[\\/]|^[\\/]/.test(trimmed))
+    return void 0;
+  return normalizeRepositoryPath(root ? `${root}/${trimmed}` : trimmed);
+}
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function directoryOf(path) {
+  return path.split("/").slice(0, -1).join("/");
+}
+function depth(path) {
+  return path.split("/").filter(Boolean).length;
+}
+
+// packages/core/dist/dotnet-projects.js
+var PROJECT_FILE = /\.(?:csproj|fsproj|vbproj)$/i;
+var PROJECT_REFERENCE = /<ProjectReference\b[^>]*\bInclude\s*=\s*(["'])(.*?)\1/gi;
+function buildDotnetProjects(files) {
+  const projectFiles = files.filter((file) => PROJECT_FILE.test(file.path)).sort((left, right) => left.path.localeCompare(right.path));
+  const canonicalPaths = new Map(projectFiles.map((file) => [file.path.toLowerCase(), file.path]));
+  return projectFiles.map((file) => {
+    const root = directoryOf2(file.path);
+    const references = /* @__PURE__ */ new Set();
+    PROJECT_REFERENCE.lastIndex = 0;
+    for (const match of file.textSample.matchAll(PROJECT_REFERENCE)) {
+      const include = match[2]?.trim();
+      if (!include || /[$*?]/.test(include) || /^[A-Za-z]:[\\/]|^[\\/]/.test(include))
+        continue;
+      const normalized = normalizeRepositoryPath2(root ? `${root}/${include}` : include);
+      const canonical = normalized ? canonicalPaths.get(normalized.toLowerCase()) : void 0;
+      if (canonical && canonical !== file.path)
+        references.add(canonical);
+    }
+    return {
+      path: file.path,
+      root,
+      references: [...references].sort((left, right) => left.localeCompare(right)),
+      test: isDotnetTestProject(file)
+    };
+  });
+}
+function dotnetProjectForPath(projects, path) {
+  if (PROJECT_FILE.test(path))
+    return projects.find((project) => project.path === path);
+  const matching = projects.filter((project) => project.root ? path.startsWith(`${project.root}/`) : true);
+  if (matching.length === 0)
+    return void 0;
+  const deepest = Math.max(...matching.map((project) => project.root.split("/").filter(Boolean).length));
+  const nearest = matching.filter((project) => project.root.split("/").filter(Boolean).length === deepest);
+  return nearest.length === 1 ? nearest[0] : void 0;
+}
+function dotnetReferenceClosure(projects, projectPath) {
+  const byPath = new Map(projects.map((project) => [project.path, project]));
+  const reachable = /* @__PURE__ */ new Set();
+  const pending = [projectPath];
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (reachable.has(current))
+      continue;
+    reachable.add(current);
+    for (const reference of byPath.get(current)?.references ?? []) {
+      if (!reachable.has(reference))
+        pending.push(reference);
+    }
+  }
+  return reachable;
+}
+function referencingDotnetTestProjects(projects, projectPath) {
+  return projects.filter((project) => project.test && dotnetReferenceClosure(projects, project.path).has(projectPath)).sort((left, right) => left.path.split("/").length - right.path.split("/").length || left.path.localeCompare(right.path));
+}
+function isDotnetTestProject(file) {
+  return /<IsTestProject>\s*true\s*<\/IsTestProject>/i.test(file.textSample) || /<ProjectCapability\b[^>]*\bInclude\s*=\s*["'][^"']*\bTestContainer\b/i.test(file.textSample) || /<PackageReference\b[^>]*\bInclude\s*=\s*["']Microsoft\.NET\.Test\.Sdk["']/i.test(file.textSample) || /(?:^|\/)(?:test|tests)(?:\/|$)/i.test(file.path) || /(?:^|[._-])tests?\.(?:csproj|fsproj|vbproj)$/i.test(file.path.split("/").pop() ?? "");
+}
+function directoryOf2(path) {
+  return path.split("/").slice(0, -1).join("/");
+}
+function normalizeRepositoryPath2(path) {
+  const segments = [];
+  for (const segment of path.replace(/\\/g, "/").split("/")) {
+    if (!segment || segment === ".")
+      continue;
+    if (segment === "..") {
+      if (segments.length === 0)
+        return void 0;
+      segments.pop();
+    } else {
+      segments.push(segment);
+    }
+  }
+  return segments.join("/");
+}
+
+// packages/core/dist/ruby-projects.js
+function buildRubyProjects(files) {
+  const manifests = files.filter((file) => file.path.split("/").pop()?.toLowerCase() === "gemfile").sort((left, right) => left.path.localeCompare(right.path));
+  const shells = manifests.map((file) => ({ path: file.path, root: directoryOf3(file.path) }));
+  return manifests.map((manifest) => {
+    const root = directoryOf3(manifest.path);
+    const scoped = files.filter((file) => rubyProjectForPath(shells, file.path)?.path === manifest.path);
+    const rspecEvidence = /* @__PURE__ */ new Set();
+    const minitestEvidence = /* @__PURE__ */ new Set();
+    if (/^\s*gem\s*(?:\(|\s)\s*["']rspec(?:-[a-z0-9_-]+)?["']/im.test(manifest.textSample))
+      rspecEvidence.add(manifest.path);
+    if (/^\s*gem\s*(?:\(|\s)\s*["']minitest["']/im.test(manifest.textSample))
+      minitestEvidence.add(manifest.path);
+    for (const file of scoped) {
+      const relative2 = root ? file.path.slice(root.length + 1) : file.path;
+      if (relative2.toLowerCase() === ".rspec" || /(?:^|\/)spec\/(?:spec_helper|rails_helper)\.rb$/i.test(relative2) || /_spec\.rb$/i.test(relative2)) {
+        rspecEvidence.add(file.path);
+      }
+      if (/(?:^|\/)test\/test_helper\.rb$/i.test(relative2) || /_test\.rb$/i.test(relative2) || /^(?:\s*require\s*\(?\s*["']minitest|\s*class\s+[^\n<]+<\s*(?:Minitest::Test|MiniTest::Unit)\b)/m.test(file.textSample)) {
+        minitestEvidence.add(file.path);
+      }
+    }
+    const rakefile = scoped.find((file) => file.path.split("/").pop()?.toLowerCase() === "rakefile");
+    const rakeTestPath = rakefile && /\b(?:Rake::TestTask|task\s*(?:\(|\s)\s*:test\b)/.test(rakefile.textSample) ? rakefile.path : void 0;
+    return {
+      path: manifest.path,
+      root,
+      rspecEvidence: [...rspecEvidence].sort((left, right) => left.localeCompare(right)),
+      minitestEvidence: [...minitestEvidence].sort((left, right) => left.localeCompare(right)),
+      ...rakeTestPath ? { rakeTestPath } : {}
+    };
+  });
+}
+function rubyProjectForPath(projects, path) {
+  const matching = projects.filter((project) => project.root ? path.startsWith(`${project.root}/`) : true);
+  if (matching.length === 0)
+    return void 0;
+  const deepest = Math.max(...matching.map((project) => depth2(project.root)));
+  const nearest = matching.filter((project) => depth2(project.root) === deepest);
+  return nearest.length === 1 ? nearest[0] : void 0;
+}
+function rubyTestCommandForProject(project, relatedTests = []) {
+  const relatedRspec = relatedTests.filter((path) => /_spec\.rb$/i.test(path));
+  const relatedMinitest = relatedTests.filter((path) => /_test\.rb$/i.test(path));
+  if (relatedRspec.length > 0 && relatedMinitest.length > 0)
+    return void 0;
+  const useRspec = relatedRspec.length > 0 || relatedMinitest.length === 0 && project.rspecEvidence.length > 0 && project.minitestEvidence.length === 0;
+  const useMinitest = relatedMinitest.length > 0 || relatedRspec.length === 0 && project.minitestEvidence.length > 0 && project.rspecEvidence.length === 0;
+  if (useRspec && project.rspecEvidence.length > 0) {
+    return {
+      command: scopedBundleCommand(project.root, "rspec"),
+      reason: `${project.rspecEvidence[0]} provides RSpec test evidence for ${project.path}`,
+      scopeDir: project.root
+    };
+  }
+  if (useMinitest && project.minitestEvidence.length > 0) {
+    if (project.rakeTestPath) {
+      return {
+        command: scopedBundleCommand(project.root, "rake test"),
+        reason: `${project.path} has Minitest evidence and ${project.rakeTestPath} declares a test task`,
+        scopeDir: project.root
+      };
+    }
+    const testPath = relatedMinitest[0] ?? project.minitestEvidence.find((path) => /_test\.rb$/i.test(path));
+    if (!testPath)
+      return void 0;
+    const relative2 = project.root ? testPath.slice(project.root.length + 1) : testPath;
+    return {
+      command: scopedBundleCommand(project.root, `ruby -Itest ${relative2}`),
+      reason: `${testPath} provides executable Minitest evidence for ${project.path}`,
+      scopeDir: project.root
+    };
+  }
+  return void 0;
+}
+function scopedBundleCommand(root, command) {
+  return root ? `ruby -C ${root} -S bundle exec ${command}` : `bundle exec ${command}`;
+}
+function directoryOf3(path) {
+  return path.split("/").slice(0, -1).join("/");
+}
+function depth2(path) {
+  return path.split("/").filter(Boolean).length;
 }
 
 // packages/core/dist/languages.js
@@ -1087,24 +1571,24 @@ function countCodeFiles(files) {
 }
 function manifestTestCommand(language, packageDir, files = []) {
   if (language === "go") {
-    const manifest2 = nearestManifest(files, "go");
-    if (!manifest2) {
+    const manifest = nearestManifest(files, "go");
+    if (!manifest) {
       return { command: "go test ./...", reason: "Go source files; no go.mod was found" };
     }
-    if (manifest2.packageDir) {
+    if (manifest.packageDir) {
       return {
-        command: `go test -C ${manifest2.packageDir} ./...`,
-        reason: `nearest module (${manifest2.packageDir}) declared by ${manifest2.path}`
+        command: `go test -C ${manifest.packageDir} ./...`,
+        reason: `nearest module (${manifest.packageDir}) declared by ${manifest.path}`
       };
     }
     return { command: "go test ./...", reason: "go.mod at the repository root" };
   }
   if (language === "rust") {
     const requestedManifest = packageDir ? files.find((file) => file.path.toLowerCase() === `${packageDir}/cargo.toml`.toLowerCase()) : void 0;
-    const manifest2 = requestedManifest ? { path: requestedManifest.path, packageDir } : nearestManifest(files, "rust");
-    if (!manifest2)
+    const manifest = requestedManifest ? { path: requestedManifest.path, packageDir } : nearestManifest(files, "rust");
+    if (!manifest)
       return { command: "cargo test", reason: "Rust source files; no Cargo.toml was found" };
-    return manifest2.packageDir ? { command: `cargo test --manifest-path ${manifest2.path}`, reason: `nearest crate (${manifest2.packageDir}) declared by ${manifest2.path}` } : { command: "cargo test", reason: "Cargo.toml at the repository root" };
+    return manifest.packageDir ? { command: `cargo test --manifest-path ${manifest.path}`, reason: `nearest crate (${manifest.packageDir}) declared by ${manifest.path}` } : { command: "cargo test", reason: "Cargo.toml at the repository root" };
   }
   if (language === "python") {
     const config = nearestPythonTestConfig(files, packageDir);
@@ -1134,12 +1618,15 @@ function manifestTestCommand(language, packageDir, files = []) {
       reason: `${config.path} explicitly configures pytest`
     };
   }
-  const manifest = nearestManifest(files, language);
-  if (language === "ruby" && manifest) {
-    return { command: "bundle exec rspec", reason: `${manifest.path} declares the Ruby bundle` };
+  if (language === "ruby") {
+    const projects = buildRubyProjects(files);
+    const candidates = packageDir ? projects.filter((project) => project.root === packageDir) : projects;
+    return candidates.length === 1 ? rubyTestCommandForProject(candidates[0]) : void 0;
   }
-  if (language === "php" && manifest) {
-    return { command: "composer test", reason: `${manifest.path} declares Composer scripts` };
+  if (language === "php") {
+    const projects = buildComposerProjects(files);
+    const candidates = packageDir ? projects.filter((project) => project.root === packageDir) : projects;
+    return candidates.length === 1 ? composerTestCommandForProject(candidates[0]) : void 0;
   }
   if (language === "java") {
     const javaManifest = requestedOrNearestManifest(files, "java", packageDir);
@@ -1165,9 +1652,44 @@ function manifestTestCommand(language, packageDir, files = []) {
     };
   }
   if (language === "dotnet") {
-    return manifest ? { command: `dotnet test${manifest.packageDir ? ` ${manifest.path}` : ""}`, reason: `${manifest.path} declares a .NET project` } : { command: "dotnet test", reason: ".NET source files; no project file was found" };
+    const projects = buildDotnetProjects(files);
+    if (projects.length === 0) {
+      return { command: "dotnet test", reason: ".NET source files; no project file was found" };
+    }
+    const candidates = packageDir ? projects.filter((project) => project.root === packageDir) : projects;
+    return candidates.length === 1 ? dotnetCommandForProject(projects, candidates[0]) : void 0;
   }
   return void 0;
+}
+function dotnetTestCommandForPath(files, sourcePath) {
+  const projects = buildDotnetProjects(files);
+  const sourceProject = dotnetProjectForPath(projects, sourcePath);
+  return sourceProject ? dotnetCommandForProject(projects, sourceProject) : void 0;
+}
+function phpTestCommandForPath(files, sourcePath) {
+  const projects = buildComposerProjects(files);
+  const project = composerProjectForPath(projects, sourcePath);
+  return project ? composerTestCommandForProject(project) : void 0;
+}
+function rubyTestCommandForPath(files, sourcePath, relatedTests = []) {
+  const projects = buildRubyProjects(files);
+  const project = rubyProjectForPath(projects, sourcePath);
+  return project ? rubyTestCommandForProject(project, relatedTests) : void 0;
+}
+function dotnetCommandForProject(projects, sourceProject) {
+  const testProject = sourceProject.test ? sourceProject : referencingDotnetTestProjects(projects, sourceProject.path)[0];
+  if (testProject && testProject.path !== sourceProject.path) {
+    return {
+      command: `dotnet test ${testProject.path}`,
+      reason: `${testProject.path} is a test project that references ${sourceProject.path}`,
+      scopeDir: testProject.root
+    };
+  }
+  return {
+    command: `dotnet test ${sourceProject.path}`,
+    reason: `${sourceProject.path} declares the nearest .NET ${sourceProject.test ? "test " : ""}project`,
+    scopeDir: sourceProject.root
+  };
 }
 function nearestPythonTestConfig(files, packageDir) {
   const candidates = files.flatMap((file) => {
@@ -1232,8 +1754,10 @@ function suggestedRunner(language, files) {
   if (language === "rust") {
     return "cargo test";
   }
-  if (language === "ruby")
-    return "bundle exec rspec";
+  if (language === "ruby") {
+    const commands = [...new Set(buildRubyProjects(files).map((project) => rubyTestCommandForProject(project)?.command).filter((command) => command !== void 0))];
+    return commands.length === 1 ? commands[0] : void 0;
+  }
   if (language === "php")
     return "composer test or vendor/bin/phpunit";
   if (language === "java")
@@ -1259,7 +1783,9 @@ var MAX_EDGES_PER_FILE = 200;
 function buildImportGraph(files) {
   const allParseable = files.filter((file) => languageAdapterForFile(file) && file.textSample.length > 0);
   const parseable = allParseable.slice(0, MAX_GRAPH_FILES);
-  const resolverIndex = buildResolverIndex(files);
+  const dotnetProjects = buildDotnetProjects(files);
+  const composerProjects = buildComposerProjects(files);
+  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects);
   const aliases = buildAliases(files);
   const workspacePackages = buildWorkspacePackages(files);
   const imports = /* @__PURE__ */ new Map();
@@ -1282,6 +1808,13 @@ function buildImportGraph(files) {
       if (edges >= MAX_EDGES_PER_FILE)
         break;
     }
+  }
+  for (const project of dotnetProjects) {
+    for (const reference of project.references.slice(0, MAX_EDGES_PER_FILE)) {
+      addEdge(imports, project.path, reference);
+      addEdge(importedBy, reference, project.path);
+    }
+    truncatedEdges += Math.max(0, project.references.length - MAX_EDGES_PER_FILE);
   }
   return {
     imports,
@@ -1329,6 +1862,21 @@ function resolveLanguageImport(fromPath, imported, resolverIndex, aliases, works
   if (imported.adapter === "java") {
     return resolveJavaImport(imported, resolverIndex);
   }
+  if (imported.adapter === "go") {
+    return resolveGoImport(imported, resolverIndex);
+  }
+  if (imported.adapter === "rust") {
+    return resolveRustImport(fromPath, imported, resolverIndex);
+  }
+  if (imported.adapter === "ruby") {
+    return resolveRubyImport(fromPath, imported, resolverIndex);
+  }
+  if (imported.adapter === "php") {
+    return resolvePhpImport(fromPath, imported, resolverIndex);
+  }
+  if (imported.adapter === "dotnet") {
+    return resolveDotnetImport(fromPath, imported, resolverIndex);
+  }
   const target = resolveSpecifier(fromPath, imported.specifier, resolverIndex.repoPaths, aliases, workspacePackages);
   return target ? [target] : [];
 }
@@ -1374,16 +1922,130 @@ function resolveJavaImport(imported, resolverIndex) {
   const exact = resolverIndex.repoPaths.has(suffix) ? [suffix] : [];
   return [...exact, ...resolverIndex.suffixPaths.get(suffix) ?? []].sort(shortestPathFirst).slice(0, 1);
 }
-function buildResolverIndex(files) {
+function resolveGoImport(imported, resolverIndex) {
+  const module = resolverIndex.goModules.find((entry) => imported.specifier === entry.name || imported.specifier.startsWith(`${entry.name}/`));
+  if (!module)
+    return [];
+  const suffix = imported.specifier === module.name ? "" : imported.specifier.slice(module.name.length + 1);
+  const directory = [module.root, suffix].filter(Boolean).join("/");
+  return (resolverIndex.directoryPaths.get(directory) ?? []).filter((path) => path.endsWith(".go") && !path.endsWith("_test.go")).sort(shortestPathFirst).slice(0, 20);
+}
+function resolveRustImport(fromPath, imported, resolverIndex) {
+  const cargoRoot = nearestManifestDirectory(fromPath, "Cargo.toml", resolverIndex.repoPaths);
+  const sourceRoot = cargoRoot ? `${cargoRoot}/src`.replace(/^\//, "") : fromPath.startsWith("src/") ? "src" : "";
+  const segments = imported.specifier.replace(/::\*$/, "").split("::").filter(Boolean);
+  const head = segments.shift();
+  let base;
+  if (head === "crate") {
+    base = sourceRoot;
+  } else if (head === "self" || head === "super") {
+    const pathSegments = fromPath.split("/");
+    const fileName = pathSegments.pop() ?? "";
+    const stem = fileName.replace(/\.rs$/i, "");
+    const isRootModule = ["lib", "main", "mod"].includes(stem);
+    const moduleSegments = isRootModule ? pathSegments : [...pathSegments, stem];
+    if (head === "super")
+      moduleSegments.pop();
+    base = moduleSegments.join("/");
+  } else {
+    return [];
+  }
+  for (let length = segments.length; length >= 1; length -= 1) {
+    const root = [base, ...segments.slice(0, length)].filter(Boolean).join("/");
+    const match = [`${root}.rs`, `${root}/mod.rs`].find((candidate) => resolverIndex.repoPaths.has(candidate));
+    if (match)
+      return [match];
+  }
+  return [];
+}
+function resolveRubyImport(fromPath, imported, resolverIndex) {
+  const separator = imported.specifier.indexOf(":");
+  const mode = separator === -1 ? "" : imported.specifier.slice(0, separator);
+  const raw = separator === -1 ? imported.specifier : imported.specifier.slice(separator + 1);
+  const normalized = raw.replace(/\.rb$/i, "");
+  const roots = mode === "relative" ? [normalizeSegments(`${fromPath.split("/").slice(0, -1).join("/")}/${normalized}`)].filter((value) => Boolean(value)) : [normalized, `lib/${normalized}`, `app/${normalized}`];
+  for (const root of roots) {
+    const match = [`${root}.rb`, `${root}/init.rb`].find((candidate) => resolverIndex.repoPaths.has(candidate));
+    if (match)
+      return [match];
+  }
+  return [];
+}
+function resolvePhpImport(fromPath, imported, resolverIndex) {
+  if (imported.specifier.startsWith("file:")) {
+    const raw = imported.specifier.slice("file:".length);
+    const root = normalizeSegments(`${fromPath.split("/").slice(0, -1).join("/")}/${raw}`);
+    if (!root)
+      return [];
+    return resolverIndex.repoPaths.has(root) ? [root] : resolverIndex.repoPaths.has(`${root}.php`) ? [`${root}.php`] : [];
+  }
+  const symbol = imported.specifier.replace(/^\\+/, "").toLowerCase();
+  const exact = resolverIndex.phpSymbols.get(symbol);
+  const sourceProject = resolverIndex.composerProjectByFile.get(fromPath);
+  if (exact?.length) {
+    const scoped = sourceProject ? exact.filter((path) => resolverIndex.composerProjectByFile.get(path)?.path === sourceProject.path) : exact;
+    if (scoped.length > 0)
+      return [...scoped].sort(shortestPathFirst).slice(0, 1);
+  }
+  if (sourceProject) {
+    const mapped = resolveComposerSymbol(sourceProject, imported.specifier.replace(/^\\+/, ""), resolverIndex.repoPaths, resolverIndex.suffixPaths);
+    if (mapped.length > 0)
+      return mapped;
+  }
+  const namespace = symbol.split("\\").slice(0, -1).join("\\");
+  const namespacePaths = resolverIndex.phpNamespaces.get(namespace) ?? [];
+  return (sourceProject ? namespacePaths.filter((path) => resolverIndex.composerProjectByFile.get(path)?.path === sourceProject.path) : namespacePaths).sort(shortestPathFirst).slice(0, 20);
+}
+function resolveDotnetImport(fromPath, imported, resolverIndex) {
+  const namespace = imported.specifier.toLowerCase();
+  const exact = resolverIndex.dotnetNamespaces.get(namespace) ?? [];
+  const sourceProject = resolverIndex.dotnetProjectByFile.get(fromPath);
+  if (!sourceProject)
+    return exact.slice(0, 20);
+  let reachableProjects = resolverIndex.dotnetReferenceClosures.get(sourceProject.path);
+  if (!reachableProjects) {
+    reachableProjects = dotnetReferenceClosure(resolverIndex.dotnetProjects, sourceProject.path);
+    resolverIndex.dotnetReferenceClosures.set(sourceProject.path, reachableProjects);
+  }
+  return exact.filter((path) => {
+    const targetProject = resolverIndex.dotnetProjectByFile.get(path);
+    return targetProject !== void 0 && reachableProjects.has(targetProject.path);
+  }).slice(0, 20);
+}
+function buildResolverIndex(files, dotnetProjects, composerProjects) {
   const repoPaths = new Set(files.map((file) => file.path));
   const suffixPaths = /* @__PURE__ */ new Map();
   const javaPackagePaths = /* @__PURE__ */ new Map();
+  const directoryPaths = /* @__PURE__ */ new Map();
+  const goModules = [];
+  const phpSymbols = /* @__PURE__ */ new Map();
+  const phpNamespaces = /* @__PURE__ */ new Map();
+  const dotnetNamespaces = /* @__PURE__ */ new Map();
+  const dotnetProjectByFile = /* @__PURE__ */ new Map();
+  const composerProjectByFile = /* @__PURE__ */ new Map();
+  const dotnetProjectsByRoot = /* @__PURE__ */ new Map();
+  for (const project of dotnetProjects) {
+    const existing = dotnetProjectsByRoot.get(project.root);
+    if (existing)
+      existing.push(project);
+    else
+      dotnetProjectsByRoot.set(project.root, [project]);
+  }
+  const composerProjectsByRoot = /* @__PURE__ */ new Map();
+  for (const project of composerProjects) {
+    const existing = composerProjectsByRoot.get(project.root);
+    if (existing)
+      existing.push(project);
+    else
+      composerProjectsByRoot.set(project.root, [project]);
+  }
   for (const file of files) {
-    if (!/\.(?:py|pyi|java)$/i.test(file.path))
-      continue;
     const segments = file.path.split("/");
-    for (let start = 1; start < segments.length; start += 1) {
-      addIndexedPath(suffixPaths, segments.slice(start).join("/"), file.path);
+    addIndexedPath(directoryPaths, segments.slice(0, -1).join("/"), file.path);
+    if (/\.(?:py|pyi|java|php)$/i.test(file.path)) {
+      for (let start = 1; start < segments.length; start += 1) {
+        addIndexedPath(suffixPaths, segments.slice(start).join("/"), file.path);
+      }
     }
     if (file.path.toLowerCase().endsWith(".java")) {
       const directories = segments.slice(0, -1);
@@ -1391,8 +2053,72 @@ function buildResolverIndex(files) {
         addIndexedPath(javaPackagePaths, directories.slice(start).join("/"), file.path);
       }
     }
+    if (file.path === "go.mod" || file.path.endsWith("/go.mod")) {
+      const name = /^\s*module\s+([^\s]+)\s*$/m.exec(file.textSample)?.[1];
+      if (name)
+        goModules.push({ name, root: segments.slice(0, -1).join("/") });
+    }
+    if (file.path.toLowerCase().endsWith(".php")) {
+      const owner = projectForSourcePath(file.path, composerProjectsByRoot);
+      if (owner)
+        composerProjectByFile.set(file.path, owner);
+      const namespace = /^\s*namespace\s+([^;{\n]+)\s*[;{]/m.exec(file.textSample)?.[1]?.trim().replace(/^\\+|\\+$/g, "");
+      if (namespace) {
+        const normalizedNamespace = namespace.toLowerCase();
+        addIndexedPath(phpNamespaces, normalizedNamespace, file.path);
+        for (const definition of extractLanguageDefinitions(file)) {
+          if (["class", "interface", "type"].includes(definition.kind)) {
+            addIndexedPath(phpSymbols, `${normalizedNamespace}\\${definition.name.toLowerCase()}`, file.path);
+          }
+        }
+      }
+    }
+    if (file.path.toLowerCase().endsWith(".cs")) {
+      const namespace = /\bnamespace\s+([A-Za-z_][A-Za-z0-9_.]*)\s*(?:;|\{)/m.exec(file.textSample)?.[1]?.toLowerCase();
+      if (namespace)
+        addIndexedPath(dotnetNamespaces, namespace, file.path);
+      const owner = projectForSourcePath(file.path, dotnetProjectsByRoot);
+      if (owner)
+        dotnetProjectByFile.set(file.path, owner);
+    }
   }
-  return { repoPaths, suffixPaths, javaPackagePaths };
+  goModules.sort((a, b) => b.name.length - a.name.length || a.name.localeCompare(b.name));
+  for (const paths of dotnetNamespaces.values())
+    paths.sort(shortestPathFirst);
+  return {
+    repoPaths,
+    suffixPaths,
+    javaPackagePaths,
+    directoryPaths,
+    goModules,
+    phpSymbols,
+    phpNamespaces,
+    dotnetNamespaces,
+    dotnetProjects,
+    dotnetProjectByFile,
+    dotnetReferenceClosures: /* @__PURE__ */ new Map(),
+    composerProjectByFile
+  };
+}
+function projectForSourcePath(path, projectsByRoot) {
+  const directories = path.split("/").slice(0, -1);
+  for (let length = directories.length; length >= 0; length -= 1) {
+    const root = directories.slice(0, length).join("/");
+    const projects = projectsByRoot.get(root) ?? [];
+    if (projects.length > 0)
+      return projects.length === 1 ? projects[0] : void 0;
+  }
+  return void 0;
+}
+function nearestManifestDirectory(fromPath, manifest, repoPaths) {
+  const directories = fromPath.split("/").slice(0, -1);
+  for (let length = directories.length; length >= 0; length -= 1) {
+    const directory = directories.slice(0, length).join("/");
+    const candidate = directory ? `${directory}/${manifest}` : manifest;
+    if (repoPaths.has(candidate))
+      return directory;
+  }
+  return void 0;
 }
 function addIndexedPath(index, key, path) {
   const existing = index.get(key);
@@ -1516,10 +2242,20 @@ function addEdge(edges, from, to) {
 }
 
 // packages/core/dist/artifacts.js
+var AGENT_COMMAND_PATHS = /* @__PURE__ */ new Set([
+  ".agents/skills/fixmap/skill.md",
+  ".claude/skills/fixmap/skill.md",
+  ".cursor/commands/fixmap.md",
+  ".github/prompts/fixmap.prompt.md"
+]);
+var AGENT_COMMAND_MARKER = "You are the FixMap workflow assistant for this repository.";
 function fixMapArtifactKind(file) {
   const text = file.textSample.trimStart();
   if (!text)
     return void 0;
+  if (AGENT_COMMAND_PATHS.has(file.path.replace(/\\/g, "/").toLowerCase()) && text.includes(AGENT_COMMAND_MARKER)) {
+    return "agent-command";
+  }
   if (text.startsWith("# FixMap Report\n") && text.includes("\n## Context Files\n"))
     return "report-markdown";
   if (text.startsWith("# FixMap Context\n") && text.includes("\n## Task\n"))
@@ -1532,7 +2268,7 @@ function fixMapArtifactKind(file) {
   } catch {
     return void 0;
   }
-  if (!isRecord(candidate))
+  if (!isRecord2(candidate))
     return void 0;
   if ((candidate.reportVersion === void 0 || candidate.reportVersion === 1) && typeof candidate.summary === "string" && Array.isArray(candidate.contextFiles) && Array.isArray(candidate.testRoutes) && Array.isArray(candidate.risks) && Array.isArray(candidate.changedFiles) && Array.isArray(candidate.diagnostics))
     return "report-json";
@@ -1545,7 +2281,7 @@ function fixMapArtifactKind(file) {
 function isFixMapArtifact(file) {
   return fixMapArtifactKind(file) !== void 0;
 }
-function isRecord(candidate) {
+function isRecord2(candidate) {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
 
@@ -1587,7 +2323,8 @@ function buildImpactMap(repo, requestedSeeds, testRoutes = [], limit = DEFAULT_I
   }
   for (const route of testRoutes.filter((entry) => entry.kind === "test")) {
     for (const path of route.relatedFiles) {
-      const seed = nearestSeed(path, seeds) ?? seeds[0];
+      const importedSeeds = [...graph.imports.get(path) ?? []].filter((imported) => seedSet.has(imported));
+      const seed = nearestSeed(path, importedSeeds) ?? nearestSeed(path, seeds) ?? seeds[0];
       if (!seed)
         continue;
       addEvidence(path, 7, {
@@ -1768,7 +2505,11 @@ function rankDocumentsByBm25(inputs, task, limit = 5) {
     return { id: input.id, ...statistics };
   });
   const averageLength = documents.reduce((sum, document) => sum + document.length, 0) / documents.length || 1;
-  return documents.map((document) => {
+  const top = [];
+  const boundedLimit = Math.max(0, Math.min(documents.length, limit));
+  if (boundedLimit === 0)
+    return [];
+  for (const document of documents) {
     let score = 0;
     for (const term of terms) {
       const frequency = document.counts.get(term) ?? 0;
@@ -1778,8 +2519,29 @@ function rankDocumentsByBm25(inputs, task, limit = 5) {
       const idf = Math.log(1 + (documents.length - df + 0.5) / (df + 0.5));
       score += idf * (frequency * 2.2 / (frequency + 1.2 * (0.25 + 0.75 * document.length / averageLength)));
     }
-    return { id: document.id, score };
-  }).filter((entry) => entry.score > 0).sort((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, Math.max(0, limit)).map((entry, index) => ({ ...entry, rank: index + 1 }));
+    if (score > 0)
+      insertBoundedBm25(top, { id: document.id, score }, boundedLimit);
+  }
+  return top.map((entry, index) => ({ ...entry, rank: index + 1 }));
+}
+function insertBoundedBm25(top, entry, limit) {
+  let low = 0;
+  let high = top.length;
+  while (low < high) {
+    const middle = low + high >>> 1;
+    if (compareBm25(entry, top[middle]) < 0)
+      high = middle;
+    else
+      low = middle + 1;
+  }
+  if (low >= limit)
+    return;
+  top.splice(low, 0, entry);
+  if (top.length > limit)
+    top.pop();
+}
+function compareBm25(left, right) {
+  return right.score - left.score || left.id.localeCompare(right.id);
 }
 function bm25DocumentStatistics(text, queryTerms) {
   const counts = /* @__PURE__ */ new Map();
@@ -1968,6 +2730,7 @@ function rankContextFilesEvidenceDetailed(repo, input, limit = DEFAULT_CONTEXT_F
   const finishedAt = performance.now();
   return {
     contextFiles,
+    structuralFiles: structural,
     profiles,
     ranking: structuralResult.ranking,
     candidateCounts: {
@@ -2628,9 +3391,8 @@ async function rankContextFilesHybrid(repo, input, options = {}) {
     semantic: positiveNumber(options.weights?.semantic, DEFAULT_WEIGHTS.semantic),
     reciprocalRankConstant: DEFAULT_WEIGHTS.reciprocalRankConstant
   };
-  const structuralDetailed = rankContextFilesDetailed(repo, { ...input, exclude: options.exclude }, Number.MAX_SAFE_INTEGER, options.minStructuralScore ?? Number.NEGATIVE_INFINITY);
   const detailed = rankContextFilesEvidenceDetailed(repo, { ...input, exclude: options.exclude }, Number.MAX_SAFE_INTEGER, options.minStructuralScore ?? Number.NEGATIVE_INFINITY);
-  const structuralByPath = new Map(structuralDetailed.contextFiles.map((file) => [file.path, file]));
+  const structuralByPath = new Map(detailed.structuralFiles.map((file) => [file.path, file]));
   const evidenceByPath = new Map(detailed.contextFiles.map((file) => [file.path, file]));
   const task = [input.issueText ?? "", input.diffText ?? ""].filter(Boolean).join("\n");
   const signals = /* @__PURE__ */ new Map();
@@ -2663,7 +3425,7 @@ async function rankContextFilesHybrid(repo, input, options = {}) {
     const providerError = validateProvider(provider);
     if (providerError) {
       diagnostics.push({ code: "semantic-provider-invalid", severity: "warning", message: providerError });
-    } else if (task.trim() && structuralDetailed.contextFiles.length > 0) {
+    } else if (task.trim() && detailed.contextFiles.length > 0) {
       const maxCandidates = positiveInteger(options.maxSemanticCandidates, DEFAULT_MAX_SEMANTIC_CANDIDATES);
       const semanticCandidates = repo.files.filter((file) => file.isSource && !file.isTest && file.kind === "code" && !isFixMapArtifact(file) && !(options.exclude?.excludes(file.path) ?? false)).sort((left, right) => left.path.localeCompare(right.path)).slice(0, maxCandidates);
       const semanticEligibleCount = repo.files.filter((file) => file.isSource && !file.isTest && file.kind === "code" && !isFixMapArtifact(file) && !(options.exclude?.excludes(file.path) ?? false)).length;
@@ -2729,7 +3491,7 @@ async function rankContextFilesHybrid(repo, input, options = {}) {
     weights,
     ...semantic ? { semantic } : {},
     diagnostics,
-    structuralRanking: structuralDetailed.ranking
+    structuralRanking: detailed.ranking
   };
 }
 function isFusionAnchor(file) {
@@ -2823,7 +3585,7 @@ function round(value, digits) {
 var ID = /^annotation:[a-f0-9]{16}$/;
 var REVISION = /^[A-Za-z0-9][A-Za-z0-9._/@:+-]{0,255}$/;
 function validateAnnotationStore(candidate) {
-  if (!isRecord2(candidate) || candidate.annotationStoreVersion !== 1 || !Array.isArray(candidate.annotations)) {
+  if (!isRecord3(candidate) || candidate.annotationStoreVersion !== 1 || !Array.isArray(candidate.annotations)) {
     throw new Error("Unsupported or invalid FixMap annotation store. Expected annotationStoreVersion 1.");
   }
   const ids = /* @__PURE__ */ new Set();
@@ -2888,7 +3650,7 @@ function normalizeAnnotationInput(input) {
   };
 }
 function validateAnnotation(candidate) {
-  if (!isRecord2(candidate) || typeof candidate.id !== "string" || !ID.test(candidate.id) || typeof candidate.note !== "string" || typeof candidate.createdAt !== "string") {
+  if (!isRecord3(candidate) || typeof candidate.id !== "string" || !ID.test(candidate.id) || typeof candidate.note !== "string" || typeof candidate.createdAt !== "string") {
     throw new Error("Invalid FixMap annotation record.");
   }
   const normalized = normalizeAnnotationInput({
@@ -2907,7 +3669,7 @@ function validateAnnotation(candidate) {
     throw new Error(`Annotation ${candidate.id} does not match its content identity.`);
 }
 function validateScope(candidate) {
-  if (!isRecord2(candidate) || typeof candidate.kind !== "string")
+  if (!isRecord3(candidate) || typeof candidate.kind !== "string")
     throw new Error("Annotation scope is invalid.");
   if (candidate.kind === "file") {
     return { kind: "file", path: validateRelativePath(String(candidate.path ?? ""), "annotation file") };
@@ -2974,7 +3736,7 @@ function canonicalize(value) {
   }
   return JSON.stringify(value);
 }
-function isRecord2(value) {
+function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function stableHash(value) {
@@ -3246,7 +4008,7 @@ function parseArchitecturePolicy(input) {
   } catch {
     throw new Error(`${sourcePath} is not valid JSON.`);
   }
-  if (!isRecord3(parsed) || parsed.architecturePolicyVersion !== 1) {
+  if (!isRecord4(parsed) || parsed.architecturePolicyVersion !== 1) {
     throw new Error(`${sourcePath} must declare architecturePolicyVersion 1.`);
   }
   const policy = {
@@ -3394,7 +4156,7 @@ function contractRule(value, index) {
   };
 }
 function ruleRecord(value, section2, index) {
-  if (!isRecord3(value))
+  if (!isRecord4(value))
     throw new Error(`${section2}[${index}] must be an object.`);
   return value;
 }
@@ -3449,7 +4211,7 @@ function array(value) {
     throw new Error("Architecture policy sections must be arrays.");
   return value;
 }
-function isRecord3(value) {
+function isRecord4(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -3819,7 +4581,10 @@ function buildTestRoutes(repo, contextPaths) {
   if (codeContextPaths.length === 0) {
     return [];
   }
-  const relatedTests = findRelatedTests(repo, contextPaths);
+  const relatedTests = findRelatedTests(repo, contextPaths).filter((path) => {
+    const file = repo.files.find((entry) => entry.path === path);
+    return file?.isTest === true && file.kind === "code";
+  });
   const candidates = repo.packageScripts.map((script) => ({ script, kind: classifyScript(script.name) })).filter((candidate) => candidate.kind !== void 0).map(({ script, kind }) => ({
     script,
     kind,
@@ -3853,7 +4618,7 @@ function buildTestRoutes(repo, contextPaths) {
 function buildManifestTestRoute(repo, codeContextPaths, relatedTests) {
   const { language } = detectPrimaryLanguage(repo);
   const packageDir = language === "rust" ? nearestManifestDir(repo, codeContextPaths, ["Cargo.toml"]) : language === "python" ? nearestManifestDir(repo, codeContextPaths, ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile"]) : language === "java" ? nearestManifestDir(repo, codeContextPaths, ["pom.xml", "build.gradle", "build.gradle.kts"]) : "";
-  const route = manifestTestCommand(language, packageDir, repo.files);
+  const route = language === "dotnet" ? codeContextPaths.map((path) => dotnetTestCommandForPath(repo.files, path)).find((entry) => entry !== void 0) ?? manifestTestCommand(language, packageDir, repo.files) : language === "php" ? codeContextPaths.map((path) => phpTestCommandForPath(repo.files, path)).find((entry) => entry !== void 0) ?? manifestTestCommand(language, packageDir, repo.files) : language === "ruby" ? codeContextPaths.map((path) => rubyTestCommandForPath(repo.files, path, relatedTests)).find((entry) => entry !== void 0) ?? manifestTestCommand(language, packageDir, repo.files) : manifestTestCommand(language, packageDir, repo.files);
   if (!route) {
     return void 0;
   }
@@ -3863,7 +4628,7 @@ function buildManifestTestRoute(repo, codeContextPaths, relatedTests) {
     reason: route.reason,
     // Only real test files count as related here. Falling back to the implementation made
     // nextAction claim routed tests for a Go module that had none.
-    relatedFiles: scopeToPackage(relatedTests, packageDir)
+    relatedFiles: scopeToPackage(relatedTests, route.scopeDir ?? packageDir)
   };
 }
 function nearestManifestDir(repo, contextPaths, manifests) {
@@ -3974,7 +4739,7 @@ function renderMarkdownReport(report) {
     ...report.impact ? [
       "",
       `Inspection order: ${report.impact.inspectionOrder.map(markdownCode).join(" \u2192 ") || "None"}.`,
-      `History evidence: ${report.impact.history.available ? `${report.impact.history.eligibleCommits.toLocaleString()} eligible commits${report.impact.history.shallow ? " (shallow)" : ""}${report.impact.history.truncated ? " (bounded)" : ""}` : "not available; import and test evidence only"}.`
+      `History evidence: ${report.impact.history.available ? `${report.impact.history.eligibleCommits.toLocaleString()} eligible ${report.impact.history.eligibleCommits === 1 ? "commit" : "commits"}${report.impact.history.shallow ? " (shallow)" : ""}${report.impact.history.truncated ? " (bounded)" : ""}` : "not available; import and test evidence only"}.`
     ] : [],
     "",
     "## Test Routes",
@@ -4076,6 +4841,7 @@ var CONVENTIONAL_CONFIG_NAMES = /* @__PURE__ */ new Set([
   ".gitattributes",
   ".gitignore",
   ".npmignore",
+  ".rspec",
   "codeowners",
   "dockerfile",
   "gemfile",
@@ -4093,6 +4859,8 @@ var CONVENTIONAL_CONFIG_NAMES = /* @__PURE__ */ new Set([
   "gradlew.bat",
   "mvnw",
   "mvnw.cmd",
+  "phpunit.xml",
+  "phpunit.xml.dist",
   "pyproject.toml",
   "pytest.ini",
   "setup.cfg",
@@ -4311,7 +5079,7 @@ async function readIncrementalScanIndex(location) {
       return void 0;
     const entries = /* @__PURE__ */ new Map();
     for (const entry of candidate.files) {
-      if (!isRecord4(entry) || !isCachedRelativePath(entry.path) || typeof entry.fingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(entry.fingerprint) || !isCachedRepoFile(entry.file) || entry.file.path !== entry.path || entries.has(entry.path)) {
+      if (!isRecord5(entry) || !isCachedRelativePath(entry.path) || typeof entry.fingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(entry.fingerprint) || !isCachedRepoFile(entry.file) || entry.file.path !== entry.path || entries.has(entry.path)) {
         return void 0;
       }
       entries.set(entry.path, entry);
@@ -4322,32 +5090,32 @@ async function readIncrementalScanIndex(location) {
   }
 }
 function isCachedHistory(candidate) {
-  if (!isRecord4(candidate) || !Array.isArray(candidate.commits) || typeof candidate.inspectedCommits !== "number" || !Number.isSafeInteger(candidate.inspectedCommits) || candidate.inspectedCommits < 0 || typeof candidate.skippedLargeCommits !== "number" || !Number.isSafeInteger(candidate.skippedLargeCommits) || candidate.skippedLargeCommits < 0 || typeof candidate.shallow !== "boolean" || typeof candidate.truncated !== "boolean") {
+  if (!isRecord5(candidate) || !Array.isArray(candidate.commits) || typeof candidate.inspectedCommits !== "number" || !Number.isSafeInteger(candidate.inspectedCommits) || candidate.inspectedCommits < 0 || typeof candidate.skippedLargeCommits !== "number" || !Number.isSafeInteger(candidate.skippedLargeCommits) || candidate.skippedLargeCommits < 0 || typeof candidate.shallow !== "boolean" || typeof candidate.truncated !== "boolean") {
     return false;
   }
   return candidate.commits.every((commit) => {
-    if (!isRecord4(commit) || typeof commit.hash !== "string" || !/^[a-f0-9]{40}$/i.test(commit.hash) || typeof commit.committedAt !== "number" || !Number.isSafeInteger(commit.committedAt) || commit.committedAt < 0 || commit.author !== void 0 && (typeof commit.author !== "string" || !commit.author.trim() || commit.author.length > 200 || /[\0-\x1f\x7f]/.test(commit.author)) || !Array.isArray(commit.files))
+    if (!isRecord5(commit) || typeof commit.hash !== "string" || !/^[a-f0-9]{40}$/i.test(commit.hash) || typeof commit.committedAt !== "number" || !Number.isSafeInteger(commit.committedAt) || commit.committedAt < 0 || commit.author !== void 0 && (typeof commit.author !== "string" || !commit.author.trim() || commit.author.length > 200 || /[\0-\x1f\x7f]/.test(commit.author)) || !Array.isArray(commit.files))
       return false;
     return commit.files.every(isCachedRelativePath);
   });
 }
 function isCachedRepoFile(candidate) {
-  if (!isRecord4(candidate))
+  if (!isRecord5(candidate))
     return false;
   const validSkipReason = candidate.textSampleSkipReason === "too-large" || candidate.textSampleSkipReason === "not-text" || candidate.textSampleSkipReason === "unreadable";
   return isCachedRelativePath(candidate.path) && typeof candidate.contentFingerprint === "string" && /^(?:git|worktree):[a-f0-9]{40,64}$/i.test(candidate.contentFingerprint) && typeof candidate.extension === "string" && typeof candidate.sizeBytes === "number" && Number.isFinite(candidate.sizeBytes) && candidate.sizeBytes >= 0 && typeof candidate.isTest === "boolean" && typeof candidate.isSource === "boolean" && (candidate.kind === "code" || candidate.kind === "config" || candidate.kind === "documentation" || candidate.kind === "other") && typeof candidate.textSample === "string" && typeof candidate.textSampleComplete === "boolean" && (candidate.textSampleComplete && candidate.textSampleSkipReason === void 0 || !candidate.textSampleComplete && validSkipReason);
 }
 function isCachedPackageScript(candidate) {
-  if (!isRecord4(candidate))
+  if (!isRecord5(candidate))
     return false;
   return typeof candidate.name === "string" && candidate.name.trim().length > 0 && typeof candidate.command === "string" && (candidate.packageDir === "" || isCachedRelativePath(candidate.packageDir)) && (candidate.packageName === void 0 || typeof candidate.packageName === "string" && candidate.packageName.trim().length > 0);
 }
 function isCachedDiagnostic(candidate) {
-  if (!isRecord4(candidate))
+  if (!isRecord5(candidate))
     return false;
   return typeof candidate.code === "string" && candidate.code.trim().length > 0 && typeof candidate.message === "string" && candidate.message.trim().length > 0 && (candidate.severity === "info" || candidate.severity === "warning" || candidate.severity === "error") && (candidate.paths === void 0 || Array.isArray(candidate.paths) && candidate.paths.every(isCachedRelativePath));
 }
-function isRecord4(candidate) {
+function isRecord5(candidate) {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
 function isCachedRelativePath(candidate) {
@@ -4979,18 +5747,21 @@ async function readRepositoryHistory(root, repositoryPaths, diagnostics) {
   try {
     const [{ stdout: shallowText }, { stdout: countText }, { stdout: logText }] = await Promise.all([
       exec("git", ["rev-parse", "--is-shallow-repository"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["rev-list", "--count", "--no-merges", "HEAD"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["rev-list", "--count", "--no-merges", "HEAD", "--", "."], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
       exec("git", [
         "-c",
         "core.quotepath=false",
         "log",
+        "--relative",
         "--no-merges",
         "-n",
         String(MAX_HISTORY_COMMITS),
         "--format=%x1e%H%x1f%ct%x1f%aN",
         "--name-only",
         "-z",
-        "HEAD"
+        "HEAD",
+        "--",
+        "."
       ], { cwd: root, maxBuffer: GIT_HISTORY_MAX_BUFFER })
     ]);
     const parsed = parseHistoryLog(logText, repositoryPaths);
@@ -5209,7 +5980,15 @@ async function buildFixMapReport(input) {
   return (await buildFixMapAnalysis(input)).report;
 }
 async function buildFixMapAnalysis(input) {
-  const repo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
+  const scannedRepo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
+  const generatedArtifacts = scannedRepo.files.filter(isFixMapArtifact);
+  const generatedPaths = new Set(generatedArtifacts.map((file) => file.path));
+  const repo = generatedArtifacts.length === 0 ? scannedRepo : {
+    ...scannedRepo,
+    files: scannedRepo.files.filter((file) => !generatedPaths.has(file.path)),
+    changedFiles: scannedRepo.changedFiles.filter((path) => !generatedPaths.has(path)),
+    ...scannedRepo.trackedFiles ? { trackedFiles: scannedRepo.trackedFiles.filter((path) => !generatedPaths.has(path)) } : {}
+  };
   const requestedExclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
   const internalExclude = buildPathExcluder((input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern)));
   const exclude = combineExclusions(requestedExclude, internalExclude);
@@ -5220,7 +5999,6 @@ async function buildFixMapAnalysis(input) {
     annotationAsOf: (/* @__PURE__ */ new Date()).toISOString()
   };
   const report = input.embeddingProvider ? await buildHybridReportFromRepo(repo, { ...reportInput, embeddingProvider: input.embeddingProvider }) : buildReportFromRepo(repo, reportInput);
-  const generatedArtifacts = repo.files.filter(isFixMapArtifact);
   if (generatedArtifacts.length > 0) {
     const described = generatedArtifacts.slice(0, 8).map((file) => `${markdownCode(file.path)} (${fixMapArtifactKind(file)})`);
     report.diagnostics.push({
@@ -5625,8 +6403,16 @@ function validateFixMapReport(candidate, label) {
   }
   const versioned = record.reportVersion === 1;
   const contextFiles = candidate.contextFiles;
+  const unsafeContextPath = contextFiles.findIndex((file) => isRecord6(file) && typeof file.path === "string" && file.path.trim().length > 0 && !isRepositoryRelativePath(file.path));
+  if (unsafeContextPath !== -1) {
+    const path = contextFiles[unsafeContextPath].path;
+    return {
+      success: false,
+      message: `${label} contextFiles[${unsafeContextPath}].path must stay inside the repository and use a normalized repository-relative path (got ${JSON.stringify(path)}).`
+    };
+  }
   const invalid = contextFiles.findIndex((file) => {
-    if (!isRecord5(file))
+    if (!isRecord6(file))
       return true;
     const ranked = file;
     if (!isRepositoryRelativePath(ranked.path))
@@ -5669,7 +6455,7 @@ function validateFixMapReport(candidate, label) {
   }
   const testRoutes = record.testRoutes;
   const invalidRoute = testRoutes.findIndex((route) => {
-    if (!isRecord5(route))
+    if (!isRecord6(route))
       return true;
     return typeof route.command !== "string" || !route.command.trim() || !isRepositoryRelativePathArray(route.relatedFiles) || (versioned || route.kind !== void 0) && route.kind !== "test" && route.kind !== "validation" || (versioned || route.reason !== void 0) && typeof route.reason !== "string";
   });
@@ -5681,7 +6467,7 @@ function validateFixMapReport(candidate, label) {
   }
   const risks = record.risks;
   const invalidRisk = risks.findIndex((risk) => {
-    if (!isRecord5(risk))
+    if (!isRecord6(risk))
       return true;
     return typeof risk.area !== "string" || !risk.area.trim() || (versioned || risk.reason !== void 0) && typeof risk.reason !== "string" || (versioned || risk.severity !== void 0) && risk.severity !== "low" && risk.severity !== "medium" && risk.severity !== "high";
   });
@@ -5693,14 +6479,14 @@ function validateFixMapReport(candidate, label) {
   }
   if (record.impact !== void 0) {
     const impact = record.impact;
-    const history = isRecord5(impact) ? impact.history : void 0;
-    if (!isRecord5(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord5(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
+    const history = isRecord6(impact) ? impact.history : void 0;
+    if (!isRecord6(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord6(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
       return { success: false, message: `${label} has an invalid impact graph envelope.` };
     }
     const invalidImpact = impact.files.findIndex((file) => {
-      if (!isRecord5(file) || !isRepositoryRelativePath(file.path) || typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 || file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low" || !Array.isArray(file.evidence))
+      if (!isRecord6(file) || !isRepositoryRelativePath(file.path) || typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 || file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low" || !Array.isArray(file.evidence))
         return true;
-      return file.evidence.some((evidence) => !isRecord5(evidence) || !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) || !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() || evidence.occurrences !== void 0 && (!Number.isSafeInteger(evidence.occurrences) || evidence.occurrences < 0) || evidence.seedChanges !== void 0 && (!Number.isSafeInteger(evidence.seedChanges) || evidence.seedChanges < 0));
+      return file.evidence.some((evidence) => !isRecord6(evidence) || !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) || !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() || evidence.occurrences !== void 0 && (!Number.isSafeInteger(evidence.occurrences) || evidence.occurrences < 0) || evidence.seedChanges !== void 0 && (!Number.isSafeInteger(evidence.seedChanges) || evidence.seedChanges < 0));
     });
     if (invalidImpact !== -1) {
       return { success: false, message: `${label} has an invalid impact.files entry at index ${invalidImpact}.` };
@@ -5711,11 +6497,11 @@ function validateFixMapReport(candidate, label) {
   }
   if (record.annotations !== void 0) {
     const annotations = record.annotations;
-    if (!isRecord5(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) || !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) || !Array.isArray(annotations.entries)) {
+    if (!isRecord6(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) || !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) || !Array.isArray(annotations.entries)) {
       return { success: false, message: `${label} has an invalid annotations envelope.` };
     }
     const invalidAnnotation = annotations.entries.findIndex((assessment) => {
-      if (!isRecord5(assessment) || !isRecord5(assessment.annotation) || typeof assessment.message !== "string" || !["active", "expired", "missing-target", "renamed-target"].includes(String(assessment.status)) || assessment.suggestedPath !== void 0 && !isRepositoryRelativePath(assessment.suggestedPath))
+      if (!isRecord6(assessment) || !isRecord6(assessment.annotation) || typeof assessment.message !== "string" || !["active", "expired", "missing-target", "renamed-target"].includes(String(assessment.status)) || assessment.suggestedPath !== void 0 && !isRepositoryRelativePath(assessment.suggestedPath))
         return true;
       try {
         validateAnnotationStore({ annotationStoreVersion: 1, annotations: [assessment.annotation] });
@@ -5732,10 +6518,10 @@ function validateFixMapReport(candidate, label) {
     if (!Array.isArray(record.decisions))
       return { success: false, message: `${label} has invalid decisions; expected an array.` };
     const invalidDecision = record.decisions.findIndex((decision) => {
-      if (!isRecord5(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.consequences !== void 0 && typeof decision.consequences !== "string")
+      if (!isRecord6(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.consequences !== void 0 && typeof decision.consequences !== "string")
         return true;
       return decision.targets.some((target) => {
-        if (!isRecord5(target) || !["explicit", "literal-mention"].includes(String(target.evidence)))
+        if (!isRecord6(target) || !["explicit", "literal-mention"].includes(String(target.evidence)))
           return true;
         if (target.kind === "file")
           return !isRepositoryRelativePath(target.path);
@@ -5749,13 +6535,13 @@ function validateFixMapReport(candidate, label) {
   }
   if (record.policy !== void 0) {
     const policy = record.policy;
-    if (!isRecord5(policy) || typeof policy.policyFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
+    if (!isRecord6(policy) || typeof policy.policyFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
       return { success: false, message: `${label} has an invalid architecture policy envelope.` };
     }
     const invalidPolicyFinding = policy.findings.findIndex((finding) => {
-      if (!isRecord5(finding) || !["boundary-violation", "required-test-missing", "review-required", "breaking-contract"].includes(String(finding.code)) || !["info", "warning", "error"].includes(String(finding.severity)) || typeof finding.ruleId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(finding.ruleId) || typeof finding.message !== "string" || !finding.message.trim() || !isRepositoryRelativePathArray(finding.paths) || !Array.isArray(finding.evidence))
+      if (!isRecord6(finding) || !["boundary-violation", "required-test-missing", "review-required", "breaking-contract"].includes(String(finding.code)) || !["info", "warning", "error"].includes(String(finding.severity)) || typeof finding.ruleId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(finding.ruleId) || typeof finding.message !== "string" || !finding.message.trim() || !isRepositoryRelativePathArray(finding.paths) || !Array.isArray(finding.evidence))
         return true;
-      return finding.evidence.some((evidence) => !isRecord5(evidence) || !["import", "changed-file", "test-pattern", "reviewer", "contract-change", "decision-record"].includes(String(evidence.kind)) || typeof evidence.detail !== "string" || !evidence.detail.trim() || evidence.path !== void 0 && !isRepositoryRelativePath(evidence.path) || evidence.relatedPath !== void 0 && !isRepositoryRelativePath(evidence.relatedPath));
+      return finding.evidence.some((evidence) => !isRecord6(evidence) || !["import", "changed-file", "test-pattern", "reviewer", "contract-change", "decision-record"].includes(String(evidence.kind)) || typeof evidence.detail !== "string" || !evidence.detail.trim() || evidence.path !== void 0 && !isRepositoryRelativePath(evidence.path) || evidence.relatedPath !== void 0 && !isRepositoryRelativePath(evidence.relatedPath));
     });
     if (invalidPolicyFinding !== -1) {
       return { success: false, message: `${label} has an invalid architecture policy finding at index ${invalidPolicyFinding}.` };
@@ -5763,7 +6549,7 @@ function validateFixMapReport(candidate, label) {
   }
   const diagnostics = record.diagnostics;
   const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
-    if (!isRecord5(diagnostic))
+    if (!isRecord6(diagnostic))
       return true;
     return typeof diagnostic.code !== "string" || !diagnostic.code.trim() || typeof diagnostic.message !== "string" || diagnostic.severity !== "info" && diagnostic.severity !== "warning" && diagnostic.severity !== "error" || diagnostic.paths !== void 0 && !isRepositoryRelativePathArray(diagnostic.paths);
   });
@@ -5775,21 +6561,21 @@ function validateFixMapReport(candidate, label) {
   }
   if (record.analysis !== void 0) {
     const analysis = record.analysis;
-    const grounding = isRecord5(analysis) ? analysis.grounding : void 0;
-    const specificity = isRecord5(grounding) ? grounding.specificity : void 0;
+    const grounding = isRecord6(analysis) ? analysis.grounding : void 0;
+    const specificity = isRecord6(grounding) ? grounding.specificity : void 0;
     if (specificity !== "anchored" && specificity !== "descriptive" && specificity !== "vague") {
       return {
         success: false,
         message: `${label} has invalid analysis.grounding.specificity; expected anchored, descriptive, or vague.`
       };
     }
-    if (!isRecord5(analysis) || !isRecord5(grounding) || !Array.isArray(grounding.identifiers) || !isStringArray(grounding.unresolvedIdentifiers) || !isStringArray(grounding.partiallyResolvedIdentifiers) || !isStringArray(grounding.unverifiedIdentifiers) || typeof grounding.scanComplete !== "boolean" || !isRecord5(analysis.ranking) || !isNullableFiniteNumber(analysis.ranking.topScore) || !isNullableFiniteNumber(analysis.ranking.runnerUpScore) || !isNullableFiniteNumber(analysis.ranking.topGap) || typeof analysis.ranking.clustered !== "boolean" || typeof analysis.nextAction !== "string") {
+    if (!isRecord6(analysis) || !isRecord6(grounding) || !Array.isArray(grounding.identifiers) || !isStringArray(grounding.unresolvedIdentifiers) || !isStringArray(grounding.partiallyResolvedIdentifiers) || !isStringArray(grounding.unverifiedIdentifiers) || typeof grounding.scanComplete !== "boolean" || !isRecord6(analysis.ranking) || !isNullableFiniteNumber(analysis.ranking.topScore) || !isNullableFiniteNumber(analysis.ranking.runnerUpScore) || !isNullableFiniteNumber(analysis.ranking.topGap) || typeof analysis.ranking.clustered !== "boolean" || typeof analysis.nextAction !== "string") {
       return {
         success: false,
         message: `${label} has incomplete or invalid analysis grounding, ranking, or nextAction fields.`
       };
     }
-    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord5(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isRepositoryRelativePathArray(identifier.matchedFiles));
+    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord6(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isRepositoryRelativePathArray(identifier.matchedFiles));
     if (invalidIdentifier !== -1) {
       return {
         success: false,
@@ -5798,15 +6584,15 @@ function validateFixMapReport(candidate, label) {
     }
     if (analysis.retrievalRanking !== void 0) {
       const retrievalRanking = analysis.retrievalRanking;
-      if (!isRecord5(retrievalRanking) || !isNullableFiniteNumber(retrievalRanking.topFusionScore) || !isNullableFiniteNumber(retrievalRanking.runnerUpFusionScore) || !isNullableFiniteNumber(retrievalRanking.topGap)) {
+      if (!isRecord6(retrievalRanking) || !isNullableFiniteNumber(retrievalRanking.topFusionScore) || !isNullableFiniteNumber(retrievalRanking.runnerUpFusionScore) || !isNullableFiniteNumber(retrievalRanking.topGap)) {
         return { success: false, message: `${label} has invalid analysis.retrievalRanking fields.` };
       }
     }
   }
   if (record.retrieval !== void 0) {
     const retrieval = record.retrieval;
-    const weights = isRecord5(retrieval) ? retrieval.weights : void 0;
-    if (!isRecord5(retrieval) || retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic" || !isRecord5(weights) || !isPositiveFiniteNumber(weights.structural) || !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) || !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
+    const weights = isRecord6(retrieval) ? retrieval.weights : void 0;
+    if (!isRecord6(retrieval) || retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic" || !isRecord6(weights) || !isPositiveFiniteNumber(weights.structural) || !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) || !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
       return { success: false, message: `${label} has an invalid retrieval envelope.` };
     }
     if (retrieval.mode === "structural-lexical-semantic" && !isSemanticProvenance(retrieval.semantic)) {
@@ -5818,7 +6604,7 @@ function validateFixMapReport(candidate, label) {
   }
   return { success: true, report: candidate };
 }
-function isRecord5(candidate) {
+function isRecord6(candidate) {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
 function isStringArray(candidate) {
@@ -5841,7 +6627,7 @@ function isIdentifierStatus(candidate) {
   return candidate === "exact-definition" || candidate === "exact-text" || candidate === "partial-definition" || candidate === "not-found" || candidate === "unverified";
 }
 function isRetrievalSignal(candidate) {
-  if (!isRecord5(candidate))
+  if (!isRecord6(candidate))
     return false;
   const ranks = [candidate.structuralRank, candidate.lexicalRank, candidate.semanticRank];
   if (ranks.every((rank) => rank === void 0))
@@ -5853,7 +6639,7 @@ function isRetrievalSignal(candidate) {
   return candidate.semanticSimilarity === void 0 || typeof candidate.semanticSimilarity === "number" && Number.isFinite(candidate.semanticSimilarity) && candidate.semanticSimilarity >= -1 && candidate.semanticSimilarity <= 1;
 }
 function isSemanticProvenance(candidate) {
-  if (!isRecord5(candidate))
+  if (!isRecord6(candidate))
     return false;
   return typeof candidate.id === "string" && candidate.id.trim().length > 0 && typeof candidate.version === "string" && candidate.version.trim().length > 0 && typeof candidate.model === "string" && candidate.model.trim().length > 0 && typeof candidate.artifactHash === "string" && /^[a-f0-9]{64}$/.test(candidate.artifactHash) && typeof candidate.runtime === "string" && candidate.runtime.trim().length > 0 && Number.isSafeInteger(candidate.dimensions) && Number(candidate.dimensions) > 0 && (candidate.normalization === "l2" || candidate.normalization === "none") && typeof candidate.local === "boolean" && typeof candidate.cacheKey === "string" && candidate.cacheKey.trim().length > 0 && Number.isSafeInteger(candidate.indexedFiles) && Number(candidate.indexedFiles) >= 0 && Number.isSafeInteger(candidate.truncatedFiles) && Number(candidate.truncatedFiles) >= 0;
 }
@@ -6361,11 +7147,11 @@ function trimToBoundary(text) {
 function splitExcludeInput(raw) {
   const patterns2 = [];
   let current = "";
-  let depth = 0;
+  let depth3 = 0;
   for (const character of raw) {
-    if (character === "{") depth += 1;
-    else if (character === "}") depth = Math.max(0, depth - 1);
-    if (character === "\n" || character === "\r" || character === "," && depth === 0) {
+    if (character === "{") depth3 += 1;
+    else if (character === "}") depth3 = Math.max(0, depth3 - 1);
+    if (character === "\n" || character === "\r" || character === "," && depth3 === 0) {
       patterns2.push(current);
       current = "";
       continue;

@@ -2767,10 +2767,10 @@
             "tier": "corroborated",
             "structuralRank": 8,
             "structuralScore": 31,
-            "lexicalRank": 43,
+            "lexicalRank": 44,
             "symbolRank": 24,
             "symbol": "used",
-            "fusionScore": 33.56
+            "fusionScore": 33.5
           },
           {
             "path": "lib/schemes/VirtualUrlPlugin.js",
@@ -2788,9 +2788,9 @@
             "structuralRank": 17,
             "structuralScore": 29,
             "lexicalRank": 42,
-            "symbolRank": 37,
+            "symbolRank": 36,
             "symbol": "highlights",
-            "fusionScore": 31.1
+            "fusionScore": 31.14
           },
           {
             "path": "lib/DotenvPlugin.js",
@@ -2812,9 +2812,9 @@
             "structuralRank": 1,
             "structuralScore": 58,
             "lexicalRank": 39,
-            "lexicalScore": 24.235823,
+            "lexicalScore": 24.220376,
             "symbolRank": 17,
-            "symbolScore": 23.505007,
+            "symbolScore": 23.501893,
             "symbol": "logger",
             "queryExpansions": [
               {

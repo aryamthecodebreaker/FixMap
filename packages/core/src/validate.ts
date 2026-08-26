@@ -45,6 +45,19 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
 
   const versioned = record.reportVersion === 1;
   const contextFiles = (candidate as FixMapReport).contextFiles;
+  const unsafeContextPath = contextFiles.findIndex((file) =>
+    isRecord(file) && typeof file.path === "string" && file.path.trim().length > 0 &&
+    !isRepositoryRelativePath(file.path)
+  );
+  if (unsafeContextPath !== -1) {
+    const path = (contextFiles[unsafeContextPath] as unknown as Record<string, unknown>).path;
+    return {
+      success: false,
+      message:
+        `${label} contextFiles[${unsafeContextPath}].path must stay inside the repository and use a normalized ` +
+        `repository-relative path (got ${JSON.stringify(path)}).`
+    };
+  }
   const invalid = contextFiles.findIndex((file) => {
     if (!isRecord(file)) return true;
     const ranked = file;

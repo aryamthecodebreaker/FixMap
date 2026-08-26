@@ -3,7 +3,15 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  isInitializedNotification,
+  isJSONRPCRequest,
+  type JSONRPCMessage,
+  type MessageExtraInfo
+} from "@modelcontextprotocol/sdk/types.js";
 import {
   answerFixMapQuestion,
   buildMigrationPlan,
@@ -1219,7 +1227,72 @@ function asFixMapReport(candidate: unknown, label: string): LoadedReport {
 }
 
 export async function runMcpServer(defaultRepo = process.cwd()): Promise<void> {
-  await createFixMapMcpServer({}, defaultRepo).connect(new StdioServerTransport());
+  await createFixMapMcpServer({}, defaultRepo).connect(
+    new InitializationGuardTransport(new StdioServerTransport())
+  );
+}
+
+/**
+ * The SDK handles capability negotiation but currently dispatches requests received before
+ * `notifications/initialized`. Keep the protocol boundary honest here, and turn malformed
+ * JSON lines into JSON-RPC parse errors instead of leaving a stdio client waiting forever.
+ */
+export class InitializationGuardTransport implements Transport {
+  onclose?: () => void;
+  onerror?: (error: Error) => void;
+  onmessage?: <T extends JSONRPCMessage>(message: T, extra?: MessageExtraInfo) => void;
+  private initializeRequested = false;
+  private initialized = false;
+
+  constructor(private readonly inner: Transport) {}
+
+  async start(): Promise<void> {
+    this.inner.onclose = () => this.onclose?.();
+    this.inner.onerror = (error) => {
+      if (error instanceof SyntaxError) {
+        void this.inner.send({
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32700, message: "Parse error" }
+        } as unknown as JSONRPCMessage).catch((sendError: unknown) => this.onerror?.(toError(sendError)));
+        return;
+      }
+      this.onerror?.(error);
+    };
+    this.inner.onmessage = (message, extra) => {
+      if (isInitializedNotification(message)) {
+        if (!this.initializeRequested) return;
+        this.initialized = true;
+        this.onmessage?.(message, extra);
+        return;
+      }
+      if (isJSONRPCRequest(message) && message.method === "initialize") {
+        this.initializeRequested = true;
+      }
+      if (isJSONRPCRequest(message) && message.method !== "initialize" && message.method !== "ping" && !this.initialized) {
+        void this.inner.send({
+          jsonrpc: "2.0",
+          id: message.id,
+          error: { code: -32002, message: "Server not initialized" }
+        }).catch((sendError: unknown) => this.onerror?.(toError(sendError)));
+        return;
+      }
+      this.onmessage?.(message, extra);
+    };
+    await this.inner.start();
+  }
+
+  send(message: JSONRPCMessage): Promise<void> {
+    return this.inner.send(message);
+  }
+
+  close(): Promise<void> {
+    return this.inner.close();
+  }
+}
+
+function toError(candidate: unknown): Error {
+  return candidate instanceof Error ? candidate : new Error(String(candidate));
 }
 
 function readVersion(): string {

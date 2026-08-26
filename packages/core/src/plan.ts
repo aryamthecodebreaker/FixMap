@@ -40,7 +40,19 @@ export async function buildFixMapAnalysis(
     embeddingProvider?: EmbeddingProvider | undefined;
   }
 ): Promise<{ report: FixMapReport; repo: Awaited<ReturnType<typeof scanRepo>> }> {
-  const repo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
+  const scannedRepo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
+  const generatedArtifacts = scannedRepo.files.filter(isFixMapArtifact);
+  const generatedPaths = new Set(generatedArtifacts.map((file) => file.path));
+  const repo = generatedArtifacts.length === 0
+    ? scannedRepo
+    : {
+        ...scannedRepo,
+        files: scannedRepo.files.filter((file) => !generatedPaths.has(file.path)),
+        changedFiles: scannedRepo.changedFiles.filter((path) => !generatedPaths.has(path)),
+        ...(scannedRepo.trackedFiles
+          ? { trackedFiles: scannedRepo.trackedFiles.filter((path) => !generatedPaths.has(path)) }
+          : {})
+      };
   const requestedExclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
   const internalExclude = buildPathExcluder(
     (input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern))
@@ -57,7 +69,6 @@ export async function buildFixMapAnalysis(
     ? await buildHybridReportFromRepo(repo, { ...reportInput, embeddingProvider: input.embeddingProvider })
     : buildReportFromRepo(repo, reportInput);
 
-  const generatedArtifacts = repo.files.filter(isFixMapArtifact);
   if (generatedArtifacts.length > 0) {
     const described = generatedArtifacts.slice(0, 8).map((file) =>
       `${markdownCode(file.path)} (${fixMapArtifactKind(file)})`

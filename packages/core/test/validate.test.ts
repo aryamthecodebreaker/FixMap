@@ -146,7 +146,10 @@ describe("validateFixMapReport", () => {
     }, "report");
 
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.message).toContain("invalid contextFiles entry");
+    if (!result.success) {
+      expect(result.message).toContain("contextFiles[0].path must stay inside the repository");
+      expect(result.message).toContain(JSON.stringify(path));
+    }
   });
 
   it("rejects unsupported report versions", () => {

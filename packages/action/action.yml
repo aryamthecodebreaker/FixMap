@@ -5,7 +5,8 @@ inputs:
     description: >-
       plan (default) maps the change to context files, likely impact, test routes, and review risks.
       verify compares a saved plan against the diff that followed it and needs report-path.
-      Explain and compare are intentionally CLI/MCP-only because Action comments operate on complete reports.
+      Explain and compare are available through the CLI's plan --explain/--compare flags and MCP tools;
+      they are intentionally not Action modes because Action comments operate on complete reports.
     required: false
     default: plan
   report-path:

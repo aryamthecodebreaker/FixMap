@@ -36,4 +36,21 @@ describe("FixMap generated artifact detection", () => {
 
     expect(isFixMapArtifact(file)).toBe(false);
   });
+
+  it.each([
+    ".claude/skills/fixmap/SKILL.md",
+    ".cursor/commands/fixmap.md",
+    ".github/prompts/fixmap.prompt.md",
+    ".agents/skills/fixmap/SKILL.md"
+  ])("detects a FixMap setup command at %s without excluding unrelated instructions", (path) => {
+    const generated = {
+      path,
+      textSample: "You are the FixMap workflow assistant for this repository.\nRun `fixmap features`.\n",
+      textSampleComplete: true
+    };
+    const unrelated = { ...generated, textSample: "Team-owned instructions for this repository.\n" };
+
+    expect(fixMapArtifactKind(generated)).toBe("agent-command");
+    expect(isFixMapArtifact(unrelated)).toBe(false);
+  });
 });

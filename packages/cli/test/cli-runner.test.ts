@@ -57,6 +57,8 @@ describe("CLI argument handling", () => {
 
     expect(exitCode).toBe(0);
     expect(io.stdout.join("")).toContain("fixmap owner/repository#123");
+    expect(io.stdout.join("")).toContain("Windows' command-line limit");
+    expect(io.stdout.join("")).toContain("--issue-file");
     expect(io.stderr).toEqual([]);
   });
 

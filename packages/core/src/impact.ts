@@ -68,7 +68,8 @@ export function buildImpactMap(
 
   for (const route of testRoutes.filter((entry) => entry.kind === "test")) {
     for (const path of route.relatedFiles) {
-      const seed = nearestSeed(path, seeds) ?? seeds[0];
+      const importedSeeds = [...(graph.imports.get(path) ?? [])].filter((imported) => seedSet.has(imported));
+      const seed = nearestSeed(path, importedSeeds) ?? nearestSeed(path, seeds) ?? seeds[0];
       if (!seed) continue;
       addEvidence(path, 7, {
         kind: "test-route",

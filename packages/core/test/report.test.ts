@@ -49,6 +49,26 @@ describe("report rendering", () => {
     );
   });
 
+  it("renders a singular eligible history commit grammatically", () => {
+    const report: FixMapReport = {
+      summary: "FixMap found one context file.",
+      changedFiles: [],
+      contextFiles: [],
+      testRoutes: [],
+      risks: [],
+      diagnostics: [],
+      impact: {
+        seeds: [],
+        files: [],
+        inspectionOrder: [],
+        history: { available: true, eligibleCommits: 1, shallow: false, truncated: false }
+      }
+    };
+
+    expect(renderMarkdownReport(report)).toContain("History evidence: 1 eligible commit.");
+    expect(renderMarkdownReport(report)).not.toContain("1 eligible commits");
+  });
+
   it("renders diagnostic paths and marks new JSON reports with version 1", () => {
     const repo: RepoMap = {
       root: "/repo",
