@@ -39,7 +39,7 @@ import { wilsonInterval } from "./lib/wilson.mjs";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
   process.stdout.write(
-    "Usage: node scripts/evaluate-baseline.mjs [--suite external|heldout|multilanguage-dev|polyglot-dev] [--case owner/repo] [--record] [--check-recorded]\n"
+    "Usage: node scripts/evaluate-baseline.mjs [--suite external|heldout|multilanguage-dev|polyglot-dev] [--case owner/repo] [--reranker-ablations] [--compact] [--record|--check-recorded|--record-ablation|--check-ablation]\n"
   );
   process.exit(0);
 }
@@ -66,6 +66,23 @@ if (caseSlug && dataset.cases.length === 0) {
   process.exit(1);
 }
 const recordedResultsPath = join(suiteDir, "baseline-results.json");
+const recordedAblationPath = join(suiteDir, "reranker-ablation-results.json");
+const includeRerankerAblations = process.argv.includes("--reranker-ablations");
+const compactOutput = process.argv.includes("--compact");
+const recordAblation = process.argv.includes("--record-ablation");
+const checkAblation = process.argv.includes("--check-ablation");
+if (includeRerankerAblations && !suite.endsWith("-dev")) {
+  process.stderr.write("Reranker ablations are development-only; choose a *-dev suite.\n");
+  process.exit(1);
+}
+if (includeRerankerAblations && (process.argv.includes("--record") || process.argv.includes("--check-recorded"))) {
+  process.stderr.write("Reranker ablations cannot replace or validate the suite baseline artifact.\n");
+  process.exit(1);
+}
+if ((recordAblation || checkAblation) && !includeRerankerAblations) {
+  process.stderr.write("Ablation record/check requires --reranker-ablations.\n");
+  process.exit(1);
+}
 
 const TOP_N = 5;
 
@@ -242,16 +259,40 @@ function rankByBm25(files, terms, k1 = 1.2, b = 0.75) {
     .map((entry) => entry.path);
 }
 
+function rankEvidenceProfilesByRrf(profiles, weights) {
+  const contribution = (rank, weight) => Number.isSafeInteger(rank) ? weight / (weights.constant + rank) : 0;
+  return profiles.map((profile) => ({
+    path: profile.path,
+    structuralRank: profile.structuralRank,
+    score:
+      contribution(profile.structuralRank, weights.structural) +
+      contribution(profile.lexicalRank, weights.lexical) +
+      contribution(profile.symbolRank, weights.symbol)
+  }))
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) =>
+      right.score - left.score ||
+      (left.structuralRank ?? Number.MAX_SAFE_INTEGER) - (right.structuralRank ?? Number.MAX_SAFE_INTEGER) ||
+      left.path.localeCompare(right.path))
+    .slice(0, TOP_N)
+    .map((entry) => entry.path);
+}
+
 // ---------------------------------------------------------------------------- run
 
 // Each baseline is run under every candidate policy; FixMap applies its own internally.
 const BASELINE_ARMS = ["path-extraction", "lexical-literal", "bm25"];
+const RERANKER_ABLATIONS = {
+  "rrf-balanced": { structural: 1, lexical: 1, symbol: 1, constant: 60 },
+  "rrf-bm25-heavy": { structural: 1, lexical: 4, symbol: 1, constant: 60 }
+};
 const ARMS = [];
 for (const arm of BASELINE_ARMS) {
   for (const policy of Object.keys(CANDIDATE_POLICIES)) {
     ARMS.push(`${arm}:${policy}`);
   }
 }
+if (includeRerankerAblations) ARMS.push(...Object.keys(RERANKER_ABLATIONS));
 ARMS.push("fixmap");
 
 const perArmResults = Object.fromEntries(ARMS.map((arm) => [arm, []]));
@@ -294,6 +335,11 @@ for (const [caseNumber, benchmark] of dataset.cases.entries()) {
     `(materialize ${pipelineTimingsMs.materialize.toFixed(0)}ms, scan ${pipelineTimingsMs.scan.toFixed(0)}ms, rank ${rankingMs.toFixed(0)}ms)\n`
   );
   const ranked = { fixmap: evidenceRanking.contextFiles.slice(0, TOP_N).map((file) => file.path) };
+  if (includeRerankerAblations) {
+    for (const [arm, weights] of Object.entries(RERANKER_ABLATIONS)) {
+      ranked[arm] = rankEvidenceProfilesByRrf(evidenceRanking.profiles, weights);
+    }
+  }
   for (const [policy, predicate] of Object.entries(CANDIDATE_POLICIES)) {
     const files = repo.files.filter(predicate);
     ranked[`path-extraction:${policy}`] = rankByPathExtraction(files, benchmark.task);
@@ -502,6 +548,7 @@ const summary = {
     stopwords: STOPWORDS.size,
     caseSensitivity: "case-insensitive for both keyword arms, which favours the baselines",
     bm25: { k1: 1.2, b: 0.75 },
+    ...(includeRerankerAblations ? { rerankerAblations: RERANKER_ABLATIONS } : {}),
     candidatePolicies: {
       raw: "every scanned file; ranks READMEs first and is not a fair comparison",
       source: "isSource && !isTest — FixMap's own candidate gate",
@@ -512,6 +559,10 @@ const summary = {
       "path-extraction": "path-shaped tokens read out of the task text, resolved against the corpus, ranked by order of appearance",
       "lexical-literal": "literal keyword search ranked by distinct query terms matched, then raw occurrence count",
       bm25: "BM25 retrieval over the same text; a retrieval baseline, not a grep",
+      ...(includeRerankerAblations ? {
+        "rrf-balanced": "development-only equal-weight reciprocal-rank fusion over structural, whole-file BM25, and symbol BM25 candidate ranks",
+        "rrf-bm25-heavy": "development-only reciprocal-rank fusion that gives whole-file BM25 four times the structural or symbol weight; not shipped Core behavior"
+      } : {}),
       fixmap: "rankContextFiles from @aryam/fixmap-core, which applies its own candidate gate internally"
     }
   },
@@ -543,7 +594,21 @@ const summary = {
   results: perCase
 };
 
-const rendered = `${JSON.stringify(summary, null, 2)}\n`;
+const renderedSummary = compactOutput
+  ? {
+      suite: summary.suite,
+      cases: summary.cases,
+      arms: Object.fromEntries(Object.entries(summary.arms).filter(([arm]) =>
+        arm === "fixmap" || arm === "bm25:code" || arm in RERANKER_ABLATIONS)),
+      results: summary.results.map((entry) => ({
+        slug: entry.slug,
+        expected: entry.expected,
+        arms: Object.fromEntries(Object.entries(entry.arms).filter(([arm]) =>
+          arm === "fixmap" || arm === "bm25:code" || arm in RERANKER_ABLATIONS))
+      }))
+    }
+  : summary;
+const rendered = `${JSON.stringify(renderedSummary, null, 2)}\n`;
 process.stdout.write(rendered);
 
 // Performance telemetry is useful while a run is happening, but it is not a reproducible
@@ -582,6 +647,13 @@ if (process.argv.includes("--record") && !caseSlug) {
   process.exit(1);
 }
 
+if (recordAblation && !caseSlug) {
+  await writeFile(recordedAblationPath, recordedRendered, "utf8");
+} else if (recordAblation) {
+  process.stderr.write("Refusing to record a filtered ablation run; omit --case to update the suite artifact.\n");
+  process.exit(1);
+}
+
 if (process.argv.includes("--check-recorded")) {
   let recorded = "";
   try {
@@ -592,6 +664,21 @@ if (process.argv.includes("--check-recorded")) {
   if (recorded !== recordedRendered) {
     process.stderr.write(
       `Baseline evaluation differs from benchmarks/${suite}/baseline-results.json; rerun with --record and review the change.\n`
+    );
+    process.exit(1);
+  }
+}
+
+if (checkAblation) {
+  let recorded = "";
+  try {
+    recorded = await readFile(recordedAblationPath, "utf8");
+  } catch {
+    // The mismatch message below also covers a missing or unreadable artifact.
+  }
+  if (recorded !== recordedRendered) {
+    process.stderr.write(
+      `Reranker ablation differs from benchmarks/${suite}/reranker-ablation-results.json; rerun with --record-ablation and review the change.\n`
     );
     process.exit(1);
   }
