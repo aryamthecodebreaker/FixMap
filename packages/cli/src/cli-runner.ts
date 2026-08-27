@@ -100,6 +100,10 @@ Usage:
   fixmap doctor --format json
   fixmap validate plan.json
   fixmap benchmark --repo . --last 50
+  fixmap change-scope --touch src/auth --touch packages/api --add db/migrations
+  fixmap capability create checkout --touch src/routes/checkout.ts --touch packages/payments
+  fixmap capability checkout
+  fixmap capabilities
   fixmap context --issue "Fix login" --budget 10000
   fixmap graph --issue "Fix login" --format mermaid
   fixmap workspace --config .fixmap/workspace.json --seed auth --format json
@@ -122,6 +126,9 @@ Commands:
   doctor              Check the FixMap install for stale global or npx shadows
   validate            Validate a saved FixMap JSON report
   benchmark           Backtest BM25, FixMap, and Impact Graph on pre-change snapshots
+  change-scope        Expand explicit planned paths into bounded structural consequences
+  capability          Create, update, remove, or show a persistent product capability
+  capabilities        List persistent product capabilities declared by the repository
   context             Package the highest-value source ranges within a token budget
   graph               Export the evidence-backed Impact Graph as Mermaid or JSON
   workspace           Map package dependencies and impact across local repositories
@@ -445,6 +452,33 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   if (args[0] === "context") {
     const { runContextCommand } = await import("./analysis-commands.js");
     return runContextCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "change-scope") {
+    const { runChangeScopeCommand } = await import("./change-scope-command.js");
+    return runChangeScopeCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "capability") {
+    const { runCapabilityCommand } = await import("./capability-command.js");
+    return runCapabilityCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "capabilities") {
+    const { runCapabilitiesCommand } = await import("./capability-command.js");
+    return runCapabilitiesCommand(args.slice(1), {
       stdout,
       stderr,
       ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})

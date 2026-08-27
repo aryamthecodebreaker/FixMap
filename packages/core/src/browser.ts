@@ -31,6 +31,20 @@ export { buildComposerProjects, composerProjectForPath, composerTestCommandForPr
 export type { ComposerProject } from "./composer-projects.js";
 export { buildRubyProjects, rubyProjectForPath, rubyTestCommandForProject } from "./ruby-projects.js";
 export type { RubyProject } from "./ruby-projects.js";
+export { buildChangeScope, renderChangeScopeMarkdown } from "./change-scope.js";
+export type {
+  ChangeScopeAnchor,
+  ChangeScopeDiagnostic,
+  ChangeScopeDirection,
+  ChangeScopeEvidence,
+  ChangeScopeInput,
+  ChangeScopePath,
+  ChangeScopeResult,
+  ChangeScopeTraversal,
+  ResolvedChangeScopeAnchor
+} from "./change-scope.js";
+export { buildCapabilityMap, capabilityStoreFromRepo, renderCapabilityMapMarkdown, validateCapabilityStore } from "./capabilities.js";
+export type { CapabilityDefinition, CapabilityMap, CapabilityStore, CapabilityStoreSource } from "./capabilities.js";
 export { buildWorkspaceImpact, buildWorkspaceMap } from "./workspace.js";
 export type {
   WorkspaceDependency,

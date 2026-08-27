@@ -2,6 +2,12 @@ import type { RepoFile } from "./types.js";
 
 export type FixMapArtifactKind =
   | "agent-command"
+  | "capability-list-json"
+  | "capability-list-markdown"
+  | "capability-map-json"
+  | "capability-map-markdown"
+  | "change-scope-json"
+  | "change-scope-markdown"
   | "context-json"
   | "context-markdown"
   | "report-json"
@@ -29,6 +35,9 @@ export function fixMapArtifactKind(file: Pick<RepoFile, "path" | "textSample" | 
   }
   if (text.startsWith("# FixMap Report\n") && text.includes("\n## Context Files\n")) return "report-markdown";
   if (text.startsWith("# FixMap Context\n") && text.includes("\n## Task\n")) return "context-markdown";
+  if (text.startsWith("# FixMap Change Scope\n") && text.includes("\n## Declared anchors\n")) return "change-scope-markdown";
+  if (text.startsWith("# FixMap Capability:") && text.includes("\n## Declared anchors\n")) return "capability-map-markdown";
+  if (text.startsWith("# FixMap Capabilities\n")) return "capability-list-markdown";
   if (!file.path.toLowerCase().endsWith(".json") || file.textSampleComplete === false) return undefined;
 
   let candidate: unknown;
@@ -38,6 +47,13 @@ export function fixMapArtifactKind(file: Pick<RepoFile, "path" | "textSample" | 
     return undefined;
   }
   if (!isRecord(candidate)) return undefined;
+  if (candidate.changeScopeVersion === 1 && Array.isArray(candidate.anchors) && Array.isArray(candidate.selected) && Array.isArray(candidate.affected)) {
+    return "change-scope-json";
+  }
+  if (candidate.capabilityMapVersion === 1 && isRecord(candidate.capability) && isRecord(candidate.scope)) {
+    return "capability-map-json";
+  }
+  if (candidate.capabilityListVersion === 1 && Array.isArray(candidate.capabilities)) return "capability-list-json";
   if (
     (candidate.reportVersion === undefined || candidate.reportVersion === 1) &&
     typeof candidate.summary === "string" &&

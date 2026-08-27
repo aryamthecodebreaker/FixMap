@@ -207,6 +207,33 @@ Run the checked-in two-service example with `fixmap workspace --config examples/
 
 Repeat `--seed` to trace downstream provider-to-consumer impact from multiple repositories. Duplicate IDs, duplicate real checkout paths, unknown seeds, remote URLs, invalid submodule parents, and ambiguous package providers are rejected or diagnosed instead of silently merged.
 
+Plan a product change from code surfaces you choose explicitly:
+
+```bash
+fixmap change-scope \
+  --touch src/routes/checkout.ts \
+  --touch packages/payments \
+  --add db/migrations
+```
+
+FixMap follows bounded imports and dependents, then joins existing tests, contracts, ADRs,
+review ownership, and architecture policy. A missing `--add` path stays unresolved. FixMap does
+not interpret what "checkout" means, call an API or LLM, or require an account.
+
+Persist a reviewed product-to-implementation map without persisting generated conclusions:
+
+```bash
+fixmap capability create checkout --name "Checkout" \
+  --touch src/routes/checkout.ts --touch packages/payments
+fixmap capability checkout
+fixmap capabilities
+```
+
+The versioned `.fixmap/capabilities.json` contains only human-owned names, explicit anchors,
+workspace/repository identities, and traversal bounds. Current files are recalculated from the
+repository graph. Output uses exact declared, observed, derived, and unresolved counts rather
+than an undefinable confidence percentage.
+
 ## Complete feature catalog
 
 ### Inputs and repository mapping
@@ -224,6 +251,8 @@ Repeat `--seed` to trace downstream provider-to-consumer impact from multiple re
 - Ranks source, test, configuration, documentation, and other files from path terms, source content, identifiers, quoted fragments (including smart quotes and guillemets), file mentions, and real diff content.
 - Uses one deterministic adapter path for JavaScript/TypeScript, Python, Java, Go, Rust, Ruby, PHP, and .NET definitions, imports, test layouts, exact-identifier grounding, fix-site ranking, and impact edges. PHP resolves declared symbols plus repository-contained Composer PSR-4/classmap paths; .NET namespace resolution is scoped by literal repository-contained `ProjectReference` relationships, and project manifests appear as directional graph evidence. Resolution stays source-based and bounded; dynamic expressions, generated relationships, absolute paths, and repository-escaping paths remain unknown instead of guessed.
 - Recognizes JavaScript/TypeScript declaration tests, Go `_test.go`, Python `test_*.py` and `*_test.py`, Rust integration tests, Ruby specs/tests, PHP tests, .NET tests, common test directories, and framework single-file components.
+- Expands caller-selected build surfaces with `fixmap change-scope` using stable file identities, explicit touch/add anchors, allowlisted import/dependent edges, mandatory depth/node bounds, and visible omissions. Product words are never converted into anchors.
+- Rebuilds persistent human-named capability maps from `.fixmap/capabilities.json`; the store is atomically locked and updated by CLI create/update/remove, while CLI and MCP show/list remain local and deterministic. Generated scope conclusions are schema-invalid store fields.
 - Deprioritizes lockfiles, sync-client backups, bundled output, examples, and generated counterparts when maintained source exists, while keeping ordinary modules such as `deep-copy.ts` and tracked first-party `vendor/` source rankable.
 - Routes reachable test commands from real package scripts and pairs them with the nearest related test files. Ruby routes RSpec or Minitest only from scoped Gemfile, test-layout, helper, or Rake-task evidence; a bare Gemfile and mixed ambiguous evidence produce no invented command. PHP uses `composer test` only when that script exists, uses the project-local `vendor/bin/phpunit` only when Composer declares the dependency, and otherwise derives a scoped `phpunit -c` command from an exact PHPUnit config. .NET changes route to an explicitly referencing test project when one exists, otherwise to the exact owning project; ambiguous root-level ownership produces no invented project command. It warns when routed JavaScript, Python, Go, or Rust tests are skipped, ignored, conditional, or gated.
 - Accepts versioned, source-fingerprinted CI observations through the Core API to distinguish same-revision flakiness, current failures, skipped or quarantined tests, gated execution, insufficient history, and repeatedly clean execution. A declared test route counts as reliably observed only when every related test path clears the conservative history threshold; this remains execution evidence, not proof that a test is correct.

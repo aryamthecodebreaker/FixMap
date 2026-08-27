@@ -124,6 +124,49 @@ describe("fixmap mcp server", () => {
     expect(delivered).toContainEqual({ jsonrpc: "2.0", id: 10, method: "tools/list" });
   });
 
+  it("exposes deterministic change scope and persistent capability maps without semantic input", async () => {
+    const root = await createAuthFixture();
+    await mkdir(join(root, ".fixmap"), { recursive: true });
+    await writeFile(join(root, ".fixmap", "capabilities.json"), JSON.stringify({
+      capabilityStoreVersion: 1,
+      workspace: "acme",
+      repository: "auth",
+      capabilities: [{
+        id: "password-recovery",
+        name: "Password recovery",
+        anchors: [{ operation: "touch", path: "src/auth/reset-password.ts" }],
+        traversal: { direction: "both", maxDepth: 2, maxNodes: 50 }
+      }]
+    }));
+    const client = await connectClient();
+    const tools = await client.listTools();
+    expect(tools.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(["fixmap_change_scope", "fixmap_capability"]));
+
+    const scope = await client.callTool({
+      name: "fixmap_change_scope",
+      arguments: { touch: ["src/auth/reset-password.ts"], repo: root, format: "json", noCache: true }
+    });
+    const scopeText = (scope.content as Array<{ text: string }>)[0]!.text;
+    expect(JSON.parse(scopeText)).toMatchObject({
+      changeScopeVersion: 1,
+      selected: [{ path: "src/auth/reset-password.ts" }]
+    });
+
+    const capability = await client.callTool({
+      name: "fixmap_capability",
+      arguments: { id: "password-recovery", repo: root, format: "json", noCache: true }
+    });
+    const capabilityText = (capability.content as Array<{ text: string }>)[0]!.text;
+    expect(JSON.parse(capabilityText)).toMatchObject({
+      capabilityMapVersion: 1,
+      capability: { id: "password-recovery", name: "Password recovery" }
+    });
+
+    const invalid = await client.callTool({ name: "fixmap_change_scope", arguments: { repo: root } });
+    expect(invalid.isError).toBe(true);
+    expect((invalid.content as Array<{ text: string }>)[0]!.text).toContain("provide at least one");
+  });
+
   it("rejects malformed runtime arguments before repository work begins", () => {
     expect(parsePlanArguments({ issue: 42 })).toEqual({
       success: false,
@@ -245,13 +288,13 @@ describe("fixmap mcp server", () => {
     expect(report.contextFiles).toHaveLength(1);
   });
 
-  it("advertises the complete plan, context, graph, workspace, ask, migrate, reverse-docs, history, supply-chain, runtime, explain, compare, verify, and doctor workflow", async () => {
+  it("advertises the complete deterministic MCP workflow", async () => {
     const client = await connectClient();
 
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_change_scope", "fixmap_capability", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
@@ -269,6 +312,15 @@ describe("fixmap mcp server", () => {
     const graph = tools.tools.find((tool) => tool.name === "fixmap_graph");
     expect(graph?.inputSchema.properties?.format?.description).toContain("mermaid");
     expect(graph?.inputSchema.additionalProperties).toBe(false);
+    const changeScope = tools.tools.find((tool) => tool.name === "fixmap_change_scope");
+    expect(Object.keys(changeScope?.inputSchema.properties ?? {}).sort()).toEqual(
+      ["touch", "add", "direction", "depth", "maxNodes", "workspace", "repository", "repo", "format", "noCache"].sort()
+    );
+    expect(changeScope?.description).toContain("does not interpret product requirements");
+    expect(changeScope?.inputSchema.additionalProperties).toBe(false);
+    const capability = tools.tools.find((tool) => tool.name === "fixmap_capability");
+    expect(Object.keys(capability?.inputSchema.properties ?? {}).sort()).toEqual(["id", "repo", "format", "noCache"].sort());
+    expect(capability?.inputSchema.additionalProperties).toBe(false);
     const workspace = tools.tools.find((tool) => tool.name === "fixmap_workspace");
     expect(Object.keys(workspace?.inputSchema.properties ?? {}).sort()).toEqual(["config", "seeds", "format", "noCache"].sort());
     expect(workspace?.inputSchema.required).toEqual(["config"]);

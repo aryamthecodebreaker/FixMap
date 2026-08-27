@@ -53,4 +53,15 @@ describe("FixMap generated artifact detection", () => {
     expect(fixMapArtifactKind(generated)).toBe("agent-command");
     expect(isFixMapArtifact(unrelated)).toBe(false);
   });
+
+  it.each([
+    ["scope.md", "# FixMap Change Scope\n\n## Declared anchors\n", "change-scope-markdown"],
+    ["capability.md", "# FixMap Capability: Checkout\n\n## Declared anchors\n", "capability-map-markdown"],
+    ["capabilities.md", "# FixMap Capabilities\n\nNo capabilities declared.\n", "capability-list-markdown"],
+    ["scope.json", JSON.stringify({ changeScopeVersion: 1, anchors: [], selected: [], affected: [] }), "change-scope-json"],
+    ["capability.json", JSON.stringify({ capabilityMapVersion: 1, capability: {}, scope: {} }), "capability-map-json"],
+    ["capabilities.json", JSON.stringify({ capabilityListVersion: 1, capabilities: [] }), "capability-list-json"]
+  ])("detects generated product-scope artifact %s", (path, textSample, kind) => {
+    expect(fixMapArtifactKind({ path, textSample, textSampleComplete: true })).toBe(kind);
+  });
 });

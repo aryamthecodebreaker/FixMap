@@ -10,6 +10,8 @@ export const FIXMAP_FEATURES = [
   { name: "Impact Graph", command: "fixmap plan", detail: "Map likely dependents, dependencies, tests, and repeated Git co-change relationships around the primary context, with explicit evidence." },
   { name: "Context Pack", command: "fixmap context --issue <task> --budget 10000", detail: "Select task-aware source ranges from primary and impact files within a deterministic token budget." },
   { name: "Graph export", command: "fixmap graph --issue <task> --format mermaid", detail: "Export imports, reverse dependents, routed tests, and co-change evidence as Mermaid or JSON." },
+  { name: "Change scope", command: "fixmap change-scope --touch <path> [--add <path>]", detail: "Expand explicit planned code surfaces into bounded dependencies, dependents, tests, contracts, decisions, reviewers, and policy evidence without interpreting product requirements." },
+  { name: "Product capabilities", command: "fixmap capability <id>", detail: "Persist human-named product capabilities as reviewed path anchors and rebuild their current implementation map; generated conclusions never enter the store." },
   { name: "Cross-repository workspace", command: "fixmap workspace --config .fixmap/workspace.json --seed <repository-id>", detail: "Resolve Node, Python, and Maven package identities across local checkouts, then trace provider-to-consumer impact with manifest and import evidence." },
   { name: "Repository Q&A", command: "fixmap ask --report <plan.json> --question <text>", detail: "Answer structural context, impact, test, risk, and rationale questions from report evidence only, with citations and explicit unknowns." },
   { name: "Migration planning", command: "fixmap migrate --input <migration.json>", detail: "Validate an exact identity graph and explicit steps, then order compatibility windows, tests, rollback points, and blast radius without applying changes." },
@@ -23,7 +25,7 @@ export const FIXMAP_FEATURES = [
   { name: "Verify", command: "fixmap verify --report <report.json>", detail: "Compare the completed diff or working tree with the saved plan; add --fail-on warning for a strict CI gate." },
   { name: "Validate", command: "fixmap validate <report.json>", detail: "Check a saved report against FixMap's structural compatibility contract." },
   { name: "Doctor", command: "fixmap doctor", detail: "Diagnose stale local, global, PATH, and npx install shadows." },
-  { name: "MCP", command: "fixmap mcp", detail: "Expose Plan, Context, Graph, Workspace, Ask, Migrate, Reverse Docs, History, Supply Chain, Runtime, Explain, Compare, Verify, and Doctor over local stdio." },
+  { name: "MCP", command: "fixmap mcp", detail: "Expose Plan, Context, Graph, Change Scope, Capability maps, Workspace, Ask, Migrate, Reverse Docs, History, Supply Chain, Runtime, Explain, Compare, Verify, and Doctor over local stdio." },
   { name: "Public tasks", command: "fixmap owner/repository#123", detail: "Fetch public GitHub issue or pull-request text anonymously and scan its repository in an isolated checkout." },
   { name: "Repository sources", command: "--repo <path|url> --ref <branch|tag>", detail: "Map a local checkout, file URL, directory archive, or a named branch or tag from a public GitHub repository." },
   { name: "Task files", command: "--issue-file <file|->", detail: "Read long task text from UTF-8, UTF-16, or stdin, including BOM-less UTF-16 from common Windows tools." },
@@ -64,7 +66,7 @@ When this command is invoked without a task, run \`fixmap features\` and present
 When the invocation includes a task, issue URL, diff, file path, or workflow name:
 
 1. Run \`fixmap features\` if the requested capability is ambiguous.
-2. Use the matching local command: Plan, Context, Graph, Workspace, Ask, Migrate, Reverse Docs, History, Supply Chain, Runtime, Sandbox, Explain, Compare, Verify, Watch, Annotate, Benchmark, Validate, Doctor, or MCP.
+2. Use the matching local command: Plan, Context, Graph, Change Scope, Capabilities, Workspace, Ask, Migrate, Reverse Docs, History, Supply Chain, Runtime, Sandbox, Explain, Compare, Verify, Watch, Annotate, Benchmark, Validate, Doctor, or MCP.
 3. Read the Impact Graph as files to inspect, not a claim that each file must change. Preserve each relationship's evidence.
 4. Prefer \`--format agent\` when context is constrained, \`fixmap watch\` while an agent is editing, and \`fixmap benchmark\` when the user asks whether FixMap works on this repository.
 5. Preserve the user's repository and never imply that FixMap ran tests or proved correctness; it produces a starting map and verification findings.

@@ -46,6 +46,8 @@ import { renderHistoryMarkdown } from "./history-command.js";
 import { buildSupplyChainReport, renderSupplyChainMarkdown } from "./supply-chain-command.js";
 import { parseRuntimeInput, renderRuntimeMarkdown } from "./runtime-command.js";
 import { runWorkspaceCommand } from "./workspace-command.js";
+import { runChangeScopeCommand } from "./change-scope-command.js";
+import { runCapabilitiesCommand, runCapabilityCommand } from "./capability-command.js";
 import {
   buildReportForRepository,
   isSafeGitRefName,
@@ -270,6 +272,48 @@ const WORKSPACE_TOOL = {
   }
 };
 
+const CHANGE_SCOPE_TOOL = {
+  name: "fixmap_change_scope",
+  title: "FixMap change scope",
+  description:
+    "Expand explicit planned files/directories over bounded import and dependent evidence, then join tests, contracts, ADRs, owners, and architecture policy. " +
+    "The caller supplies every starting anchor; FixMap does not interpret product requirements, call an API or LLM, or require an account.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      touch: { type: "array", items: { type: "string" }, description: "Existing file or directory anchors" },
+      add: { type: "array", items: { type: "string" }, description: "Planned path anchors; missing paths stay unresolved" },
+      direction: { type: "string", enum: ["dependencies", "dependents", "both"], description: "Structural traversal direction (default both)" },
+      depth: { type: "integer", minimum: 0, maximum: 8, description: "Maximum traversal depth (default 2)" },
+      maxNodes: { type: "integer", minimum: 1, maximum: 2000, description: "Maximum selected plus affected nodes (default 200)" },
+      workspace: { type: "string", description: "Stable workspace identity (default local)" },
+      repository: { type: "string", description: "Stable repository identity (default checkout name)" },
+      repo: { type: "string", description: "Local checkout path (defaults to the MCP server repository)" },
+      format: { type: "string", description: "Output format: markdown (default) or json" },
+      noCache: { type: "boolean", description: "Bypass repository scan caches" }
+    },
+    additionalProperties: false
+  }
+};
+
+const CAPABILITY_TOOL = {
+  name: "fixmap_capability",
+  title: "FixMap capability",
+  description:
+    "List human-owned product capabilities or rebuild one current capability map from .fixmap/capabilities.json. " +
+    "The store contains explicit names, anchors, and bounds only; no generated conclusions, API, LLM, semantic inference, or account.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      id: { type: "string", description: "Capability id to show; omit to list definitions" },
+      repo: { type: "string", description: "Local checkout path (defaults to the MCP server repository)" },
+      format: { type: "string", description: "Output format: markdown (default) or json" },
+      noCache: { type: "boolean", description: "Bypass repository scan caches" }
+    },
+    additionalProperties: false
+  }
+};
+
 const ASK_TOOL = {
   name: "fixmap_ask",
   title: "FixMap ask",
@@ -462,7 +506,7 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -497,6 +541,61 @@ export function createFixMapMcpServer(
       } catch (error) {
         return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }] };
       }
+    }
+    if (request.params.name === CHANGE_SCOPE_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["touch", "add", "direction", "depth", "maxNodes", "workspace", "repository", "repo", "format", "noCache"].includes(key));
+      if (unknown.length > 0) return { isError: true, content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }] };
+      const touch = validateStringList(record?.touch, "touch");
+      if (!touch.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${touch.message}` }] };
+      const add = validateStringList(record?.add, "add");
+      if (!add.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${add.message}` }] };
+      if (touch.values.length + add.values.length === 0) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: provide at least one "touch" or "add" path.' }] };
+      if (touch.values.length + add.values.length > 64) return { isError: true, content: [{ type: "text", text: "Invalid arguments: change scope supports at most 64 total anchors." }] };
+      for (const key of ["workspace", "repository", "repo"] as const) {
+        if (record?.[key] !== undefined && (typeof record[key] !== "string" || !record[key].trim())) {
+          return { isError: true, content: [{ type: "text", text: `Invalid arguments: "${key}" must be a non-empty string.` }] };
+        }
+      }
+      if (record?.repo && /^https?:\/\//i.test(String(record.repo))) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "repo" must be a local checkout.' }] };
+      if (record?.direction !== undefined && !["dependencies", "dependents", "both"].includes(String(record.direction))) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "direction" must be dependencies, dependents, or both.' }] };
+      if (record?.depth !== undefined && (!Number.isSafeInteger(record.depth) || Number(record.depth) < 0 || Number(record.depth) > 8)) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "depth" must be an integer from 0 to 8.' }] };
+      if (record?.maxNodes !== undefined && (!Number.isSafeInteger(record.maxNodes) || Number(record.maxNodes) < 1 || Number(record.maxNodes) > 2_000)) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "maxNodes" must be an integer from 1 to 2000.' }] };
+      if (record?.noCache !== undefined && typeof record.noCache !== "boolean") return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "noCache" must be a boolean.' }] };
+      const format = normalizeFormat(record?.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const commandArgs: string[] = [];
+      for (const path of touch.values) commandArgs.push("--touch", path);
+      for (const path of add.values) commandArgs.push("--add", path);
+      commandArgs.push("--repo", typeof record?.repo === "string" ? record.repo.trim() : defaultRepo, "--format", format.value ?? "markdown");
+      if (typeof record?.direction === "string") commandArgs.push("--direction", record.direction);
+      if (record?.depth !== undefined) commandArgs.push("--depth", String(record.depth));
+      if (record?.maxNodes !== undefined) commandArgs.push("--max-nodes", String(record.maxNodes));
+      if (typeof record?.workspace === "string") commandArgs.push("--workspace", record.workspace.trim());
+      if (typeof record?.repository === "string") commandArgs.push("--repository", record.repository.trim());
+      if (record?.noCache === true) commandArgs.push("--no-cache");
+      const exitCode = await runChangeScopeCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
+      return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }] };
+    }
+    if (request.params.name === CAPABILITY_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["id", "repo", "format", "noCache"].includes(key));
+      if (unknown.length > 0) return { isError: true, content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }] };
+      for (const key of ["id", "repo"] as const) if (record?.[key] !== undefined && (typeof record[key] !== "string" || !record[key].trim())) return { isError: true, content: [{ type: "text", text: `Invalid arguments: "${key}" must be a non-empty string.` }] };
+      if (record?.repo && /^https?:\/\//i.test(String(record.repo))) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "repo" must be a local checkout.' }] };
+      if (record?.noCache !== undefined && typeof record.noCache !== "boolean") return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "noCache" must be a boolean.' }] };
+      const format = normalizeFormat(record?.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const commandArgs = ["--repo", typeof record?.repo === "string" ? record.repo.trim() : defaultRepo, "--format", format.value ?? "markdown"];
+      if (record?.noCache === true) commandArgs.push("--no-cache");
+      const exitCode = typeof record?.id === "string"
+        ? await runCapabilityCommand([record.id.trim(), ...commandArgs], { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) })
+        : await runCapabilitiesCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
+      return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }] };
     }
     if (request.params.name === WORKSPACE_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;
@@ -1171,6 +1270,18 @@ function normalizePlanFormat(candidate: unknown): { success: true; value: "markd
   return value === "markdown" || value === "json" || value === "agent"
     ? { success: true, value }
     : { success: false, message: '"format" must be "markdown", "json", or "agent".' };
+}
+
+function validateStringList(
+  candidate: unknown,
+  label: string
+): { success: true; values: string[] } | { success: false; message: string } {
+  if (candidate === undefined) return { success: true, values: [] };
+  if (!Array.isArray(candidate) || candidate.length > 64 ||
+    candidate.some((entry) => typeof entry !== "string" || !entry.trim() || entry.length > 1_000 || entry.includes("\0"))) {
+    return { success: false, message: `"${label}" must be an array of at most 64 bounded non-empty paths.` };
+  }
+  return { success: true, values: candidate.map((entry) => String(entry).trim()) };
 }
 
 function normalizeFormat(candidate: unknown): { success: true; value: "markdown" | "json" | undefined } | { success: false; message: string } {

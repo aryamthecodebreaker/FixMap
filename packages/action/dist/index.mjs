@@ -2260,6 +2260,12 @@ function fixMapArtifactKind(file) {
     return "report-markdown";
   if (text.startsWith("# FixMap Context\n") && text.includes("\n## Task\n"))
     return "context-markdown";
+  if (text.startsWith("# FixMap Change Scope\n") && text.includes("\n## Declared anchors\n"))
+    return "change-scope-markdown";
+  if (text.startsWith("# FixMap Capability:") && text.includes("\n## Declared anchors\n"))
+    return "capability-map-markdown";
+  if (text.startsWith("# FixMap Capabilities\n"))
+    return "capability-list-markdown";
   if (!file.path.toLowerCase().endsWith(".json") || file.textSampleComplete === false)
     return void 0;
   let candidate;
@@ -2270,6 +2276,14 @@ function fixMapArtifactKind(file) {
   }
   if (!isRecord2(candidate))
     return void 0;
+  if (candidate.changeScopeVersion === 1 && Array.isArray(candidate.anchors) && Array.isArray(candidate.selected) && Array.isArray(candidate.affected)) {
+    return "change-scope-json";
+  }
+  if (candidate.capabilityMapVersion === 1 && isRecord2(candidate.capability) && isRecord2(candidate.scope)) {
+    return "capability-map-json";
+  }
+  if (candidate.capabilityListVersion === 1 && Array.isArray(candidate.capabilities))
+    return "capability-list-json";
   if ((candidate.reportVersion === void 0 || candidate.reportVersion === 1) && typeof candidate.summary === "string" && Array.isArray(candidate.contextFiles) && Array.isArray(candidate.testRoutes) && Array.isArray(candidate.risks) && Array.isArray(candidate.changedFiles) && Array.isArray(candidate.diagnostics))
     return "report-json";
   if (candidate.contextVersion === 1 && typeof candidate.task === "string" && typeof candidate.budgetTokens === "number" && candidate.tokenEstimate === "utf8-bytes-divided-by-4" && Array.isArray(candidate.snippets) && Array.isArray(candidate.omitted))

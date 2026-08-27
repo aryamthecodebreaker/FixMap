@@ -51,6 +51,20 @@ describe("CLI argument handling", () => {
     expect(await runCli(["mcp", "--surprise"], { stderr, runMcpServer })).toBe(1);
     expect(runMcpServer).not.toHaveBeenCalled();
   });
+  it("shows the dedicated deterministic scope help", async () => {
+    const io = capture();
+    expect(await runCli(["change-scope", "--help"], io.dependencies)).toBe(0);
+    expect(io.stdout.join("")).toContain("--touch <path>");
+    expect(io.stdout.join("")).toContain("does not interpret product requirements");
+  });
+  it("shows the persistent capability help without scanning", async () => {
+    const capability = capture();
+    const list = capture();
+    expect(await runCli(["capability", "--help"], capability.dependencies)).toBe(0);
+    expect(await runCli(["capabilities", "--help"], list.dependencies)).toBe(0);
+    expect(capability.stdout.join("")).toContain("generated conclusions");
+    expect(list.stdout.join("")).toContain(".fixmap/capabilities.json");
+  });
   it.each(["--help", "-h"])("shows command help for plan %s", async (flag) => {
     const io = capture();
     const exitCode = await runCli(["plan", flag], io.dependencies);
@@ -174,7 +188,7 @@ describe("CLI argument handling", () => {
     const io = capture();
 
     expect(await runCli(["features"], io.dependencies)).toBe(0);
-    for (const feature of ["Plan", "Context Pack", "Graph export", "Explain", "Compare", "Verify", "Watch", "Validate", "Doctor", "MCP", "Focus", "Live changes", "Fresh scan"]) {
+    for (const feature of ["Plan", "Context Pack", "Graph export", "Change scope", "Product capabilities", "Explain", "Compare", "Verify", "Watch", "Validate", "Doctor", "MCP", "Focus", "Live changes", "Fresh scan"]) {
       expect(io.stdout.join("")).toContain(`**${feature}**`);
     }
     expect(io.stdout.join("")).toContain("fixmap setup");
@@ -259,12 +273,12 @@ describe("CLI argument handling", () => {
   it("keeps the npm package README aligned with the complete public feature catalog", async () => {
     const npmReadme = await readFile(new URL("../README.md", import.meta.url), "utf8");
     for (const feature of [
-      "Plan", "Context Pack", "Graph export", "Explain", "Compare", "Verify", "Watch", "Validate", "Doctor", "MCP",
+      "Plan", "Context Pack", "Graph export", "Change scope", "Product capabilities", "Explain", "Compare", "Verify", "Watch", "Validate", "Doctor", "MCP",
       "Focus controls", "Live changes", "Exact-state cache", "Slash-command discovery"
     ]) {
       expect(npmReadme).toContain(`**${feature}**`);
     }
-    for (const command of ["fixmap setup", "fixmap features", "fixmap validate", "fixmap context", "fixmap graph", "fixmap watch", "--no-cache"]) {
+    for (const command of ["fixmap setup", "fixmap features", "fixmap validate", "fixmap context", "fixmap graph", "fixmap change-scope", "fixmap capability", "fixmap watch", "--no-cache"]) {
       expect(npmReadme).toContain(command);
     }
   });
