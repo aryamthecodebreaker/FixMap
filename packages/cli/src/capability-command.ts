@@ -4,8 +4,10 @@ import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import {
   buildCapabilityMap,
   capabilityStoreFromRepo,
+  compareCapabilityRefs,
   isFixMapArtifact,
   renderCapabilityMapMarkdown,
+  renderCapabilityHistoryMarkdown,
   scanRepo,
   validateCapabilityStore,
   type CapabilityDefinition,
@@ -24,6 +26,7 @@ Lists the human-owned product capabilities declared in .fixmap/capabilities.json
 
 export const CAPABILITY_USAGE = `Usage:
   fixmap capability <id> [--repo <path>] [--format markdown|json] [--output <file>] [--no-cache]
+  fixmap capability diff <id> <from>..<to> [--repo <path>] [--format markdown|json] [--output <file>]
   fixmap capability create <id> [--name <name>] --touch <path> [--touch <path> ...] [--add <path> ...] [options]
   fixmap capability update <id> [--name <name>] [--touch <path> ...] [--add <path> ...] [options]
   fixmap capability remove <id> [--repo <path>] [--format markdown|json]
@@ -84,6 +87,7 @@ export async function runCapabilityCommand(args: string[], io: CommandIO = {}): 
   const stderr = io.stderr ?? ((text: string) => process.stderr.write(text));
   if (args.includes("--help") || args.includes("-h")) { stdout(CAPABILITY_USAGE); return 0; }
   const action = args[0];
+  if (action === "diff") return runCapabilityDiff(args.slice(1), { ...io, stdout, stderr });
   if (action === "create" || action === "update" || action === "remove") {
     return mutateCapability(action, args.slice(1), { ...io, stdout, stderr });
   }
@@ -116,6 +120,70 @@ export async function runCapabilityCommand(args: string[], io: CommandIO = {}): 
     stderr(`${message(error)}\n`);
     return 1;
   }
+}
+
+async function runCapabilityDiff(args: string[], io: Required<Pick<CommandIO, "stdout" | "stderr">> & CommandIO): Promise<number> {
+  const id = args[0];
+  if (!id || !CAPABILITY_ID.test(id.toLowerCase())) {
+    io.stderr(`capability diff requires a valid capability id.\n\n${CAPABILITY_USAGE}`);
+    return 1;
+  }
+  let parsed: { from: string; to: string; repoRoot: string; format: "markdown" | "json"; output?: string };
+  try {
+    parsed = parseDiffOptions(args.slice(1));
+  } catch (error) {
+    io.stderr(`${message(error)}\n\n${CAPABILITY_USAGE}`);
+    return 1;
+  }
+  try {
+    const repoRoot = await realRepositoryRoot(parsed.repoRoot);
+    if (parsed.output) await assertCapabilityOutputSafe(repoRoot, parsed.output);
+    const result = await compareCapabilityRefs({
+      repoRoot,
+      id,
+      fromRef: parsed.from,
+      toRef: parsed.to,
+      asOf: (io.now ?? (() => new Date().toISOString()))()
+    });
+    const rendered = parsed.format === "json" ? `${JSON.stringify(result, null, 2)}\n` : renderCapabilityHistoryMarkdown(result);
+    await emit(rendered, parsed.output, io.stdout, io.writeOutput);
+    return 0;
+  } catch (error) {
+    io.stderr(`${message(error)}\n`);
+    return 1;
+  }
+}
+
+function parseDiffOptions(args: string[]): { from: string; to: string; repoRoot: string; format: "markdown" | "json"; output?: string } {
+  let range: string | undefined;
+  if (args[0] && !args[0].startsWith("--")) range = args.shift();
+  const values = parseFlags(args, new Set(["--from", "--to", "--repo", "--format", "--output"]), new Set());
+  if (range && (values.single.has("--from") || values.single.has("--to"))) throw new Error("Use either <from>..<to> or --from/--to, not both.");
+  let from = values.single.get("--from");
+  let to = values.single.get("--to");
+  if (range) {
+    const separator = range.includes("...") ? "..." : "..";
+    const index = range.indexOf(separator);
+    if (index <= 0 || index + separator.length >= range.length || range.indexOf(separator, index + separator.length) !== -1) {
+      throw new Error("Capability diff range must be <from>..<to>.");
+    }
+    from = range.slice(0, index);
+    to = range.slice(index + separator.length);
+  }
+  if (!from || !to) throw new Error("capability diff requires <from>..<to> or both --from and --to.");
+  if (from.length > 500 || to.length > 500 || /[\0\r\n]/.test(from) || /[\0\r\n]/.test(to)) throw new Error("Capability diff refs must be bounded single-line values.");
+  const format = values.single.get("--format") ?? "markdown";
+  if (format !== "markdown" && format !== "json") throw new Error("--format must be markdown or json.");
+  const repoValue = values.single.get("--repo") ?? process.cwd();
+  if (/^https?:\/\//i.test(repoValue)) throw new Error("Capability diff requires a local Git checkout.");
+  const output = values.single.get("--output");
+  return {
+    from,
+    to,
+    repoRoot: resolve(repoValue),
+    format,
+    ...(output ? { output } : {})
+  };
 }
 
 type ReadOptions = {
@@ -371,6 +439,22 @@ async function safeFixMapDirectory(repoRoot: string): Promise<string> {
     throw new Error("Refusing to write capabilities because .fixmap resolves outside the repository.");
   }
   return directory;
+}
+
+async function assertCapabilityOutputSafe(repoRoot: string, output: string): Promise<void> {
+  const absolute = resolve(output);
+  const outputRelative = relative(repoRoot, absolute);
+  if (!outputRelative || outputRelative === ".." || outputRelative.startsWith(`..${sep}`) || isAbsolute(outputRelative)) return;
+  const info = await lstat(absolute).catch(() => undefined);
+  if (!info) return;
+  const path = outputRelative.replace(/\\/g, "/");
+  if (!info.isFile() || info.isSymbolicLink() || info.nlink > 1 || info.size > 64_000) {
+    throw new Error(`--output refuses to overwrite repository path ${path}; choose a new path or a bounded prior FixMap capability artifact.`);
+  }
+  const textSample = await readFile(absolute, "utf8");
+  if (!isFixMapArtifact({ path, textSample, textSampleComplete: true })) {
+    throw new Error(`--output refuses to overwrite repository file ${path}; choose a new path or a prior FixMap capability artifact.`);
+  }
 }
 
 async function readStoreFile(directory: string): Promise<CapabilityStore | undefined> {

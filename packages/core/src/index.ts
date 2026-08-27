@@ -106,6 +106,8 @@ export type {
 } from "./change-scope.js";
 export { buildCapabilityMap, capabilityStoreFromRepo, renderCapabilityMapMarkdown, validateCapabilityStore } from "./capabilities.js";
 export type { CapabilityDefinition, CapabilityMap, CapabilityStore, CapabilityStoreSource } from "./capabilities.js";
+export { compareCapabilityRefs, renderCapabilityHistoryMarkdown } from "./capability-history.js";
+export type { CapabilityEntityDiff, CapabilityHistoryDiff, CapabilityPathDiff, CapabilityRefSnapshot } from "./capability-history.js";
 export { isBackupPath, isGeneratedPath, moduleStem } from "./paths.js";
 export { rankContextFiles, rankContextFilesEvidenceDetailed } from "./rank.js";
 export type {

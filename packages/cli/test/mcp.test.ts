@@ -124,7 +124,7 @@ describe("fixmap mcp server", () => {
     expect(delivered).toContainEqual({ jsonrpc: "2.0", id: 10, method: "tools/list" });
   });
 
-  it("exposes deterministic change scope and persistent capability maps without semantic input", async () => {
+  it("exposes deterministic change scope and persistent capability maps without semantic input", { timeout: 30_000 }, async () => {
     const root = await createAuthFixture();
     await mkdir(join(root, ".fixmap"), { recursive: true });
     await writeFile(join(root, ".fixmap", "capabilities.json"), JSON.stringify({
@@ -160,6 +160,26 @@ describe("fixmap mcp server", () => {
     expect(JSON.parse(capabilityText)).toMatchObject({
       capabilityMapVersion: 1,
       capability: { id: "password-recovery", name: "Password recovery" }
+    });
+
+    await exec("git", ["init", "--quiet"], { cwd: root });
+    await exec("git", ["config", "user.email", "fixmap@example.test"], { cwd: root });
+    await exec("git", ["config", "user.name", "FixMap Test"], { cwd: root });
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "--quiet", "-m", "before"], { cwd: root });
+    const before = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+    await writeFile(join(root, "src", "auth", "reset-password.ts"), "export const resetPassword = 'v2';\n");
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "--quiet", "-m", "after"], { cwd: root });
+    const after = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+    const history = await client.callTool({
+      name: "fixmap_capability",
+      arguments: { id: "password-recovery", from: before, to: after, repo: root, format: "json" }
+    });
+    const historyText = (history.content as Array<{ text: string }>)[0]!.text;
+    expect(JSON.parse(historyText)).toMatchObject({
+      capabilityHistoryVersion: 1,
+      selected: { modified: ["src/auth/reset-password.ts"] }
     });
 
     const invalid = await client.callTool({ name: "fixmap_change_scope", arguments: { repo: root } });
@@ -319,7 +339,7 @@ describe("fixmap mcp server", () => {
     expect(changeScope?.description).toContain("does not interpret product requirements");
     expect(changeScope?.inputSchema.additionalProperties).toBe(false);
     const capability = tools.tools.find((tool) => tool.name === "fixmap_capability");
-    expect(Object.keys(capability?.inputSchema.properties ?? {}).sort()).toEqual(["id", "repo", "format", "noCache"].sort());
+    expect(Object.keys(capability?.inputSchema.properties ?? {}).sort()).toEqual(["id", "from", "to", "repo", "format", "noCache"].sort());
     expect(capability?.inputSchema.additionalProperties).toBe(false);
     const workspace = tools.tools.find((tool) => tool.name === "fixmap_workspace");
     expect(Object.keys(workspace?.inputSchema.properties ?? {}).sort()).toEqual(["config", "seeds", "format", "noCache"].sort());

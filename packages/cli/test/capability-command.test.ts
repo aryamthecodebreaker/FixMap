@@ -1,8 +1,12 @@
+import { execFile } from "node:child_process";
 import { link, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { runCapabilitiesCommand, runCapabilityCommand } from "../src/capability-command.js";
+
+const exec = promisify(execFile);
 
 async function fixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "fixmap-capability-"));
@@ -19,7 +23,7 @@ function capture() {
 }
 
 describe("fixmap capability", () => {
-  it("creates, lists, shows, updates, and removes a persistent capability", async () => {
+  it("creates, lists, shows, updates, and removes a persistent capability", { timeout: 30_000 }, async () => {
     const root = await fixture();
     const created = capture();
     expect(await runCapabilityCommand([
@@ -127,5 +131,43 @@ describe("fixmap capability", () => {
 
     expect(await runCapabilityCommand(["update", "checkout", "--name", "Changed", "--repo", root], output.io)).toBe(1);
     expect(output.stderr.join("")).toContain("hard-linked");
+  });
+
+  it("diffs a capability across exact refs without changing the checkout", { timeout: 30_000 }, async () => {
+    const root = await fixture();
+    await exec("git", ["init", "--quiet"], { cwd: root });
+    await exec("git", ["config", "user.email", "fixmap@example.test"], { cwd: root });
+    await exec("git", ["config", "user.name", "FixMap Test"], { cwd: root });
+    expect(await runCapabilityCommand([
+      "create", "checkout", "--touch", "src/checkout.js", "--direction", "both", "--repo", root
+    ], capture().io)).toBe(0);
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "--quiet", "-m", "before"], { cwd: root });
+    const before = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+    await writeFile(join(root, "src", "checkout.js"), "export const checkout = 'v2';\n");
+    await writeFile(join(root, "src", "retry.js"), "import { checkout } from './checkout.js'; export { checkout };\n");
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "--quiet", "-m", "after"], { cwd: root });
+    const after = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+    const statusBefore = (await exec("git", ["status", "--porcelain=v1"], { cwd: root })).stdout;
+    const output = capture();
+
+    expect(await runCapabilityCommand([
+      "diff", "checkout", `${before}..${after}`, "--repo", root, "--format", "json"
+    ], output.io)).toBe(0);
+    const diff = JSON.parse(output.stdout.join(""));
+    expect(diff).toMatchObject({ capabilityHistoryVersion: 1, id: "checkout" });
+    expect(diff.selected.modified).toEqual(["src/checkout.js"]);
+    expect(diff.affected.added).toContain("src/retry.js");
+    expect((await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim()).toBe(after);
+    expect((await exec("git", ["status", "--porcelain=v1"], { cwd: root })).stdout).toBe(statusBefore);
+
+    const outputPath = join(root, "capability-diff.json");
+    expect(await runCapabilityCommand([
+      "diff", "checkout", "--from", before, "--to", after, "--repo", root, "--format", "json", "--output", outputPath
+    ], capture().io)).toBe(0);
+    expect(await runCapabilityCommand([
+      "diff", "checkout", `${before}..${after}`, "--repo", root, "--format", "json", "--output", outputPath
+    ], capture().io)).toBe(0);
   });
 });

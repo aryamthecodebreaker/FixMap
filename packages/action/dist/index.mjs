@@ -2264,6 +2264,8 @@ function fixMapArtifactKind(file) {
     return "change-scope-markdown";
   if (text.startsWith("# FixMap Capability:") && text.includes("\n## Declared anchors\n"))
     return "capability-map-markdown";
+  if (text.startsWith("# FixMap Capability Diff:") && text.includes("\n## Selected scope\n"))
+    return "capability-history-markdown";
   if (text.startsWith("# FixMap Capabilities\n"))
     return "capability-list-markdown";
   if (!file.path.toLowerCase().endsWith(".json") || file.textSampleComplete === false)
@@ -2281,6 +2283,9 @@ function fixMapArtifactKind(file) {
   }
   if (candidate.capabilityMapVersion === 1 && isRecord2(candidate.capability) && isRecord2(candidate.scope)) {
     return "capability-map-json";
+  }
+  if (candidate.capabilityHistoryVersion === 1 && typeof candidate.id === "string" && isRecord2(candidate.from) && isRecord2(candidate.to)) {
+    return "capability-history-json";
   }
   if (candidate.capabilityListVersion === 1 && Array.isArray(candidate.capabilities))
     return "capability-list-json";

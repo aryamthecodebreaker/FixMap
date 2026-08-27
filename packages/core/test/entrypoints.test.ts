@@ -24,5 +24,7 @@ describe("public entrypoint parity", () => {
     expect(nodeEntry).toHaveProperty("scanRepo");
     expect(browserEntry).not.toHaveProperty("scanRepo");
     expect(browserEntry).not.toHaveProperty("buildFixMapAnalysis");
+    expect(nodeEntry).toHaveProperty("compareCapabilityRefs");
+    expect(browserEntry).not.toHaveProperty("compareCapabilityRefs");
   });
 });

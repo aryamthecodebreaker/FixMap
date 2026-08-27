@@ -226,13 +226,16 @@ Persist a reviewed product-to-implementation map without persisting generated co
 fixmap capability create checkout --name "Checkout" \
   --touch src/routes/checkout.ts --touch packages/payments
 fixmap capability checkout
+fixmap capability diff checkout v1.4.0..HEAD
 fixmap capabilities
 ```
 
 The versioned `.fixmap/capabilities.json` contains only human-owned names, explicit anchors,
 workspace/repository identities, and traversal bounds. Current files are recalculated from the
 repository graph. Output uses exact declared, observed, derived, and unresolved counts rather
-than an undefinable confidence percentage.
+than an undefinable confidence percentage. Capability diff reads both refs from immutable Git
+objects without checking either out, and reports added, removed, modified, and unchanged scope,
+contract, decision, test-association, reviewer, and architecture evidence.
 
 ## Complete feature catalog
 

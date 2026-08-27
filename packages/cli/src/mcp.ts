@@ -300,12 +300,14 @@ const CAPABILITY_TOOL = {
   name: "fixmap_capability",
   title: "FixMap capability",
   description:
-    "List human-owned product capabilities or rebuild one current capability map from .fixmap/capabilities.json. " +
+    "List human-owned product capabilities, rebuild one current capability map, or compare it across exact Git refs from .fixmap/capabilities.json. " +
     "The store contains explicit names, anchors, and bounds only; no generated conclusions, API, LLM, semantic inference, or account.",
   inputSchema: {
     type: "object" as const,
     properties: {
       id: { type: "string", description: "Capability id to show; omit to list definitions" },
+      from: { type: "string", description: "Earlier exact Git ref; requires id and to" },
+      to: { type: "string", description: "Later exact Git ref; requires id and from" },
       repo: { type: "string", description: "Local checkout path (defaults to the MCP server repository)" },
       format: { type: "string", description: "Output format: markdown (default) or json" },
       noCache: { type: "boolean", description: "Bypass repository scan caches" }
@@ -581,18 +583,26 @@ export function createFixMapMcpServer(
     }
     if (request.params.name === CAPABILITY_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;
-      const unknown = Object.keys(record ?? {}).filter((key) => !["id", "repo", "format", "noCache"].includes(key));
+      const unknown = Object.keys(record ?? {}).filter((key) => !["id", "from", "to", "repo", "format", "noCache"].includes(key));
       if (unknown.length > 0) return { isError: true, content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }] };
-      for (const key of ["id", "repo"] as const) if (record?.[key] !== undefined && (typeof record[key] !== "string" || !record[key].trim())) return { isError: true, content: [{ type: "text", text: `Invalid arguments: "${key}" must be a non-empty string.` }] };
+      for (const key of ["id", "from", "to", "repo"] as const) if (record?.[key] !== undefined && (typeof record[key] !== "string" || !record[key].trim())) return { isError: true, content: [{ type: "text", text: `Invalid arguments: "${key}" must be a non-empty string.` }] };
       if (record?.repo && /^https?:\/\//i.test(String(record.repo))) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "repo" must be a local checkout.' }] };
       if (record?.noCache !== undefined && typeof record.noCache !== "boolean") return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "noCache" must be a boolean.' }] };
+      const refCount = Number(record?.from !== undefined) + Number(record?.to !== undefined);
+      if (refCount === 1) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "from" and "to" must be provided together.' }] };
+      if (refCount === 2 && typeof record?.id !== "string") return { isError: true, content: [{ type: "text", text: 'Invalid arguments: capability history requires "id".' }] };
+      if (refCount === 2 && record?.noCache === true) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "noCache" does not apply to immutable Git-ref capability history.' }] };
       const format = normalizeFormat(record?.format);
       if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
       const stdout: string[] = [];
       const stderr: string[] = [];
       const commandArgs = ["--repo", typeof record?.repo === "string" ? record.repo.trim() : defaultRepo, "--format", format.value ?? "markdown"];
       if (record?.noCache === true) commandArgs.push("--no-cache");
-      const exitCode = typeof record?.id === "string"
+      const exitCode = refCount === 2
+        ? await runCapabilityCommand([
+            "diff", String(record!.id).trim(), "--from", String(record!.from).trim(), "--to", String(record!.to).trim(), ...commandArgs
+          ], { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) })
+        : typeof record?.id === "string"
         ? await runCapabilityCommand([record.id.trim(), ...commandArgs], { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) })
         : await runCapabilitiesCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
       return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }] };

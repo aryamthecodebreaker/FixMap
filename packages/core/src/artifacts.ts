@@ -4,6 +4,8 @@ export type FixMapArtifactKind =
   | "agent-command"
   | "capability-list-json"
   | "capability-list-markdown"
+  | "capability-history-json"
+  | "capability-history-markdown"
   | "capability-map-json"
   | "capability-map-markdown"
   | "change-scope-json"
@@ -37,6 +39,7 @@ export function fixMapArtifactKind(file: Pick<RepoFile, "path" | "textSample" | 
   if (text.startsWith("# FixMap Context\n") && text.includes("\n## Task\n")) return "context-markdown";
   if (text.startsWith("# FixMap Change Scope\n") && text.includes("\n## Declared anchors\n")) return "change-scope-markdown";
   if (text.startsWith("# FixMap Capability:") && text.includes("\n## Declared anchors\n")) return "capability-map-markdown";
+  if (text.startsWith("# FixMap Capability Diff:") && text.includes("\n## Selected scope\n")) return "capability-history-markdown";
   if (text.startsWith("# FixMap Capabilities\n")) return "capability-list-markdown";
   if (!file.path.toLowerCase().endsWith(".json") || file.textSampleComplete === false) return undefined;
 
@@ -52,6 +55,9 @@ export function fixMapArtifactKind(file: Pick<RepoFile, "path" | "textSample" | 
   }
   if (candidate.capabilityMapVersion === 1 && isRecord(candidate.capability) && isRecord(candidate.scope)) {
     return "capability-map-json";
+  }
+  if (candidate.capabilityHistoryVersion === 1 && typeof candidate.id === "string" && isRecord(candidate.from) && isRecord(candidate.to)) {
+    return "capability-history-json";
   }
   if (candidate.capabilityListVersion === 1 && Array.isArray(candidate.capabilities)) return "capability-list-json";
   if (
