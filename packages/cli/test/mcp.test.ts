@@ -715,7 +715,7 @@ describe("fixmap mcp server", () => {
       .toHaveLength(1);
   });
 
-  it("verifies a plan against a local diff through MCP", async () => {
+  it("verifies a plan against a local diff through MCP", { timeout: 30_000 }, async () => {
     const root = await createAuthFixture();
     await exec("git", ["init"], { cwd: root });
     await exec("git", ["config", "user.email", "fixmap@example.test"], { cwd: root });

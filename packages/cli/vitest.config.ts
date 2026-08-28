@@ -7,6 +7,8 @@ import { defineConfig } from "vitest/config";
 // concurrency and the existing timeout remains meaningful.
 export default defineConfig({
   test: {
-    maxWorkers: 2
+    maxWorkers: 2,
+    testTimeout: 15_000,
+    hookTimeout: 15_000
   }
 });

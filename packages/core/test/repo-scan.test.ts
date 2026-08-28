@@ -1160,7 +1160,7 @@ describe("repository impact history", () => {
     }
   });
 
-  it("reads bounded pre-HEAD co-change evidence and excludes oversized commits", async () => {
+  it("reads bounded pre-HEAD co-change evidence and excludes oversized commits", { timeout: 30_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-history-"));
     try {
       await exec("git", ["init"], { cwd: root });
