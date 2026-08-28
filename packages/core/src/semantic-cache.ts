@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, realpath, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { EmbeddingProvider } from "./semantic.js";
 
 type CachedVector = { vector: number[]; lastUsedAt: string };
@@ -25,8 +25,13 @@ export async function withPersistentEmbeddingCache(
   provider: EmbeddingProvider,
   options: PersistentEmbeddingCacheOptions
 ): Promise<EmbeddingProvider> {
-  const repositoryRoot = await realpath(resolve(options.repositoryRoot));
-  const cacheRoot = resolve(options.cacheRoot ?? configuredSemanticCacheRoot());
+  const requestedRepositoryRoot = resolve(options.repositoryRoot);
+  const requestedCacheRoot = resolve(options.cacheRoot ?? configuredSemanticCacheRoot());
+  if (samePath(requestedRepositoryRoot, requestedCacheRoot) || isContained(requestedRepositoryRoot, requestedCacheRoot)) {
+    throw new Error("Semantic cache must be outside the scanned repository so derived vectors cannot enter ranking or version control.");
+  }
+  const repositoryRoot = await realpath(requestedRepositoryRoot);
+  const cacheRoot = await resolveProspectiveRealPath(requestedCacheRoot);
   if (samePath(repositoryRoot, cacheRoot) || isContained(repositoryRoot, cacheRoot)) {
     throw new Error("Semantic cache must be outside the scanned repository so derived vectors cannot enter ranking or version control.");
   }
@@ -73,6 +78,23 @@ export async function withPersistentEmbeddingCache(
       return output.map((vector) => vector!);
     }
   };
+}
+
+/** Canonicalize a path before it exists by resolving its nearest existing ancestor. */
+async function resolveProspectiveRealPath(path: string): Promise<string> {
+  let cursor = path;
+  const missing: string[] = [];
+  while (true) {
+    try {
+      return resolve(await realpath(cursor), ...missing.reverse());
+    } catch (error) {
+      if (!isNodeError(error, "ENOENT")) throw error;
+      const parent = dirname(cursor);
+      if (parent === cursor) return path;
+      missing.push(basename(cursor));
+      cursor = parent;
+    }
+  }
 }
 
 function configuredSemanticCacheRoot(): string {
@@ -150,4 +172,8 @@ function positiveInteger(value: number | undefined, fallback: number): number {
 
 function isRecord(candidate: unknown): candidate is Record<string, unknown> {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
+}
+
+function isNodeError(error: unknown, code: string): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === code;
 }

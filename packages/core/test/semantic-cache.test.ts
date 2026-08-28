@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, realpath, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -60,5 +60,27 @@ describe("withPersistentEmbeddingCache", () => {
       repositoryRoot,
       cacheRoot: join(repositoryRoot, ".fixmap-cache")
     })).rejects.toThrow("outside the scanned repository");
+  });
+
+  it("refuses a prospective inside cache across repository path aliases", async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), "fixmap-semantic-real-repo-"));
+    const aliasParent = await mkdtemp(join(tmpdir(), "fixmap-semantic-alias-"));
+    const repositoryAlias = join(aliasParent, "repo-link");
+    await symlink(repositoryRoot, repositoryAlias, process.platform === "win32" ? "junction" : "dir");
+
+    await expect(withPersistentEmbeddingCache(provider([]), {
+      repositoryRoot: repositoryAlias,
+      cacheRoot: join(await realpath(repositoryRoot), "nested", "semantic")
+    })).rejects.toThrow("outside the scanned repository");
+  });
+
+  it("allows a not-yet-created cache below an outside directory", async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), "fixmap-semantic-repo-"));
+    const outside = await mkdtemp(join(tmpdir(), "fixmap-semantic-outside-"));
+    const cacheRoot = join(outside, "nested", "semantic");
+    const wrapped = await withPersistentEmbeddingCache(provider([]), { repositoryRoot, cacheRoot });
+
+    await expect(wrapped.embed(["session"], { signal: new AbortController().signal })).resolves.toEqual([[1, 0]]);
+    expect((await readdir(cacheRoot)).filter((name) => name.endsWith(".json"))).toHaveLength(1);
   });
 });

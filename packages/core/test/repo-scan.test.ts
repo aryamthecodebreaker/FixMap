@@ -559,6 +559,45 @@ describe("scanRepo", () => {
       .toContain("alias-src/reset.ts -> real-src/reset.ts");
   });
 
+  it("never scans a tracked file symlink that resolves outside the repository", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-external-file-link-"));
+    const outside = await mkdtemp(join(tmpdir(), "fixmap-external-file-target-"));
+    await writeFile(join(outside, "secret.ts"), "export const shouldNeverBeScanned = true;\n");
+    try {
+      await symlink(join(outside, "secret.ts"), join(root, "external.ts"), "file");
+    } catch {
+      return;
+    }
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+    await exec("git", ["add", "-A"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.map((file) => file.path)).not.toContain("external.ts");
+    expect(repo.files.some((file) => file.textSample.includes("shouldNeverBeScanned"))).toBe(false);
+    expect(repo.diagnostics.find((entry) => entry.code === "linked-paths-skipped")?.paths)
+      .toEqual(["external.ts"]);
+  });
+
+  it("never traverses a Windows junction that resolves outside the repository", { timeout: 30_000 }, async () => {
+    if (process.platform !== "win32") return;
+    const root = await mkdtemp(join(tmpdir(), "fixmap-external-junction-"));
+    const outside = await mkdtemp(join(tmpdir(), "fixmap-external-junction-target-"));
+    await writeFile(join(outside, "secret.ts"), "export const shouldNeverBeScanned = true;\n");
+    await symlink(outside, join(root, "linked-outside"), "junction");
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.some((file) => file.textSample.includes("shouldNeverBeScanned"))).toBe(false);
+    expect(repo.diagnostics.find((entry) => entry.code === "linked-paths-skipped")?.paths)
+      .toContain("linked-outside/secret.ts");
+  });
+
   it("diagnoses linked directories skipped by a non-git filesystem scan", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-linked-directory-"));
     const outside = await mkdtemp(join(tmpdir(), "fixmap-linked-target-"));

@@ -70,6 +70,7 @@
       "diagnostics": [
         "content-too-large",
         "impact-history-shallow",
+        "no-related-tests",
         "vague-task",
         "flat-ranking"
       ],
@@ -144,6 +145,7 @@
         "content-too-large",
         "impact-history-shallow",
         "import-graph-truncated",
+        "no-related-tests",
         "flat-ranking"
       ],
       "contextFileCount": 8,

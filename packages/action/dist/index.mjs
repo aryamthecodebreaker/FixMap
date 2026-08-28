@@ -5308,6 +5308,7 @@ async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* 
   const gitLinks = [];
   const seenRealPaths = /* @__PURE__ */ new Map();
   const linked = [];
+  const escapedLinks = [];
   const realRoot = await resolveRealPath(root);
   const preparePath = async (rawPath, index) => {
     const relativePath = normalizePath3(rawPath);
@@ -5354,6 +5355,10 @@ async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* 
       if (scanned.status !== "ok") {
         continue;
       }
+      if (!containedPath(realRoot, scanned.realPath)) {
+        escapedLinks.push(relativePath);
+        continue;
+      }
       const seenIndex = seenRealPaths.get(scanned.realPath);
       if (seenIndex !== void 0) {
         const seenFile = results[seenIndex];
@@ -5385,6 +5390,7 @@ async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* 
   }
   reportAbsentTrackedPaths(diagnostics, absent);
   reportLinkedDuplicates(diagnostics, linked);
+  reportEscapedLinks(diagnostics, escapedLinks);
   reportSkippedSubmodules(diagnostics, gitLinks);
   const files = results.sort((a, b) => a.path.localeCompare(b.path));
   const indexedFiles = files.flatMap((file) => {
@@ -5471,6 +5477,17 @@ function reportLinkedDuplicates(diagnostics, linked) {
     code: "duplicate-real-path",
     severity: "info",
     message: `${linked.length.toLocaleString()} tracked path${linked.length === 1 ? "" : "s"} resolved to a file already scanned under another name and ${linked.length === 1 ? "was" : "were"} ranked once: ${sample}${linked.length > 3 ? ", \u2026" : ""}.`
+  });
+}
+function reportEscapedLinks(diagnostics, paths) {
+  if (paths.length === 0)
+    return;
+  const unique = [...new Set(paths)].sort();
+  diagnostics.push({
+    code: "linked-paths-skipped",
+    severity: "info",
+    message: `Skipped ${unique.length.toLocaleString()} tracked or untracked linked ${unique.length === 1 ? "path" : "paths"} because ${unique.length === 1 ? "it resolves" : "they resolve"} outside the repository: ${unique.slice(0, 5).map(markdownCode).join(", ")}${unique.length > 5 ? ", ..." : ""}.`,
+    paths: unique.slice(0, 8)
   });
 }
 async function walkFiles(root, current, diagnostics, state, internalCacheRoot, internalPaths) {

@@ -471,9 +471,10 @@ See [SECURITY.md](SECURITY.md) for the trust model and reporting process.
 ```bash
 npm ci
 npm run ci
+npm run stress:v0.10
 ```
 
-The workspace contains the deterministic core, CLI/MCP server, GitHub Action, Next.js website, benchmarks, examples, and release scripts. Start with [CONTRIBUTING.md](CONTRIBUTING.md); architecture and full usage details live in the [documentation site](https://usefixmap.vercel.app/docs).
+The v0.10 stress gate runs concurrent cold analyses against one cache, exact-state warm reuse, corrupt-index recovery, saved-report isolation, outside-link containment, and raw MCP initialization/parse-error checks. It is bounded and runs inside temporary directories; it supplements rather than replaces the full unit, cross-platform CI, evaluation, packaging, and production-smoke matrix. The workspace contains the deterministic core, CLI/MCP server, GitHub Action, Next.js website, benchmarks, examples, and release scripts. Start with [CONTRIBUTING.md](CONTRIBUTING.md); architecture and full usage details live in the [documentation site](https://usefixmap.vercel.app/docs).
 
 ## Releases
 

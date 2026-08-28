@@ -688,6 +688,7 @@ async function buildFilesFromPaths(
   // git listed first would have made that an alphabetical accident.
   const seenRealPaths = new Map<string, number>();
   const linked: Array<{ path: string; target: string }> = [];
+  const escapedLinks: string[] = [];
   // macOS temporary directories commonly enter through /var while realpath returns
   // /private/var. Resolve the repository root once so that prefix alias does not make
   // every ordinary file look like a symlink.
@@ -746,6 +747,10 @@ async function buildFilesFromPaths(
       if (scanned.status !== "ok") {
         continue;
       }
+      if (!containedPath(realRoot, scanned.realPath)) {
+        escapedLinks.push(relativePath);
+        continue;
+      }
 
       const seenIndex = seenRealPaths.get(scanned.realPath);
       if (seenIndex !== undefined) {
@@ -779,6 +784,7 @@ async function buildFilesFromPaths(
 
   reportAbsentTrackedPaths(diagnostics, absent);
   reportLinkedDuplicates(diagnostics, linked);
+  reportEscapedLinks(diagnostics, escapedLinks);
   reportSkippedSubmodules(diagnostics, gitLinks);
 
   const files = results.sort((a, b) => a.path.localeCompare(b.path));
@@ -932,6 +938,20 @@ function reportLinkedDuplicates(
       `${linked.length.toLocaleString()} tracked path${linked.length === 1 ? "" : "s"} resolved to a file already ` +
       `scanned under another name and ${linked.length === 1 ? "was" : "were"} ranked once: ${sample}` +
       `${linked.length > 3 ? ", …" : ""}.`
+  });
+}
+
+function reportEscapedLinks(diagnostics: RepoMap["diagnostics"], paths: string[]): void {
+  if (paths.length === 0) return;
+  const unique = [...new Set(paths)].sort();
+  diagnostics.push({
+    code: "linked-paths-skipped",
+    severity: "info",
+    message:
+      `Skipped ${unique.length.toLocaleString()} tracked or untracked linked ${unique.length === 1 ? "path" : "paths"} ` +
+      `because ${unique.length === 1 ? "it resolves" : "they resolve"} outside the repository: ` +
+      `${unique.slice(0, 5).map(markdownCode).join(", ")}${unique.length > 5 ? ", ..." : ""}.`,
+    paths: unique.slice(0, 8)
   });
 }
 
