@@ -168,6 +168,24 @@ describe("buildFixMapReport", () => {
     });
   });
 
+  it("scans Composer Pest evidence without routing the Pest bootstrap as a test", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-plan-pest-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, "tests"), { recursive: true });
+    await writeFile(join(root, "composer.json"), JSON.stringify({ "require-dev": { "pestphp/pest": "^3" } }));
+    await writeFile(join(root, "tests", "Pest.php"), "<?php\npest()->extend(TestCase::class);\n");
+    await writeFile(join(root, "src", "Token.php"), "<?php\nclass Token { public function expired() { return false; } }\n");
+    await writeFile(join(root, "tests", "TokenTest.php"), "<?php\nit('checks token', fn () => true);\n");
+
+    const analysis = await buildFixMapAnalysis({ repoRoot: root, issueText: "Token expired returns the wrong value" });
+
+    expect(analysis.repo.files.find((file) => file.path === "tests/Pest.php")?.kind).toBe("config");
+    expect(analysis.report.testRoutes[0]).toMatchObject({
+      command: "vendor/bin/pest",
+      relatedFiles: ["tests/TokenTest.php"]
+    });
+  });
+
   it("scans Ruby test evidence without treating a Gemfile as RSpec evidence", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-plan-ruby-"));
     await mkdir(join(root, "lib"), { recursive: true });

@@ -80,4 +80,29 @@ describe("Composer project evidence", () => {
       .toBe("services/api/composer.json");
     expect(composerProjectForPath(projects, "src/App.php")?.path).toBe("composer.json");
   });
+
+  it("routes Pest only from an explicit dependency and keeps Composer scripts authoritative", () => {
+    const pest = buildComposerProjects([
+      file("services/api/composer.json", JSON.stringify({ "require-dev": { "pestphp/pest": "^3" } })),
+      file("services/api/tests/Pest.php", "<?php\n")
+    ])[0]!;
+    const bare = buildComposerProjects([
+      file("composer.json", "{}"),
+      file("tests/Pest.php", "<?php\n")
+    ])[0]!;
+    const scripted = buildComposerProjects([
+      file("composer.json", JSON.stringify({
+        scripts: { test: "pest --parallel" },
+        "require-dev": { "pestphp/pest": "^3" }
+      }))
+    ])[0]!;
+
+    expect(composerTestCommandForProject(pest)).toEqual({
+      command: "services/api/vendor/bin/pest",
+      reason: "services/api/composer.json declares pestphp/pest and services/api/tests/Pest.php configures the suite",
+      scopeDir: "services/api"
+    });
+    expect(composerTestCommandForProject(bare)).toBeUndefined();
+    expect(composerTestCommandForProject(scripted)?.command).toBe("composer test");
+  });
 });

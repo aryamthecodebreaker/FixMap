@@ -1207,13 +1207,16 @@ function buildComposerProjects(files) {
     const requireDev = isRecord(manifest["require-dev"]) ? manifest["require-dev"] : {};
     const required = isRecord(manifest.require) ? manifest.require : {};
     const phpunitConfig = ["phpunit.xml", "phpunit.xml.dist"].map((name) => root ? `${root}/${name}` : name).map((path) => canonicalPaths.get(path.toLowerCase())).find((path) => path !== void 0);
+    const pestConfig = ["tests/Pest.php", "Pest.php"].map((name) => root ? `${root}/${name}` : name).map((path) => canonicalPaths.get(path.toLowerCase())).find((path) => path !== void 0);
     return [{
       path: file.path,
       root,
       psr4: [...autoload.psr4, ...autoloadDev.psr4].sort((left, right) => right.prefix.length - left.prefix.length || left.prefix.localeCompare(right.prefix)),
       classmap: [.../* @__PURE__ */ new Set([...autoload.classmap, ...autoloadDev.classmap])].sort((left, right) => left.localeCompare(right)),
       testScript,
+      pestDependency: typeof requireDev["pestphp/pest"] === "string" && requireDev["pestphp/pest"].trim().length > 0 || typeof required["pestphp/pest"] === "string" && required["pestphp/pest"].trim().length > 0,
       phpunitDependency: typeof requireDev["phpunit/phpunit"] === "string" && requireDev["phpunit/phpunit"].trim().length > 0 || typeof required["phpunit/phpunit"] === "string" && required["phpunit/phpunit"].trim().length > 0,
+      ...pestConfig ? { pestConfig } : {},
       ...phpunitConfig ? { phpunitConfig } : {}
     }];
   });
@@ -1259,6 +1262,14 @@ function composerTestCommandForProject(project) {
     return {
       command: project.root ? `composer --working-dir ${project.root} test` : "composer test",
       reason: `${project.path} explicitly declares the Composer test script`,
+      scopeDir: project.root
+    };
+  }
+  if (project.pestDependency) {
+    const executable = project.root ? `${project.root}/vendor/bin/pest` : "vendor/bin/pest";
+    return {
+      command: executable,
+      reason: project.pestConfig ? `${project.path} declares pestphp/pest and ${project.pestConfig} configures the suite` : `${project.path} declares pestphp/pest in its dependencies`,
       scopeDir: project.root
     };
   }
@@ -5106,6 +5117,7 @@ var CONVENTIONAL_CONFIG_NAMES = /* @__PURE__ */ new Set([
   "gradlew.bat",
   "mvnw",
   "mvnw.cmd",
+  "pest.php",
   "phpunit.xml",
   "phpunit.xml.dist",
   "pyproject.toml",

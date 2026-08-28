@@ -133,6 +133,21 @@ describe("scanRepo", () => {
     expect(repo.files.find((file) => file.path === "go.work")?.textSample).toBe("go 1.24\nuse ./services/api\n");
   });
 
+  it("classifies Pest bootstrap files as test configuration, not executable tests", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-pest-config-"));
+    await mkdir(join(root, "tests"), { recursive: true });
+    await writeFile(join(root, "tests", "Pest.php"), "<?php\npest()->extend(TestCase::class);\n");
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.find((file) => file.path === "tests/Pest.php")).toMatchObject({
+      isSource: true,
+      isTest: true,
+      kind: "config",
+      textSample: "<?php\npest()->extend(TestCase::class);\n"
+    });
+  });
+
   it("recognizes Go, Python, Ruby, Java, C#, PHP, and TypeScript test naming conventions", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-test-patterns-"));
     await mkdir(join(root, "spec"), { recursive: true });

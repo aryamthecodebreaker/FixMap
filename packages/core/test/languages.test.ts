@@ -238,6 +238,23 @@ describe("test routing beyond package scripts", () => {
     expect(buildTestRoutes(repo, ["src/App.php"])[0]?.command).toBe("vendor/bin/phpunit");
   });
 
+  it("routes a nested Pest suite only from Composer dependency evidence", () => {
+    const repo = repoOf([
+      file("services/api/composer.json", {
+        kind: "config",
+        textSample: JSON.stringify({ "require-dev": { "pestphp/pest": "^3" } })
+      }),
+      file("services/api/tests/Pest.php", { kind: "config", isTest: true }),
+      file("services/api/src/App.php"),
+      file("services/api/tests/AppTest.php", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(repo, ["services/api/src/App.php"])[0]).toMatchObject({
+      command: "services/api/vendor/bin/pest",
+      relatedFiles: ["services/api/tests/AppTest.php"]
+    });
+  });
+
   it("scopes a workspace cargo command to the crate being edited", () => {
     const repo = repoOf([
       file("Cargo.toml", { isSource: false, kind: "config" }),
