@@ -1,6 +1,7 @@
 import { extractLanguageDefinitions, extractLanguageImports, languageAdapterForFile, type LanguageImport } from "./language-adapters.js";
 import { buildComposerProjects, resolveComposerSymbol, type ComposerProject } from "./composer-projects.js";
 import { buildDotnetProjects, dotnetReferenceClosure, type DotnetProject } from "./dotnet-projects.js";
+import { buildRustProjects, rustPathDependency, rustProjectForPath, type RustProject } from "./rust-projects.js";
 import type { RepoFile } from "./types.js";
 
 const RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"];
@@ -31,6 +32,7 @@ type ResolverIndex = {
   javaPackagePaths: Map<string, string[]>;
   directoryPaths: Map<string, string[]>;
   goModules: Array<{ name: string; root: string }>;
+  rustProjects: RustProject[];
   phpSymbols: Map<string, string[]>;
   phpNamespaces: Map<string, string[]>;
   dotnetNamespaces: Map<string, string[]>;
@@ -45,7 +47,8 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
   const parseable = allParseable.slice(0, MAX_GRAPH_FILES);
   const dotnetProjects = buildDotnetProjects(files);
   const composerProjects = buildComposerProjects(files);
-  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects);
+  const rustProjects = buildRustProjects(files);
+  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects);
   const aliases = buildAliases(files);
   const workspacePackages = buildWorkspacePackages(files);
   const imports = new Map<string, Set<string>>();
@@ -218,11 +221,18 @@ function resolveGoImport(imported: LanguageImport, resolverIndex: ResolverIndex)
 }
 
 function resolveRustImport(fromPath: string, imported: LanguageImport, resolverIndex: ResolverIndex): string[] {
+  if (imported.specifier.startsWith("file:")) {
+    const raw = imported.specifier.slice("file:".length);
+    const target = normalizeSegments(`${fromPath.split("/").slice(0, -1).join("/")}/${raw}`);
+    if (!target) return [];
+    return resolverIndex.repoPaths.has(target) ? [target] : resolverIndex.repoPaths.has(`${target}.rs`) ? [`${target}.rs`] : [];
+  }
   const cargoRoot = nearestManifestDirectory(fromPath, "Cargo.toml", resolverIndex.repoPaths);
   const sourceRoot = cargoRoot ? `${cargoRoot}/src`.replace(/^\//, "") : fromPath.startsWith("src/") ? "src" : "";
   const segments = imported.specifier.replace(/::\*$/, "").split("::").filter(Boolean);
   const head = segments.shift();
   let base: string;
+  let externalRoot: string | undefined;
   if (head === "crate") {
     base = sourceRoot;
   } else if (head === "self" || head === "super") {
@@ -233,6 +243,16 @@ function resolveRustImport(fromPath: string, imported: LanguageImport, resolverI
     const moduleSegments = isRootModule ? pathSegments : [...pathSegments, stem];
     if (head === "super") moduleSegments.pop();
     base = moduleSegments.join("/");
+  } else if (head) {
+    const project = rustProjectForPath(resolverIndex.rustProjects, fromPath);
+    const dependency = project ? rustPathDependency(project, head) : undefined;
+    if (!dependency) return [];
+    base = [dependency.root, "src"].filter(Boolean).join("/");
+    externalRoot = [`${base}/lib.rs`, `${base}/main.rs`, `${base}/mod.rs`]
+      .find((candidate) => resolverIndex.repoPaths.has(candidate));
+    if (segments.length === 0) {
+      return externalRoot ? [externalRoot] : [];
+    }
   } else {
     return [];
   }
@@ -241,7 +261,7 @@ function resolveRustImport(fromPath: string, imported: LanguageImport, resolverI
     const match = [`${root}.rs`, `${root}/mod.rs`].find((candidate) => resolverIndex.repoPaths.has(candidate));
     if (match) return [match];
   }
-  return [];
+  return externalRoot ? [externalRoot] : [];
 }
 
 function resolveRubyImport(fromPath: string, imported: LanguageImport, resolverIndex: ResolverIndex): string[] {
@@ -315,7 +335,8 @@ function resolveDotnetImport(fromPath: string, imported: LanguageImport, resolve
 function buildResolverIndex(
   files: RepoFile[],
   dotnetProjects: DotnetProject[],
-  composerProjects: ComposerProject[]
+  composerProjects: ComposerProject[],
+  rustProjects: RustProject[]
 ): ResolverIndex {
   const repoPaths = new Set(files.map((file) => file.path));
   const suffixPaths = new Map<string, string[]>();
@@ -390,6 +411,7 @@ function buildResolverIndex(
     javaPackagePaths,
     directoryPaths,
     goModules,
+    rustProjects,
     phpSymbols,
     phpNamespaces,
     dotnetNamespaces,

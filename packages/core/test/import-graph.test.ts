@@ -137,6 +137,44 @@ describe("buildImportGraph", () => {
     expect([...(graph.imports.get("src/service.rs") ?? [])]).toEqual(["src/auth.rs"]);
   });
 
+  it("resolves renamed Cargo path dependencies, inherited workspace dependencies, and path modules", () => {
+    const files = [
+      codeFile("Cargo.toml", [
+        "[workspace]",
+        'members = ["crates/*"]',
+        "[workspace.dependencies]",
+        'shared = { package = "shared-core", path = "crates/shared" }'
+      ].join("\n")),
+      codeFile("crates/app/Cargo.toml", [
+        "[package]",
+        'name = "app"',
+        "[dependencies]",
+        "shared = { workspace = true }",
+        'renamed-util = { package = "util-core", path = "../util" }'
+      ].join("\n")),
+      codeFile("crates/app/src/main.rs", [
+        "use shared::Account;",
+        "use renamed_util::auth::Token;",
+        '#[path = "generated/custom.rs"]',
+        "mod custom;"
+      ].join("\n")),
+      codeFile("crates/app/src/generated/custom.rs", "pub fn custom() {}"),
+      codeFile("crates/shared/Cargo.toml", '[package]\nname = "shared-core"'),
+      codeFile("crates/shared/src/lib.rs", "pub struct Account;"),
+      codeFile("crates/util/Cargo.toml", '[package]\nname = "util-core"'),
+      codeFile("crates/util/src/lib.rs", "pub mod auth;"),
+      codeFile("crates/util/src/auth.rs", "pub struct Token;")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("crates/app/src/main.rs") ?? [])].sort()).toEqual([
+      "crates/app/src/generated/custom.rs",
+      "crates/shared/src/lib.rs",
+      "crates/util/src/auth.rs"
+    ]);
+  });
+
   it("resolves Ruby relative and load-path requires", () => {
     const files = [
       codeFile("app/services/reset.rb", "require_relative '../tokens'\nrequire 'auth/audit'"),

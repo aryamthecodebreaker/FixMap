@@ -97,6 +97,8 @@ describe("built-in language adapters", () => {
     const file = sample(".rs", [
       "use crate::auth::{Token, verify};",
       "pub mod parser;",
+      '#[path = "../generated/parser.rs"]',
+      "mod generated_parser;",
       "pub struct PasswordResetService;",
       "pub trait Resettable {}",
       "pub type UserId = String;",
@@ -104,6 +106,7 @@ describe("built-in language adapters", () => {
       "pub async fn reset_password() {}"
     ].join("\n"));
     expect(extractLanguageImports(file)).toEqual([
+      { adapter: "rust", specifier: "file:../generated/parser.rs", importedNames: [], wildcard: false },
       { adapter: "rust", specifier: "crate::auth", importedNames: [], wildcard: false },
       { adapter: "rust", specifier: "self::parser", importedNames: [], wildcard: false }
     ]);

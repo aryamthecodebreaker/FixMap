@@ -251,13 +251,20 @@ var rustAdapter = {
   extensions: [".rs"],
   extractImports(text) {
     const imports = [];
+    const pathModules = /* @__PURE__ */ new Set();
+    for (const match of text.matchAll(/^\s*#\s*\[\s*path\s*=\s*["']([^"'\n]+)["']\s*\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/gm)) {
+      if (match[1] && match[2]) {
+        pathModules.add(match[2]);
+        imports.push({ adapter: "rust", specifier: `file:${match[1]}`, importedNames: [], wildcard: false });
+      }
+    }
     for (const match of text.matchAll(/^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([^;\n]+)\s*;/gm)) {
       const specifier = (match[1] ?? "").replace(/\s+/g, "").replace(/::\{.*$/, "");
       if (specifier)
         imports.push({ adapter: "rust", specifier, importedNames: [], wildcard: specifier.endsWith("::*") });
     }
     for (const match of text.matchAll(/^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/gm)) {
-      if (match[1])
+      if (match[1] && !pathModules.has(match[1]))
         imports.push({ adapter: "rust", specifier: `self::${match[1]}`, importedNames: [], wildcard: false });
     }
     return uniqueImports(imports);
@@ -1771,6 +1778,124 @@ function languageForManifest(path) {
   return ROOT_MANIFESTS[name] ?? (/\.(?:csproj|fsproj|vbproj)$/.test(name) ? "dotnet" : void 0);
 }
 
+// packages/core/dist/rust-projects.js
+function buildRustProjects(files) {
+  const manifests = files.filter((file) => file.path.split("/").pop()?.toLowerCase() === "cargo.toml").sort((left, right) => left.path.localeCompare(right.path));
+  const manifestRoots = new Set(manifests.map((file) => directoryOf4(file.path)));
+  const parsed = manifests.map((manifest) => parseManifest(manifest, manifestRoots));
+  return parsed.map((project) => {
+    const inherited = project.inherited.flatMap((alias) => {
+      const owner = [...parsed].filter((candidate) => contains(candidate.root, project.root)).sort((left, right) => depth3(right.root) - depth3(left.root) || left.path.localeCompare(right.path)).find((candidate) => candidate.workspace.some((dependency2) => dependency2.alias === alias));
+      const dependency = owner?.workspace.find((candidate) => candidate.alias === alias);
+      return dependency ? [{ ...dependency }] : [];
+    });
+    const byAlias = /* @__PURE__ */ new Map();
+    for (const dependency of [...project.direct, ...inherited])
+      byAlias.set(rustIdentifier(dependency.alias), dependency);
+    return {
+      path: project.path,
+      root: project.root,
+      ...project.name ? { name: project.name } : {},
+      pathDependencies: [...byAlias.values()].sort((left, right) => left.alias.localeCompare(right.alias))
+    };
+  });
+}
+function rustProjectForPath(projects, path) {
+  const matching = projects.filter((project) => contains(project.root, directoryOf4(path)));
+  if (matching.length === 0)
+    return void 0;
+  const deepest = Math.max(...matching.map((project) => depth3(project.root)));
+  const nearest = matching.filter((project) => depth3(project.root) === deepest);
+  return nearest.length === 1 ? nearest[0] : void 0;
+}
+function rustPathDependency(project, identifier) {
+  const normalized = rustIdentifier(identifier);
+  return project.pathDependencies.find((dependency) => rustIdentifier(dependency.alias) === normalized);
+}
+function parseManifest(file, manifestRoots) {
+  const root = directoryOf4(file.path);
+  let section2 = "";
+  let name;
+  const direct = [];
+  const workspace = [];
+  const inherited = [];
+  for (const raw of file.textSample.split(/\r?\n/)) {
+    const line = raw.replace(/\s+#.*$/, "").trim();
+    const heading = /^\[([^\]]+)\]$/.exec(line)?.[1]?.trim().toLowerCase();
+    if (heading) {
+      section2 = heading;
+      continue;
+    }
+    if (section2 === "package" && !name) {
+      name = /^name\s*=\s*["']([^"']+)["']\s*$/.exec(line)?.[1]?.trim();
+      continue;
+    }
+    const dependencySection = section2 === "dependencies" || section2 === "dev-dependencies" || section2 === "build-dependencies" || section2.endsWith(".dependencies");
+    const workspaceSection = section2 === "workspace.dependencies";
+    if (!dependencySection && !workspaceSection)
+      continue;
+    const match = /^([A-Za-z0-9_-]+)\s*=\s*\{([^}]*)\}\s*$/.exec(line);
+    if (!match?.[1] || !match[2])
+      continue;
+    const alias = rustIdentifier(match[1]);
+    const fields = match[2];
+    const packageName = /(?:^|,)\s*package\s*=\s*["']([^"']+)["']/.exec(fields)?.[1]?.trim();
+    const rawPath = /(?:^|,)\s*path\s*=\s*["']([^"']+)["']/.exec(fields)?.[1]?.trim();
+    if (rawPath) {
+      const targetRoot = normalizeRelativeRoot(root, rawPath);
+      if (!targetRoot || !manifestRoots.has(targetRoot))
+        continue;
+      const dependency = {
+        alias,
+        ...packageName ? { package: packageName } : {},
+        root: targetRoot,
+        evidencePath: file.path
+      };
+      (workspaceSection ? workspace : direct).push(dependency);
+      continue;
+    }
+    if (dependencySection && /(?:^|,)\s*workspace\s*=\s*true\s*(?:,|$)/.test(fields))
+      inherited.push(alias);
+  }
+  return {
+    path: file.path,
+    root,
+    ...name ? { name } : {},
+    direct,
+    workspace,
+    inherited: [...new Set(inherited)].sort()
+  };
+}
+function normalizeRelativeRoot(root, value) {
+  if (!value || /^[\\/]/.test(value) || /^[A-Za-z]:/.test(value) || value.includes("\0"))
+    return void 0;
+  const output = root.split("/").filter(Boolean);
+  for (const segment of value.replace(/\\/g, "/").split("/")) {
+    if (!segment || segment === ".")
+      continue;
+    if (segment === "..") {
+      if (output.length === 0)
+        return void 0;
+      output.pop();
+    } else {
+      output.push(segment);
+    }
+  }
+  return output.join("/");
+}
+function rustIdentifier(value) {
+  return value.trim().replace(/-/g, "_");
+}
+function contains(root, path) {
+  return root ? path === root || path.startsWith(`${root}/`) : true;
+}
+function directoryOf4(path) {
+  return path.split("/").slice(0, -1).join("/");
+}
+function depth3(path) {
+  return path.split("/").filter(Boolean).length;
+}
+
 // packages/core/dist/import-graph.js
 var RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"];
 var COMPILED_TO_SOURCE = {
@@ -1785,7 +1910,8 @@ function buildImportGraph(files) {
   const parseable = allParseable.slice(0, MAX_GRAPH_FILES);
   const dotnetProjects = buildDotnetProjects(files);
   const composerProjects = buildComposerProjects(files);
-  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects);
+  const rustProjects = buildRustProjects(files);
+  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects);
   const aliases = buildAliases(files);
   const workspacePackages = buildWorkspacePackages(files);
   const imports = /* @__PURE__ */ new Map();
@@ -1931,11 +2057,19 @@ function resolveGoImport(imported, resolverIndex) {
   return (resolverIndex.directoryPaths.get(directory) ?? []).filter((path) => path.endsWith(".go") && !path.endsWith("_test.go")).sort(shortestPathFirst).slice(0, 20);
 }
 function resolveRustImport(fromPath, imported, resolverIndex) {
+  if (imported.specifier.startsWith("file:")) {
+    const raw = imported.specifier.slice("file:".length);
+    const target = normalizeSegments(`${fromPath.split("/").slice(0, -1).join("/")}/${raw}`);
+    if (!target)
+      return [];
+    return resolverIndex.repoPaths.has(target) ? [target] : resolverIndex.repoPaths.has(`${target}.rs`) ? [`${target}.rs`] : [];
+  }
   const cargoRoot = nearestManifestDirectory(fromPath, "Cargo.toml", resolverIndex.repoPaths);
   const sourceRoot = cargoRoot ? `${cargoRoot}/src`.replace(/^\//, "") : fromPath.startsWith("src/") ? "src" : "";
   const segments = imported.specifier.replace(/::\*$/, "").split("::").filter(Boolean);
   const head = segments.shift();
   let base;
+  let externalRoot;
   if (head === "crate") {
     base = sourceRoot;
   } else if (head === "self" || head === "super") {
@@ -1947,6 +2081,16 @@ function resolveRustImport(fromPath, imported, resolverIndex) {
     if (head === "super")
       moduleSegments.pop();
     base = moduleSegments.join("/");
+  } else if (head) {
+    const project = rustProjectForPath(resolverIndex.rustProjects, fromPath);
+    const dependency = project ? rustPathDependency(project, head) : void 0;
+    if (!dependency)
+      return [];
+    base = [dependency.root, "src"].filter(Boolean).join("/");
+    externalRoot = [`${base}/lib.rs`, `${base}/main.rs`, `${base}/mod.rs`].find((candidate) => resolverIndex.repoPaths.has(candidate));
+    if (segments.length === 0) {
+      return externalRoot ? [externalRoot] : [];
+    }
   } else {
     return [];
   }
@@ -1956,7 +2100,7 @@ function resolveRustImport(fromPath, imported, resolverIndex) {
     if (match)
       return [match];
   }
-  return [];
+  return externalRoot ? [externalRoot] : [];
 }
 function resolveRubyImport(fromPath, imported, resolverIndex) {
   const separator = imported.specifier.indexOf(":");
@@ -2012,7 +2156,7 @@ function resolveDotnetImport(fromPath, imported, resolverIndex) {
     return targetProject !== void 0 && reachableProjects.has(targetProject.path);
   }).slice(0, 20);
 }
-function buildResolverIndex(files, dotnetProjects, composerProjects) {
+function buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects) {
   const repoPaths = new Set(files.map((file) => file.path));
   const suffixPaths = /* @__PURE__ */ new Map();
   const javaPackagePaths = /* @__PURE__ */ new Map();
@@ -2091,6 +2235,7 @@ function buildResolverIndex(files, dotnetProjects, composerProjects) {
     javaPackagePaths,
     directoryPaths,
     goModules,
+    rustProjects,
     phpSymbols,
     phpNamespaces,
     dotnetNamespaces,
@@ -7183,11 +7328,11 @@ function trimToBoundary(text) {
 function splitExcludeInput(raw) {
   const patterns2 = [];
   let current = "";
-  let depth3 = 0;
+  let depth4 = 0;
   for (const character of raw) {
-    if (character === "{") depth3 += 1;
-    else if (character === "}") depth3 = Math.max(0, depth3 - 1);
-    if (character === "\n" || character === "\r" || character === "," && depth3 === 0) {
+    if (character === "{") depth4 += 1;
+    else if (character === "}") depth4 = Math.max(0, depth4 - 1);
+    if (character === "\n" || character === "\r" || character === "," && depth4 === 0) {
       patterns2.push(current);
       current = "";
       continue;

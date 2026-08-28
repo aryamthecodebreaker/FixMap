@@ -193,12 +193,19 @@ const rustAdapter: LanguageAdapter = {
   extensions: [".rs"],
   extractImports(text) {
     const imports: LanguageImport[] = [];
+    const pathModules = new Set<string>();
+    for (const match of text.matchAll(/^\s*#\s*\[\s*path\s*=\s*["']([^"'\n]+)["']\s*\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/gm)) {
+      if (match[1] && match[2]) {
+        pathModules.add(match[2]);
+        imports.push({ adapter: "rust", specifier: `file:${match[1]}`, importedNames: [], wildcard: false });
+      }
+    }
     for (const match of text.matchAll(/^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([^;\n]+)\s*;/gm)) {
       const specifier = (match[1] ?? "").replace(/\s+/g, "").replace(/::\{.*$/, "");
       if (specifier) imports.push({ adapter: "rust", specifier, importedNames: [], wildcard: specifier.endsWith("::*") });
     }
     for (const match of text.matchAll(/^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/gm)) {
-      if (match[1]) imports.push({ adapter: "rust", specifier: `self::${match[1]}`, importedNames: [], wildcard: false });
+      if (match[1] && !pathModules.has(match[1])) imports.push({ adapter: "rust", specifier: `self::${match[1]}`, importedNames: [], wildcard: false });
     }
     return uniqueImports(imports);
   },

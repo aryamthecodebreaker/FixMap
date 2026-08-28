@@ -10,6 +10,7 @@ describe("public entrypoint parity", () => {
     "renderAgentReport",
     "buildImpactMap",
     "buildRubyProjects",
+    "buildRustProjects",
     "buildChangeScope",
     "buildCapabilityMap",
     "validateFixMapReport",

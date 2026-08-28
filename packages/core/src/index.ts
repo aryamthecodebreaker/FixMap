@@ -92,6 +92,8 @@ export { buildComposerProjects, composerProjectForPath, composerTestCommandForPr
 export type { ComposerProject } from "./composer-projects.js";
 export { buildRubyProjects, rubyProjectForPath, rubyTestCommandForProject } from "./ruby-projects.js";
 export type { RubyProject } from "./ruby-projects.js";
+export { buildRustProjects, rustPathDependency, rustProjectForPath } from "./rust-projects.js";
+export type { RustPathDependency, RustProject } from "./rust-projects.js";
 export { buildChangeScope, renderChangeScopeMarkdown } from "./change-scope.js";
 export type {
   ChangeScopeAnchor,
