@@ -125,6 +125,39 @@ describe("buildImportGraph", () => {
     ]);
   });
 
+  it("resolves Go cross-module imports only through an explicit workspace and longest module prefix", () => {
+    const files = [
+      codeFile("go.work", "go 1.24\nuse (\n ./services/api\n ./services/auth\n ./services/authv2\n)\n"),
+      codeFile("services/api/go.mod", "module corp.example/api\n"),
+      codeFile("services/api/main.go", [
+        "package api",
+        'import "corp.example/auth/token"',
+        'import authv2 "corp.example/auth/v2/token"'
+      ].join("\n")),
+      codeFile("services/auth/go.mod", "module corp.example/auth\n"),
+      codeFile("services/auth/token/token.go", "package token\ntype Token struct{}"),
+      codeFile("services/authv2/go.mod", "module corp.example/auth/v2\n"),
+      codeFile("services/authv2/token/token.go", "package token\ntype TokenV2 struct{}"),
+      codeFile("decoy/go.mod", "module corp.example/auth\n"),
+      codeFile("decoy/token/token.go", "package token\ntype Decoy struct{}")
+    ];
+    const graph = buildImportGraph(files);
+    expect([...(graph.imports.get("services/api/main.go") ?? [])].sort()).toEqual([
+      "services/auth/token/token.go",
+      "services/authv2/token/token.go"
+    ]);
+  });
+
+  it("does not connect independent Go modules that share a checkout without go.work evidence", () => {
+    const graph = buildImportGraph([
+      codeFile("api/go.mod", "module corp.example/api\n"),
+      codeFile("api/main.go", 'package api\nimport "corp.example/auth"'),
+      codeFile("auth/go.mod", "module corp.example/auth\n"),
+      codeFile("auth/auth.go", "package auth\nfunc Login() {}")
+    ]);
+    expect([...(graph.imports.get("api/main.go") ?? [])]).toEqual([]);
+  });
+
   it("resolves Rust crate, self-module, and symbol-qualified uses", () => {
     const files = [
       codeFile("Cargo.toml", "[package]\nname = 'acme'"),

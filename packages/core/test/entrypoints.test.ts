@@ -11,6 +11,7 @@ describe("public entrypoint parity", () => {
     "buildImpactMap",
     "buildRubyProjects",
     "buildRustProjects",
+    "buildGoWorkspaces",
     "buildChangeScope",
     "buildCapabilityMap",
     "validateFixMapReport",

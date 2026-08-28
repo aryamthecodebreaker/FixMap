@@ -94,6 +94,8 @@ export { buildRubyProjects, rubyProjectForPath, rubyTestCommandForProject } from
 export type { RubyProject } from "./ruby-projects.js";
 export { buildRustProjects, rustPathDependency, rustProjectForPath } from "./rust-projects.js";
 export type { RustPathDependency, RustProject } from "./rust-projects.js";
+export { buildGoModules, buildGoWorkspaces, goModuleForPath, goWorkspaceForModules } from "./go-projects.js";
+export type { GoModule, GoWorkspace } from "./go-projects.js";
 export { buildChangeScope, renderChangeScopeMarkdown } from "./change-scope.js";
 export type {
   ChangeScopeAnchor,

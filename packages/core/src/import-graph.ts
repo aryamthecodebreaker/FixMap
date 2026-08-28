@@ -2,6 +2,7 @@ import { extractLanguageDefinitions, extractLanguageImports, languageAdapterForF
 import { buildComposerProjects, resolveComposerSymbol, type ComposerProject } from "./composer-projects.js";
 import { buildDotnetProjects, dotnetReferenceClosure, type DotnetProject } from "./dotnet-projects.js";
 import { buildRustProjects, rustPathDependency, rustProjectForPath, type RustProject } from "./rust-projects.js";
+import { buildGoModules, buildGoWorkspaces, goModuleForPath, goWorkspaceForModules, type GoModule, type GoWorkspace } from "./go-projects.js";
 import type { RepoFile } from "./types.js";
 
 const RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"];
@@ -31,7 +32,8 @@ type ResolverIndex = {
   suffixPaths: Map<string, string[]>;
   javaPackagePaths: Map<string, string[]>;
   directoryPaths: Map<string, string[]>;
-  goModules: Array<{ name: string; root: string }>;
+  goModules: GoModule[];
+  goWorkspaces: GoWorkspace[];
   rustProjects: RustProject[];
   phpSymbols: Map<string, string[]>;
   phpNamespaces: Map<string, string[]>;
@@ -48,7 +50,9 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
   const dotnetProjects = buildDotnetProjects(files);
   const composerProjects = buildComposerProjects(files);
   const rustProjects = buildRustProjects(files);
-  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects);
+  const goModules = buildGoModules(files);
+  const goWorkspaces = buildGoWorkspaces(files, goModules);
+  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects, goModules, goWorkspaces);
   const aliases = buildAliases(files);
   const workspacePackages = buildWorkspacePackages(files);
   const imports = new Map<string, Set<string>>();
@@ -141,7 +145,7 @@ function resolveLanguageImport(
     return resolveJavaImport(imported, resolverIndex);
   }
   if (imported.adapter === "go") {
-    return resolveGoImport(imported, resolverIndex);
+    return resolveGoImport(fromPath, imported, resolverIndex);
   }
   if (imported.adapter === "rust") {
     return resolveRustImport(fromPath, imported, resolverIndex);
@@ -208,9 +212,18 @@ function resolveJavaImport(imported: LanguageImport, resolverIndex: ResolverInde
     .slice(0, 1);
 }
 
-function resolveGoImport(imported: LanguageImport, resolverIndex: ResolverIndex): string[] {
-  const module = resolverIndex.goModules.find((entry) =>
-    imported.specifier === entry.name || imported.specifier.startsWith(`${entry.name}/`));
+function resolveGoImport(fromPath: string, imported: LanguageImport, resolverIndex: ResolverIndex): string[] {
+  const sourceModule = goModuleForPath(resolverIndex.goModules, fromPath);
+  const candidates = resolverIndex.goModules
+    .filter((entry) => imported.specifier === entry.name || imported.specifier.startsWith(`${entry.name}/`))
+    .sort((left, right) => right.name.length - left.name.length || left.path.localeCompare(right.path));
+  const longest = candidates[0]?.name.length;
+  const equallySpecific = candidates.filter((candidate) => candidate.name.length === longest);
+  const reachable = sourceModule
+    ? equallySpecific.filter((candidate) => candidate.path === sourceModule.path ||
+      goWorkspaceForModules(resolverIndex.goWorkspaces, sourceModule.root, candidate.root) !== undefined)
+    : equallySpecific;
+  const module = reachable.length === 1 ? reachable[0] : undefined;
   if (!module) return [];
   const suffix = imported.specifier === module.name ? "" : imported.specifier.slice(module.name.length + 1);
   const directory = [module.root, suffix].filter(Boolean).join("/");
@@ -336,13 +349,14 @@ function buildResolverIndex(
   files: RepoFile[],
   dotnetProjects: DotnetProject[],
   composerProjects: ComposerProject[],
-  rustProjects: RustProject[]
+  rustProjects: RustProject[],
+  goModules: GoModule[],
+  goWorkspaces: GoWorkspace[]
 ): ResolverIndex {
   const repoPaths = new Set(files.map((file) => file.path));
   const suffixPaths = new Map<string, string[]>();
   const javaPackagePaths = new Map<string, string[]>();
   const directoryPaths = new Map<string, string[]>();
-  const goModules: Array<{ name: string; root: string }> = [];
   const phpSymbols = new Map<string, string[]>();
   const phpNamespaces = new Map<string, string[]>();
   const dotnetNamespaces = new Map<string, string[]>();
@@ -374,10 +388,6 @@ function buildResolverIndex(
       for (let start = 0; start < directories.length; start += 1) {
         addIndexedPath(javaPackagePaths, directories.slice(start).join("/"), file.path);
       }
-    }
-    if (file.path === "go.mod" || file.path.endsWith("/go.mod")) {
-      const name = /^\s*module\s+([^\s]+)\s*$/m.exec(file.textSample)?.[1];
-      if (name) goModules.push({ name, root: segments.slice(0, -1).join("/") });
     }
     if (file.path.toLowerCase().endsWith(".php")) {
       const owner = projectForSourcePath(file.path, composerProjectsByRoot);
@@ -411,6 +421,7 @@ function buildResolverIndex(
     javaPackagePaths,
     directoryPaths,
     goModules,
+    goWorkspaces,
     rustProjects,
     phpSymbols,
     phpNamespaces,

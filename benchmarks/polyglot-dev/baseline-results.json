@@ -406,13 +406,13 @@
     "bm25:raw": {
       "all": {
         "cases": 19,
-        "top1HitRate": 0.421,
+        "top1HitRate": 0.368,
         "top3HitRate": 0.474,
         "top5HitRate": 0.579,
         "intervals95": {
           "top1": [
-            0.231,
-            0.637
+            0.191,
+            0.59
           ],
           "top3": [
             0.273,
@@ -426,13 +426,13 @@
       },
       "unmentioned": {
         "cases": 17,
-        "top1HitRate": 0.353,
+        "top1HitRate": 0.294,
         "top3HitRate": 0.412,
         "top5HitRate": 0.529,
         "intervals95": {
           "top1": [
-            0.173,
-            0.587
+            0.133,
+            0.531
           ],
           "top3": [
             0.216,
@@ -469,7 +469,7 @@
       "all": {
         "cases": 19,
         "top1HitRate": 0.421,
-        "top3HitRate": 0.474,
+        "top3HitRate": 0.526,
         "top5HitRate": 0.579,
         "intervals95": {
           "top1": [
@@ -477,8 +477,8 @@
             0.637
           ],
           "top3": [
-            0.273,
-            0.683
+            0.317,
+            0.727
           ],
           "top5": [
             0.363,
@@ -489,7 +489,7 @@
       "unmentioned": {
         "cases": 17,
         "top1HitRate": 0.353,
-        "top3HitRate": 0.412,
+        "top3HitRate": 0.471,
         "top5HitRate": 0.529,
         "intervals95": {
           "top1": [
@@ -497,8 +497,8 @@
             0.587
           ],
           "top3": [
-            0.216,
-            0.64
+            0.262,
+            0.69
           ],
           "top5": [
             0.31,
@@ -868,61 +868,61 @@
             "path": "logger.go",
             "tier": "corroborated",
             "structuralRank": 5,
-            "structuralScore": 34,
+            "structuralScore": 36,
             "lexicalRank": 8,
             "symbolRank": 8,
             "symbol": "StatusCodeColor",
-            "fusionScore": 39.3
+            "fusionScore": 41.3
           },
           {
             "path": "auth.go",
             "tier": "corroborated",
             "structuralRank": 6,
-            "structuralScore": 30,
+            "structuralScore": 32,
             "lexicalRank": 4,
             "symbolRank": 7,
             "symbol": "BasicAuthForProxy",
-            "fusionScore": 35.58
+            "fusionScore": 37.58
           },
           {
             "path": "gin.go",
             "tier": "corroborated",
             "structuralRank": 7,
-            "structuralScore": 29,
+            "structuralScore": 31,
             "lexicalRank": 2,
             "symbolRank": 3,
             "symbol": "RunListener",
-            "fusionScore": 34.86
+            "fusionScore": 36.86
           },
           {
             "path": "tree.go",
             "tier": "corroborated",
-            "structuralRank": 11,
-            "structuralScore": 26,
+            "structuralRank": 10,
+            "structuralScore": 28,
             "lexicalRank": 9,
             "symbolRank": 5,
             "symbol": "Param",
-            "fusionScore": 31.36
+            "fusionScore": 33.36
           },
           {
             "path": "test_helpers.go",
             "tier": "corroborated",
-            "structuralRank": 10,
-            "structuralScore": 26,
+            "structuralRank": 9,
+            "structuralScore": 28,
             "lexicalRank": 14,
             "symbolRank": 27,
             "symbol": "CreateTestContext",
-            "fusionScore": 30.18
+            "fusionScore": 32.18
           },
           {
             "path": "debug.go",
             "tier": "corroborated",
             "structuralRank": 8,
-            "structuralScore": 26,
+            "structuralScore": 28,
             "lexicalRank": 13,
             "symbolRank": 29,
             "symbol": "debugPrint",
-            "fusionScore": 30.16
+            "fusionScore": 32.16
           }
         ],
         "expectedEvidenceProfiles": [
@@ -1009,94 +1009,94 @@
             "fusionScore": 36.96
           },
           {
-            "path": "config/reload.go",
+            "path": "cmd/promtool/rules.go",
             "tier": "corroborated",
             "structuralRank": 2,
-            "structuralScore": 23,
-            "lexicalRank": 27,
-            "symbolRank": 10,
-            "symbol": "GenerateChecksum",
-            "fusionScore": 27.08
+            "structuralScore": 25,
+            "lexicalRank": 21,
+            "symbolRank": 5,
+            "symbol": "newRuleImporter",
+            "fusionScore": 29.64
           },
           {
             "path": "config/config.go",
             "tier": "corroborated",
             "structuralRank": 4,
-            "structuralScore": 21,
+            "structuralScore": 23,
             "lexicalRank": 3,
             "symbolRank": 3,
             "symbol": "AlertingConfig",
-            "fusionScore": 26.8
+            "fusionScore": 28.8
           },
           {
             "path": "rules/manager.go",
             "tier": "corroborated",
             "structuralRank": 7,
-            "structuralScore": 21,
+            "structuralScore": 23,
             "lexicalRank": 5,
             "symbolRank": 6,
             "symbol": "GroupLoader",
-            "fusionScore": 26.56
+            "fusionScore": 28.56
           },
           {
             "path": "rules/group.go",
             "tier": "corroborated",
             "structuralRank": 6,
-            "structuralScore": 21,
+            "structuralScore": 23,
             "lexicalRank": 12,
             "symbolRank": 9,
             "symbol": "stop",
-            "fusionScore": 26.02
-          },
-          {
-            "path": "cmd/promtool/rules.go",
-            "tier": "corroborated",
-            "structuralRank": 3,
-            "structuralScore": 21,
-            "lexicalRank": 21,
-            "symbolRank": 5,
-            "symbol": "newRuleImporter",
-            "fusionScore": 25.64
+            "fusionScore": 28.02
           },
           {
             "path": "cmd/promtool/main.go",
             "tier": "corroborated",
-            "structuralRank": 17,
-            "structuralScore": 18,
+            "structuralRank": 10,
+            "structuralScore": 22,
             "lexicalRank": 2,
             "symbolRank": 2,
             "symbol": "CheckConfig",
-            "fusionScore": 23.9
+            "fusionScore": 27.9
           },
           {
             "path": "cmd/prometheus/main.go",
             "tier": "corroborated",
-            "structuralRank": 16,
-            "structuralScore": 18,
+            "structuralRank": 9,
+            "structuralScore": 22,
             "lexicalRank": 1,
             "symbolRank": 7,
             "symbol": "files",
-            "fusionScore": 23.76
+            "fusionScore": 27.76
           },
           {
             "path": "cmd/promtool/unittest.go",
             "tier": "corroborated",
-            "structuralRank": 20,
-            "structuralScore": 18,
+            "structuralRank": 11,
+            "structuralScore": 22,
             "lexicalRank": 4,
             "symbolRank": 4,
             "symbol": "RulesUnitTestResult",
-            "fusionScore": 23.7
+            "fusionScore": 27.7
           },
           {
             "path": "scrape/manager.go",
             "tier": "corroborated",
-            "structuralRank": 40,
-            "structuralScore": 18,
+            "structuralRank": 17,
+            "structuralScore": 22,
             "lexicalRank": 7,
             "symbolRank": 14,
             "symbol": "failed",
-            "fusionScore": 23.12
+            "fusionScore": 27.12
+          },
+          {
+            "path": "config/reload.go",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 23,
+            "lexicalRank": 27,
+            "symbolRank": 10,
+            "symbol": "GenerateChecksum",
+            "fusionScore": 27.08
           }
         ],
         "expectedEvidenceProfiles": [
@@ -1106,9 +1106,9 @@
             "tier": "corroborated",
             "direct": false,
             "structuralRank": 7,
-            "structuralScore": 21,
+            "structuralScore": 23,
             "lexicalRank": 5,
-            "lexicalScore": 32.718549,
+            "lexicalScore": 32.759959,
             "symbolRank": 6,
             "symbolScore": 25.618839,
             "symbol": "GroupLoader",
@@ -1134,17 +1134,17 @@
                 "rule": "inflection"
               }
             ],
-            "fusionScore": 26.56
+            "fusionScore": 28.56
           },
           {
             "path": "cmd/prometheus/main.go",
             "intent": "configuration",
             "tier": "corroborated",
             "direct": false,
-            "structuralRank": 16,
-            "structuralScore": 18,
+            "structuralRank": 9,
+            "structuralScore": 22,
             "lexicalRank": 1,
-            "lexicalScore": 43.72684,
+            "lexicalScore": 43.774371,
             "symbolRank": 7,
             "symbolScore": 25.584802,
             "symbol": "files",
@@ -1170,7 +1170,7 @@
                 "rule": "inflection"
               }
             ],
-            "fusionScore": 23.76
+            "fusionScore": 27.76
           }
         ]
       },
@@ -1255,9 +1255,19 @@
             "fusionScore": 138.06
           },
           {
+            "path": "finisher_api.go",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 70,
+            "lexicalRank": 1,
+            "symbolRank": 7,
+            "symbol": "Connection",
+            "fusionScore": 75.76
+          },
+          {
             "path": "prepare_stmt.go",
             "tier": "direct",
-            "structuralRank": 5,
+            "structuralRank": 6,
             "structuralScore": 70,
             "lexicalRank": 7,
             "symbolRank": 3,
@@ -1265,54 +1275,44 @@
             "fusionScore": 75.56
           },
           {
-            "path": "finisher_api.go",
-            "tier": "corroborated",
-            "structuralRank": 6,
-            "structuralScore": 66,
-            "lexicalRank": 1,
-            "symbolRank": 7,
-            "symbol": "Connection",
-            "fusionScore": 71.76
-          },
-          {
             "path": "migrator/migrator.go",
             "tier": "corroborated",
             "structuralRank": 7,
-            "structuralScore": 66,
+            "structuralScore": 69,
             "lexicalRank": 17,
             "symbolRank": 18,
             "symbol": "rawColumnTypes",
-            "fusionScore": 70.36
+            "fusionScore": 73.36
           },
           {
             "path": "internal/stmt_store/stmt_store.go",
             "tier": "direct",
             "structuralRank": 8,
-            "structuralScore": 54,
+            "structuralScore": 58,
             "lexicalRank": 4,
             "symbolRank": 15,
             "symbol": "Store",
-            "fusionScore": 59.26
+            "fusionScore": 63.26
           },
           {
             "path": "interfaces.go",
             "tier": "corroborated",
             "structuralRank": 9,
-            "structuralScore": 50,
+            "structuralScore": 54,
             "lexicalRank": 19,
             "symbolRank": 17,
             "symbol": "TxBeginner",
-            "fusionScore": 54.28
+            "fusionScore": 58.28
           },
           {
             "path": "generics.go",
             "tier": "corroborated",
             "structuralRank": 10,
-            "structuralScore": 42,
+            "structuralScore": 46,
             "lexicalRank": 13,
             "symbolRank": 22,
             "symbol": "result",
-            "fusionScore": 46.44
+            "fusionScore": 50.44
           }
         ],
         "expectedEvidenceProfiles": [
@@ -1383,8 +1383,8 @@
             "intent": "implementation",
             "tier": "corroborated",
             "direct": false,
-            "structuralRank": 6,
-            "structuralScore": 66,
+            "structuralRank": 5,
+            "structuralScore": 70,
             "lexicalRank": 1,
             "lexicalScore": 46.855182,
             "symbolRank": 7,
@@ -1407,7 +1407,7 @@
                 "rule": "inflection"
               }
             ],
-            "fusionScore": 71.76
+            "fusionScore": 75.76
           }
         ]
       },
@@ -1473,81 +1473,81 @@
             "path": "fish_completions.go",
             "tier": "corroborated",
             "structuralRank": 3,
-            "structuralScore": 61,
+            "structuralScore": 63,
             "lexicalRank": 4,
             "symbolRank": 6,
             "symbol": "genFishComp",
-            "fusionScore": 66.62
+            "fusionScore": 68.62
           },
           {
             "path": "doc/rest_docs.go",
             "tier": "corroborated",
             "structuralRank": 6,
-            "structuralScore": 58,
+            "structuralScore": 62,
             "lexicalRank": 8,
             "symbolRank": 8,
             "symbol": "res",
-            "fusionScore": 63.3
+            "fusionScore": 67.3
           },
           {
             "path": "doc/yaml_docs.go",
             "tier": "corroborated",
             "structuralRank": 7,
-            "structuralScore": 58,
+            "structuralScore": 62,
             "lexicalRank": 12,
             "symbolRank": 10,
             "symbol": "cmdDoc",
-            "fusionScore": 62.98
+            "fusionScore": 66.98
           },
           {
             "path": "doc/man_docs.go",
             "tier": "corroborated",
             "structuralRank": 4,
-            "structuralScore": 58,
+            "structuralScore": 62,
             "lexicalRank": 11,
             "symbolRank": 14,
             "symbol": "GenManTree",
-            "fusionScore": 62.88
+            "fusionScore": 66.88
           },
           {
             "path": "doc/md_docs.go",
             "tier": "corroborated",
             "structuralRank": 5,
-            "structuralScore": 58,
+            "structuralScore": 62,
             "lexicalRank": 13,
             "symbolRank": 15,
             "symbol": "printOptions",
-            "fusionScore": 62.72
+            "fusionScore": 66.72
           },
           {
             "path": "bash_completionsV2.go",
             "tier": "corroborated",
             "structuralRank": 8,
-            "structuralScore": 53,
+            "structuralScore": 55,
             "lexicalRank": 5,
             "symbolRank": 3,
             "symbol": "genBashCompletion",
-            "fusionScore": 58.68
+            "fusionScore": 60.68
           },
           {
             "path": "doc/util.go",
             "tier": "corroborated",
             "structuralRank": 9,
-            "structuralScore": 50,
+            "structuralScore": 54,
             "lexicalRank": 15,
             "symbolRank": 7,
             "symbol": "hasSeeAlso",
-            "fusionScore": 54.92
+            "fusionScore": 58.92
           },
           {
             "path": "bash_completions.go",
             "tier": "corroborated",
             "structuralRank": 10,
-            "structuralScore": 45,
+            "structuralScore": 47,
             "lexicalRank": 3,
             "symbolRank": 4,
             "symbol": "writePreamble",
-            "fusionScore": 50.76
+            "fusionScore": 52.76
           }
         ],
         "expectedEvidenceProfiles": [
@@ -2048,7 +2048,7 @@
           {
             "path": "serde/build.rs",
             "tier": "corroborated",
-            "structuralRank": 2,
+            "structuralRank": 3,
             "structuralScore": 33,
             "lexicalRank": 13,
             "symbolRank": 2,
@@ -2056,9 +2056,29 @@
             "fusionScore": 38.24
           },
           {
+            "path": "serde_core/Cargo.toml",
+            "tier": "single-source",
+            "structuralRank": 2,
+            "structuralScore": 33,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 33
+          },
+          {
+            "path": "serde/Cargo.toml",
+            "tier": "single-source",
+            "structuralRank": 4,
+            "structuralScore": 33,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 33
+          },
+          {
             "path": "serde_core/src/private/doc.rs",
             "tier": "corroborated",
-            "structuralRank": 3,
+            "structuralRank": 6,
             "structuralScore": 29,
             "lexicalRank": 29,
             "symbolRank": 13,
@@ -2068,7 +2088,7 @@
           {
             "path": "serde_derive_internals/build.rs",
             "tier": "corroborated",
-            "structuralRank": 5,
+            "structuralRank": 8,
             "structuralScore": 27,
             "lexicalRank": 19,
             "symbolRank": 5,
@@ -2076,9 +2096,19 @@
             "fusionScore": 31.76
           },
           {
+            "path": "serde_derive/Cargo.toml",
+            "tier": "single-source",
+            "structuralRank": 5,
+            "structuralScore": 31,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 31
+          },
+          {
             "path": "serde_core/src/crate_root.rs",
             "tier": "corroborated",
-            "structuralRank": 4,
+            "structuralRank": 7,
             "structuralScore": 28,
             "lexicalRank": 23,
             "symbolRank": null,
@@ -2088,7 +2118,7 @@
           {
             "path": "serde_derive/build.rs",
             "tier": "corroborated",
-            "structuralRank": 6,
+            "structuralRank": 10,
             "structuralScore": 25,
             "lexicalRank": 20,
             "symbolRank": 6,
@@ -2098,42 +2128,12 @@
           {
             "path": "serde_core/src/private/string.rs",
             "tier": "corroborated",
-            "structuralRank": 9,
+            "structuralRank": 13,
             "structuralScore": 23,
             "lexicalRank": 12,
             "symbolRank": 4,
             "symbol": "from_utf8_lossy",
             "fusionScore": 28.22
-          },
-          {
-            "path": "serde_core/src/de/impls.rs",
-            "tier": "corroborated",
-            "structuralRank": 7,
-            "structuralScore": 23,
-            "lexicalRank": 9,
-            "symbolRank": 11,
-            "symbol": "visit_byte_buf",
-            "fusionScore": 28.12
-          },
-          {
-            "path": "serde/src/lib.rs",
-            "tier": "corroborated",
-            "structuralRank": 10,
-            "structuralScore": 23,
-            "lexicalRank": 1,
-            "symbolRank": null,
-            "symbol": null,
-            "fusionScore": 26.5
-          },
-          {
-            "path": "serde_core/src/lib.rs",
-            "tier": "corroborated",
-            "structuralRank": 8,
-            "structuralScore": 23,
-            "lexicalRank": 3,
-            "symbolRank": null,
-            "symbol": null,
-            "fusionScore": 26.38
           }
         ],
         "expectedEvidenceProfiles": [
@@ -2188,7 +2188,7 @@
             "intent": "documentation",
             "tier": "corroborated",
             "direct": false,
-            "structuralRank": 2,
+            "structuralRank": 3,
             "structuralScore": 33,
             "lexicalRank": 13,
             "lexicalScore": 14.590698,
@@ -2234,7 +2234,7 @@
             "intent": "documentation",
             "tier": "corroborated",
             "direct": false,
-            "structuralRank": 4,
+            "structuralRank": 7,
             "structuralScore": 28,
             "lexicalRank": 23,
             "lexicalScore": 5.825175,
@@ -3380,16 +3380,6 @@
             "fusionScore": 45.44
           },
           {
-            "path": "src/Symfony/Component/Messenger/Handler/BatchHandlerInterface.php",
-            "tier": "corroborated",
-            "structuralRank": 14,
-            "structuralScore": 38,
-            "lexicalRank": 2,
-            "symbolRank": 1,
-            "symbol": "__invoke",
-            "fusionScore": 43.94
-          },
-          {
             "path": "src/Symfony/Component/Messenger/EventListener/SendFailedMessageForRetryListener.php",
             "tier": "corroborated",
             "structuralRank": 8,
@@ -3432,12 +3422,22 @@
           {
             "path": "src/Symfony/Component/Messenger/Event/WorkerMessageReceivedEvent.php",
             "tier": "corroborated",
-            "structuralRank": 12,
+            "structuralRank": 10,
             "structuralScore": 38,
             "lexicalRank": 22,
             "symbolRank": 8,
             "symbol": "WorkerMessageReceivedEvent",
             "fusionScore": 42.46
+          },
+          {
+            "path": "src/Symfony/Component/Messenger/EventListener/StopWorkerOnMessageLimitListener.php",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 38,
+            "lexicalRank": 18,
+            "symbolRank": 15,
+            "symbol": "__construct",
+            "fusionScore": 42.42
           }
         ],
         "expectedEvidenceProfiles": [
@@ -3909,32 +3909,12 @@
           {
             "path": "src/libraries/System.Private.CoreLib/src/System/AppDomain.cs",
             "tier": "direct",
-            "structuralRank": 7,
+            "structuralRank": 4,
             "structuralScore": 75,
             "lexicalRank": 2,
             "symbolRank": 1,
             "symbol": "OnProcessExit",
             "fusionScore": 80.94
-          },
-          {
-            "path": "src/libraries/System.IO.Pipes/src/System/IO/Pipes/NamedPipeClientStream.cs",
-            "tier": "direct",
-            "structuralRank": 4,
-            "structuralScore": 75,
-            "lexicalRank": 7,
-            "symbolRank": 9,
-            "symbol": "NamedPipeClientStream",
-            "fusionScore": 80.32
-          },
-          {
-            "path": "src/libraries/System.IO.Pipes/src/System/IO/Pipes/NamedPipeClientStream.Windows.cs",
-            "tier": "direct",
-            "structuralRank": 5,
-            "structuralScore": 75,
-            "lexicalRank": 11,
-            "symbolRank": 7,
-            "symbol": "NamedPipeClientStream",
-            "fusionScore": 80.16
           },
           {
             "path": "src/libraries/System.Diagnostics.EventLog/ref/System.Diagnostics.EventLog.cs",
@@ -3947,19 +3927,29 @@
             "fusionScore": 80
           },
           {
-            "path": "src/coreclr/tools/aot/ILCompiler.ReadyToRun/TypeSystem/Mutable/MutableModule.cs",
+            "path": "src/libraries/System.IO.Pipes/src/System/IO/Pipes/NamedPipeClientStream.cs",
             "tier": "direct",
-            "structuralRank": 3,
-            "structuralScore": 76,
-            "lexicalRank": null,
-            "symbolRank": null,
-            "symbol": null,
-            "fusionScore": 76
+            "structuralRank": 8,
+            "structuralScore": 73,
+            "lexicalRank": 7,
+            "symbolRank": 9,
+            "symbol": "NamedPipeClientStream",
+            "fusionScore": 78.32
+          },
+          {
+            "path": "src/libraries/System.IO.Pipes/src/System/IO/Pipes/NamedPipeClientStream.Windows.cs",
+            "tier": "direct",
+            "structuralRank": 9,
+            "structuralScore": 73,
+            "lexicalRank": 11,
+            "symbolRank": 7,
+            "symbol": "NamedPipeClientStream",
+            "fusionScore": 78.16
           },
           {
             "path": "src/libraries/System.Net.WebClient/src/System/Net/WebClient.cs",
             "tier": "direct",
-            "structuralRank": 6,
+            "structuralRank": 3,
             "structuralScore": 75,
             "lexicalRank": null,
             "symbolRank": null,
@@ -3969,7 +3959,7 @@
           {
             "path": "src/libraries/System.Console/ref/System.Console.cs",
             "tier": "direct",
-            "structuralRank": 8,
+            "structuralRank": 5,
             "structuralScore": 74,
             "lexicalRank": null,
             "symbolRank": 44,
@@ -3979,7 +3969,7 @@
           {
             "path": "src/libraries/System.Diagnostics.TextWriterTraceListener/src/System/Diagnostics/XmlWriterTraceListener.cs",
             "tier": "direct",
-            "structuralRank": 9,
+            "structuralRank": 6,
             "structuralScore": 73,
             "lexicalRank": null,
             "symbolRank": null,
@@ -3988,6 +3978,16 @@
           },
           {
             "path": "src/libraries/System.Diagnostics.TraceSource/src/System/Diagnostics/DefaultTraceListener.cs",
+            "tier": "direct",
+            "structuralRank": 7,
+            "structuralScore": 73,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 73
+          },
+          {
+            "path": "src/libraries/System.Private.CoreLib/src/System/IO/TextWriter.cs",
             "tier": "direct",
             "structuralRank": 10,
             "structuralScore": 73,
@@ -4961,7 +4961,7 @@
         "fixmap": {
           "top5Paths": [
             "rules/alerting.go",
-            "config/reload.go",
+            "cmd/promtool/rules.go",
             "config/config.go",
             "rules/manager.go",
             "cmd/promtool/main.go"
@@ -5094,7 +5094,7 @@
             "callbacks/create.go",
             "callbacks/delete.go",
             "callbacks/query.go",
-            "prepare_stmt.go"
+            "finisher_api.go"
           ],
           "top1Hit": true,
           "top3Hit": true,
@@ -5182,8 +5182,8 @@
             "completions.go",
             "site/content/completions/_index.md",
             "command.go",
-            "site/content/user_guide.md",
-            "site/content/active_help.md"
+            "site/content/active_help.md",
+            "site/content/user_guide.md"
           ],
           "top1Hit": true,
           "top3Hit": true,
@@ -5510,9 +5510,9 @@
           "top5Paths": [
             ".github/workflows/ci.yml",
             "serde/src/lib.rs",
+            "serde_core/Cargo.toml",
             "serde_core/src/lib.rs",
-            "CONTRIBUTING.md",
-            "README.md"
+            "serde/Cargo.toml"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -5523,8 +5523,8 @@
             ".github/workflows/ci.yml",
             "serde/src/lib.rs",
             "serde_core/src/lib.rs",
-            "CONTRIBUTING.md",
-            "README.md"
+            "serde_core/Cargo.toml",
+            "CONTRIBUTING.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -5546,8 +5546,8 @@
           "top5Paths": [
             "serde_core/build.rs",
             "serde/build.rs",
-            "serde_core/src/private/doc.rs",
-            "serde_derive_internals/build.rs",
+            "serde_core/Cargo.toml",
+            "serde/Cargo.toml",
             "serde_core/src/de/mod.rs"
           ],
           "top1Hit": true,
@@ -5621,13 +5621,13 @@
         },
         "bm25:raw": {
           "top5Paths": [
-            "src/util/frontmatter.rs",
             "src/compiler/custom_build.rs",
+            "src/util/frontmatter.rs",
             "crates/cargo-test-support/src/lib.rs",
             "tests/build-std/main.rs",
             "tests/testsuite/build_script_env.rs"
           ],
-          "top1Hit": true,
+          "top1Hit": false,
           "top3Hit": true,
           "top5Hit": true
         },
@@ -5635,12 +5635,12 @@
           "top5Paths": [
             "src/compiler/custom_build.rs",
             "crates/cargo-test-support/src/lib.rs",
-            "doc/book/src/reference/unstable.md",
             "src/util/frontmatter.rs",
+            "doc/book/src/reference/unstable.md",
             "crates/build-rs/src/input.rs"
           ],
           "top1Hit": false,
-          "top3Hit": false,
+          "top3Hit": true,
           "top5Hit": true
         },
         "bm25:code": {
@@ -6438,7 +6438,7 @@
             "docs/request-options.md",
             "docs/faq.md",
             "README.md",
-            "UPGRADING.md"
+            "docs/testing.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -6573,8 +6573,8 @@
           "top5Paths": [
             "src/libraries/System.IO.Pipes/src/System/IO/Pipes/NamedPipeClientStream.Unix.cs",
             "src/libraries/System.Private.CoreLib/src/System/AppDomain.cs",
+            "src/libraries/System.Diagnostics.EventLog/ref/System.Diagnostics.EventLog.cs",
             "src/libraries/System.IO.Pipes/src/System/IO/Pipes/NamedPipeClientStream.cs",
-            "src/libraries/System.IO.Pipes/src/System/IO/Pipes/NamedPipeClientStream.Windows.cs",
             "src/libraries/System.Private.CoreLib/src/System/AppContext.cs"
           ],
           "top1Hit": true,

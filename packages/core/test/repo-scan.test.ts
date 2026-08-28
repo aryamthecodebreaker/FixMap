@@ -116,6 +116,23 @@ describe("scanRepo", () => {
     });
   });
 
+  it("samples Cargo and Go project/workspace manifests used by import resolution", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-language-manifests-"));
+    await writeFile(join(root, "Cargo.toml"), '[package]\nname = "app"\n');
+    await writeFile(join(root, "go.mod"), "module corp.example/app\n");
+    await writeFile(join(root, "go.work"), "go 1.24\nuse ./services/api\n");
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.find((file) => file.path === "Cargo.toml")).toMatchObject({
+      isSource: true,
+      kind: "config",
+      textSample: '[package]\nname = "app"\n'
+    });
+    expect(repo.files.find((file) => file.path === "go.mod")?.textSample).toBe("module corp.example/app\n");
+    expect(repo.files.find((file) => file.path === "go.work")?.textSample).toBe("go 1.24\nuse ./services/api\n");
+  });
+
   it("recognizes Go, Python, Ruby, Java, C#, PHP, and TypeScript test naming conventions", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-test-patterns-"));
     await mkdir(join(root, "spec"), { recursive: true });

@@ -1896,6 +1896,84 @@ function depth3(path) {
   return path.split("/").filter(Boolean).length;
 }
 
+// packages/core/dist/go-projects.js
+function buildGoModules(files) {
+  return files.flatMap((file) => {
+    if (file.path.split("/").pop()?.toLowerCase() !== "go.mod")
+      return [];
+    const name = /^\s*module\s+([^\s]+)\s*$/m.exec(file.textSample)?.[1]?.trim();
+    if (!name || /[\0\r\n]/.test(name))
+      return [];
+    return [{ path: file.path, root: directoryOf5(file.path), name }];
+  }).sort((left, right) => left.root.localeCompare(right.root) || left.name.localeCompare(right.name));
+}
+function buildGoWorkspaces(files, modules = buildGoModules(files)) {
+  const moduleRoots = new Set(modules.map((module) => module.root));
+  return files.flatMap((file) => {
+    if (file.path.split("/").pop()?.toLowerCase() !== "go.work")
+      return [];
+    const root = directoryOf5(file.path);
+    const uses = parseUsePaths(file.textSample).flatMap((value) => {
+      const target = normalizeRelativeRoot2(root, value);
+      return target !== void 0 && moduleRoots.has(target) ? [target] : [];
+    });
+    return [{ path: file.path, root, moduleRoots: [...new Set(uses)].sort() }];
+  }).sort((left, right) => left.root.localeCompare(right.root));
+}
+function goModuleForPath(modules, path) {
+  const directory = directoryOf5(path);
+  const matching = modules.filter((module) => contains2(module.root, directory));
+  if (matching.length === 0)
+    return void 0;
+  const deepest = Math.max(...matching.map((module) => depth4(module.root)));
+  const nearest = matching.filter((module) => depth4(module.root) === deepest);
+  return nearest.length === 1 ? nearest[0] : void 0;
+}
+function goWorkspaceForModules(workspaces, leftRoot, rightRoot) {
+  return [...workspaces].filter((workspace) => workspace.moduleRoots.includes(leftRoot) && workspace.moduleRoots.includes(rightRoot)).sort((left, right) => depth4(right.root) - depth4(left.root) || left.path.localeCompare(right.path))[0];
+}
+function parseUsePaths(text) {
+  const uses = [];
+  for (const match of text.matchAll(/^\s*use\s+([^\s(][^\s]*)\s*(?:\/\/.*)?$/gm)) {
+    if (match[1])
+      uses.push(match[1]);
+  }
+  for (const block of text.matchAll(/^\s*use\s*\(\s*$([\s\S]*?)^\s*\)\s*(?:\/\/.*)?$/gm)) {
+    for (const raw of (block[1] ?? "").split(/\r?\n/)) {
+      const value = raw.replace(/\/\/.*$/, "").trim().split(/\s+/)[0];
+      if (value)
+        uses.push(value);
+    }
+  }
+  return uses;
+}
+function normalizeRelativeRoot2(root, value) {
+  if (!value || /^[\\/]/.test(value) || /^[A-Za-z]:/.test(value) || value.includes("\0") || /[*?\[]/.test(value))
+    return void 0;
+  const output = root.split("/").filter(Boolean);
+  for (const segment of value.replace(/\\/g, "/").split("/")) {
+    if (!segment || segment === ".")
+      continue;
+    if (segment === "..") {
+      if (output.length === 0)
+        return void 0;
+      output.pop();
+    } else {
+      output.push(segment);
+    }
+  }
+  return output.join("/");
+}
+function contains2(root, path) {
+  return root ? path === root || path.startsWith(`${root}/`) : true;
+}
+function directoryOf5(path) {
+  return path.split("/").slice(0, -1).join("/");
+}
+function depth4(path) {
+  return path.split("/").filter(Boolean).length;
+}
+
 // packages/core/dist/import-graph.js
 var RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"];
 var COMPILED_TO_SOURCE = {
@@ -1911,7 +1989,9 @@ function buildImportGraph(files) {
   const dotnetProjects = buildDotnetProjects(files);
   const composerProjects = buildComposerProjects(files);
   const rustProjects = buildRustProjects(files);
-  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects);
+  const goModules = buildGoModules(files);
+  const goWorkspaces = buildGoWorkspaces(files, goModules);
+  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects, goModules, goWorkspaces);
   const aliases = buildAliases(files);
   const workspacePackages = buildWorkspacePackages(files);
   const imports = /* @__PURE__ */ new Map();
@@ -1989,7 +2069,7 @@ function resolveLanguageImport(fromPath, imported, resolverIndex, aliases, works
     return resolveJavaImport(imported, resolverIndex);
   }
   if (imported.adapter === "go") {
-    return resolveGoImport(imported, resolverIndex);
+    return resolveGoImport(fromPath, imported, resolverIndex);
   }
   if (imported.adapter === "rust") {
     return resolveRustImport(fromPath, imported, resolverIndex);
@@ -2048,8 +2128,13 @@ function resolveJavaImport(imported, resolverIndex) {
   const exact = resolverIndex.repoPaths.has(suffix) ? [suffix] : [];
   return [...exact, ...resolverIndex.suffixPaths.get(suffix) ?? []].sort(shortestPathFirst).slice(0, 1);
 }
-function resolveGoImport(imported, resolverIndex) {
-  const module = resolverIndex.goModules.find((entry) => imported.specifier === entry.name || imported.specifier.startsWith(`${entry.name}/`));
+function resolveGoImport(fromPath, imported, resolverIndex) {
+  const sourceModule = goModuleForPath(resolverIndex.goModules, fromPath);
+  const candidates = resolverIndex.goModules.filter((entry) => imported.specifier === entry.name || imported.specifier.startsWith(`${entry.name}/`)).sort((left, right) => right.name.length - left.name.length || left.path.localeCompare(right.path));
+  const longest = candidates[0]?.name.length;
+  const equallySpecific = candidates.filter((candidate) => candidate.name.length === longest);
+  const reachable = sourceModule ? equallySpecific.filter((candidate) => candidate.path === sourceModule.path || goWorkspaceForModules(resolverIndex.goWorkspaces, sourceModule.root, candidate.root) !== void 0) : equallySpecific;
+  const module = reachable.length === 1 ? reachable[0] : void 0;
   if (!module)
     return [];
   const suffix = imported.specifier === module.name ? "" : imported.specifier.slice(module.name.length + 1);
@@ -2156,12 +2241,11 @@ function resolveDotnetImport(fromPath, imported, resolverIndex) {
     return targetProject !== void 0 && reachableProjects.has(targetProject.path);
   }).slice(0, 20);
 }
-function buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects) {
+function buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects, goModules, goWorkspaces) {
   const repoPaths = new Set(files.map((file) => file.path));
   const suffixPaths = /* @__PURE__ */ new Map();
   const javaPackagePaths = /* @__PURE__ */ new Map();
   const directoryPaths = /* @__PURE__ */ new Map();
-  const goModules = [];
   const phpSymbols = /* @__PURE__ */ new Map();
   const phpNamespaces = /* @__PURE__ */ new Map();
   const dotnetNamespaces = /* @__PURE__ */ new Map();
@@ -2197,11 +2281,6 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
         addIndexedPath(javaPackagePaths, directories.slice(start).join("/"), file.path);
       }
     }
-    if (file.path === "go.mod" || file.path.endsWith("/go.mod")) {
-      const name = /^\s*module\s+([^\s]+)\s*$/m.exec(file.textSample)?.[1];
-      if (name)
-        goModules.push({ name, root: segments.slice(0, -1).join("/") });
-    }
     if (file.path.toLowerCase().endsWith(".php")) {
       const owner = projectForSourcePath(file.path, composerProjectsByRoot);
       if (owner)
@@ -2235,6 +2314,7 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
     javaPackagePaths,
     directoryPaths,
     goModules,
+    goWorkspaces,
     rustProjects,
     phpSymbols,
     phpNamespaces,
@@ -5006,9 +5086,12 @@ var CONVENTIONAL_CONFIG_NAMES = /* @__PURE__ */ new Set([
   ".gitignore",
   ".npmignore",
   ".rspec",
+  "cargo.toml",
   "codeowners",
   "dockerfile",
   "gemfile",
+  "go.mod",
+  "go.work",
   "jenkinsfile",
   "makefile",
   "procfile",
@@ -7328,11 +7411,11 @@ function trimToBoundary(text) {
 function splitExcludeInput(raw) {
   const patterns2 = [];
   let current = "";
-  let depth4 = 0;
+  let depth5 = 0;
   for (const character of raw) {
-    if (character === "{") depth4 += 1;
-    else if (character === "}") depth4 = Math.max(0, depth4 - 1);
-    if (character === "\n" || character === "\r" || character === "," && depth4 === 0) {
+    if (character === "{") depth5 += 1;
+    else if (character === "}") depth5 = Math.max(0, depth5 - 1);
+    if (character === "\n" || character === "\r" || character === "," && depth5 === 0) {
       patterns2.push(current);
       current = "";
       continue;
