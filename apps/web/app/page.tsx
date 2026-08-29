@@ -9,6 +9,7 @@ import {
   Robot
 } from "@phosphor-icons/react/ssr";
 import { InteractiveMapStage } from "./_components/interactive-map-stage";
+import { AiExplainer } from "./_components/ai-explainer";
 import { repoUrl, siteStats } from "./_lib/site-data";
 
 const outcomes = [
@@ -40,6 +41,7 @@ export default function HomePage() {
           <div className="button-row">
             <Link className="button primary" href="/demo">Try it with a sample project <ArrowRight size={17} weight="bold" aria-hidden /></Link>
             <Link className="button secondary" href="/get-started">Use it on my project</Link>
+            <AiExplainer />
           </div>
           <div className="pro-trust-line" role="group" aria-label="FixMap trust facts">
             <span><LockKey size={16} aria-hidden /> Runs on your computer</span>
