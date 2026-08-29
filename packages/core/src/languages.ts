@@ -12,7 +12,14 @@
 
 import type { RepoFile, RepoMap } from "./types.js";
 import { buildComposerProjects, composerProjectForPath, composerTestCommandForProject } from "./composer-projects.js";
-import { buildDotnetProjects, dotnetProjectForPath, referencingDotnetTestProjects, type DotnetProject } from "./dotnet-projects.js";
+import {
+  buildDotnetProjects,
+  buildDotnetSolutions,
+  dotnetProjectForPath,
+  dotnetSolutionsContaining,
+  referencingDotnetTestProjects,
+  type DotnetProject
+} from "./dotnet-projects.js";
 import { buildRubyProjects, rubyProjectForPath, rubyTestCommandForProject } from "./ruby-projects.js";
 
 export type PrimaryLanguage = "node" | "python" | "go" | "rust" | "ruby" | "php" | "java" | "dotnet" | "unknown";
@@ -282,7 +289,7 @@ export function manifestTestCommand(
     const candidates = packageDir
       ? projects.filter((project) => project.root === packageDir)
       : projects;
-    return candidates.length === 1 ? dotnetCommandForProject(projects, candidates[0]!) : undefined;
+    return candidates.length === 1 ? dotnetCommandForProject(files, projects, candidates[0]!) : undefined;
   }
   return undefined;
 }
@@ -294,7 +301,7 @@ export function dotnetTestCommandForPath(
 ): { command: string; reason: string; scopeDir?: string } | undefined {
   const projects = buildDotnetProjects(files);
   const sourceProject = dotnetProjectForPath(projects, sourcePath);
-  return sourceProject ? dotnetCommandForProject(projects, sourceProject) : undefined;
+  return sourceProject ? dotnetCommandForProject(files, projects, sourceProject) : undefined;
 }
 
 export function phpTestCommandForPath(
@@ -317,12 +324,27 @@ export function rubyTestCommandForPath(
 }
 
 function dotnetCommandForProject(
+  files: RepoFile[],
   projects: DotnetProject[],
   sourceProject: DotnetProject
-): { command: string; reason: string; scopeDir?: string } {
-  const testProject = sourceProject.test
-    ? sourceProject
-    : referencingDotnetTestProjects(projects, sourceProject.path)[0];
+): { command: string; reason: string; scopeDir?: string } | undefined {
+  const testProjects = sourceProject.test
+    ? [sourceProject]
+    : referencingDotnetTestProjects(projects, sourceProject.path);
+  if (testProjects.length > 1) {
+    const solutions = dotnetSolutionsContaining(
+      buildDotnetSolutions(files, projects),
+      [sourceProject.path, ...testProjects.map((project) => project.path)]
+    );
+    if (solutions.length !== 1) return undefined;
+    const solution = solutions[0]!;
+    return {
+      command: `dotnet test ${solution.path}`,
+      reason: `${solution.path} is the only solution containing ${sourceProject.path} and ${testProjects.length} referencing test projects`,
+      scopeDir: solution.root
+    };
+  }
+  const testProject = testProjects[0];
   if (testProject && testProject.path !== sourceProject.path) {
     return {
       command: `dotnet test ${testProject.path}`,

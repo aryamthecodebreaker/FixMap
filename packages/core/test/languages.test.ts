@@ -170,6 +170,65 @@ describe("test routing beyond package scripts", () => {
       .toBe("dotnet test src/Auth/Auth.csproj");
   });
 
+  it("routes multiple referencing .NET test projects through their one explicit solution", () => {
+    const repo = repoOf([
+      file("App.sln", {
+        kind: "config",
+        textSample: [
+          'Project("{TYPE}") = "Auth", "src\\Auth\\Auth.csproj", "{AUTH}"',
+          'Project("{TYPE}") = "Unit", "tests\\Auth.UnitTests\\Auth.UnitTests.csproj", "{UNIT}"',
+          'Project("{TYPE}") = "Integration", "tests\\Auth.IntegrationTests\\Auth.IntegrationTests.csproj", "{INTEGRATION}"'
+        ].join("\n")
+      }),
+      file("src/Auth/Auth.csproj", { kind: "config", textSample: "<Project />" }),
+      file("src/Auth/Token.cs"),
+      file("tests/Auth.UnitTests/Auth.UnitTests.csproj", {
+        kind: "config",
+        textSample: '<ProjectReference Include="..\\..\\src\\Auth\\Auth.csproj" /><IsTestProject>true</IsTestProject>'
+      }),
+      file("tests/Auth.UnitTests/TokenTests.cs", { isTest: true }),
+      file("tests/Auth.IntegrationTests/Auth.IntegrationTests.csproj", {
+        kind: "config",
+        textSample: '<ProjectReference Include="..\\..\\src\\Auth\\Auth.csproj" /><IsTestProject>true</IsTestProject>'
+      }),
+      file("tests/Auth.IntegrationTests/TokenFlowTests.cs", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(repo, ["src/Auth/Token.cs"])[0]).toEqual({
+      command: "dotnet test App.sln",
+      kind: "test",
+      reason: "App.sln is the only solution containing src/Auth/Auth.csproj and 2 referencing test projects",
+      relatedFiles: [
+        "tests/Auth.IntegrationTests/TokenFlowTests.cs",
+        "tests/Auth.UnitTests/TokenTests.cs"
+      ]
+    });
+  });
+
+  it("does not choose arbitrarily between multiple solutions for multiple .NET test projects", () => {
+    const solution = [
+      'Project("{TYPE}") = "Auth", "src\\Auth\\Auth.csproj", "{AUTH}"',
+      'Project("{TYPE}") = "Unit", "tests\\Auth.UnitTests\\Auth.UnitTests.csproj", "{UNIT}"',
+      'Project("{TYPE}") = "Integration", "tests\\Auth.IntegrationTests\\Auth.IntegrationTests.csproj", "{INTEGRATION}"'
+    ].join("\n");
+    const repo = repoOf([
+      file("App.sln", { kind: "config", textSample: solution }),
+      file("Duplicate.sln", { kind: "config", textSample: solution }),
+      file("src/Auth/Auth.csproj", { kind: "config", textSample: "<Project />" }),
+      file("src/Auth/Token.cs"),
+      file("tests/Auth.UnitTests/Auth.UnitTests.csproj", {
+        kind: "config",
+        textSample: '<ProjectReference Include="..\\..\\src\\Auth\\Auth.csproj" /><IsTestProject>true</IsTestProject>'
+      }),
+      file("tests/Auth.IntegrationTests/Auth.IntegrationTests.csproj", {
+        kind: "config",
+        textSample: '<ProjectReference Include="..\\..\\src\\Auth\\Auth.csproj" /><IsTestProject>true</IsTestProject>'
+      })
+    ]);
+
+    expect(buildTestRoutes(repo, ["src/Auth/Token.cs"])).toEqual([]);
+  });
+
   it("does not invent a .NET project when multiple root projects own the same path", () => {
     const repo = repoOf([
       file("App.csproj", { kind: "config", textSample: "<Project />" }),

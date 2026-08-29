@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDotnetProjects,
+  buildDotnetSolutions,
   dotnetProjectForPath,
   dotnetReferenceClosure,
+  dotnetSolutionsContaining,
   referencingDotnetTestProjects
 } from "../src/dotnet-projects.js";
 import type { RepoFile } from "../src/types.js";
@@ -94,5 +96,32 @@ describe(".NET project evidence", () => {
       "Acme.Shared"
     ]);
     expect(projects.find((entry) => entry.path === "src/Other/Other.csproj")?.globalUsings).toEqual(["Acme.Other"]);
+  });
+
+  it("collects only literal repository-contained projects from classic solution files", () => {
+    const files = [
+      project("workspace/App.sln", [
+        'Project("{TYPE}") = "App", "src\\App\\App.csproj", "{APP}"',
+        'Project("{TYPE}") = "Tests", "tests\\App.Tests\\App.Tests.csproj", "{TESTS}"',
+        'Project("{TYPE}") = "Dynamic", "$(Root)\\Dynamic.csproj", "{DYNAMIC}"',
+        'Project("{TYPE}") = "Outside", "..\\..\\Outside.csproj", "{OUTSIDE}"',
+        'Project("{TYPE}") = "Missing", "Missing.csproj", "{MISSING}"'
+      ].join("\n")),
+      project("workspace/src/App/App.csproj"),
+      project("workspace/tests/App.Tests/App.Tests.csproj"),
+      project("Outside.csproj")
+    ];
+    const projects = buildDotnetProjects(files);
+    const solutions = buildDotnetSolutions(files, projects);
+
+    expect(solutions).toEqual([{
+      path: "workspace/App.sln",
+      root: "workspace",
+      projects: ["workspace/src/App/App.csproj", "workspace/tests/App.Tests/App.Tests.csproj"]
+    }]);
+    expect(dotnetSolutionsContaining(solutions, ["workspace/src/App/App.csproj"]))
+      .toEqual(solutions);
+    expect(dotnetSolutionsContaining(solutions, ["Outside.csproj"]))
+      .toEqual([]);
   });
 });

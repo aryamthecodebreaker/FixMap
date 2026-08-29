@@ -25,8 +25,8 @@ export { buildContextPack, estimateContextTokens, renderContextPackMarkdown, typ
 export { fixMapArtifactKind, isFixMapArtifact } from "./artifacts.js";
 export { buildFixMapGraph, renderFixMapGraphMermaid, type FixMapGraph } from "./graph.js";
 export { buildImpactMap } from "./impact.js";
-export { buildDotnetProjects, dotnetProjectForPath, dotnetReferenceClosure, referencingDotnetTestProjects } from "./dotnet-projects.js";
-export type { DotnetProject } from "./dotnet-projects.js";
+export { buildDotnetProjects, buildDotnetSolutions, dotnetProjectForPath, dotnetReferenceClosure, dotnetSolutionsContaining, referencingDotnetTestProjects } from "./dotnet-projects.js";
+export type { DotnetProject, DotnetSolution } from "./dotnet-projects.js";
 export { buildComposerProjects, composerProjectForPath, composerTestCommandForProject, resolveComposerSymbol } from "./composer-projects.js";
 export type { ComposerProject } from "./composer-projects.js";
 export { buildRubyProjects, rubyProjectForPath, rubyTestCommandForProject } from "./ruby-projects.js";

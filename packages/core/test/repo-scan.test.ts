@@ -116,11 +116,12 @@ describe("scanRepo", () => {
     });
   });
 
-  it("samples Cargo and Go project/workspace manifests used by import resolution", async () => {
+  it("samples Cargo, Go, and .NET project/workspace manifests used by resolution", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-language-manifests-"));
     await writeFile(join(root, "Cargo.toml"), '[package]\nname = "app"\n');
     await writeFile(join(root, "go.mod"), "module corp.example/app\n");
     await writeFile(join(root, "go.work"), "go 1.24\nuse ./services/api\n");
+    await writeFile(join(root, "App.sln"), 'Project("{TYPE}") = "App", "App.csproj", "{APP}"\n');
 
     const repo = await scanRepo({ repoRoot: root });
 
@@ -131,6 +132,11 @@ describe("scanRepo", () => {
     });
     expect(repo.files.find((file) => file.path === "go.mod")?.textSample).toBe("module corp.example/app\n");
     expect(repo.files.find((file) => file.path === "go.work")?.textSample).toBe("go 1.24\nuse ./services/api\n");
+    expect(repo.files.find((file) => file.path === "App.sln")).toMatchObject({
+      isSource: true,
+      kind: "config",
+      textSample: 'Project("{TYPE}") = "App", "App.csproj", "{APP}"\n'
+    });
   });
 
   it("classifies Pest bootstrap files as test configuration, not executable tests", async () => {

@@ -1329,9 +1329,11 @@ function depth(path) {
 
 // packages/core/dist/dotnet-projects.js
 var PROJECT_FILE = /\.(?:csproj|fsproj|vbproj)$/i;
+var SOLUTION_FILE = /\.sln$/i;
 var PROJECT_REFERENCE = /<ProjectReference\b[^>]*\bInclude\s*=\s*(["'])(.*?)\1/gi;
 var PROJECT_USING = /<Using\b[^>]*\bInclude\s*=\s*(["'])(.*?)\1/gi;
 var SOURCE_GLOBAL_USING = /^\s*global\s+using\s+(?:static\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\s*=\s*)?([A-Za-z_][A-Za-z0-9_.]*)\s*;/gm;
+var SOLUTION_PROJECT = /^\s*Project\("[^"]+"\)\s*=\s*"[^"]+",\s*"([^"]+\.(?:csproj|fsproj|vbproj))",\s*"[^"]+"\s*$/gim;
 function buildDotnetProjects(files) {
   const projectFiles = files.filter((file) => PROJECT_FILE.test(file.path)).sort((left, right) => left.path.localeCompare(right.path));
   const canonicalPaths = new Map(projectFiles.map((file) => [file.path.toLowerCase(), file.path]));
@@ -1385,6 +1387,35 @@ function buildDotnetProjects(files) {
   for (const project of projects)
     project.globalUsings.sort((left, right) => left.localeCompare(right));
   return projects;
+}
+function buildDotnetSolutions(files, projects = buildDotnetProjects(files)) {
+  const canonicalProjects = new Map(projects.map((project) => [project.path.toLowerCase(), project.path]));
+  return files.filter((file) => SOLUTION_FILE.test(file.path)).sort((left, right) => left.path.localeCompare(right.path)).map((file) => {
+    const root = directoryOf2(file.path);
+    const members = /* @__PURE__ */ new Set();
+    SOLUTION_PROJECT.lastIndex = 0;
+    for (const match of file.textSample.matchAll(SOLUTION_PROJECT)) {
+      const include = match[1]?.trim();
+      if (!include || /[$*?]/.test(include) || /^[A-Za-z]:[\\/]|^[\\/]/.test(include))
+        continue;
+      const normalized = normalizeRepositoryPath2(root ? `${root}/${include}` : include);
+      const canonical = normalized ? canonicalProjects.get(normalized.toLowerCase()) : void 0;
+      if (canonical)
+        members.add(canonical);
+    }
+    return {
+      path: file.path,
+      root,
+      projects: [...members].sort((left, right) => left.localeCompare(right))
+    };
+  });
+}
+function dotnetSolutionsContaining(solutions, projectPaths) {
+  const required = new Set(projectPaths);
+  return solutions.filter((solution) => {
+    const members = new Set(solution.projects);
+    return [...required].every((path) => members.has(path));
+  });
 }
 function dotnetProjectForPathFromRoots(projectsByRoot, path) {
   const directories = path.split("/").slice(0, -1);
@@ -1719,14 +1750,14 @@ function manifestTestCommand(language, packageDir, files = []) {
       return { command: "dotnet test", reason: ".NET source files; no project file was found" };
     }
     const candidates = packageDir ? projects.filter((project) => project.root === packageDir) : projects;
-    return candidates.length === 1 ? dotnetCommandForProject(projects, candidates[0]) : void 0;
+    return candidates.length === 1 ? dotnetCommandForProject(files, projects, candidates[0]) : void 0;
   }
   return void 0;
 }
 function dotnetTestCommandForPath(files, sourcePath) {
   const projects = buildDotnetProjects(files);
   const sourceProject = dotnetProjectForPath(projects, sourcePath);
-  return sourceProject ? dotnetCommandForProject(projects, sourceProject) : void 0;
+  return sourceProject ? dotnetCommandForProject(files, projects, sourceProject) : void 0;
 }
 function phpTestCommandForPath(files, sourcePath) {
   const projects = buildComposerProjects(files);
@@ -1738,8 +1769,20 @@ function rubyTestCommandForPath(files, sourcePath, relatedTests = []) {
   const project = rubyProjectForPath(projects, sourcePath);
   return project ? rubyTestCommandForProject(project, relatedTests) : void 0;
 }
-function dotnetCommandForProject(projects, sourceProject) {
-  const testProject = sourceProject.test ? sourceProject : referencingDotnetTestProjects(projects, sourceProject.path)[0];
+function dotnetCommandForProject(files, projects, sourceProject) {
+  const testProjects = sourceProject.test ? [sourceProject] : referencingDotnetTestProjects(projects, sourceProject.path);
+  if (testProjects.length > 1) {
+    const solutions = dotnetSolutionsContaining(buildDotnetSolutions(files, projects), [sourceProject.path, ...testProjects.map((project) => project.path)]);
+    if (solutions.length !== 1)
+      return void 0;
+    const solution = solutions[0];
+    return {
+      command: `dotnet test ${solution.path}`,
+      reason: `${solution.path} is the only solution containing ${sourceProject.path} and ${testProjects.length} referencing test projects`,
+      scopeDir: solution.root
+    };
+  }
+  const testProject = testProjects[0];
   if (testProject && testProject.path !== sourceProject.path) {
     return {
       command: `dotnet test ${testProject.path}`,
@@ -6299,7 +6342,7 @@ function classifyConventionalTextFile(path) {
     return "documentation";
   if (CONVENTIONAL_CONFIG_NAMES.has(name))
     return "config";
-  if (/\.(?:csproj|fsproj|vbproj)$/.test(name))
+  if (/\.(?:csproj|fsproj|vbproj|sln)$/.test(name))
     return "config";
   return void 0;
 }
