@@ -4372,41 +4372,41 @@
             "path": "src/Serilog/Events/LevelAlias.cs",
             "tier": "direct",
             "structuralRank": 7,
-            "structuralScore": 69,
+            "structuralScore": 71,
             "lexicalRank": 14,
             "symbolRank": 11,
             "symbol": "LevelAlias",
-            "fusionScore": 73.82
+            "fusionScore": 75.82
           },
           {
             "path": "src/Serilog/Configuration/LoggerAuditSinkConfiguration.cs",
             "tier": "corroborated",
             "structuralRank": 8,
-            "structuralScore": 60,
+            "structuralScore": 62,
             "lexicalRank": 4,
             "symbolRank": 6,
             "symbol": "LoggerAuditSinkConfiguration",
-            "fusionScore": 65.62
+            "fusionScore": 67.62
           },
           {
             "path": "src/Serilog/LoggerConfiguration.cs",
             "tier": "corroborated",
             "structuralRank": 10,
-            "structuralScore": 57,
+            "structuralScore": 59,
             "lexicalRank": 7,
             "symbolRank": 8,
             "symbol": "to",
-            "fusionScore": 62.36
+            "fusionScore": 64.36
           },
           {
             "path": "src/Serilog/Core/LevelOverrideMap.cs",
             "tier": "corroborated",
             "structuralRank": 9,
-            "structuralScore": 57,
+            "structuralScore": 59,
             "lexicalRank": 15,
             "symbolRank": 15,
             "symbol": "GetEffectiveLevel",
-            "fusionScore": 61.6
+            "fusionScore": 63.6
           }
         ],
         "expectedEvidenceProfiles": [

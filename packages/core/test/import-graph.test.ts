@@ -289,6 +289,32 @@ describe("buildImportGraph", () => {
     expect([...(graph.importedBy.get("src/Accounts/Accounts.csproj") ?? [])]).toEqual(["src/Auth/Auth.csproj"]);
   });
 
+  it("applies project and source global usings only for exact symbols in the reachable .NET project", () => {
+    const files = [
+      codeFile("src/App/App.csproj", [
+        "<Project>",
+        '  <ProjectReference Include="..\\Contracts\\Contracts.csproj" />',
+        '  <Using Include="Acme.Shared" />',
+        "</Project>"
+      ].join("\n")),
+      codeFile("src/App/GlobalUsings.cs", "global using Acme.Contracts;"),
+      codeFile("src/App/Service.cs", "namespace Acme.App; public class Service { Contract contract; Shared shared; }"),
+      codeFile("src/Contracts/Contracts.csproj", "<Project />"),
+      codeFile("src/Contracts/Contract.cs", "namespace Acme.Contracts; public class Contract {}"),
+      codeFile("src/Contracts/Shared.cs", "namespace Acme.Shared; public class Shared {}"),
+      codeFile("src/Contracts/Unused.cs", "namespace Acme.Shared; public class Unused {}"),
+      codeFile("src/Decoy/Decoy.csproj", "<Project />"),
+      codeFile("src/Decoy/Contract.cs", "namespace Acme.Contracts; public class DecoyContract {}")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("src/App/Service.cs") ?? [])].sort()).toEqual([
+      "src/Contracts/Contract.cs",
+      "src/Contracts/Shared.cs"
+    ]);
+  });
+
   it("reports when the graph file budget truncates parseable modules", () => {
     const files = Array.from({ length: 5_001 }, (_, index) =>
       codeFile(`src/module-${index}.ts`, `export const module${index} = ${index};`)

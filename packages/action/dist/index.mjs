@@ -1330,10 +1330,12 @@ function depth(path) {
 // packages/core/dist/dotnet-projects.js
 var PROJECT_FILE = /\.(?:csproj|fsproj|vbproj)$/i;
 var PROJECT_REFERENCE = /<ProjectReference\b[^>]*\bInclude\s*=\s*(["'])(.*?)\1/gi;
+var PROJECT_USING = /<Using\b[^>]*\bInclude\s*=\s*(["'])(.*?)\1/gi;
+var SOURCE_GLOBAL_USING = /^\s*global\s+using\s+(?:static\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\s*=\s*)?([A-Za-z_][A-Za-z0-9_.]*)\s*;/gm;
 function buildDotnetProjects(files) {
   const projectFiles = files.filter((file) => PROJECT_FILE.test(file.path)).sort((left, right) => left.path.localeCompare(right.path));
   const canonicalPaths = new Map(projectFiles.map((file) => [file.path.toLowerCase(), file.path]));
-  return projectFiles.map((file) => {
+  const projects = projectFiles.map((file) => {
     const root = directoryOf2(file.path);
     const references = /* @__PURE__ */ new Set();
     PROJECT_REFERENCE.lastIndex = 0;
@@ -1346,13 +1348,55 @@ function buildDotnetProjects(files) {
       if (canonical && canonical !== file.path)
         references.add(canonical);
     }
+    const globalUsings = /* @__PURE__ */ new Set();
+    PROJECT_USING.lastIndex = 0;
+    for (const match of file.textSample.matchAll(PROJECT_USING)) {
+      const namespace = match[2]?.trim();
+      if (namespace && validNamespace(namespace))
+        globalUsings.add(namespace);
+    }
     return {
       path: file.path,
       root,
       references: [...references].sort((left, right) => left.localeCompare(right)),
+      globalUsings: [...globalUsings].sort((left, right) => left.localeCompare(right)),
       test: isDotnetTestProject(file)
     };
   });
+  const projectsByRoot = /* @__PURE__ */ new Map();
+  for (const project of projects) {
+    const existing = projectsByRoot.get(project.root);
+    if (existing)
+      existing.push(project);
+    else
+      projectsByRoot.set(project.root, [project]);
+  }
+  for (const source of files.filter((file) => file.path.toLowerCase().endsWith(".cs"))) {
+    const owner = dotnetProjectForPathFromRoots(projectsByRoot, source.path);
+    if (!owner)
+      continue;
+    SOURCE_GLOBAL_USING.lastIndex = 0;
+    for (const match of source.textSample.matchAll(SOURCE_GLOBAL_USING)) {
+      const namespace = match[1]?.trim();
+      if (namespace && validNamespace(namespace) && !owner.globalUsings.includes(namespace))
+        owner.globalUsings.push(namespace);
+    }
+  }
+  for (const project of projects)
+    project.globalUsings.sort((left, right) => left.localeCompare(right));
+  return projects;
+}
+function dotnetProjectForPathFromRoots(projectsByRoot, path) {
+  const directories = path.split("/").slice(0, -1);
+  for (let length = directories.length; length >= 0; length -= 1) {
+    const projects = projectsByRoot.get(directories.slice(0, length).join("/")) ?? [];
+    if (projects.length > 0)
+      return projects.length === 1 ? projects[0] : void 0;
+  }
+  return void 0;
+}
+function validNamespace(value) {
+  return /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(value) && !/[$*?]/.test(value);
 }
 function dotnetProjectForPath(projects, path) {
   if (PROJECT_FILE.test(path))
@@ -2025,6 +2069,26 @@ function buildImportGraph(files) {
       if (edges >= MAX_EDGES_PER_FILE)
         break;
     }
+    const dotnetProject = resolverIndex.dotnetProjectByFile.get(file.path);
+    if (dotnetProject && file.path.toLowerCase().endsWith(".cs")) {
+      const identifiers = new Set(file.textSample.match(/\b[A-Za-z_][A-Za-z0-9_]*\b/g) ?? []);
+      const targetsBySymbol = resolverIndex.dotnetGlobalTargetsByProject.get(dotnetProject.path);
+      for (const identifier of identifiers) {
+        for (const target of targetsBySymbol?.get(identifier) ?? []) {
+          if (edges >= MAX_EDGES_PER_FILE) {
+            truncatedEdges += 1;
+            break;
+          }
+          if (target === file.path || imports.get(file.path)?.has(target))
+            continue;
+          addEdge(imports, file.path, target);
+          addEdge(importedBy, target, file.path);
+          edges += 1;
+        }
+        if (edges >= MAX_EDGES_PER_FILE)
+          break;
+      }
+    }
   }
   for (const project of dotnetProjects) {
     for (const reference of project.references.slice(0, MAX_EDGES_PER_FILE)) {
@@ -2260,8 +2324,10 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
   const phpSymbols = /* @__PURE__ */ new Map();
   const phpNamespaces = /* @__PURE__ */ new Map();
   const dotnetNamespaces = /* @__PURE__ */ new Map();
+  const dotnetSymbolsByFile = /* @__PURE__ */ new Map();
   const dotnetProjectByFile = /* @__PURE__ */ new Map();
   const composerProjectByFile = /* @__PURE__ */ new Map();
+  const dotnetProjectsByPath = new Map(dotnetProjects.map((project) => [project.path, project]));
   const dotnetProjectsByRoot = /* @__PURE__ */ new Map();
   for (const project of dotnetProjects) {
     const existing = dotnetProjectsByRoot.get(project.root);
@@ -2311,6 +2377,9 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
       const namespace = /\bnamespace\s+([A-Za-z_][A-Za-z0-9_.]*)\s*(?:;|\{)/m.exec(file.textSample)?.[1]?.toLowerCase();
       if (namespace)
         addIndexedPath(dotnetNamespaces, namespace, file.path);
+      const symbols = [...new Set(extractLanguageDefinitions(file).filter((definition) => definition.kind !== "method").map((definition) => definition.name))];
+      if (symbols.length > 0)
+        dotnetSymbolsByFile.set(file.path, symbols);
       const owner = projectForSourcePath(file.path, dotnetProjectsByRoot);
       if (owner)
         dotnetProjectByFile.set(file.path, owner);
@@ -2319,6 +2388,31 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
   goModules.sort((a, b) => b.name.length - a.name.length || a.name.localeCompare(b.name));
   for (const paths of dotnetNamespaces.values())
     paths.sort(shortestPathFirst);
+  const dotnetReferenceClosures = /* @__PURE__ */ new Map();
+  const dotnetGlobalTargetsByProject = /* @__PURE__ */ new Map();
+  for (const project of dotnetProjects) {
+    if (project.globalUsings.length === 0)
+      continue;
+    const reachable = dotnetReferenceClosureFromIndex(dotnetProjectsByPath, project.path);
+    dotnetReferenceClosures.set(project.path, reachable);
+    const targetsBySymbol = /* @__PURE__ */ new Map();
+    for (const namespace of project.globalUsings) {
+      for (const path of dotnetNamespaces.get(namespace.toLowerCase()) ?? []) {
+        const owner = dotnetProjectByFile.get(path);
+        const symbols = dotnetSymbolsByFile.get(path) ?? [];
+        if (!owner || !reachable.has(owner.path))
+          continue;
+        for (const symbol of symbols) {
+          const targets = targetsBySymbol.get(symbol);
+          if (targets)
+            targets.add(path);
+          else
+            targetsBySymbol.set(symbol, /* @__PURE__ */ new Set([path]));
+        }
+      }
+    }
+    dotnetGlobalTargetsByProject.set(project.path, new Map([...targetsBySymbol.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([symbol, targets]) => [symbol, [...targets].sort(shortestPathFirst)])));
+  }
   return {
     repoPaths,
     suffixPaths,
@@ -2332,9 +2426,25 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
     dotnetNamespaces,
     dotnetProjects,
     dotnetProjectByFile,
-    dotnetReferenceClosures: /* @__PURE__ */ new Map(),
+    dotnetReferenceClosures,
+    dotnetGlobalTargetsByProject,
     composerProjectByFile
   };
+}
+function dotnetReferenceClosureFromIndex(projectsByPath, projectPath) {
+  const reachable = /* @__PURE__ */ new Set();
+  const pending = [projectPath];
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (reachable.has(current))
+      continue;
+    reachable.add(current);
+    for (const reference of projectsByPath.get(current)?.references ?? []) {
+      if (!reachable.has(reference))
+        pending.push(reference);
+    }
+  }
+  return reachable;
 }
 function projectForSourcePath(path, projectsByRoot) {
   const directories = path.split("/").slice(0, -1);

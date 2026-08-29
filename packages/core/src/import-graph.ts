@@ -41,6 +41,7 @@ type ResolverIndex = {
   dotnetProjects: DotnetProject[];
   dotnetProjectByFile: Map<string, DotnetProject>;
   dotnetReferenceClosures: Map<string, Set<string>>;
+  dotnetGlobalTargetsByProject: Map<string, Map<string, string[]>>;
   composerProjectByFile: Map<string, ComposerProject>;
 };
 
@@ -73,6 +74,24 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
         edges += 1;
       }
       if (edges >= MAX_EDGES_PER_FILE) break;
+    }
+    const dotnetProject = resolverIndex.dotnetProjectByFile.get(file.path);
+    if (dotnetProject && file.path.toLowerCase().endsWith(".cs")) {
+      const identifiers = new Set(file.textSample.match(/\b[A-Za-z_][A-Za-z0-9_]*\b/g) ?? []);
+      const targetsBySymbol = resolverIndex.dotnetGlobalTargetsByProject.get(dotnetProject.path);
+      for (const identifier of identifiers) {
+        for (const target of targetsBySymbol?.get(identifier) ?? []) {
+          if (edges >= MAX_EDGES_PER_FILE) {
+            truncatedEdges += 1;
+            break;
+          }
+          if (target === file.path || imports.get(file.path)?.has(target)) continue;
+          addEdge(imports, file.path, target);
+          addEdge(importedBy, target, file.path);
+          edges += 1;
+        }
+        if (edges >= MAX_EDGES_PER_FILE) break;
+      }
     }
   }
 
@@ -360,8 +379,10 @@ function buildResolverIndex(
   const phpSymbols = new Map<string, string[]>();
   const phpNamespaces = new Map<string, string[]>();
   const dotnetNamespaces = new Map<string, string[]>();
+  const dotnetSymbolsByFile = new Map<string, string[]>();
   const dotnetProjectByFile = new Map<string, DotnetProject>();
   const composerProjectByFile = new Map<string, ComposerProject>();
+  const dotnetProjectsByPath = new Map(dotnetProjects.map((project) => [project.path, project]));
   const dotnetProjectsByRoot = new Map<string, DotnetProject[]>();
   for (const project of dotnetProjects) {
     const existing = dotnetProjectsByRoot.get(project.root);
@@ -406,6 +427,10 @@ function buildResolverIndex(
     if (file.path.toLowerCase().endsWith(".cs")) {
       const namespace = /\bnamespace\s+([A-Za-z_][A-Za-z0-9_.]*)\s*(?:;|\{)/m.exec(file.textSample)?.[1]?.toLowerCase();
       if (namespace) addIndexedPath(dotnetNamespaces, namespace, file.path);
+      const symbols = [...new Set(extractLanguageDefinitions(file)
+        .filter((definition) => definition.kind !== "method")
+        .map((definition) => definition.name))];
+      if (symbols.length > 0) dotnetSymbolsByFile.set(file.path, symbols);
       const owner = projectForSourcePath(file.path, dotnetProjectsByRoot);
       if (owner) dotnetProjectByFile.set(file.path, owner);
     }
@@ -415,6 +440,31 @@ function buildResolverIndex(
   // A large namespace such as `System` can be referenced by thousands of C# files.
   // Sort each namespace once instead of sorting the same candidate list per `using`.
   for (const paths of dotnetNamespaces.values()) paths.sort(shortestPathFirst);
+  const dotnetReferenceClosures = new Map<string, Set<string>>();
+  const dotnetGlobalTargetsByProject = new Map<string, Map<string, string[]>>();
+  for (const project of dotnetProjects) {
+    if (project.globalUsings.length === 0) continue;
+    const reachable = dotnetReferenceClosureFromIndex(dotnetProjectsByPath, project.path);
+    dotnetReferenceClosures.set(project.path, reachable);
+    const targetsBySymbol = new Map<string, Set<string>>();
+    for (const namespace of project.globalUsings) {
+      for (const path of dotnetNamespaces.get(namespace.toLowerCase()) ?? []) {
+        const owner = dotnetProjectByFile.get(path);
+        const symbols = dotnetSymbolsByFile.get(path) ?? [];
+        if (!owner || !reachable.has(owner.path)) continue;
+        for (const symbol of symbols) {
+          const targets = targetsBySymbol.get(symbol);
+          if (targets) targets.add(path);
+          else targetsBySymbol.set(symbol, new Set([path]));
+        }
+      }
+    }
+    dotnetGlobalTargetsByProject.set(project.path, new Map(
+      [...targetsBySymbol.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([symbol, targets]) => [symbol, [...targets].sort(shortestPathFirst)])
+    ));
+  }
   return {
     repoPaths,
     suffixPaths,
@@ -428,9 +478,24 @@ function buildResolverIndex(
     dotnetNamespaces,
     dotnetProjects,
     dotnetProjectByFile,
-    dotnetReferenceClosures: new Map(),
+    dotnetReferenceClosures,
+    dotnetGlobalTargetsByProject,
     composerProjectByFile
   };
+}
+
+function dotnetReferenceClosureFromIndex(projectsByPath: ReadonlyMap<string, DotnetProject>, projectPath: string): Set<string> {
+  const reachable = new Set<string>();
+  const pending = [projectPath];
+  while (pending.length > 0) {
+    const current = pending.shift()!;
+    if (reachable.has(current)) continue;
+    reachable.add(current);
+    for (const reference of projectsByPath.get(current)?.references ?? []) {
+      if (!reachable.has(reference)) pending.push(reference);
+    }
+  }
+  return reachable;
 }
 
 function projectForSourcePath<T extends { root: string }>(

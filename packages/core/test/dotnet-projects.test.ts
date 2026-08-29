@@ -19,6 +19,10 @@ function project(path: string, textSample = "<Project />"): RepoFile {
   };
 }
 
+function source(path: string, textSample: string): RepoFile {
+  return { ...project(path, textSample), extension: ".cs", kind: "code" };
+}
+
 describe(".NET project evidence", () => {
   it("normalizes literal references, rejects unresolved paths, and preserves canonical case", () => {
     const projects = buildDotnetProjects([
@@ -69,5 +73,26 @@ describe(".NET project evidence", () => {
 
     expect(referencingDotnetTestProjects(projects, "src/App/App.csproj").map((entry) => entry.path))
       .toEqual(["tests/App.UnitTests/App.UnitTests.csproj"]);
+  });
+
+  it("collects literal project and source global usings within the owning project", () => {
+    const projects = buildDotnetProjects([
+      project("src/App/App.csproj", [
+        "<Project>",
+        '  <Using Include="Acme.Shared" />',
+        '  <Using Include="$(DynamicNamespace)" />',
+        "</Project>"
+      ].join("\n")),
+      source("src/App/GlobalUsings.cs", "global using Acme.Contracts;\nglobal using Alias = Acme.Aliased;\n"),
+      project("src/Other/Other.csproj"),
+      source("src/Other/GlobalUsings.cs", "global using Acme.Other;\n")
+    ]);
+
+    expect(projects.find((entry) => entry.path === "src/App/App.csproj")?.globalUsings).toEqual([
+      "Acme.Aliased",
+      "Acme.Contracts",
+      "Acme.Shared"
+    ]);
+    expect(projects.find((entry) => entry.path === "src/Other/Other.csproj")?.globalUsings).toEqual(["Acme.Other"]);
   });
 });
