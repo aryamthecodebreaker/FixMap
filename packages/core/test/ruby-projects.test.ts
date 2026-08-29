@@ -101,4 +101,25 @@ describe("Ruby project evidence", () => {
     expect(rubyProjectForPath(projects, "services/api/lib/token.rb")?.path).toBe("services/api/Gemfile");
     expect(rubyProjectForPath(projects, "lib/token.rb")?.path).toBe("Gemfile");
   });
+
+  it("enables conventional Rails autoload files only with both gem and application evidence", () => {
+    const projects = buildRubyProjects([
+      file("Gemfile", 'gem "rails"\n'),
+      file("config/application.rb", "class Application < Rails::Application; end\n"),
+      file("app/models/user.rb", "class User; end\n"),
+      file("app/services/token_issuer.rb", "class TokenIssuer; end\n"),
+      file("app/views/users/show.rb", "class ViewTemplate; end\n"),
+      file("services/plain/Gemfile", 'gem "rails"\n'),
+      file("services/plain/app/models/decoy.rb", "class Decoy; end\n")
+    ]);
+
+    expect(projects[0]).toMatchObject({
+      railsEvidence: ["config/application.rb", "Gemfile"],
+      autoloadFiles: ["app/models/user.rb", "app/services/token_issuer.rb"]
+    });
+    expect(projects[1]).toMatchObject({
+      railsEvidence: ["services/plain/Gemfile"],
+      autoloadFiles: []
+    });
+  });
 });

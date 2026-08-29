@@ -1484,15 +1484,22 @@ function normalizeRepositoryPath2(path) {
 function buildRubyProjects(files) {
   const manifests = files.filter((file) => file.path.split("/").pop()?.toLowerCase() === "gemfile").sort((left, right) => left.path.localeCompare(right.path));
   const shells = manifests.map((file) => ({ path: file.path, root: directoryOf3(file.path) }));
+  const rubyEvidenceFiles = files.filter((file) => {
+    const name = file.path.split("/").pop()?.toLowerCase() ?? "";
+    return file.path.toLowerCase().endsWith(".rb") || file.path.toLowerCase().endsWith(".rake") || name === "gemfile" || name === "rakefile" || name === ".rspec";
+  });
   return manifests.map((manifest) => {
     const root = directoryOf3(manifest.path);
-    const scoped = files.filter((file) => rubyProjectForPath(shells, file.path)?.path === manifest.path);
+    const scoped = rubyEvidenceFiles.filter((file) => rubyProjectForPath(shells, file.path)?.path === manifest.path);
     const rspecEvidence = /* @__PURE__ */ new Set();
     const minitestEvidence = /* @__PURE__ */ new Set();
+    const railsEvidence = /* @__PURE__ */ new Set();
     if (/^\s*gem\s*(?:\(|\s)\s*["']rspec(?:-[a-z0-9_-]+)?["']/im.test(manifest.textSample))
       rspecEvidence.add(manifest.path);
     if (/^\s*gem\s*(?:\(|\s)\s*["']minitest["']/im.test(manifest.textSample))
       minitestEvidence.add(manifest.path);
+    if (/^\s*gem\s*(?:\(|\s)\s*["']rails["']/im.test(manifest.textSample))
+      railsEvidence.add(manifest.path);
     for (const file of scoped) {
       const relative2 = root ? file.path.slice(root.length + 1) : file.path;
       if (relative2.toLowerCase() === ".rspec" || /(?:^|\/)spec\/(?:spec_helper|rails_helper)\.rb$/i.test(relative2) || /_spec\.rb$/i.test(relative2)) {
@@ -1502,6 +1509,16 @@ function buildRubyProjects(files) {
         minitestEvidence.add(file.path);
       }
     }
+    const application = scoped.find((file) => {
+      const relative2 = root ? file.path.slice(root.length + 1) : file.path;
+      return relative2.toLowerCase() === "config/application.rb" && /\bclass\s+Application\s*<\s*Rails::Application\b/.test(file.textSample);
+    });
+    if (application)
+      railsEvidence.add(application.path);
+    const autoloadFiles = railsEvidence.size === 2 ? scoped.filter((file) => {
+      const relative2 = root ? file.path.slice(root.length + 1) : file.path;
+      return /^app\/(?!assets(?:\/|$)|javascript(?:\/|$)|views(?:\/|$))[^/]+\/.+\.rb$/i.test(relative2);
+    }).map((file) => file.path).sort((left, right) => left.localeCompare(right)) : [];
     const rakefile = scoped.find((file) => file.path.split("/").pop()?.toLowerCase() === "rakefile");
     const rakeTestPath = rakefile && /\b(?:Rake::TestTask|task\s*(?:\(|\s)\s*:test\b)/.test(rakefile.textSample) ? rakefile.path : void 0;
     return {
@@ -1509,6 +1526,8 @@ function buildRubyProjects(files) {
       root,
       rspecEvidence: [...rspecEvidence].sort((left, right) => left.localeCompare(right)),
       minitestEvidence: [...minitestEvidence].sort((left, right) => left.localeCompare(right)),
+      railsEvidence: [...railsEvidence].sort((left, right) => left.localeCompare(right)),
+      autoloadFiles,
       ...rakeTestPath ? { rakeTestPath } : {}
     };
   });
@@ -2087,9 +2106,12 @@ function buildImportGraph(files) {
   const dotnetProjects = buildDotnetProjects(files);
   const composerProjects = buildComposerProjects(files);
   const rustProjects = buildRustProjects(files);
+  const hasRailsGem = files.some((file) => file.path.split("/").pop()?.toLowerCase() === "gemfile" && /^\s*gem\s*(?:\(|\s)\s*["']rails["']/im.test(file.textSample));
+  const hasRailsApplication = files.some((file) => /(?:^|\/)config\/application\.rb$/i.test(file.path) && /\bclass\s+Application\s*<\s*Rails::Application\b/.test(file.textSample));
+  const rubyProjects = hasRailsGem && hasRailsApplication ? buildRubyProjects(files) : [];
   const goModules = buildGoModules(files);
   const goWorkspaces = buildGoWorkspaces(files, goModules);
-  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects, goModules, goWorkspaces);
+  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects, rubyProjects, goModules, goWorkspaces);
   const aliases = buildAliases(files);
   const workspacePackages = buildWorkspacePackages(files);
   const imports = /* @__PURE__ */ new Map();
@@ -2117,6 +2139,25 @@ function buildImportGraph(files) {
       const identifiers = new Set(file.textSample.match(/\b[A-Za-z_][A-Za-z0-9_]*\b/g) ?? []);
       const targetsBySymbol = resolverIndex.dotnetGlobalTargetsByProject.get(dotnetProject.path);
       for (const identifier of identifiers) {
+        for (const target of targetsBySymbol?.get(identifier) ?? []) {
+          if (edges >= MAX_EDGES_PER_FILE) {
+            truncatedEdges += 1;
+            break;
+          }
+          if (target === file.path || imports.get(file.path)?.has(target))
+            continue;
+          addEdge(imports, file.path, target);
+          addEdge(importedBy, target, file.path);
+          edges += 1;
+        }
+        if (edges >= MAX_EDGES_PER_FILE)
+          break;
+      }
+    }
+    const rubyProject = resolverIndex.rubyProjectByFile.get(file.path);
+    if (rubyProject && file.path.toLowerCase().endsWith(".rb")) {
+      const targetsBySymbol = resolverIndex.rubyAutoloadTargetsByProject.get(rubyProject.path);
+      for (const identifier of rubyConstantIdentifiers(file.textSample)) {
         for (const target of targetsBySymbol?.get(identifier) ?? []) {
           if (edges >= MAX_EDGES_PER_FILE) {
             truncatedEdges += 1;
@@ -2359,7 +2400,7 @@ function resolveDotnetImport(fromPath, imported, resolverIndex) {
     return targetProject !== void 0 && reachableProjects.has(targetProject.path);
   }).slice(0, 20);
 }
-function buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects, goModules, goWorkspaces) {
+function buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects, rubyProjects, goModules, goWorkspaces) {
   const repoPaths = new Set(files.map((file) => file.path));
   const suffixPaths = /* @__PURE__ */ new Map();
   const javaPackagePaths = /* @__PURE__ */ new Map();
@@ -2369,6 +2410,7 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
   const dotnetNamespaces = /* @__PURE__ */ new Map();
   const dotnetSymbolsByFile = /* @__PURE__ */ new Map();
   const dotnetProjectByFile = /* @__PURE__ */ new Map();
+  const rubyProjectByFile = /* @__PURE__ */ new Map();
   const composerProjectByFile = /* @__PURE__ */ new Map();
   const dotnetProjectsByPath = new Map(dotnetProjects.map((project) => [project.path, project]));
   const dotnetProjectsByRoot = /* @__PURE__ */ new Map();
@@ -2427,6 +2469,11 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
       if (owner)
         dotnetProjectByFile.set(file.path, owner);
     }
+    if (file.path.toLowerCase().endsWith(".rb")) {
+      const owner = rubyProjectForPath(rubyProjects, file.path);
+      if (owner)
+        rubyProjectByFile.set(file.path, owner);
+    }
   }
   goModules.sort((a, b) => b.name.length - a.name.length || a.name.localeCompare(b.name));
   for (const paths of dotnetNamespaces.values())
@@ -2456,6 +2503,28 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
     }
     dotnetGlobalTargetsByProject.set(project.path, new Map([...targetsBySymbol.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([symbol, targets]) => [symbol, [...targets].sort(shortestPathFirst)])));
   }
+  const rubyAutoloadTargetsByProject = /* @__PURE__ */ new Map();
+  const filesByPath = new Map(files.map((file) => [file.path, file]));
+  for (const project of rubyProjects) {
+    if (project.autoloadFiles.length === 0)
+      continue;
+    const targetsBySymbol = /* @__PURE__ */ new Map();
+    for (const path of project.autoloadFiles) {
+      const target = filesByPath.get(path);
+      if (!target)
+        continue;
+      for (const definition of extractLanguageDefinitions(target)) {
+        if (definition.kind === "method")
+          continue;
+        const paths = targetsBySymbol.get(definition.name);
+        if (paths)
+          paths.add(path);
+        else
+          targetsBySymbol.set(definition.name, /* @__PURE__ */ new Set([path]));
+      }
+    }
+    rubyAutoloadTargetsByProject.set(project.path, new Map([...targetsBySymbol.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([symbol, targets]) => [symbol, [...targets].sort(shortestPathFirst)])));
+  }
   return {
     repoPaths,
     suffixPaths,
@@ -2464,6 +2533,8 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
     goModules,
     goWorkspaces,
     rustProjects,
+    rubyProjectByFile,
+    rubyAutoloadTargetsByProject,
     phpSymbols,
     phpNamespaces,
     dotnetNamespaces,
@@ -2473,6 +2544,49 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
     dotnetGlobalTargetsByProject,
     composerProjectByFile
   };
+}
+function rubyConstantIdentifiers(text) {
+  const identifiers = /* @__PURE__ */ new Set();
+  let heredocEnd;
+  for (const line of text.split(/\r?\n/)) {
+    if (heredocEnd) {
+      if (line.trim() === heredocEnd)
+        heredocEnd = void 0;
+      continue;
+    }
+    let scrubbed = "";
+    let quote = "";
+    let escaped = false;
+    for (const character of line) {
+      if (escaped) {
+        escaped = false;
+        scrubbed += " ";
+        continue;
+      }
+      if (quote && character === "\\") {
+        escaped = true;
+        scrubbed += " ";
+        continue;
+      }
+      if (character === '"' || character === "'") {
+        quote = quote === character ? "" : quote ? quote : character;
+        scrubbed += " ";
+        continue;
+      }
+      if (!quote && character === "#")
+        break;
+      scrubbed += quote ? " " : character;
+    }
+    const heredoc = /<<[-~]?\s*(?:["']([A-Za-z_][A-Za-z0-9_]*)["']|([A-Za-z_][A-Za-z0-9_]*))/.exec(line);
+    if (heredoc)
+      heredocEnd = heredoc[1] ?? heredoc[2];
+    const searchable = heredoc ? scrubbed.slice(0, heredoc.index) : scrubbed;
+    for (const match of searchable.matchAll(/\b[A-Z][A-Za-z0-9_]*\b/g)) {
+      if (match[0])
+        identifiers.add(match[0]);
+    }
+  }
+  return identifiers;
 }
 function dotnetReferenceClosureFromIndex(projectsByPath, projectPath) {
   const reachable = /* @__PURE__ */ new Set();

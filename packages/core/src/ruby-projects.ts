@@ -5,6 +5,8 @@ export type RubyProject = {
   root: string;
   rspecEvidence: string[];
   minitestEvidence: string[];
+  railsEvidence: string[];
+  autoloadFiles: string[];
   rakeTestPath?: string;
 };
 
@@ -13,14 +15,21 @@ export function buildRubyProjects(files: RepoFile[]): RubyProject[] {
     .filter((file) => file.path.split("/").pop()?.toLowerCase() === "gemfile")
     .sort((left, right) => left.path.localeCompare(right.path));
   const shells = manifests.map((file) => ({ path: file.path, root: directoryOf(file.path) }));
+  const rubyEvidenceFiles = files.filter((file) => {
+    const name = file.path.split("/").pop()?.toLowerCase() ?? "";
+    return file.path.toLowerCase().endsWith(".rb") || file.path.toLowerCase().endsWith(".rake") ||
+      name === "gemfile" || name === "rakefile" || name === ".rspec";
+  });
 
   return manifests.map((manifest) => {
     const root = directoryOf(manifest.path);
-    const scoped = files.filter((file) => rubyProjectForPath(shells, file.path)?.path === manifest.path);
+    const scoped = rubyEvidenceFiles.filter((file) => rubyProjectForPath(shells, file.path)?.path === manifest.path);
     const rspecEvidence = new Set<string>();
     const minitestEvidence = new Set<string>();
+    const railsEvidence = new Set<string>();
     if (/^\s*gem\s*(?:\(|\s)\s*["']rspec(?:-[a-z0-9_-]+)?["']/im.test(manifest.textSample)) rspecEvidence.add(manifest.path);
     if (/^\s*gem\s*(?:\(|\s)\s*["']minitest["']/im.test(manifest.textSample)) minitestEvidence.add(manifest.path);
+    if (/^\s*gem\s*(?:\(|\s)\s*["']rails["']/im.test(manifest.textSample)) railsEvidence.add(manifest.path);
     for (const file of scoped) {
       const relative = root ? file.path.slice(root.length + 1) : file.path;
       if (relative.toLowerCase() === ".rspec" || /(?:^|\/)spec\/(?:spec_helper|rails_helper)\.rb$/i.test(relative) || /_spec\.rb$/i.test(relative)) {
@@ -31,6 +40,18 @@ export function buildRubyProjects(files: RepoFile[]): RubyProject[] {
         minitestEvidence.add(file.path);
       }
     }
+    const application = scoped.find((file) => {
+      const relative = root ? file.path.slice(root.length + 1) : file.path;
+      return relative.toLowerCase() === "config/application.rb" &&
+        /\bclass\s+Application\s*<\s*Rails::Application\b/.test(file.textSample);
+    });
+    if (application) railsEvidence.add(application.path);
+    const autoloadFiles = railsEvidence.size === 2
+      ? scoped.filter((file) => {
+        const relative = root ? file.path.slice(root.length + 1) : file.path;
+        return /^app\/(?!assets(?:\/|$)|javascript(?:\/|$)|views(?:\/|$))[^/]+\/.+\.rb$/i.test(relative);
+      }).map((file) => file.path).sort((left, right) => left.localeCompare(right))
+      : [];
     const rakefile = scoped.find((file) => file.path.split("/").pop()?.toLowerCase() === "rakefile");
     const rakeTestPath = rakefile && /\b(?:Rake::TestTask|task\s*(?:\(|\s)\s*:test\b)/.test(rakefile.textSample)
       ? rakefile.path
@@ -40,6 +61,8 @@ export function buildRubyProjects(files: RepoFile[]): RubyProject[] {
       root,
       rspecEvidence: [...rspecEvidence].sort((left, right) => left.localeCompare(right)),
       minitestEvidence: [...minitestEvidence].sort((left, right) => left.localeCompare(right)),
+      railsEvidence: [...railsEvidence].sort((left, right) => left.localeCompare(right)),
+      autoloadFiles,
       ...(rakeTestPath ? { rakeTestPath } : {})
     };
   });

@@ -3,6 +3,7 @@ import { buildComposerProjects, resolveComposerSymbol, type ComposerProject } fr
 import { buildDotnetProjects, dotnetReferenceClosure, type DotnetProject } from "./dotnet-projects.js";
 import { buildRustProjects, rustPathDependency, rustProjectForPath, type RustProject } from "./rust-projects.js";
 import { buildGoModules, buildGoWorkspaces, goModuleForPath, goWorkspaceForModules, type GoModule, type GoWorkspace } from "./go-projects.js";
+import { buildRubyProjects, rubyProjectForPath, type RubyProject } from "./ruby-projects.js";
 import type { RepoFile } from "./types.js";
 
 const RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"];
@@ -35,6 +36,8 @@ type ResolverIndex = {
   goModules: GoModule[];
   goWorkspaces: GoWorkspace[];
   rustProjects: RustProject[];
+  rubyProjectByFile: Map<string, RubyProject>;
+  rubyAutoloadTargetsByProject: Map<string, Map<string, string[]>>;
   phpSymbols: Map<string, string[]>;
   phpNamespaces: Map<string, string[]>;
   dotnetNamespaces: Map<string, string[]>;
@@ -51,9 +54,14 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
   const dotnetProjects = buildDotnetProjects(files);
   const composerProjects = buildComposerProjects(files);
   const rustProjects = buildRustProjects(files);
+  const hasRailsGem = files.some((file) => file.path.split("/").pop()?.toLowerCase() === "gemfile" &&
+    /^\s*gem\s*(?:\(|\s)\s*["']rails["']/im.test(file.textSample));
+  const hasRailsApplication = files.some((file) => /(?:^|\/)config\/application\.rb$/i.test(file.path) &&
+    /\bclass\s+Application\s*<\s*Rails::Application\b/.test(file.textSample));
+  const rubyProjects = hasRailsGem && hasRailsApplication ? buildRubyProjects(files) : [];
   const goModules = buildGoModules(files);
   const goWorkspaces = buildGoWorkspaces(files, goModules);
-  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects, goModules, goWorkspaces);
+  const resolverIndex = buildResolverIndex(files, dotnetProjects, composerProjects, rustProjects, rubyProjects, goModules, goWorkspaces);
   const aliases = buildAliases(files);
   const workspacePackages = buildWorkspacePackages(files);
   const imports = new Map<string, Set<string>>();
@@ -80,6 +88,23 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
       const identifiers = new Set(file.textSample.match(/\b[A-Za-z_][A-Za-z0-9_]*\b/g) ?? []);
       const targetsBySymbol = resolverIndex.dotnetGlobalTargetsByProject.get(dotnetProject.path);
       for (const identifier of identifiers) {
+        for (const target of targetsBySymbol?.get(identifier) ?? []) {
+          if (edges >= MAX_EDGES_PER_FILE) {
+            truncatedEdges += 1;
+            break;
+          }
+          if (target === file.path || imports.get(file.path)?.has(target)) continue;
+          addEdge(imports, file.path, target);
+          addEdge(importedBy, target, file.path);
+          edges += 1;
+        }
+        if (edges >= MAX_EDGES_PER_FILE) break;
+      }
+    }
+    const rubyProject = resolverIndex.rubyProjectByFile.get(file.path);
+    if (rubyProject && file.path.toLowerCase().endsWith(".rb")) {
+      const targetsBySymbol = resolverIndex.rubyAutoloadTargetsByProject.get(rubyProject.path);
+      for (const identifier of rubyConstantIdentifiers(file.textSample)) {
         for (const target of targetsBySymbol?.get(identifier) ?? []) {
           if (edges >= MAX_EDGES_PER_FILE) {
             truncatedEdges += 1;
@@ -369,6 +394,7 @@ function buildResolverIndex(
   dotnetProjects: DotnetProject[],
   composerProjects: ComposerProject[],
   rustProjects: RustProject[],
+  rubyProjects: RubyProject[],
   goModules: GoModule[],
   goWorkspaces: GoWorkspace[]
 ): ResolverIndex {
@@ -381,6 +407,7 @@ function buildResolverIndex(
   const dotnetNamespaces = new Map<string, string[]>();
   const dotnetSymbolsByFile = new Map<string, string[]>();
   const dotnetProjectByFile = new Map<string, DotnetProject>();
+  const rubyProjectByFile = new Map<string, RubyProject>();
   const composerProjectByFile = new Map<string, ComposerProject>();
   const dotnetProjectsByPath = new Map(dotnetProjects.map((project) => [project.path, project]));
   const dotnetProjectsByRoot = new Map<string, DotnetProject[]>();
@@ -434,6 +461,10 @@ function buildResolverIndex(
       const owner = projectForSourcePath(file.path, dotnetProjectsByRoot);
       if (owner) dotnetProjectByFile.set(file.path, owner);
     }
+    if (file.path.toLowerCase().endsWith(".rb")) {
+      const owner = rubyProjectForPath(rubyProjects, file.path);
+      if (owner) rubyProjectByFile.set(file.path, owner);
+    }
   }
 
   goModules.sort((a, b) => b.name.length - a.name.length || a.name.localeCompare(b.name));
@@ -465,6 +496,27 @@ function buildResolverIndex(
         .map(([symbol, targets]) => [symbol, [...targets].sort(shortestPathFirst)])
     ));
   }
+  const rubyAutoloadTargetsByProject = new Map<string, Map<string, string[]>>();
+  const filesByPath = new Map(files.map((file) => [file.path, file]));
+  for (const project of rubyProjects) {
+    if (project.autoloadFiles.length === 0) continue;
+    const targetsBySymbol = new Map<string, Set<string>>();
+    for (const path of project.autoloadFiles) {
+      const target = filesByPath.get(path);
+      if (!target) continue;
+      for (const definition of extractLanguageDefinitions(target)) {
+        if (definition.kind === "method") continue;
+        const paths = targetsBySymbol.get(definition.name);
+        if (paths) paths.add(path);
+        else targetsBySymbol.set(definition.name, new Set([path]));
+      }
+    }
+    rubyAutoloadTargetsByProject.set(project.path, new Map(
+      [...targetsBySymbol.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([symbol, targets]) => [symbol, [...targets].sort(shortestPathFirst)])
+    ));
+  }
   return {
     repoPaths,
     suffixPaths,
@@ -473,6 +525,8 @@ function buildResolverIndex(
     goModules,
     goWorkspaces,
     rustProjects,
+    rubyProjectByFile,
+    rubyAutoloadTargetsByProject,
     phpSymbols,
     phpNamespaces,
     dotnetNamespaces,
@@ -482,6 +536,46 @@ function buildResolverIndex(
     dotnetGlobalTargetsByProject,
     composerProjectByFile
   };
+}
+
+function rubyConstantIdentifiers(text: string): Set<string> {
+  const identifiers = new Set<string>();
+  let heredocEnd: string | undefined;
+  for (const line of text.split(/\r?\n/)) {
+    if (heredocEnd) {
+      if (line.trim() === heredocEnd) heredocEnd = undefined;
+      continue;
+    }
+    let scrubbed = "";
+    let quote = "";
+    let escaped = false;
+    for (const character of line) {
+      if (escaped) {
+        escaped = false;
+        scrubbed += " ";
+        continue;
+      }
+      if (quote && character === "\\") {
+        escaped = true;
+        scrubbed += " ";
+        continue;
+      }
+      if (character === '"' || character === "'") {
+        quote = quote === character ? "" : quote ? quote : character;
+        scrubbed += " ";
+        continue;
+      }
+      if (!quote && character === "#") break;
+      scrubbed += quote ? " " : character;
+    }
+    const heredoc = /<<[-~]?\s*(?:["']([A-Za-z_][A-Za-z0-9_]*)["']|([A-Za-z_][A-Za-z0-9_]*))/.exec(line);
+    if (heredoc) heredocEnd = heredoc[1] ?? heredoc[2];
+    const searchable = heredoc ? scrubbed.slice(0, heredoc.index) : scrubbed;
+    for (const match of searchable.matchAll(/\b[A-Z][A-Za-z0-9_]*\b/g)) {
+      if (match[0]) identifiers.add(match[0]);
+    }
+  }
+  return identifiers;
 }
 
 function dotnetReferenceClosureFromIndex(projectsByPath: ReadonlyMap<string, DotnetProject>, projectPath: string): Set<string> {

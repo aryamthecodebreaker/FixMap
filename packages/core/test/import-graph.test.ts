@@ -221,6 +221,50 @@ describe("buildImportGraph", () => {
     ]);
   });
 
+  it("resolves exact Rails autoload constants within the evidenced application only", () => {
+    const files = [
+      codeFile("Gemfile", 'gem "rails"'),
+      codeFile("config/application.rb", "class Application < Rails::Application; end"),
+      codeFile("app/models/user.rb", "class User; end"),
+      codeFile("app/services/token_issuer.rb", "class TokenIssuer; end"),
+      codeFile("app/models/unused.rb", "class Unused; end"),
+      codeFile("app/controllers/sessions_controller.rb", [
+        "class SessionsController",
+        "  # Unused must not create an edge from comments",
+        '  LABEL = "Unused"',
+        "  QUERY = <<~SQL",
+        "    SELECT 'Unused'",
+        "  SQL",
+        "  def create; TokenIssuer.call(User.new); end",
+        "end"
+      ].join("\n")),
+      codeFile("services/other/Gemfile", 'gem "rails"'),
+      codeFile("services/other/config/application.rb", "class Application < Rails::Application; end"),
+      codeFile("services/other/app/models/user.rb", "class User; end")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("app/controllers/sessions_controller.rb") ?? [])].sort()).toEqual([
+      "app/models/user.rb",
+      "app/services/token_issuer.rb"
+    ]);
+    expect([...(graph.imports.get("app/controllers/sessions_controller.rb") ?? [])])
+      .not.toContain("services/other/app/models/user.rb");
+  });
+
+  it("does not invent Rails autoload edges from a rails gem without an application class", () => {
+    const files = [
+      codeFile("Gemfile", 'gem "rails"'),
+      codeFile("app/models/user.rb", "class User; end"),
+      codeFile("app/controllers/sessions_controller.rb", "class SessionsController; User.new; end")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("app/controllers/sessions_controller.rb") ?? [])]).toEqual([]);
+  });
+
   it("resolves PHP file includes and namespace symbols", () => {
     const files = [
       codeFile("src/Auth/Reset.php", "<?php\nnamespace Acme\\Auth;\nuse Acme\\Accounts\\User;\nrequire_once './Token.php';"),
