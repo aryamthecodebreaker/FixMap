@@ -158,6 +158,26 @@ describe("buildImportGraph", () => {
     expect([...(graph.imports.get("api/main.go") ?? [])]).toEqual([]);
   });
 
+  it("resolves Go imports through the importing module's exact local replace directive", () => {
+    const graph = buildImportGraph([
+      codeFile("services/api/go.mod", [
+        "module corp.example/api",
+        "replace legacy.example/auth v1.2.0 => ../auth"
+      ].join("\n")),
+      codeFile("services/api/main.go", 'package api\nimport "legacy.example/auth/token"'),
+      codeFile("services/auth/go.mod", "module corp.internal/auth"),
+      codeFile("services/auth/token/token.go", "package token\ntype Token struct{}"),
+      codeFile("services/other/go.mod", "module corp.example/other"),
+      codeFile("services/other/main.go", 'package other\nimport "legacy.example/auth/token"'),
+      codeFile("decoy/go.mod", "module legacy.example/auth"),
+      codeFile("decoy/token/token.go", "package token\ntype Decoy struct{}")
+    ]);
+
+    expect([...(graph.imports.get("services/api/main.go") ?? [])])
+      .toEqual(["services/auth/token/token.go"]);
+    expect([...(graph.imports.get("services/other/main.go") ?? [])]).toEqual([]);
+  });
+
   it("resolves Rust crate, self-module, and symbol-qualified uses", () => {
     const files = [
       codeFile("Cargo.toml", "[package]\nname = 'acme'"),

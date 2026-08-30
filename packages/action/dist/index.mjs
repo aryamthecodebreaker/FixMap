@@ -2015,13 +2015,29 @@ function depth3(path) {
 
 // packages/core/dist/go-projects.js
 function buildGoModules(files) {
-  return files.flatMap((file) => {
+  const manifests = files.flatMap((file) => {
     if (file.path.split("/").pop()?.toLowerCase() !== "go.mod")
       return [];
     const name = /^\s*module\s+([^\s]+)\s*$/m.exec(file.textSample)?.[1]?.trim();
     if (!name || /[\0\r\n]/.test(name))
       return [];
-    return [{ path: file.path, root: directoryOf5(file.path), name }];
+    return [{ file, path: file.path, root: directoryOf5(file.path), name }];
+  });
+  const moduleRoots = new Set(manifests.map((manifest) => manifest.root));
+  return manifests.map((manifest) => {
+    const replacementsByModule = /* @__PURE__ */ new Map();
+    for (const replacement of parseReplaceClauses(manifest.file.textSample)) {
+      const targetRoot = normalizeRelativeRoot2(manifest.root, replacement.target);
+      if (targetRoot === void 0 || !moduleRoots.has(targetRoot))
+        continue;
+      const targets = replacementsByModule.get(replacement.module);
+      if (targets)
+        targets.push(targetRoot);
+      else
+        replacementsByModule.set(replacement.module, [targetRoot]);
+    }
+    const replacements = [...replacementsByModule.entries()].flatMap(([module, targets]) => targets.length === 1 ? [{ module, targetRoot: targets[0] }] : []).sort((left, right) => right.module.length - left.module.length || left.module.localeCompare(right.module));
+    return { path: manifest.path, root: manifest.root, name: manifest.name, replacements };
   }).sort((left, right) => left.root.localeCompare(right.root) || left.name.localeCompare(right.name));
 }
 function buildGoWorkspaces(files, modules = buildGoModules(files)) {
@@ -2049,6 +2065,14 @@ function goModuleForPath(modules, path) {
 function goWorkspaceForModules(workspaces, leftRoot, rightRoot) {
   return [...workspaces].filter((workspace) => workspace.moduleRoots.includes(leftRoot) && workspace.moduleRoots.includes(rightRoot)).sort((left, right) => depth4(right.root) - depth4(left.root) || left.path.localeCompare(right.path))[0];
 }
+function goReplacementForImport(module, specifier) {
+  const matching = module.replacements.filter((replacement) => specifier === replacement.module || specifier.startsWith(`${replacement.module}/`));
+  if (matching.length === 0)
+    return void 0;
+  const longest = matching[0].module.length;
+  const equallySpecific = matching.filter((replacement) => replacement.module.length === longest);
+  return equallySpecific.length === 1 ? equallySpecific[0] : void 0;
+}
 function parseUsePaths(text) {
   const uses = [];
   for (const match of text.matchAll(/^\s*use\s+([^\s(][^\s]*)\s*(?:\/\/.*)?$/gm)) {
@@ -2063,6 +2087,47 @@ function parseUsePaths(text) {
     }
   }
   return uses;
+}
+function parseReplaceClauses(text) {
+  const clauses = [];
+  let inBlock = false;
+  let blockClauses = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\/\/.*$/, "").trim();
+    if (!line)
+      continue;
+    if (/^replace\s*\($/.test(line)) {
+      inBlock = true;
+      blockClauses = [];
+      continue;
+    }
+    if (inBlock && line === ")") {
+      inBlock = false;
+      clauses.push(...blockClauses);
+      blockClauses = [];
+      continue;
+    }
+    if (inBlock)
+      blockClauses.push(line);
+    else if (line.startsWith("replace "))
+      clauses.push(line.slice("replace ".length).trim());
+  }
+  return clauses.flatMap((clause) => {
+    const sides = clause.split(/\s*=>\s*/);
+    if (sides.length !== 2)
+      return [];
+    const left = (sides[0] ?? "").trim().split(/\s+/);
+    const right = (sides[1] ?? "").trim().split(/\s+/);
+    const module = left[0] ?? "";
+    const target = right[0] ?? "";
+    if (left.length > 2 || left.length === 2 && !/^v\S+$/.test(left[1] ?? "") || right.length !== 1)
+      return [];
+    if (!module || module.startsWith(".") || /^[\\/]|^[A-Za-z]:/.test(module) || /[*?\[\]\0]/.test(module))
+      return [];
+    if (!target.startsWith(".") || /[*?\[\]\0]/.test(target))
+      return [];
+    return [{ module, target }];
+  });
 }
 function normalizeRelativeRoot2(root, value) {
   if (!value || /^[\\/]/.test(value) || /^[A-Za-z]:/.test(value) || value.includes("\0") || /[*?\[]/.test(value))
@@ -2289,6 +2354,12 @@ function resolveJavaImport(imported, resolverIndex) {
 }
 function resolveGoImport(fromPath, imported, resolverIndex) {
   const sourceModule = goModuleForPath(resolverIndex.goModules, fromPath);
+  const replacement = sourceModule ? goReplacementForImport(sourceModule, imported.specifier) : void 0;
+  if (replacement) {
+    const suffix2 = imported.specifier === replacement.module ? "" : imported.specifier.slice(replacement.module.length + 1);
+    const directory2 = [replacement.targetRoot, suffix2].filter(Boolean).join("/");
+    return (resolverIndex.directoryPaths.get(directory2) ?? []).filter((path) => path.endsWith(".go") && !path.endsWith("_test.go")).sort(shortestPathFirst).slice(0, 20);
+  }
   const candidates = resolverIndex.goModules.filter((entry) => imported.specifier === entry.name || imported.specifier.startsWith(`${entry.name}/`)).sort((left, right) => right.name.length - left.name.length || left.path.localeCompare(right.path));
   const longest = candidates[0]?.name.length;
   const equallySpecific = candidates.filter((candidate) => candidate.name.length === longest);
