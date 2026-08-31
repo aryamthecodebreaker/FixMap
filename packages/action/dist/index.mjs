@@ -814,7 +814,7 @@ function isDistinctiveFragment(fragment) {
   return punctuationCount >= 1 && /[\p{L}\p{N}]/u.test(fragment);
 }
 function redactSensitiveTaskText(text) {
-  return text.replace(/(https?:\/\/)[^/\s@]+@/gi, "$1").replace(/\b(?:ghp|gho|ghu|ghs|github_pat)_[A-Za-z0-9_]{8,}\b/g, "[redacted]").replace(/\bAKIA[0-9A-Z]{16}\b/g, "[redacted]").replace(/\bsk-[A-Za-z0-9_-]{16,}\b/g, "[redacted]");
+  return text.replace(/(https?:\/\/)[^/\s@]+@/gi, "$1").replace(/\b(?:ghp|gho|ghu|ghs|github_pat)_[A-Za-z0-9_]{8,}\b/g, "[redacted]").replace(/\bAKIA[0-9A-Z]{16}\b/g, "[redacted]").replace(/\bsk-[A-Za-z0-9_-]{16,}(?=$|[^A-Za-z0-9_])/g, "[redacted]");
 }
 function stripHttpUrls(text) {
   return text.includes("://") ? text.replace(/https?:\/\/[^\s<>()\[\]{}]+/gi, " [url] ") : text;
@@ -2836,7 +2836,8 @@ function resolveSpecifier(fromPath, specifier, repoPaths, aliases, workspacePack
     for (const alias of aliases) {
       if (!specifier.startsWith(alias.prefix) || !specifier.endsWith(alias.suffix))
         continue;
-      const middle = specifier.slice(alias.prefix.length, specifier.length - alias.suffix.length || void 0);
+      const end = alias.suffix.length === 0 ? specifier.length : specifier.length - alias.suffix.length;
+      const middle = specifier.slice(alias.prefix.length, end);
       roots.push(...alias.targets.map((target) => target.replace("*", middle)));
     }
   }
@@ -4081,7 +4082,14 @@ function stripByteOrderMark(value) {
   return value.replace(/^\uFEFF/, "");
 }
 function truncateForDiagnostic(value, limit) {
-  return value.length <= limit ? value : `${value.slice(0, limit)}\u2026`;
+  if (value.length <= limit)
+    return value;
+  let end = Math.max(0, limit);
+  const last = value.charCodeAt(end - 1);
+  const next = value.charCodeAt(end);
+  if (last >= 55296 && last <= 56319 && next >= 56320 && next <= 57343)
+    end -= 1;
+  return `${value.slice(0, end)}\u2026`;
 }
 
 // packages/core/dist/semantic.js
@@ -5828,7 +5836,7 @@ function isCachedHistory(candidate) {
     return false;
   }
   return candidate.commits.every((commit) => {
-    if (!isRecord5(commit) || typeof commit.hash !== "string" || !/^[a-f0-9]{40}$/i.test(commit.hash) || typeof commit.committedAt !== "number" || !Number.isSafeInteger(commit.committedAt) || commit.committedAt < 0 || commit.author !== void 0 && (typeof commit.author !== "string" || !commit.author.trim() || commit.author.length > 200 || /[\0-\x1f\x7f]/.test(commit.author)) || !Array.isArray(commit.files))
+    if (!isRecord5(commit) || typeof commit.hash !== "string" || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(commit.hash) || typeof commit.committedAt !== "number" || !Number.isSafeInteger(commit.committedAt) || commit.committedAt < 0 || commit.author !== void 0 && (typeof commit.author !== "string" || !commit.author.trim() || commit.author.length > 200 || /[\0-\x1f\x7f]/.test(commit.author)) || !Array.isArray(commit.files))
       return false;
     return commit.files.every(isCachedRelativePath);
   });
@@ -6397,8 +6405,7 @@ async function readDiff(repoRoot, diffSpec, diagnostics, internalPaths) {
       exec("git", ["diff", "--relative", diffSpec, ...gitPathspec(internalPaths)], { cwd: repoRoot, maxBuffer: GIT_MAX_BUFFER })
     ]);
     const tracked = names.split(/\r?\n/).map((path) => path.trim()).filter(Boolean).map(normalizePath3);
-    const untracked = diffSpec.includes("..") ? [] : await listUntrackedPaths(repoRoot, internalPaths);
-    const changedFiles = [.../* @__PURE__ */ new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
+    const changedFiles = [...new Set(tracked)].sort((a, b) => a.localeCompare(b));
     diagnostics.push({
       code: "diff-resolved",
       severity: "info",
@@ -6568,7 +6575,7 @@ function parseHistoryLog(logText, repositoryPaths) {
     const committedAt = Number.parseInt(header.slice(separator + 1, secondSeparator === -1 ? void 0 : secondSeparator).trim(), 10);
     const rawAuthor = secondSeparator === -1 ? "" : header.slice(secondSeparator + 1).trim();
     const author = rawAuthor && !/[\0-\x1f\x7f]/.test(rawAuthor) ? rawAuthor.slice(0, 200) : void 0;
-    if (!/^[a-f0-9]{40}$/i.test(hash) || !Number.isSafeInteger(committedAt) || committedAt < 0)
+    if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(hash) || !Number.isSafeInteger(committedAt) || committedAt < 0)
       continue;
     inspectedCommits += 1;
     const allFiles = [...new Set(fields.map((path) => path.replace(/^\r?\n/, "")).filter(Boolean).map(normalizePath3))];

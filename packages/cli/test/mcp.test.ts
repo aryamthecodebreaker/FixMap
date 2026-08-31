@@ -1128,6 +1128,10 @@ describe("MCP surface parity", () => {
       success: true,
       value: { issue: "x", repo: "https://github.com/o/r", ref: "release-2.x" }
     });
+    expect(parsePlanArguments({ issue: "x", repo: "https://github.com/o/r", ref: "/main" })).toEqual({
+      success: false,
+      message: '"ref" must be a safe branch or tag name.'
+    });
   });
 
   it("rejects unknown compare arguments at the request handler", async () => {

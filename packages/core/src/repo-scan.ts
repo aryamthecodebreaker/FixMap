@@ -376,7 +376,7 @@ function isCachedHistory(candidate: unknown): candidate is RepositoryHistory {
     return false;
   }
   return candidate.commits.every((commit) => {
-    if (!isRecord(commit) || typeof commit.hash !== "string" || !/^[a-f0-9]{40}$/i.test(commit.hash) ||
+    if (!isRecord(commit) || typeof commit.hash !== "string" || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(commit.hash) ||
       typeof commit.committedAt !== "number" || !Number.isSafeInteger(commit.committedAt) || commit.committedAt < 0 ||
       (commit.author !== undefined && (typeof commit.author !== "string" || !commit.author.trim() || commit.author.length > 200 || /[\0-\x1f\x7f]/.test(commit.author))) ||
       !Array.isArray(commit.files)) return false;
@@ -1225,8 +1225,7 @@ async function readDiff(
       .map((path) => path.trim())
       .filter(Boolean)
       .map(normalizePath);
-    const untracked = diffSpec.includes("..") ? [] : await listUntrackedPaths(repoRoot, internalPaths);
-    const changedFiles = [...new Set([...tracked, ...untracked])].sort((a, b) => a.localeCompare(b));
+    const changedFiles = [...new Set(tracked)].sort((a, b) => a.localeCompare(b));
     diagnostics.push({
       code: "diff-resolved",
       severity: "info",
@@ -1458,7 +1457,7 @@ async function readRepositoryHistory(
   }
 }
 
-function parseHistoryLog(
+export function parseHistoryLog(
   logText: string,
   repositoryPaths: ReadonlySet<string>
 ): { commits: HistoryCommit[]; inspectedCommits: number; skippedLargeCommits: number } {
@@ -1477,7 +1476,7 @@ function parseHistoryLog(
     const committedAt = Number.parseInt(header.slice(separator + 1, secondSeparator === -1 ? undefined : secondSeparator).trim(), 10);
     const rawAuthor = secondSeparator === -1 ? "" : header.slice(secondSeparator + 1).trim();
     const author = rawAuthor && !/[\0-\x1f\x7f]/.test(rawAuthor) ? rawAuthor.slice(0, 200) : undefined;
-    if (!/^[a-f0-9]{40}$/i.test(hash) || !Number.isSafeInteger(committedAt) || committedAt < 0) continue;
+    if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(hash) || !Number.isSafeInteger(committedAt) || committedAt < 0) continue;
 
     inspectedCommits += 1;
     const allFiles = [...new Set(fields

@@ -67,6 +67,16 @@ describe("buildImportGraph", () => {
     expect([...(graph.imports.get("apps/web/page.ts") ?? [])]).toEqual(["packages/auth/src/reset.ts"]);
   });
 
+  it("resolves an alias whose wildcard captures an empty middle", () => {
+    const graph = buildImportGraph([
+      codeFile("app.ts", 'import { value } from "foo";'),
+      codeFile("tsconfig.json", JSON.stringify({ compilerOptions: { paths: { "*foo": ["src/prefix*"] } } })),
+      codeFile("src/prefix.ts", "export const value = true;")
+    ]);
+
+    expect([...(graph.imports.get("app.ts") ?? [])]).toEqual(["src/prefix.ts"]);
+  });
+
   it("resolves Python relative, package, and imported-module relationships", () => {
     const files = [
       codeFile("services/auth/app/api/reset.py", [

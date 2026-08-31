@@ -102,7 +102,7 @@ export type ParsedGitHubIssueSource = {
 export function isSafeGitRefName(value: string): boolean {
   return value.length > 0 && value.length <= 255 &&
     value !== "@" &&
-    !/^[.-]|[./]$|[\s\u0000-\u001f\u007f~^:?*\[\\]|\.\.|\/\/|@\{|(?:^|\/)\.|(?:^|\/)[^/]*\.lock(?:\/|$)/i.test(value);
+    !/^[.\/-]|[./]$|[\s\u0000-\u001f\u007f~^:?*\[\\]|\.\.|\/\/|@\{|(?:^|\/)\.|(?:^|\/)[^/]*\.lock(?:\/|$)/i.test(value);
 }
 
 export type PublicGitHubIssue = {

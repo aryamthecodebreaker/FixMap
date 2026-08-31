@@ -693,7 +693,8 @@ function resolveSpecifier(
     roots.push(...(workspacePackages.get(specifier) ?? []));
     for (const alias of aliases) {
       if (!specifier.startsWith(alias.prefix) || !specifier.endsWith(alias.suffix)) continue;
-      const middle = specifier.slice(alias.prefix.length, specifier.length - alias.suffix.length || undefined);
+      const end = alias.suffix.length === 0 ? specifier.length : specifier.length - alias.suffix.length;
+      const middle = specifier.slice(alias.prefix.length, end);
       roots.push(...alias.targets.map((target) => target.replace("*", middle)));
     }
   }

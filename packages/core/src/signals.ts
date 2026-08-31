@@ -298,7 +298,7 @@ export function redactSensitiveTaskText(text: string): string {
     .replace(/(https?:\/\/)[^/\s@]+@/gi, "$1")
     .replace(/\b(?:ghp|gho|ghu|ghs|github_pat)_[A-Za-z0-9_]{8,}\b/g, "[redacted]")
     .replace(/\bAKIA[0-9A-Z]{16}\b/g, "[redacted]")
-    .replace(/\bsk-[A-Za-z0-9_-]{16,}\b/g, "[redacted]");
+    .replace(/\bsk-[A-Za-z0-9_-]{16,}(?=$|[^A-Za-z0-9_])/g, "[redacted]");
 }
 
 /** URLs are never identifier evidence. Removing them before exact-fragment and identifier

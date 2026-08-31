@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { scanRepo, summarizeSkippedScope } from "../src/repo-scan.js";
+import { parseHistoryLog, scanRepo, summarizeSkippedScope } from "../src/repo-scan.js";
 
 const exec = promisify(execFile);
 const HEAVY_GIT_TEST_TIMEOUT = process.platform === "win32" ? 60_000 : 30_000;
@@ -251,7 +251,7 @@ describe("scanRepo", () => {
     expect(repo.diagnostics[0]?.code).toBe("diff-unavailable");
   });
 
-  it("includes untracked files as changed for working-tree diff specs", { timeout: 30_000 }, async () => {
+  it("keeps untracked files out of an explicit single-ref diff", { timeout: 30_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-untracked-"));
     await mkdir(join(root, "src"), { recursive: true });
     await mkdir(join(root, "api"), { recursive: true });
@@ -267,7 +267,7 @@ describe("scanRepo", () => {
     const repo = await scanRepo({ repoRoot: root, diffSpec: "HEAD" });
 
     expect(repo.changedFiles).toContain("src/login.ts");
-    expect(repo.changedFiles).toContain("api/index.ts");
+    expect(repo.changedFiles).not.toContain("api/index.ts");
   });
 
   it("maps tracked edits in working-tree mode and leaves untracked files out", { timeout: 30_000 }, async () => {
@@ -1169,6 +1169,19 @@ describe("scanRepo", () => {
 });
 
 describe("repository impact history", () => {
+  it("accepts exact SHA-1 and SHA-256 commit identities", () => {
+    const sha1 = "a".repeat(40);
+    const sha256 = "b".repeat(64);
+    const parsed = parseHistoryLog(
+      `\x1e${sha1}\x1f1700000000\x1fAlice\0src/a.ts` +
+      `\x1e${sha256}\x1f1700000001\x1fBob\0src/b.ts`,
+      new Set(["src/a.ts", "src/b.ts"])
+    );
+
+    expect(parsed.commits.map((commit) => commit.hash)).toEqual([sha1, sha256]);
+    expect(parsed.inspectedCommits).toBe(2);
+  });
+
   it("scopes history and file identities to a scanned repository subdirectory", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-nested-history-"));
     const app = join(root, "app");
