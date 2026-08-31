@@ -7,10 +7,16 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildArchitectureSnapshotAtRef, compareArchitectureRefs, scanRepoAtRef } from "../src/architecture-history.js";
 
 const exec = promisify(execFile);
+const HISTORICAL_GIT_TEST_TIMEOUT = process.platform === "win32" ? 30_000 : 15_000;
 const roots: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await Promise.all(roots.splice(0).map((root) => rm(root, {
+    recursive: true,
+    force: true,
+    maxRetries: 3,
+    retryDelay: 100
+  })));
 });
 
 async function fixture(): Promise<{ root: string; before: string; after: string }> {
@@ -45,7 +51,7 @@ describe("historical architecture", () => {
     expect((await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim()).toBe(headBefore);
     expect((await exec("git", ["status", "--porcelain=v1"], { cwd: root })).stdout).toBe(statusBefore);
     expect(headBefore).toBe(after);
-  }, 15_000);
+  }, HISTORICAL_GIT_TEST_TIMEOUT);
 
   it("builds and compares deterministic snapshots at two committed refs", async () => {
     const { root, before, after } = await fixture();
@@ -56,10 +62,10 @@ describe("historical architecture", () => {
     expect(comparison.from.commit).toBe(before);
     expect(comparison.to.commit).toBe(after);
     expect(comparison.drift.addedEdges).toContainEqual({ from: "a.ts", to: "b.ts" });
-  }, 15_000);
+  }, HISTORICAL_GIT_TEST_TIMEOUT);
 
   it("rejects control-character refs before invoking Git", async () => {
     const { root } = await fixture();
     await expect(scanRepoAtRef({ repoRoot: root, ref: "HEAD\n--help" })).rejects.toThrow("single-line");
-  }, 15_000);
+  }, HISTORICAL_GIT_TEST_TIMEOUT);
 });

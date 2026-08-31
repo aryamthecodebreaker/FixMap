@@ -99,6 +99,49 @@ describe("test routing beyond package scripts", () => {
     expect(buildTestRoutes(repo, ["command.go"])[0]?.command).toBe("go test ./...");
   });
 
+  it("routes every exact Go module and scopes related tests by module ownership", () => {
+    const repo = repoOf([
+      file("services/auth/go.mod", { isSource: false, kind: "config", textSample: "module corp.example/auth\n" }),
+      file("services/auth/token.go"),
+      file("services/auth/token_test.go", { isTest: true }),
+      file("services/billing/go.mod", { isSource: false, kind: "config", textSample: "module corp.example/billing\n" }),
+      file("services/billing/invoice.go"),
+      file("services/billing/invoice_test.go", { isTest: true }),
+      file("tools/go.mod", { isSource: false, kind: "config", textSample: "module corp.example/tools\n" }),
+      file("tools/unrelated_test.go", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(repo, ["services/billing/invoice.go", "services/auth/token.go"])).toEqual([
+      {
+        command: "go test -C services/billing ./...",
+        kind: "test",
+        reason: "nearest module (services/billing) declared by services/billing/go.mod",
+        relatedFiles: ["services/billing/invoice_test.go"]
+      },
+      {
+        command: "go test -C services/auth ./...",
+        kind: "test",
+        reason: "nearest module (services/auth) declared by services/auth/go.mod",
+        relatedFiles: ["services/auth/token_test.go"]
+      }
+    ]);
+  });
+
+  it("keeps exact Go routes when an unrelated root package script also exists", () => {
+    const repo = repoOf([
+      file("services/auth/go.mod", { isSource: false, kind: "config", textSample: "module corp.example/auth\n" }),
+      file("services/auth/token.go"),
+      file("services/auth/token_test.go", { isTest: true })
+    ], {
+      packageScripts: [{ name: "test", command: "vitest run", packageDir: "" }]
+    });
+
+    expect(buildTestRoutes(repo, ["services/auth/token.go"]).map((route) => route.command)).toEqual([
+      "npm run test",
+      "go test -C services/auth ./..."
+    ]);
+  });
+
   it("routes cargo test for a Rust repository", () => {
     const repo = repoOf([
       file("Cargo.toml", { isSource: false, kind: "config" }),

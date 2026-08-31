@@ -5,6 +5,7 @@ import {
 import type { RankingShape, TaskGrounding } from "./grounding.js";
 import type { PathExcluder } from "./exclude.js";
 import { detectPrimaryLanguage, dotnetTestCommandForPath, manifestTestCommand, phpTestCommandForPath, rubyTestCommandForPath, suggestedRunner } from "./languages.js";
+import { buildGoModules, goModuleForPath, type GoModule } from "./go-projects.js";
 import { buildImpactMap } from "./impact.js";
 import { DEFAULT_CONTEXT_FILE_LIMIT, rankContextFiles, rankContextFilesEvidenceDetailed } from "./rank.js";
 import { extractTaskSignals, tokenizePath } from "./signals.js";
@@ -579,26 +580,41 @@ export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRout
     if (routes.length === 3) break;
   }
 
-  // Node package scripts are the only route FixMap knew, so a Go or Rust repository got
-  // ranked files and an empty command list — ranking without a way to check the change is
-  // half the job. Their toolchains each have exactly one test command, so it can be routed
-  // rather than guessed at.
-  if (routes.length === 0) {
-    const manifestRoute = buildManifestTestRoute(repo, codeContextPaths, relatedTests);
-    if (manifestRoute) {
-      routes.push(manifestRoute);
-    }
+  // Package scripts do not prove they exercise another toolchain. Keep exact manifest routes
+  // alongside them so a docs-site test script cannot silently suppress Go, Rust, or Java
+  // verification for the ranked implementation files.
+  for (const route of buildManifestTestRoutes(repo, codeContextPaths, relatedTests)) {
+    if (commands.has(route.command)) continue;
+    commands.add(route.command);
+    routes.push(route);
   }
 
   return routes;
 }
 
-function buildManifestTestRoute(
+function buildManifestTestRoutes(
   repo: RepoMap,
   codeContextPaths: string[],
   relatedTests: string[]
-): TestRoute | undefined {
+): TestRoute[] {
   const { language } = detectPrimaryLanguage(repo);
+  if (language === "go") {
+    const modules = buildGoModules(repo.files);
+    const selected = new Map<string, GoModule>();
+    for (const path of codeContextPaths) {
+      const module = goModuleForPath(modules, path);
+      if (module && !selected.has(module.path)) selected.set(module.path, module);
+    }
+    const exactRoutes = [...selected.values()].map((module): TestRoute => ({
+      command: module.root ? `go test -C ${module.root} ./...` : "go test ./...",
+      kind: "test",
+      reason: module.root
+        ? `nearest module (${module.root}) declared by ${module.path}`
+        : "go.mod at the repository root",
+      relatedFiles: relatedTests.filter((path) => goModuleForPath(modules, path)?.path === module.path)
+    }));
+    if (exactRoutes.length > 0) return exactRoutes;
+  }
   const packageDir = language === "rust"
     ? nearestManifestDir(repo, codeContextPaths, ["Cargo.toml"])
     : language === "python"
@@ -617,17 +633,17 @@ function buildManifestTestRoute(
         manifestTestCommand(language, packageDir, repo.files)
     : manifestTestCommand(language, packageDir, repo.files);
   if (!route) {
-    return undefined;
+    return [];
   }
 
-  return {
+  return [{
     command: route.command,
     kind: "test",
     reason: route.reason,
     // Only real test files count as related here. Falling back to the implementation made
     // nextAction claim routed tests for a Go module that had none.
     relatedFiles: scopeToPackage(relatedTests, route.scopeDir ?? packageDir)
-  };
+  }];
 }
 
 /**

@@ -1967,124 +1967,6 @@ function languageForManifest(path) {
   return ROOT_MANIFESTS[name] ?? (/\.(?:csproj|fsproj|vbproj)$/.test(name) ? "dotnet" : void 0);
 }
 
-// packages/core/dist/rust-projects.js
-function buildRustProjects(files) {
-  const manifests = files.filter((file) => file.path.split("/").pop()?.toLowerCase() === "cargo.toml").sort((left, right) => left.path.localeCompare(right.path));
-  const manifestRoots = new Set(manifests.map((file) => directoryOf4(file.path)));
-  const parsed = manifests.map((manifest) => parseManifest(manifest, manifestRoots));
-  return parsed.map((project) => {
-    const inherited = project.inherited.flatMap((alias) => {
-      const owner = [...parsed].filter((candidate) => contains(candidate.root, project.root)).sort((left, right) => depth3(right.root) - depth3(left.root) || left.path.localeCompare(right.path)).find((candidate) => candidate.workspace.some((dependency2) => dependency2.alias === alias));
-      const dependency = owner?.workspace.find((candidate) => candidate.alias === alias);
-      return dependency ? [{ ...dependency }] : [];
-    });
-    const byAlias = /* @__PURE__ */ new Map();
-    for (const dependency of [...project.direct, ...inherited])
-      byAlias.set(rustIdentifier(dependency.alias), dependency);
-    return {
-      path: project.path,
-      root: project.root,
-      ...project.name ? { name: project.name } : {},
-      pathDependencies: [...byAlias.values()].sort((left, right) => left.alias.localeCompare(right.alias))
-    };
-  });
-}
-function rustProjectForPath(projects, path) {
-  const matching = projects.filter((project) => contains(project.root, directoryOf4(path)));
-  if (matching.length === 0)
-    return void 0;
-  const deepest = Math.max(...matching.map((project) => depth3(project.root)));
-  const nearest = matching.filter((project) => depth3(project.root) === deepest);
-  return nearest.length === 1 ? nearest[0] : void 0;
-}
-function rustPathDependency(project, identifier) {
-  const normalized = rustIdentifier(identifier);
-  return project.pathDependencies.find((dependency) => rustIdentifier(dependency.alias) === normalized);
-}
-function parseManifest(file, manifestRoots) {
-  const root = directoryOf4(file.path);
-  let section2 = "";
-  let name;
-  const direct = [];
-  const workspace = [];
-  const inherited = [];
-  for (const raw of file.textSample.split(/\r?\n/)) {
-    const line = raw.replace(/\s+#.*$/, "").trim();
-    const heading = /^\[([^\]]+)\]$/.exec(line)?.[1]?.trim().toLowerCase();
-    if (heading) {
-      section2 = heading;
-      continue;
-    }
-    if (section2 === "package" && !name) {
-      name = /^name\s*=\s*["']([^"']+)["']\s*$/.exec(line)?.[1]?.trim();
-      continue;
-    }
-    const dependencySection = section2 === "dependencies" || section2 === "dev-dependencies" || section2 === "build-dependencies" || section2.endsWith(".dependencies");
-    const workspaceSection = section2 === "workspace.dependencies";
-    if (!dependencySection && !workspaceSection)
-      continue;
-    const match = /^([A-Za-z0-9_-]+)\s*=\s*\{([^}]*)\}\s*$/.exec(line);
-    if (!match?.[1] || !match[2])
-      continue;
-    const alias = rustIdentifier(match[1]);
-    const fields = match[2];
-    const packageName = /(?:^|,)\s*package\s*=\s*["']([^"']+)["']/.exec(fields)?.[1]?.trim();
-    const rawPath = /(?:^|,)\s*path\s*=\s*["']([^"']+)["']/.exec(fields)?.[1]?.trim();
-    if (rawPath) {
-      const targetRoot = normalizeRelativeRoot(root, rawPath);
-      if (!targetRoot || !manifestRoots.has(targetRoot))
-        continue;
-      const dependency = {
-        alias,
-        ...packageName ? { package: packageName } : {},
-        root: targetRoot,
-        evidencePath: file.path
-      };
-      (workspaceSection ? workspace : direct).push(dependency);
-      continue;
-    }
-    if (dependencySection && /(?:^|,)\s*workspace\s*=\s*true\s*(?:,|$)/.test(fields))
-      inherited.push(alias);
-  }
-  return {
-    path: file.path,
-    root,
-    ...name ? { name } : {},
-    direct,
-    workspace,
-    inherited: [...new Set(inherited)].sort()
-  };
-}
-function normalizeRelativeRoot(root, value) {
-  if (!value || /^[\\/]/.test(value) || /^[A-Za-z]:/.test(value) || value.includes("\0"))
-    return void 0;
-  const output = root.split("/").filter(Boolean);
-  for (const segment of value.replace(/\\/g, "/").split("/")) {
-    if (!segment || segment === ".")
-      continue;
-    if (segment === "..") {
-      if (output.length === 0)
-        return void 0;
-      output.pop();
-    } else {
-      output.push(segment);
-    }
-  }
-  return output.join("/");
-}
-function rustIdentifier(value) {
-  return value.trim().replace(/-/g, "_");
-}
-function contains(root, path) {
-  return root ? path === root || path.startsWith(`${root}/`) : true;
-}
-function directoryOf4(path) {
-  return path.split("/").slice(0, -1).join("/");
-}
-function depth3(path) {
-  return path.split("/").filter(Boolean).length;
-}
-
 // packages/core/dist/go-projects.js
 function buildGoModules(files) {
   const manifests = files.flatMap((file) => {
@@ -2093,13 +1975,13 @@ function buildGoModules(files) {
     const name = /^\s*module\s+([^\s]+)\s*$/m.exec(file.textSample)?.[1]?.trim();
     if (!name || /[\0\r\n]/.test(name))
       return [];
-    return [{ file, path: file.path, root: directoryOf5(file.path), name }];
+    return [{ file, path: file.path, root: directoryOf4(file.path), name }];
   });
   const moduleRoots = new Set(manifests.map((manifest) => manifest.root));
   return manifests.map((manifest) => {
     const replacementsByModule = /* @__PURE__ */ new Map();
     for (const replacement of parseReplaceClauses(manifest.file.textSample)) {
-      const targetRoot = normalizeRelativeRoot2(manifest.root, replacement.target);
+      const targetRoot = normalizeRelativeRoot(manifest.root, replacement.target);
       if (targetRoot === void 0 || !moduleRoots.has(targetRoot))
         continue;
       const targets = replacementsByModule.get(replacement.module);
@@ -2117,25 +1999,25 @@ function buildGoWorkspaces(files, modules = buildGoModules(files)) {
   return files.flatMap((file) => {
     if (file.path.split("/").pop()?.toLowerCase() !== "go.work")
       return [];
-    const root = directoryOf5(file.path);
+    const root = directoryOf4(file.path);
     const uses = parseUsePaths(file.textSample).flatMap((value) => {
-      const target = normalizeRelativeRoot2(root, value);
+      const target = normalizeRelativeRoot(root, value);
       return target !== void 0 && moduleRoots.has(target) ? [target] : [];
     });
     return [{ path: file.path, root, moduleRoots: [...new Set(uses)].sort() }];
   }).sort((left, right) => left.root.localeCompare(right.root));
 }
 function goModuleForPath(modules, path) {
-  const directory = directoryOf5(path);
-  const matching = modules.filter((module) => contains2(module.root, directory));
+  const directory = directoryOf4(path);
+  const matching = modules.filter((module) => contains(module.root, directory));
   if (matching.length === 0)
     return void 0;
-  const deepest = Math.max(...matching.map((module) => depth4(module.root)));
-  const nearest = matching.filter((module) => depth4(module.root) === deepest);
+  const deepest = Math.max(...matching.map((module) => depth3(module.root)));
+  const nearest = matching.filter((module) => depth3(module.root) === deepest);
   return nearest.length === 1 ? nearest[0] : void 0;
 }
 function goWorkspaceForModules(workspaces, leftRoot, rightRoot) {
-  return [...workspaces].filter((workspace) => workspace.moduleRoots.includes(leftRoot) && workspace.moduleRoots.includes(rightRoot)).sort((left, right) => depth4(right.root) - depth4(left.root) || left.path.localeCompare(right.path))[0];
+  return [...workspaces].filter((workspace) => workspace.moduleRoots.includes(leftRoot) && workspace.moduleRoots.includes(rightRoot)).sort((left, right) => depth3(right.root) - depth3(left.root) || left.path.localeCompare(right.path))[0];
 }
 function goReplacementForImport(module, specifier) {
   const matching = module.replacements.filter((replacement) => specifier === replacement.module || specifier.startsWith(`${replacement.module}/`));
@@ -2201,7 +2083,7 @@ function parseReplaceClauses(text) {
     return [{ module, target }];
   });
 }
-function normalizeRelativeRoot2(root, value) {
+function normalizeRelativeRoot(root, value) {
   if (!value || /^[\\/]/.test(value) || /^[A-Za-z]:/.test(value) || value.includes("\0") || /[*?\[]/.test(value))
     return void 0;
   const output = root.split("/").filter(Boolean);
@@ -2217,6 +2099,124 @@ function normalizeRelativeRoot2(root, value) {
     }
   }
   return output.join("/");
+}
+function contains(root, path) {
+  return root ? path === root || path.startsWith(`${root}/`) : true;
+}
+function directoryOf4(path) {
+  return path.split("/").slice(0, -1).join("/");
+}
+function depth3(path) {
+  return path.split("/").filter(Boolean).length;
+}
+
+// packages/core/dist/rust-projects.js
+function buildRustProjects(files) {
+  const manifests = files.filter((file) => file.path.split("/").pop()?.toLowerCase() === "cargo.toml").sort((left, right) => left.path.localeCompare(right.path));
+  const manifestRoots = new Set(manifests.map((file) => directoryOf5(file.path)));
+  const parsed = manifests.map((manifest) => parseManifest(manifest, manifestRoots));
+  return parsed.map((project) => {
+    const inherited = project.inherited.flatMap((alias) => {
+      const owner = [...parsed].filter((candidate) => contains2(candidate.root, project.root)).sort((left, right) => depth4(right.root) - depth4(left.root) || left.path.localeCompare(right.path)).find((candidate) => candidate.workspace.some((dependency2) => dependency2.alias === alias));
+      const dependency = owner?.workspace.find((candidate) => candidate.alias === alias);
+      return dependency ? [{ ...dependency }] : [];
+    });
+    const byAlias = /* @__PURE__ */ new Map();
+    for (const dependency of [...project.direct, ...inherited])
+      byAlias.set(rustIdentifier(dependency.alias), dependency);
+    return {
+      path: project.path,
+      root: project.root,
+      ...project.name ? { name: project.name } : {},
+      pathDependencies: [...byAlias.values()].sort((left, right) => left.alias.localeCompare(right.alias))
+    };
+  });
+}
+function rustProjectForPath(projects, path) {
+  const matching = projects.filter((project) => contains2(project.root, directoryOf5(path)));
+  if (matching.length === 0)
+    return void 0;
+  const deepest = Math.max(...matching.map((project) => depth4(project.root)));
+  const nearest = matching.filter((project) => depth4(project.root) === deepest);
+  return nearest.length === 1 ? nearest[0] : void 0;
+}
+function rustPathDependency(project, identifier) {
+  const normalized = rustIdentifier(identifier);
+  return project.pathDependencies.find((dependency) => rustIdentifier(dependency.alias) === normalized);
+}
+function parseManifest(file, manifestRoots) {
+  const root = directoryOf5(file.path);
+  let section2 = "";
+  let name;
+  const direct = [];
+  const workspace = [];
+  const inherited = [];
+  for (const raw of file.textSample.split(/\r?\n/)) {
+    const line = raw.replace(/\s+#.*$/, "").trim();
+    const heading = /^\[([^\]]+)\]$/.exec(line)?.[1]?.trim().toLowerCase();
+    if (heading) {
+      section2 = heading;
+      continue;
+    }
+    if (section2 === "package" && !name) {
+      name = /^name\s*=\s*["']([^"']+)["']\s*$/.exec(line)?.[1]?.trim();
+      continue;
+    }
+    const dependencySection = section2 === "dependencies" || section2 === "dev-dependencies" || section2 === "build-dependencies" || section2.endsWith(".dependencies");
+    const workspaceSection = section2 === "workspace.dependencies";
+    if (!dependencySection && !workspaceSection)
+      continue;
+    const match = /^([A-Za-z0-9_-]+)\s*=\s*\{([^}]*)\}\s*$/.exec(line);
+    if (!match?.[1] || !match[2])
+      continue;
+    const alias = rustIdentifier(match[1]);
+    const fields = match[2];
+    const packageName = /(?:^|,)\s*package\s*=\s*["']([^"']+)["']/.exec(fields)?.[1]?.trim();
+    const rawPath = /(?:^|,)\s*path\s*=\s*["']([^"']+)["']/.exec(fields)?.[1]?.trim();
+    if (rawPath) {
+      const targetRoot = normalizeRelativeRoot2(root, rawPath);
+      if (!targetRoot || !manifestRoots.has(targetRoot))
+        continue;
+      const dependency = {
+        alias,
+        ...packageName ? { package: packageName } : {},
+        root: targetRoot,
+        evidencePath: file.path
+      };
+      (workspaceSection ? workspace : direct).push(dependency);
+      continue;
+    }
+    if (dependencySection && /(?:^|,)\s*workspace\s*=\s*true\s*(?:,|$)/.test(fields))
+      inherited.push(alias);
+  }
+  return {
+    path: file.path,
+    root,
+    ...name ? { name } : {},
+    direct,
+    workspace,
+    inherited: [...new Set(inherited)].sort()
+  };
+}
+function normalizeRelativeRoot2(root, value) {
+  if (!value || /^[\\/]/.test(value) || /^[A-Za-z]:/.test(value) || value.includes("\0"))
+    return void 0;
+  const output = root.split("/").filter(Boolean);
+  for (const segment of value.replace(/\\/g, "/").split("/")) {
+    if (!segment || segment === ".")
+      continue;
+    if (segment === "..") {
+      if (output.length === 0)
+        return void 0;
+      output.pop();
+    } else {
+      output.push(segment);
+    }
+  }
+  return output.join("/");
+}
+function rustIdentifier(value) {
+  return value.trim().replace(/-/g, "_");
 }
 function contains2(root, path) {
   return root ? path === root || path.startsWith(`${root}/`) : true;
@@ -5320,29 +5320,46 @@ function buildTestRoutes(repo, contextPaths) {
     if (routes.length === 3)
       break;
   }
-  if (routes.length === 0) {
-    const manifestRoute = buildManifestTestRoute(repo, codeContextPaths, relatedTests);
-    if (manifestRoute) {
-      routes.push(manifestRoute);
-    }
+  for (const route of buildManifestTestRoutes(repo, codeContextPaths, relatedTests)) {
+    if (commands.has(route.command))
+      continue;
+    commands.add(route.command);
+    routes.push(route);
   }
   return routes;
 }
-function buildManifestTestRoute(repo, codeContextPaths, relatedTests) {
+function buildManifestTestRoutes(repo, codeContextPaths, relatedTests) {
   const { language } = detectPrimaryLanguage(repo);
+  if (language === "go") {
+    const modules = buildGoModules(repo.files);
+    const selected = /* @__PURE__ */ new Map();
+    for (const path of codeContextPaths) {
+      const module = goModuleForPath(modules, path);
+      if (module && !selected.has(module.path))
+        selected.set(module.path, module);
+    }
+    const exactRoutes = [...selected.values()].map((module) => ({
+      command: module.root ? `go test -C ${module.root} ./...` : "go test ./...",
+      kind: "test",
+      reason: module.root ? `nearest module (${module.root}) declared by ${module.path}` : "go.mod at the repository root",
+      relatedFiles: relatedTests.filter((path) => goModuleForPath(modules, path)?.path === module.path)
+    }));
+    if (exactRoutes.length > 0)
+      return exactRoutes;
+  }
   const packageDir = language === "rust" ? nearestManifestDir(repo, codeContextPaths, ["Cargo.toml"]) : language === "python" ? nearestManifestDir(repo, codeContextPaths, ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile"]) : language === "java" ? nearestManifestDir(repo, codeContextPaths, ["pom.xml", "build.gradle", "build.gradle.kts"]) : "";
   const route = language === "dotnet" ? codeContextPaths.map((path) => dotnetTestCommandForPath(repo.files, path)).find((entry) => entry !== void 0) ?? manifestTestCommand(language, packageDir, repo.files) : language === "php" ? codeContextPaths.map((path) => phpTestCommandForPath(repo.files, path)).find((entry) => entry !== void 0) ?? manifestTestCommand(language, packageDir, repo.files) : language === "ruby" ? codeContextPaths.map((path) => rubyTestCommandForPath(repo.files, path, relatedTests)).find((entry) => entry !== void 0) ?? manifestTestCommand(language, packageDir, repo.files) : manifestTestCommand(language, packageDir, repo.files);
   if (!route) {
-    return void 0;
+    return [];
   }
-  return {
+  return [{
     command: route.command,
     kind: "test",
     reason: route.reason,
     // Only real test files count as related here. Falling back to the implementation made
     // nextAction claim routed tests for a Go module that had none.
     relatedFiles: scopeToPackage(relatedTests, route.scopeDir ?? packageDir)
-  };
+  }];
 }
 function nearestManifestDir(repo, contextPaths, manifests) {
   const manifestNames = new Set(manifests.map((manifest) => manifest.toLowerCase()));
