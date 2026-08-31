@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildComposerProjects,
+  composerDependencyClosure,
   composerProjectForPath,
   composerTestCommandForProject,
   resolveComposerSymbol
@@ -104,5 +105,55 @@ describe("Composer project evidence", () => {
     });
     expect(composerTestCommandForProject(bare)).toBeUndefined();
     expect(composerTestCommandForProject(scripted)?.command).toBe("composer test");
+  });
+
+  it("links unambiguous required packages through repository-contained path repositories", () => {
+    const projects = buildComposerProjects([
+      file("apps/api/composer.json", JSON.stringify({
+        name: "acme/api",
+        repositories: [
+          { type: "path", url: "../../packages/*" },
+          { type: "path", url: "../../../outside" },
+          { type: "vcs", url: "https://example.com/repo" }
+        ],
+        require: { "acme/shared": "@dev", "acme/invalid": false },
+        "require-dev": { "acme/testing": "*" }
+      })),
+      file("packages/shared/composer.json", JSON.stringify({
+        name: "acme/shared",
+        repositories: { contracts: { type: "path", url: "../contracts" } },
+        require: { "acme/contracts": "*" }
+      })),
+      file("packages/testing/composer.json", JSON.stringify({ name: "acme/testing" })),
+      file("packages/contracts/composer.json", JSON.stringify({ name: "acme/contracts" }))
+    ]);
+    const api = projects.find((project) => project.name === "acme/api")!;
+
+    expect(api.pathRepositoryPatterns).toEqual(["packages/*"]);
+    expect(api.requiredPackages).toEqual(["acme/shared", "acme/testing"]);
+    expect(api.pathDependencies).toEqual([
+      { package: "acme/shared", projectPath: "packages/shared/composer.json", root: "packages/shared" },
+      { package: "acme/testing", projectPath: "packages/testing/composer.json", root: "packages/testing" }
+    ]);
+    expect([...composerDependencyClosure(projects, api.path)].sort()).toEqual([
+      "apps/api/composer.json",
+      "packages/contracts/composer.json",
+      "packages/shared/composer.json",
+      "packages/testing/composer.json"
+    ]);
+  });
+
+  it("fails closed when a path repository matches duplicate package identities", () => {
+    const projects = buildComposerProjects([
+      file("composer.json", JSON.stringify({
+        name: "acme/app",
+        repositories: [{ type: "path", url: "packages/*" }],
+        require: { "acme/shared": "*" }
+      })),
+      file("packages/one/composer.json", JSON.stringify({ name: "acme/shared" })),
+      file("packages/two/composer.json", JSON.stringify({ name: "acme/shared" }))
+    ]);
+
+    expect(projects.find((project) => project.name === "acme/app")?.pathDependencies).toEqual([]);
   });
 });

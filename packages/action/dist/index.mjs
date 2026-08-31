@@ -1189,7 +1189,7 @@ function escapeRegExp(value) {
 // packages/core/dist/composer-projects.js
 function buildComposerProjects(files) {
   const canonicalPaths = new Map(files.map((file) => [file.path.toLowerCase(), file.path]));
-  return files.filter((file) => file.path === "composer.json" || file.path.endsWith("/composer.json")).sort((left, right) => left.path.localeCompare(right.path)).flatMap((file) => {
+  const projects = files.filter((file) => file.path === "composer.json" || file.path.endsWith("/composer.json")).sort((left, right) => left.path.localeCompare(right.path)).flatMap((file) => {
     let manifest;
     try {
       const parsed = JSON.parse(file.textSample);
@@ -1206,13 +1206,20 @@ function buildComposerProjects(files) {
     const testScript = typeof scripts.test === "string" && scripts.test.trim().length > 0 || Array.isArray(scripts.test) && scripts.test.length > 0 && scripts.test.every((entry) => typeof entry === "string" && entry.trim().length > 0);
     const requireDev = isRecord(manifest["require-dev"]) ? manifest["require-dev"] : {};
     const required = isRecord(manifest.require) ? manifest.require : {};
-    const phpunitConfig = ["phpunit.xml", "phpunit.xml.dist"].map((name) => root ? `${root}/${name}` : name).map((path) => canonicalPaths.get(path.toLowerCase())).find((path) => path !== void 0);
-    const pestConfig = ["tests/Pest.php", "Pest.php"].map((name) => root ? `${root}/${name}` : name).map((path) => canonicalPaths.get(path.toLowerCase())).find((path) => path !== void 0);
+    const name = typeof manifest.name === "string" && /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/.test(manifest.name) ? manifest.name : void 0;
+    const requiredPackages = [...new Set([...Object.entries(required), ...Object.entries(requireDev)].filter(([entry, constraint]) => /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/.test(entry) && typeof constraint === "string" && constraint.trim().length > 0).map(([entry]) => entry))].sort();
+    const pathRepositoryPatterns = collectPathRepositoryPatterns(manifest.repositories, root);
+    const phpunitConfig = ["phpunit.xml", "phpunit.xml.dist"].map((name2) => root ? `${root}/${name2}` : name2).map((path) => canonicalPaths.get(path.toLowerCase())).find((path) => path !== void 0);
+    const pestConfig = ["tests/Pest.php", "Pest.php"].map((name2) => root ? `${root}/${name2}` : name2).map((path) => canonicalPaths.get(path.toLowerCase())).find((path) => path !== void 0);
     return [{
       path: file.path,
       root,
+      ...name ? { name } : {},
       psr4: [...autoload.psr4, ...autoloadDev.psr4].sort((left, right) => right.prefix.length - left.prefix.length || left.prefix.localeCompare(right.prefix)),
       classmap: [.../* @__PURE__ */ new Set([...autoload.classmap, ...autoloadDev.classmap])].sort((left, right) => left.localeCompare(right)),
+      requiredPackages,
+      pathRepositoryPatterns,
+      pathDependencies: [],
       testScript,
       pestDependency: typeof requireDev["pestphp/pest"] === "string" && requireDev["pestphp/pest"].trim().length > 0 || typeof required["pestphp/pest"] === "string" && required["pestphp/pest"].trim().length > 0,
       phpunitDependency: typeof requireDev["phpunit/phpunit"] === "string" && requireDev["phpunit/phpunit"].trim().length > 0 || typeof required["phpunit/phpunit"] === "string" && required["phpunit/phpunit"].trim().length > 0,
@@ -1220,6 +1227,34 @@ function buildComposerProjects(files) {
       ...phpunitConfig ? { phpunitConfig } : {}
     }];
   });
+  for (const project of projects) {
+    const dependencies = [];
+    for (const packageName of project.requiredPackages) {
+      const candidates = projects.filter((candidate) => candidate.path !== project.path && candidate.name === packageName && project.pathRepositoryPatterns.some((pattern) => matchesRepositoryPattern(pattern, candidate.root)));
+      if (candidates.length === 1) {
+        const target = candidates[0];
+        dependencies.push({ package: packageName, projectPath: target.path, root: target.root });
+      }
+    }
+    project.pathDependencies = dependencies.sort((left, right) => left.package.localeCompare(right.package) || left.projectPath.localeCompare(right.projectPath));
+  }
+  return projects;
+}
+function composerDependencyClosure(projects, projectPath) {
+  const byPath = new Map(projects.map((project) => [project.path, project]));
+  const reachable = /* @__PURE__ */ new Set();
+  const pending = [projectPath];
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (reachable.has(current))
+      continue;
+    reachable.add(current);
+    for (const dependency of byPath.get(current)?.pathDependencies ?? []) {
+      if (!reachable.has(dependency.projectPath))
+        pending.push(dependency.projectPath);
+    }
+  }
+  return reachable;
 }
 function composerProjectForPath(projects, path) {
   const matching = projects.filter((project) => project.root ? path.startsWith(`${project.root}/`) : true);
@@ -1293,6 +1328,43 @@ function collectAutoload(value, root) {
   });
   const classmap = (Array.isArray(value.classmap) ? value.classmap : []).filter((entry) => typeof entry === "string").map((entry) => resolveManifestPath(root, entry)).filter((entry) => entry !== void 0);
   return { psr4, classmap };
+}
+function collectPathRepositoryPatterns(value, root) {
+  const entries = Array.isArray(value) ? value : isRecord(value) ? Object.values(value) : [];
+  const patterns2 = entries.flatMap((entry) => {
+    if (!isRecord(entry) || entry.type !== "path" || typeof entry.url !== "string")
+      return [];
+    const pattern = resolveManifestPattern(root, entry.url);
+    return pattern ? [pattern] : [];
+  });
+  return [...new Set(patterns2)].sort((left, right) => left.localeCompare(right));
+}
+function resolveManifestPattern(root, value) {
+  const trimmed = value.trim().replace(/\\/g, "/").replace(/\/$/, "");
+  if (!trimmed || trimmed === "." || /[$?\[\]\0]/.test(trimmed) || /^[A-Za-z]:[\/]|^[\/]/.test(trimmed))
+    return void 0;
+  const segments = root.split("/").filter(Boolean);
+  for (const segment of trimmed.split("/")) {
+    if (!segment || segment === ".")
+      continue;
+    if (segment === "..") {
+      if (segments.length === 0)
+        return void 0;
+      segments.pop();
+      continue;
+    }
+    if (segment !== "*" && segment.includes("*"))
+      return void 0;
+    segments.push(segment);
+  }
+  return segments.join("/");
+}
+function matchesRepositoryPattern(pattern, root) {
+  const expected = pattern.split("/");
+  const actual = root.split("/").filter(Boolean);
+  if (expected.length !== actual.length)
+    return false;
+  return expected.every((segment, index) => segment === "*" || segment === actual[index]);
 }
 function normalizeRepositoryPath(path) {
   const segments = [];
@@ -2246,6 +2318,13 @@ function buildImportGraph(files) {
     }
     truncatedEdges += Math.max(0, project.references.length - MAX_EDGES_PER_FILE);
   }
+  for (const project of composerProjects) {
+    for (const dependency of project.pathDependencies.slice(0, MAX_EDGES_PER_FILE)) {
+      addEdge(imports, project.path, dependency.projectPath);
+      addEdge(importedBy, dependency.projectPath, project.path);
+    }
+    truncatedEdges += Math.max(0, project.pathDependencies.length - MAX_EDGES_PER_FILE);
+  }
   return {
     imports,
     importedBy,
@@ -2442,18 +2521,47 @@ function resolvePhpImport(fromPath, imported, resolverIndex) {
   const exact = resolverIndex.phpSymbols.get(symbol);
   const sourceProject = resolverIndex.composerProjectByFile.get(fromPath);
   if (exact?.length) {
-    const scoped = sourceProject ? exact.filter((path) => resolverIndex.composerProjectByFile.get(path)?.path === sourceProject.path) : exact;
-    if (scoped.length > 0)
-      return [...scoped].sort(shortestPathFirst).slice(0, 1);
+    if (!sourceProject)
+      return [...exact].sort(shortestPathFirst).slice(0, 1);
+    const own = exact.filter((path) => resolverIndex.composerProjectByFile.get(path)?.path === sourceProject.path);
+    if (own.length > 0)
+      return [...own].sort(shortestPathFirst).slice(0, 1);
+    const reachable = composerReachableProjects(resolverIndex, sourceProject);
+    const dependencyExact = exact.filter((path) => {
+      const owner = resolverIndex.composerProjectByFile.get(path);
+      return owner !== void 0 && owner.path !== sourceProject.path && reachable.has(owner.path);
+    });
+    if (dependencyExact.length === 1)
+      return dependencyExact;
+    if (dependencyExact.length > 1)
+      return [];
   }
   if (sourceProject) {
     const mapped = resolveComposerSymbol(sourceProject, imported.specifier.replace(/^\\+/, ""), resolverIndex.repoPaths, resolverIndex.suffixPaths);
     if (mapped.length > 0)
       return mapped;
+    const dependencyMapped = /* @__PURE__ */ new Set();
+    for (const projectPath of [...composerReachableProjects(resolverIndex, sourceProject)].sort()) {
+      if (projectPath === sourceProject.path)
+        continue;
+      const dependency = resolverIndex.composerProjectsByPath.get(projectPath);
+      if (!dependency)
+        continue;
+      for (const path of resolveComposerSymbol(dependency, imported.specifier.replace(/^\\+/, ""), resolverIndex.repoPaths, resolverIndex.suffixPaths)) {
+        dependencyMapped.add(path);
+      }
+    }
+    if (dependencyMapped.size === 1)
+      return [...dependencyMapped];
+    if (dependencyMapped.size > 1)
+      return [];
   }
   const namespace = symbol.split("\\").slice(0, -1).join("\\");
   const namespacePaths = resolverIndex.phpNamespaces.get(namespace) ?? [];
-  return (sourceProject ? namespacePaths.filter((path) => resolverIndex.composerProjectByFile.get(path)?.path === sourceProject.path) : namespacePaths).sort(shortestPathFirst).slice(0, 20);
+  return (sourceProject ? namespacePaths.filter((path) => {
+    const owner = resolverIndex.composerProjectByFile.get(path);
+    return owner !== void 0 && composerReachableProjects(resolverIndex, sourceProject).has(owner.path);
+  }) : namespacePaths).sort(shortestPathFirst).slice(0, 20);
 }
 function resolveDotnetImport(fromPath, imported, resolverIndex) {
   const namespace = imported.specifier.toLowerCase();
@@ -2483,6 +2591,8 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
   const dotnetProjectByFile = /* @__PURE__ */ new Map();
   const rubyProjectByFile = /* @__PURE__ */ new Map();
   const composerProjectByFile = /* @__PURE__ */ new Map();
+  const composerProjectsByPath = new Map(composerProjects.map((project) => [project.path, project]));
+  const composerDependencyClosures = /* @__PURE__ */ new Map();
   const dotnetProjectsByPath = new Map(dotnetProjects.map((project) => [project.path, project]));
   const dotnetProjectsByRoot = /* @__PURE__ */ new Map();
   for (const project of dotnetProjects) {
@@ -2613,8 +2723,18 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
     dotnetProjectByFile,
     dotnetReferenceClosures,
     dotnetGlobalTargetsByProject,
-    composerProjectByFile
+    composerProjectByFile,
+    composerProjectsByPath,
+    composerDependencyClosures
   };
+}
+function composerReachableProjects(resolverIndex, project) {
+  let reachable = resolverIndex.composerDependencyClosures.get(project.path);
+  if (!reachable) {
+    reachable = composerDependencyClosure([...resolverIndex.composerProjectsByPath.values()], project.path);
+    resolverIndex.composerDependencyClosures.set(project.path, reachable);
+  }
+  return reachable;
 }
 function rubyConstantIdentifiers(text) {
   const identifiers = /* @__PURE__ */ new Set();

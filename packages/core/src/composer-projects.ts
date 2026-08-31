@@ -3,8 +3,12 @@ import type { RepoFile } from "./types.js";
 export type ComposerProject = {
   path: string;
   root: string;
+  name?: string;
   psr4: Array<{ prefix: string; roots: string[] }>;
   classmap: string[];
+  requiredPackages: string[];
+  pathRepositoryPatterns: string[];
+  pathDependencies: Array<{ package: string; projectPath: string; root: string }>;
   testScript: boolean;
   pestDependency: boolean;
   pestConfig?: string;
@@ -14,7 +18,7 @@ export type ComposerProject = {
 
 export function buildComposerProjects(files: RepoFile[]): ComposerProject[] {
   const canonicalPaths = new Map(files.map((file) => [file.path.toLowerCase(), file.path]));
-  return files
+  const projects = files
     .filter((file) => file.path === "composer.json" || file.path.endsWith("/composer.json"))
     .sort((left, right) => left.path.localeCompare(right.path))
     .flatMap((file): ComposerProject[] => {
@@ -35,6 +39,14 @@ export function buildComposerProjects(files: RepoFile[]): ComposerProject[] {
           scripts.test.every((entry) => typeof entry === "string" && entry.trim().length > 0));
       const requireDev = isRecord(manifest["require-dev"]) ? manifest["require-dev"] : {};
       const required = isRecord(manifest.require) ? manifest.require : {};
+      const name = typeof manifest.name === "string" && /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/.test(manifest.name)
+        ? manifest.name
+        : undefined;
+      const requiredPackages = [...new Set([...Object.entries(required), ...Object.entries(requireDev)]
+        .filter(([entry, constraint]) => /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/.test(entry) &&
+          typeof constraint === "string" && constraint.trim().length > 0)
+        .map(([entry]) => entry))].sort();
+      const pathRepositoryPatterns = collectPathRepositoryPatterns(manifest.repositories, root);
       const phpunitConfig = ["phpunit.xml", "phpunit.xml.dist"]
         .map((name) => root ? `${root}/${name}` : name)
         .map((path) => canonicalPaths.get(path.toLowerCase()))
@@ -46,9 +58,13 @@ export function buildComposerProjects(files: RepoFile[]): ComposerProject[] {
       return [{
         path: file.path,
         root,
+        ...(name ? { name } : {}),
         psr4: [...autoload.psr4, ...autoloadDev.psr4]
           .sort((left, right) => right.prefix.length - left.prefix.length || left.prefix.localeCompare(right.prefix)),
         classmap: [...new Set([...autoload.classmap, ...autoloadDev.classmap])].sort((left, right) => left.localeCompare(right)),
+        requiredPackages,
+        pathRepositoryPatterns,
+        pathDependencies: [],
         testScript,
         pestDependency:
           (typeof requireDev["pestphp/pest"] === "string" && requireDev["pestphp/pest"].trim().length > 0) ||
@@ -60,6 +76,35 @@ export function buildComposerProjects(files: RepoFile[]): ComposerProject[] {
         ...(phpunitConfig ? { phpunitConfig } : {})
       }];
     });
+  for (const project of projects) {
+    const dependencies: ComposerProject["pathDependencies"] = [];
+    for (const packageName of project.requiredPackages) {
+      const candidates = projects.filter((candidate) => candidate.path !== project.path && candidate.name === packageName &&
+        project.pathRepositoryPatterns.some((pattern) => matchesRepositoryPattern(pattern, candidate.root)));
+      if (candidates.length === 1) {
+        const target = candidates[0]!;
+        dependencies.push({ package: packageName, projectPath: target.path, root: target.root });
+      }
+    }
+    project.pathDependencies = dependencies.sort((left, right) =>
+      left.package.localeCompare(right.package) || left.projectPath.localeCompare(right.projectPath));
+  }
+  return projects;
+}
+
+export function composerDependencyClosure(projects: ComposerProject[], projectPath: string): Set<string> {
+  const byPath = new Map(projects.map((project) => [project.path, project]));
+  const reachable = new Set<string>();
+  const pending = [projectPath];
+  while (pending.length > 0) {
+    const current = pending.shift()!;
+    if (reachable.has(current)) continue;
+    reachable.add(current);
+    for (const dependency of byPath.get(current)?.pathDependencies ?? []) {
+      if (!reachable.has(dependency.projectPath)) pending.push(dependency.projectPath);
+    }
+  }
+  return reachable;
 }
 
 export function composerProjectForPath(projects: ComposerProject[], path: string): ComposerProject | undefined {
@@ -152,6 +197,40 @@ function collectAutoload(value: unknown, root: string): {
     .map((entry) => resolveManifestPath(root, entry))
     .filter((entry): entry is string => entry !== undefined);
   return { psr4, classmap };
+}
+
+function collectPathRepositoryPatterns(value: unknown, root: string): string[] {
+  const entries = Array.isArray(value) ? value : isRecord(value) ? Object.values(value) : [];
+  const patterns = entries.flatMap((entry): string[] => {
+    if (!isRecord(entry) || entry.type !== "path" || typeof entry.url !== "string") return [];
+    const pattern = resolveManifestPattern(root, entry.url);
+    return pattern ? [pattern] : [];
+  });
+  return [...new Set(patterns)].sort((left, right) => left.localeCompare(right));
+}
+
+function resolveManifestPattern(root: string, value: string): string | undefined {
+  const trimmed = value.trim().replace(/\\/g, "/").replace(/\/$/, "");
+  if (!trimmed || trimmed === "." || /[$?\[\]\0]/.test(trimmed) || /^[A-Za-z]:[\/]|^[\/]/.test(trimmed)) return undefined;
+  const segments: string[] = root.split("/").filter(Boolean);
+  for (const segment of trimmed.split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      if (segments.length === 0) return undefined;
+      segments.pop();
+      continue;
+    }
+    if (segment !== "*" && segment.includes("*")) return undefined;
+    segments.push(segment);
+  }
+  return segments.join("/");
+}
+
+function matchesRepositoryPattern(pattern: string, root: string): boolean {
+  const expected = pattern.split("/");
+  const actual = root.split("/").filter(Boolean);
+  if (expected.length !== actual.length) return false;
+  return expected.every((segment, index) => segment === "*" || segment === actual[index]);
 }
 
 function normalizeRepositoryPath(path: string): string | undefined {

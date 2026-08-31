@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { scanRepo, summarizeSkippedScope } from "../src/repo-scan.js";
 
 const exec = promisify(execFile);
+const HEAVY_GIT_TEST_TIMEOUT = process.platform === "win32" ? 60_000 : 30_000;
 
 async function exactScanCachePath(cacheRoot: string): Promise<string> {
   const name = (await readdir(cacheRoot)).find((entry) =>
@@ -997,7 +998,7 @@ describe("scanRepo", () => {
     }
   });
 
-  it("heals a corrupt exact-state cache and never serves partial JSON", { timeout: 30_000 }, async () => {
+  it("heals a corrupt exact-state cache and never serves partial JSON", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-cache-corrupt-repo-"));
     const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-corrupt-store-"));
     const previousCache = process.env.FIXMAP_CACHE_DIR;
@@ -1027,7 +1028,7 @@ describe("scanRepo", () => {
     }
   });
 
-  it("heals a parseable cache whose nested scan data is structurally damaged", { timeout: 30_000 }, async () => {
+  it("heals a parseable cache whose nested scan data is structurally damaged", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-cache-shape-repo-"));
     const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-shape-store-"));
     const previousCache = process.env.FIXMAP_CACHE_DIR;
@@ -1059,7 +1060,7 @@ describe("scanRepo", () => {
     }
   });
 
-  it("rebuilds typed cache data with unsafe paths, impossible sampling state, or a future timestamp", { timeout: 30_000 }, async () => {
+  it("rebuilds typed cache data with unsafe paths, impossible sampling state, or a future timestamp", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-cache-integrity-repo-"));
     const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-integrity-store-"));
     const previousCache = process.env.FIXMAP_CACHE_DIR;
@@ -1115,7 +1116,7 @@ describe("scanRepo", () => {
     }
   });
 
-  it("keeps the exact-state cache valid across concurrent first scans", { timeout: 30_000 }, async () => {
+  it("keeps the exact-state cache valid across concurrent first scans", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-cache-concurrent-repo-"));
     const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-concurrent-store-"));
     const previousCache = process.env.FIXMAP_CACHE_DIR;
@@ -1144,7 +1145,7 @@ describe("scanRepo", () => {
     }
   });
 
-  it("names skipped git submodules and leaves their contents to the nested repository", { timeout: 30_000 }, async () => {
+  it("names skipped git submodules and leaves their contents to the nested repository", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const child = await mkdtemp(join(tmpdir(), "fixmap-submodule-child-"));
     const root = await mkdtemp(join(tmpdir(), "fixmap-submodule-parent-"));
     await writeFile(join(child, "helper.ts"), "export const helper = 1;\n");
@@ -1168,7 +1169,7 @@ describe("scanRepo", () => {
 });
 
 describe("repository impact history", () => {
-  it("scopes history and file identities to a scanned repository subdirectory", { timeout: 30_000 }, async () => {
+  it("scopes history and file identities to a scanned repository subdirectory", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-nested-history-"));
     const app = join(root, "app");
     try {
@@ -1198,7 +1199,7 @@ describe("repository impact history", () => {
     }
   });
 
-  it("reads bounded pre-HEAD co-change evidence and excludes oversized commits", { timeout: 30_000 }, async () => {
+  it("reads bounded pre-HEAD co-change evidence and excludes oversized commits", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-history-"));
     try {
       await exec("git", ["init"], { cwd: root });

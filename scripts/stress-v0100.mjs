@@ -10,6 +10,7 @@ import {
 } from "../packages/core/dist/index.js";
 
 const exec = promisify(execFile);
+const MCP_WIRE_TIMEOUT_MS = process.platform === "win32" ? 30_000 : 10_000;
 const root = await mkdtemp(join(tmpdir(), "fixmap-v0100-stress-repo-"));
 const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-v0100-stress-cache-"));
 const outside = await mkdtemp(join(tmpdir(), "fixmap-v0100-stress-outside-"));
@@ -140,7 +141,7 @@ function runMcp(cli, input) {
     const timeout = setTimeout(() => {
       child.kill();
       reject(new Error("v0.10 stress failure: MCP wire smoke timed out"));
-    }, 10_000);
+    }, MCP_WIRE_TIMEOUT_MS);
     child.stdout.on("data", (chunk) => stdout.push(chunk));
     child.stderr.on("data", (chunk) => stderr.push(chunk));
     child.once("error", (error) => { clearTimeout(timeout); reject(error); });

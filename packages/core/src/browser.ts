@@ -27,7 +27,7 @@ export { buildFixMapGraph, renderFixMapGraphMermaid, type FixMapGraph } from "./
 export { buildImpactMap } from "./impact.js";
 export { buildDotnetProjects, buildDotnetSolutions, dotnetProjectForPath, dotnetReferenceClosure, dotnetSolutionsContaining, referencingDotnetTestProjects } from "./dotnet-projects.js";
 export type { DotnetProject, DotnetSolution } from "./dotnet-projects.js";
-export { buildComposerProjects, composerProjectForPath, composerTestCommandForProject, resolveComposerSymbol } from "./composer-projects.js";
+export { buildComposerProjects, composerDependencyClosure, composerProjectForPath, composerTestCommandForProject, resolveComposerSymbol } from "./composer-projects.js";
 export type { ComposerProject } from "./composer-projects.js";
 export { buildRubyProjects, rubyProjectForPath, rubyTestCommandForProject } from "./ruby-projects.js";
 export type { RubyProject } from "./ruby-projects.js";

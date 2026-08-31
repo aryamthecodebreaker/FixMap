@@ -319,6 +319,45 @@ describe("buildImportGraph", () => {
     ]);
   });
 
+  it("resolves transitive PHP symbols only through declared Composer path dependencies", () => {
+    const files = [
+      codeFile("apps/api/composer.json", JSON.stringify({
+        name: "acme/api",
+        repositories: [{ type: "path", url: "../../packages/*" }],
+        require: { "acme/shared": "*" }
+      })),
+      codeFile("apps/api/src/Checkout.php", "<?php\nuse Shared\\Domain\\User;\nuse Contracts\\Plan;\nclass Checkout {}"),
+      codeFile("packages/shared/composer.json", JSON.stringify({
+        name: "acme/shared",
+        repositories: [{ type: "path", url: "../contracts" }],
+        require: { "acme/contracts": "*" },
+        autoload: { "psr-4": { "Shared\\": "src/" } }
+      })),
+      codeFile("packages/shared/src/Domain/User.php", "<?php\nclass User {}"),
+      codeFile("packages/contracts/composer.json", JSON.stringify({
+        name: "acme/contracts",
+        autoload: { "psr-4": { "Contracts\\": "src/" } }
+      })),
+      codeFile("packages/contracts/src/Plan.php", "<?php\nclass Plan {}"),
+      codeFile("decoy/composer.json", JSON.stringify({
+        name: "decoy/package",
+        autoload: { "psr-4": { "Shared\\": "src/" } }
+      })),
+      codeFile("decoy/src/Domain/User.php", "<?php\nclass User {}")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("apps/api/src/Checkout.php") ?? [])].sort()).toEqual([
+      "packages/contracts/src/Plan.php",
+      "packages/shared/src/Domain/User.php"
+    ]);
+    expect([...(graph.imports.get("apps/api/composer.json") ?? [])])
+      .toEqual(["packages/shared/composer.json"]);
+    expect([...(graph.imports.get("packages/shared/composer.json") ?? [])])
+      .toEqual(["packages/contracts/composer.json"]);
+  });
+
   it("resolves .NET namespace imports without matching labels across namespaces", () => {
     const files = [
       codeFile("Auth/ResetService.cs", "using Acme.Accounts;\nnamespace Acme.Auth;\nclass ResetService {}"),

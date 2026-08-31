@@ -1,5 +1,5 @@
 import { extractLanguageDefinitions, extractLanguageImports, languageAdapterForFile, type LanguageImport } from "./language-adapters.js";
-import { buildComposerProjects, resolveComposerSymbol, type ComposerProject } from "./composer-projects.js";
+import { buildComposerProjects, composerDependencyClosure, resolveComposerSymbol, type ComposerProject } from "./composer-projects.js";
 import { buildDotnetProjects, dotnetReferenceClosure, type DotnetProject } from "./dotnet-projects.js";
 import { buildRustProjects, rustPathDependency, rustProjectForPath, type RustProject } from "./rust-projects.js";
 import { buildGoModules, buildGoWorkspaces, goModuleForPath, goReplacementForImport, goWorkspaceForModules, type GoModule, type GoWorkspace } from "./go-projects.js";
@@ -46,6 +46,8 @@ type ResolverIndex = {
   dotnetReferenceClosures: Map<string, Set<string>>;
   dotnetGlobalTargetsByProject: Map<string, Map<string, string[]>>;
   composerProjectByFile: Map<string, ComposerProject>;
+  composerProjectsByPath: Map<string, ComposerProject>;
+  composerDependencyClosures: Map<string, Set<string>>;
 };
 
 export function buildImportGraph(files: RepoFile[]): ImportGraph {
@@ -126,6 +128,14 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
       addEdge(importedBy, reference, project.path);
     }
     truncatedEdges += Math.max(0, project.references.length - MAX_EDGES_PER_FILE);
+  }
+
+  for (const project of composerProjects) {
+    for (const dependency of project.pathDependencies.slice(0, MAX_EDGES_PER_FILE)) {
+      addEdge(imports, project.path, dependency.projectPath);
+      addEdge(importedBy, dependency.projectPath, project.path);
+    }
+    truncatedEdges += Math.max(0, project.pathDependencies.length - MAX_EDGES_PER_FILE);
   }
 
   return {
@@ -356,19 +366,39 @@ function resolvePhpImport(fromPath: string, imported: LanguageImport, resolverIn
   const exact = resolverIndex.phpSymbols.get(symbol);
   const sourceProject = resolverIndex.composerProjectByFile.get(fromPath);
   if (exact?.length) {
-    const scoped = sourceProject
-      ? exact.filter((path) => resolverIndex.composerProjectByFile.get(path)?.path === sourceProject.path)
-      : exact;
-    if (scoped.length > 0) return [...scoped].sort(shortestPathFirst).slice(0, 1);
+    if (!sourceProject) return [...exact].sort(shortestPathFirst).slice(0, 1);
+    const own = exact.filter((path) => resolverIndex.composerProjectByFile.get(path)?.path === sourceProject.path);
+    if (own.length > 0) return [...own].sort(shortestPathFirst).slice(0, 1);
+    const reachable = composerReachableProjects(resolverIndex, sourceProject);
+    const dependencyExact = exact.filter((path) => {
+      const owner = resolverIndex.composerProjectByFile.get(path);
+      return owner !== undefined && owner.path !== sourceProject.path && reachable.has(owner.path);
+    });
+    if (dependencyExact.length === 1) return dependencyExact;
+    if (dependencyExact.length > 1) return [];
   }
   if (sourceProject) {
     const mapped = resolveComposerSymbol(sourceProject, imported.specifier.replace(/^\\+/, ""), resolverIndex.repoPaths, resolverIndex.suffixPaths);
     if (mapped.length > 0) return mapped;
+    const dependencyMapped = new Set<string>();
+    for (const projectPath of [...composerReachableProjects(resolverIndex, sourceProject)].sort()) {
+      if (projectPath === sourceProject.path) continue;
+      const dependency = resolverIndex.composerProjectsByPath.get(projectPath);
+      if (!dependency) continue;
+      for (const path of resolveComposerSymbol(dependency, imported.specifier.replace(/^\\+/, ""), resolverIndex.repoPaths, resolverIndex.suffixPaths)) {
+        dependencyMapped.add(path);
+      }
+    }
+    if (dependencyMapped.size === 1) return [...dependencyMapped];
+    if (dependencyMapped.size > 1) return [];
   }
   const namespace = symbol.split("\\").slice(0, -1).join("\\");
   const namespacePaths = resolverIndex.phpNamespaces.get(namespace) ?? [];
   return (sourceProject
-    ? namespacePaths.filter((path) => resolverIndex.composerProjectByFile.get(path)?.path === sourceProject.path)
+    ? namespacePaths.filter((path) => {
+      const owner = resolverIndex.composerProjectByFile.get(path);
+      return owner !== undefined && composerReachableProjects(resolverIndex, sourceProject).has(owner.path);
+    })
     : namespacePaths)
     .sort(shortestPathFirst)
     .slice(0, 20);
@@ -418,6 +448,8 @@ function buildResolverIndex(
   const dotnetProjectByFile = new Map<string, DotnetProject>();
   const rubyProjectByFile = new Map<string, RubyProject>();
   const composerProjectByFile = new Map<string, ComposerProject>();
+  const composerProjectsByPath = new Map(composerProjects.map((project) => [project.path, project]));
+  const composerDependencyClosures = new Map<string, Set<string>>();
   const dotnetProjectsByPath = new Map(dotnetProjects.map((project) => [project.path, project]));
   const dotnetProjectsByRoot = new Map<string, DotnetProject[]>();
   for (const project of dotnetProjects) {
@@ -543,8 +575,19 @@ function buildResolverIndex(
     dotnetProjectByFile,
     dotnetReferenceClosures,
     dotnetGlobalTargetsByProject,
-    composerProjectByFile
+    composerProjectByFile,
+    composerProjectsByPath,
+    composerDependencyClosures
   };
+}
+
+function composerReachableProjects(resolverIndex: ResolverIndex, project: ComposerProject): Set<string> {
+  let reachable = resolverIndex.composerDependencyClosures.get(project.path);
+  if (!reachable) {
+    reachable = composerDependencyClosure([...resolverIndex.composerProjectsByPath.values()], project.path);
+    resolverIndex.composerDependencyClosures.set(project.path, reachable);
+  }
+  return reachable;
 }
 
 function rubyConstantIdentifiers(text: string): Set<string> {
