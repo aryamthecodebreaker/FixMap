@@ -30,6 +30,7 @@ describe("external evaluation cache", () => {
       }, { cacheRoot });
 
       expect(runGit(["rev-parse", "HEAD"], materialized)).toBe(sha);
+      expect(runGit(["config", "--local", "--get", "core.longpaths"], materialized)).toBe("true");
       expect(await readdir(materialized)).toContain("README.md");
       expect(await readdir(materialized)).not.toContain("partial.txt");
     } finally {

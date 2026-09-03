@@ -6,7 +6,10 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
-import { createFixMapMcpServer, parseExplainArguments, parsePlanArguments, parseVerifyArguments } from "../src/mcp.js";
+import { buildIdentityGraph, createGraphIdentity } from "@aryam/fixmap-core";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import type { JSONRPCMessage, MessageExtraInfo } from "@modelcontextprotocol/sdk/types.js";
+import { createFixMapMcpServer, InitializationGuardTransport, parseExplainArguments, parsePlanArguments, parseVerifyArguments } from "../src/mcp.js";
 import type { RepositorySourceDependencies } from "../src/repository-source.js";
 
 const exec = promisify(execFile);
@@ -24,6 +27,42 @@ async function createAuthFixture(): Promise<string> {
   return root;
 }
 
+async function createWorkspaceFixture(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "fixmap-mcp-workspace-"));
+  await mkdir(join(root, "auth", "src"), { recursive: true });
+  await mkdir(join(root, "payments", "src"), { recursive: true });
+  await writeFile(join(root, "auth", "package.json"), JSON.stringify({ name: "@acme/auth", version: "1.2.0" }));
+  await writeFile(join(root, "auth", "src", "index.ts"), "export const authenticate = true;\n");
+  await writeFile(join(root, "payments", "package.json"), JSON.stringify({
+    name: "@acme/payments", dependencies: { "@acme/auth": "^1.2.0" }
+  }));
+  await writeFile(join(root, "payments", "src", "index.ts"), "import '@acme/auth';\n");
+  const config = join(root, "workspace.json");
+  await writeFile(config, JSON.stringify({
+    workspaceConfigVersion: 1,
+    workspace: "acme",
+    repositories: [{ id: "auth", path: "auth" }, { id: "payments", path: "payments" }]
+  }));
+  return config;
+}
+
+async function createHistoryFixture(): Promise<{ root: string; before: string; after: string }> {
+  const root = await mkdtemp(join(tmpdir(), "fixmap-mcp-history-"));
+  await exec("git", ["init", "--quiet"], { cwd: root });
+  await exec("git", ["config", "user.email", "fixmap@example.test"], { cwd: root });
+  await exec("git", ["config", "user.name", "FixMap Test"], { cwd: root });
+  await writeFile(join(root, "a.ts"), "export const a = true;\n");
+  await writeFile(join(root, "b.ts"), "export const b = true;\n");
+  await exec("git", ["add", "a.ts", "b.ts"], { cwd: root });
+  await exec("git", ["commit", "--quiet", "-m", "before"], { cwd: root });
+  const before = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+  await writeFile(join(root, "a.ts"), "import { b } from './b'; export const a = b;\n");
+  await exec("git", ["add", "a.ts"], { cwd: root });
+  await exec("git", ["commit", "--quiet", "-m", "after"], { cwd: root });
+  const after = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+  return { root, before, after };
+}
+
 async function connectClient(repositorySourceDependencies: RepositorySourceDependencies = {}) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const server = createFixMapMcpServer(repositorySourceDependencies);
@@ -33,6 +72,121 @@ async function connectClient(repositorySourceDependencies: RepositorySourceDepen
 }
 
 describe("fixmap mcp server", () => {
+  it("requires initialization and answers malformed stdio JSON with protocol errors", async () => {
+    class FakeTransport implements Transport {
+      onclose?: () => void;
+      onerror?: (error: Error) => void;
+      onmessage?: <T extends JSONRPCMessage>(message: T, extra?: MessageExtraInfo) => void;
+      sent: JSONRPCMessage[] = [];
+      async start() {}
+      async send(message: JSONRPCMessage) { this.sent.push(message); }
+      async close() { this.onclose?.(); }
+    }
+    const inner = new FakeTransport();
+    const guarded = new InitializationGuardTransport(inner);
+    const delivered: JSONRPCMessage[] = [];
+    guarded.onmessage = (message) => delivered.push(message);
+    await guarded.start();
+
+    inner.onmessage?.({ jsonrpc: "2.0", id: 9, method: "tools/list" });
+    await Promise.resolve();
+    expect(inner.sent).toContainEqual({
+      jsonrpc: "2.0",
+      id: 9,
+      error: { code: -32002, message: "Server not initialized" }
+    });
+    expect(delivered).toEqual([]);
+
+    inner.onerror?.(new SyntaxError("Unexpected token"));
+    await Promise.resolve();
+    expect(inner.sent).toContainEqual({
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32700, message: "Parse error" }
+    });
+
+    inner.onmessage?.({ jsonrpc: "2.0", method: "notifications/initialized" });
+    inner.onmessage?.({ jsonrpc: "2.0", id: 10, method: "tools/list" });
+    await Promise.resolve();
+    expect(inner.sent).toContainEqual(expect.objectContaining({
+      id: 10,
+      error: { code: -32002, message: "Server not initialized" }
+    }));
+
+    inner.onmessage?.({
+      jsonrpc: "2.0",
+      id: 11,
+      method: "initialize",
+      params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "test", version: "1" } }
+    });
+    inner.onmessage?.({ jsonrpc: "2.0", method: "notifications/initialized" });
+    inner.onmessage?.({ jsonrpc: "2.0", id: 10, method: "tools/list" });
+    expect(delivered).toContainEqual({ jsonrpc: "2.0", id: 10, method: "tools/list" });
+  });
+
+  it("exposes deterministic change scope and persistent capability maps without semantic input", { timeout: 30_000 }, async () => {
+    const root = await createAuthFixture();
+    await mkdir(join(root, ".fixmap"), { recursive: true });
+    await writeFile(join(root, ".fixmap", "capabilities.json"), JSON.stringify({
+      capabilityStoreVersion: 1,
+      workspace: "acme",
+      repository: "auth",
+      capabilities: [{
+        id: "password-recovery",
+        name: "Password recovery",
+        anchors: [{ operation: "touch", path: "src/auth/reset-password.ts" }],
+        traversal: { direction: "both", maxDepth: 2, maxNodes: 50 }
+      }]
+    }));
+    const client = await connectClient();
+    const tools = await client.listTools();
+    expect(tools.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(["fixmap_change_scope", "fixmap_capability"]));
+
+    const scope = await client.callTool({
+      name: "fixmap_change_scope",
+      arguments: { touch: ["src/auth/reset-password.ts"], repo: root, format: "json", noCache: true }
+    });
+    const scopeText = (scope.content as Array<{ text: string }>)[0]!.text;
+    expect(JSON.parse(scopeText)).toMatchObject({
+      changeScopeVersion: 1,
+      selected: [{ path: "src/auth/reset-password.ts" }]
+    });
+
+    const capability = await client.callTool({
+      name: "fixmap_capability",
+      arguments: { id: "password-recovery", repo: root, format: "json", noCache: true }
+    });
+    const capabilityText = (capability.content as Array<{ text: string }>)[0]!.text;
+    expect(JSON.parse(capabilityText)).toMatchObject({
+      capabilityMapVersion: 1,
+      capability: { id: "password-recovery", name: "Password recovery" }
+    });
+
+    await exec("git", ["init", "--quiet"], { cwd: root });
+    await exec("git", ["config", "user.email", "fixmap@example.test"], { cwd: root });
+    await exec("git", ["config", "user.name", "FixMap Test"], { cwd: root });
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "--quiet", "-m", "before"], { cwd: root });
+    const before = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+    await writeFile(join(root, "src", "auth", "reset-password.ts"), "export const resetPassword = 'v2';\n");
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "--quiet", "-m", "after"], { cwd: root });
+    const after = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+    const history = await client.callTool({
+      name: "fixmap_capability",
+      arguments: { id: "password-recovery", from: before, to: after, repo: root, format: "json" }
+    });
+    const historyText = (history.content as Array<{ text: string }>)[0]!.text;
+    expect(JSON.parse(historyText)).toMatchObject({
+      capabilityHistoryVersion: 1,
+      selected: { modified: ["src/auth/reset-password.ts"] }
+    });
+
+    const invalid = await client.callTool({ name: "fixmap_change_scope", arguments: { repo: root } });
+    expect(invalid.isError).toBe(true);
+    expect((invalid.content as Array<{ text: string }>)[0]!.text).toContain("provide at least one");
+  });
+
   it("rejects malformed runtime arguments before repository work begins", () => {
     expect(parsePlanArguments({ issue: 42 })).toEqual({
       success: false,
@@ -116,6 +270,11 @@ describe("fixmap mcp server", () => {
       success: true,
       value: { issue: "task", limit: 3, exclude: ["apps/web"] }
     });
+    expect(parsePlanArguments({ issue: "task", semanticModel: "  C:\\models\\embed  " })).toEqual({
+      success: true,
+      value: { issue: "task", semanticModel: "C:\\models\\embed" }
+    });
+    expect(parsePlanArguments({ issue: "task", semanticModel: " " }).success).toBe(false);
   });
 
   it("bypasses the repository cache when an MCP caller requests a fresh scan", async () => {
@@ -149,20 +308,20 @@ describe("fixmap mcp server", () => {
     expect(report.contextFiles).toHaveLength(1);
   });
 
-  it("advertises the complete plan, context, graph, explain, compare, verify, and doctor workflow", async () => {
+  it("advertises the complete deterministic MCP workflow", async () => {
     const client = await connectClient();
 
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_change_scope", "fixmap_capability", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
     expect(plan).toBeDefined();
     expect(plan?.description).toContain("test commands");
     expect(Object.keys(plan?.inputSchema.properties ?? {}).sort()).toEqual(
-      ["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache"].sort()
+      ["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel"].sort()
     );
     expect(plan?.inputSchema.additionalProperties).toBe(false);
     expect(plan?.inputSchema.properties?.repo?.description).toContain("public GitHub HTTPS");
@@ -173,6 +332,43 @@ describe("fixmap mcp server", () => {
     const graph = tools.tools.find((tool) => tool.name === "fixmap_graph");
     expect(graph?.inputSchema.properties?.format?.description).toContain("mermaid");
     expect(graph?.inputSchema.additionalProperties).toBe(false);
+    const changeScope = tools.tools.find((tool) => tool.name === "fixmap_change_scope");
+    expect(Object.keys(changeScope?.inputSchema.properties ?? {}).sort()).toEqual(
+      ["touch", "add", "direction", "depth", "maxNodes", "workspace", "repository", "repo", "format", "noCache"].sort()
+    );
+    expect(changeScope?.description).toContain("does not interpret product requirements");
+    expect(changeScope?.inputSchema.additionalProperties).toBe(false);
+    const capability = tools.tools.find((tool) => tool.name === "fixmap_capability");
+    expect(Object.keys(capability?.inputSchema.properties ?? {}).sort()).toEqual(["id", "from", "to", "repo", "format", "noCache"].sort());
+    expect(capability?.inputSchema.additionalProperties).toBe(false);
+    const workspace = tools.tools.find((tool) => tool.name === "fixmap_workspace");
+    expect(Object.keys(workspace?.inputSchema.properties ?? {}).sort()).toEqual(["config", "seeds", "format", "noCache"].sort());
+    expect(workspace?.inputSchema.required).toEqual(["config"]);
+    expect(workspace?.inputSchema.additionalProperties).toBe(false);
+    const ask = tools.tools.find((tool) => tool.name === "fixmap_ask");
+    expect(Object.keys(ask?.inputSchema.properties ?? {}).sort()).toEqual(["report", "question", "format"].sort());
+    expect(ask?.inputSchema.required).toEqual(["report", "question"]);
+    expect(ask?.inputSchema.additionalProperties).toBe(false);
+    const migrate = tools.tools.find((tool) => tool.name === "fixmap_migrate");
+    expect(Object.keys(migrate?.inputSchema.properties ?? {}).sort()).toEqual(["input", "format"].sort());
+    expect(migrate?.inputSchema.required).toEqual(["input"]);
+    expect(migrate?.inputSchema.additionalProperties).toBe(false);
+    const reverseDocs = tools.tools.find((tool) => tool.name === "fixmap_reverse_docs");
+    expect(Object.keys(reverseDocs?.inputSchema.properties ?? {}).sort()).toEqual(["input", "format"].sort());
+    expect(reverseDocs?.inputSchema.required).toEqual(["input"]);
+    expect(reverseDocs?.inputSchema.additionalProperties).toBe(false);
+    const history = tools.tools.find((tool) => tool.name === "fixmap_history");
+    expect(Object.keys(history?.inputSchema.properties ?? {}).sort()).toEqual(["repo", "from", "to", "couplingDelta", "applyPolicy", "format"].sort());
+    expect(history?.inputSchema.required).toEqual(["from", "to"]);
+    expect(history?.inputSchema.additionalProperties).toBe(false);
+    const supplyChain = tools.tools.find((tool) => tool.name === "fixmap_supply_chain");
+    expect(Object.keys(supplyChain?.inputSchema.properties ?? {}).sort()).toEqual(["input", "format"].sort());
+    expect(supplyChain?.inputSchema.required).toEqual(["input"]);
+    expect(supplyChain?.inputSchema.additionalProperties).toBe(false);
+    const runtime = tools.tools.find((tool) => tool.name === "fixmap_runtime");
+    expect(Object.keys(runtime?.inputSchema.properties ?? {}).sort()).toEqual(["input", "format"].sort());
+    expect(runtime?.inputSchema.required).toEqual(["input"]);
+    expect(runtime?.inputSchema.additionalProperties).toBe(false);
     expect(verify).toBeDefined();
     expect(Object.keys(verify?.inputSchema.properties ?? {}).sort()).toEqual(
       ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache"].sort()
@@ -211,6 +407,224 @@ describe("fixmap mcp server", () => {
     });
     expect(graph.isError).toBeFalsy();
     expect((graph.content as Array<{ text: string }>)[0]!.text).toContain("flowchart TD");
+  });
+
+  it("maps cross-repository impact through MCP", async () => {
+    const config = await createWorkspaceFixture();
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_workspace",
+      arguments: { config, seeds: ["auth"], format: "json", noCache: true }
+    });
+    expect(result.isError).toBeFalsy();
+    const report = JSON.parse((result.content as Array<{ text: string }>)[0]!.text) as {
+      dependencies: Array<{ consumerRepository: string; providerRepository: string }>;
+      impact: { repositories: Array<{ repository: string }> };
+    };
+    expect(report.dependencies).toContainEqual(expect.objectContaining({
+      consumerRepository: "payments", providerRepository: "auth"
+    }));
+    expect(report.impact.repositories).toContainEqual(expect.objectContaining({ repository: "payments" }));
+  });
+
+  it("answers report-only structural questions through MCP with citations", async () => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_ask",
+      arguments: {
+        report: {
+          reportVersion: 1,
+          summary: "Authentication context",
+          contextFiles: [{
+            rank: 1,
+            path: "src/auth/reset-password.ts",
+            score: 20,
+            confidence: "high",
+            reasons: ["defines resetPassword"]
+          }],
+          testRoutes: [{
+            command: "npm run test:auth",
+            kind: "test",
+            reason: "package script",
+            relatedFiles: ["test/auth/reset-password.test.ts"]
+          }],
+          risks: [],
+          changedFiles: [],
+          diagnostics: []
+        },
+        question: "Which test should I run?",
+        format: "json"
+      }
+    });
+    expect(result.isError).toBeFalsy();
+    const answer = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+    expect(answer).toMatchObject({
+      fixMapAnswerVersion: 1,
+      mode: "deterministic-structural",
+      claimsVerified: false
+    });
+    expect(answer.citations).toContainEqual(expect.objectContaining({ kind: "test" }));
+  });
+
+  it("builds dependency-ordered review-only migrations through MCP", async () => {
+    const repository = createGraphIdentity({ workspace: "acme", kind: "repository", key: "users" });
+    const schema = createGraphIdentity({ workspace: "acme", kind: "file", parent: repository, key: "db/schema.sql" });
+    const service = createGraphIdentity({ workspace: "acme", kind: "file", parent: repository, key: "src/users.ts" });
+    const graph = buildIdentityGraph({
+      workspace: "acme",
+      nodes: [
+        { id: repository, kind: "repository", key: "users", derivedFrom: [] },
+        { id: schema, kind: "file", key: "db/schema.sql", repository: "users", parent: repository, derivedFrom: [] },
+        { id: service, kind: "file", key: "src/users.ts", repository: "users", parent: repository, derivedFrom: [] }
+      ],
+      edges: []
+    });
+    const migrationStep = (id: string, dependsOn: string[], edits: string[]) => ({
+      id,
+      summary: `Perform ${id}`,
+      dependsOn,
+      edits,
+      impacts: [],
+      contracts: [],
+      compatibility: { mode: "not-required" as const, reason: "Internal-only atomic change." },
+      tests: [{ command: `npm test -- ${id}`, reason: `Verify ${id}.` }],
+      rollback: { trigger: `${id} verification fails.`, action: `Revert ${id}.` }
+    });
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_migrate",
+      arguments: {
+        input: {
+          migrationInputVersion: 1,
+          graph,
+          steps: [migrationStep("contract", ["expand"], [service]), migrationStep("expand", [], [schema])]
+        },
+        format: "json"
+      }
+    });
+
+    expect(result.isError).toBeFalsy();
+    const plan = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+    expect(plan).toMatchObject({ migrationPlanVersion: 1, graphFingerprint: graph.version.fingerprint });
+    expect(plan.phases.map((phase: { stepIds: string[] }) => phase.stepIds)).toEqual([["expand"], ["contract"]]);
+  });
+
+  it("drafts review-only reverse documentation through MCP", async () => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_reverse_docs",
+      arguments: {
+        input: {
+          reverseDocumentationInputVersion: 1,
+          repo: { files: [
+            { path: "src/auth.ts", extension: ".ts", sizeBytes: 10, isSource: true, isTest: false, kind: "code", textSample: "auth", contentFingerprint: "git:auth" },
+            { path: "src/session.ts", extension: ".ts", sizeBytes: 10, isSource: true, isTest: false, kind: "code", textSample: "session", contentFingerprint: "git:session" }
+          ] },
+          architecture: {
+            architectureSnapshotVersion: 1,
+            fingerprint: "architecture:abc",
+            sourceFingerprint: "repo:abc",
+            edges: [{ from: "src/session.ts", to: "src/auth.ts" }],
+            cycles: [],
+            coupling: [
+              { path: "src/auth.ts", incoming: 1, outgoing: 0, total: 1 },
+              { path: "src/session.ts", incoming: 0, outgoing: 1, total: 1 }
+            ],
+            boundaryViolations: [],
+            truncated: { files: 0, edges: 0 }
+          },
+          decisions: [],
+          targets: [{
+            id: "auth-module",
+            title: "Authentication module",
+            kind: "module",
+            paths: ["src/auth.ts", "src/session.ts"],
+            requestedPath: "docs/generated/auth.md"
+          }]
+        },
+        format: "json"
+      }
+    });
+
+    expect(result.isError).toBeFalsy();
+    const drafts = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+    expect(drafts[0]).toMatchObject({
+      reverseDocumentationVersion: 1,
+      reviewRequired: true,
+      writeAuthorized: false,
+      overwriteAuthorized: false,
+      destination: { status: "available" }
+    });
+  });
+
+  it("compares committed architecture history through MCP without checkout", async () => {
+    const { root, before, after } = await createHistoryFixture();
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_history",
+      arguments: { repo: root, from: before, to: after, couplingDelta: 1, format: "json" }
+    });
+
+    expect(result.isError).toBeFalsy();
+    const comparison = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+    expect(comparison.from.commit).toBe(before);
+    expect(comparison.to.commit).toBe(after);
+    expect(comparison.drift.addedEdges).toContainEqual({ from: "a.ts", to: "b.ts" });
+  }, 20_000);
+
+  it("imports normalized supply-chain evidence through MCP", async () => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_supply_chain",
+      arguments: {
+        input: {
+          supplyChainBundleVersion: 1,
+          generatedAt: "2026-08-21T12:00:00Z",
+          source: { tool: "external-scanner", toolVersion: "4.2.0", documentFingerprint: `sha256:${"a".repeat(64)}` },
+          components: [{ id: "npm-example-1", name: "example", version: "1.0.0", licenses: ["MIT"], paths: ["package-lock.json"] }],
+          findings: [{
+            id: "scanner-advisory-1", kind: "vulnerability", severity: "high", confidence: "high",
+            componentId: "npm-example-1", summary: "External scanner matched an advisory.", advisoryId: "EXTERNAL-1"
+          }]
+        },
+        format: "json"
+      }
+    });
+    expect(result.isError).toBeFalsy();
+    const report = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+    expect(report.claims).toMatchObject({ externalEvidenceOnly: true, fixMapExecutedScanner: false, remediationAuthorized: false });
+    expect(report.evidence.items).toContainEqual(expect.objectContaining({ id: "fixmap-supply-chain:finding:scanner-advisory-1" }));
+  });
+
+  it("maps redaction-reviewed runtime evidence through MCP", async () => {
+    const client = await connectClient();
+    const result = await client.callTool({
+      name: "fixmap_runtime",
+      arguments: {
+        input: {
+          runtimeInputVersion: 1,
+          bundle: {
+            runtimeEvidenceBundleVersion: 1,
+            source: {
+              format: "opentelemetry", tool: "otel-collector", version: "0.130.0", documentFingerprint: `sha256:${"a".repeat(64)}`,
+              capturedFrom: "2026-08-21T09:00:00Z", capturedTo: "2026-08-21T10:00:00Z", redactionReviewed: true,
+              redactionSummary: "Sensitive attributes removed before export."
+            },
+            records: [{
+              kind: "span", id: "span-1", traceId: "a".repeat(32), spanId: "b".repeat(16), name: "POST /login", serviceName: "auth",
+              startedAt: "2026-08-21T09:01:00Z", durationMs: 24.5, status: "ok",
+              code: { repositoryId: "repo:auth", path: "src/auth.ts", evidenceReference: "span.attr.code.filepath" }
+            }]
+          },
+          snapshots: [{ repositoryId: "repo:auth", files: [{ path: "src/auth.ts", contentFingerprint: "git:abc123" }] }]
+        },
+        format: "json"
+      }
+    });
+    expect(result.isError).toBeFalsy();
+    const mapped = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+    expect(mapped.observations[0].subject).toMatchObject({ repositoryId: "repo:auth", path: "src/auth.ts", contentFingerprint: "git:abc123" });
+    expect(mapped.claims.causalImpactInferred).toBe(false);
   });
 
   it("compares two reports through MCP", async () => {
@@ -301,7 +715,7 @@ describe("fixmap mcp server", () => {
       .toHaveLength(1);
   });
 
-  it("verifies a plan against a local diff through MCP", async () => {
+  it("verifies a plan against a local diff through MCP", { timeout: 30_000 }, async () => {
     const root = await createAuthFixture();
     await exec("git", ["init"], { cwd: root });
     await exec("git", ["config", "user.email", "fixmap@example.test"], { cwd: root });
@@ -395,6 +809,18 @@ describe("fixmap mcp server", () => {
     expect(text).not.toContain("Cannot read properties");
   });
 
+  it("accepts a UTF-16 report path from PowerShell clients", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-mcp-report-utf16-"));
+    const path = join(root, "plan.json");
+    const plan = { summary: "", contextFiles: [], testRoutes: [], risks: [], changedFiles: [], diagnostics: [] };
+    await writeFile(path, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(JSON.stringify(plan), "utf16le")]));
+
+    expect(parseVerifyArguments({ report: path, workingTree: true })).toEqual({
+      success: true,
+      value: { report: plan, reportPath: path, workingTree: true }
+    });
+  });
+
   it("rejects incomplete marked version 1 entries before verify scans", async () => {
     const client = await connectClient();
     const result = await client.callTool({
@@ -457,7 +883,7 @@ describe("fixmap mcp server", () => {
     const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
     const report = JSON.parse(text) as { contextFiles: Array<{ path: string }> };
     expect(report.contextFiles[0]?.path).toBe("src/auth/reset-password.ts");
-  });
+  }, 15_000);
 
   it("returns compact agent output when asked", async () => {
     const root = await createAuthFixture();
@@ -686,6 +1112,13 @@ describe("MCP surface parity", () => {
     });
   });
 
+  it("states that verify report is required when it is omitted", () => {
+    expect(parseVerifyArguments({ workingTree: true })).toEqual({
+      success: false,
+      message: '"report" is required and must be a FixMap report object or a path to a FixMap JSON report.'
+    });
+  });
+
   it("rejects unsafe remote refs before cloning", () => {
     expect(parsePlanArguments({ issue: "x", repo: "https://github.com/o/r", ref: "feature//oops" })).toEqual({
       success: false,
@@ -694,6 +1127,10 @@ describe("MCP surface parity", () => {
     expect(parsePlanArguments({ issue: "x", repo: "https://github.com/o/r", ref: "release-2.x" })).toEqual({
       success: true,
       value: { issue: "x", repo: "https://github.com/o/r", ref: "release-2.x" }
+    });
+    expect(parsePlanArguments({ issue: "x", repo: "https://github.com/o/r", ref: "/main" })).toEqual({
+      success: false,
+      message: '"ref" must be a safe branch or tag name.'
     });
   });
 

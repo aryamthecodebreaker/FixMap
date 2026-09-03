@@ -1,3 +1,7 @@
+import type { AnnotationAssessment } from "./annotations.js";
+import type { DecisionRecord } from "./decisions.js";
+import type { ArchitecturePolicyResult } from "./architecture.js";
+
 export type FixMapInput = {
   repoRoot: string;
   issueText?: string | undefined;
@@ -19,12 +23,16 @@ export type TextSampleSkipReason = "too-large" | "not-text" | "unreadable";
 
 export type RepoFile = {
   path: string;
+  /** Exact blob/worktree identity used by the incremental index and derived graphs. */
+  contentFingerprint?: string;
   extension: string;
   sizeBytes: number;
   isTest: boolean;
   isSource: boolean;
   kind: "code" | "config" | "documentation" | "other";
   textSample: string;
+  /** Distributed bounded windows used only for retrieval when the full file is too large. */
+  searchTextSample?: string;
   textSampleComplete?: boolean;
   textSampleSkipReason?: TextSampleSkipReason;
 };
@@ -44,6 +52,7 @@ export type ScanDiagnostic = {
     | "scan-limit-reached"
     | "tracked-paths-absent"
     | "duplicate-real-path"
+    | "linked-paths-skipped"
     | "submodules-skipped"
     | "repo-root-missing"
     | "gated-test-skipped"
@@ -71,13 +80,31 @@ export type ScanDiagnostic = {
     | "diff-resolved"
     | "diff-text-truncated"
     | "cache-hit"
+    | "incremental-index-hit"
     | "cache-bypass"
     | "cache-skip"
     | "task-checklist-filtered"
     | "package-manager-conflict"
     | "impact-history-unavailable"
     | "impact-history-shallow"
-    | "impact-history-truncated";
+    | "impact-history-truncated"
+    | "semantic-remote-disallowed"
+    | "semantic-provider-invalid"
+    | "semantic-provider-failed"
+    | "semantic-candidates-truncated"
+    | "fixmap-artifact-excluded"
+    | "annotation-store-invalid"
+    | "annotation-source-incomplete"
+    | "annotation-target-stale"
+    | "annotation-expired"
+    | "decision-source-incomplete"
+    | "decision-parse-failed"
+    | "decision-target-missing"
+    | "architecture-policy-invalid"
+    | "architecture-boundary-violation"
+    | "architecture-required-test"
+    | "architecture-review-required"
+    | "architecture-breaking-contract";
   message: string;
   severity: "info" | "warning" | "error";
   /**
@@ -105,6 +132,8 @@ export type RepoMap = {
 export type HistoryCommit = {
   hash: string;
   committedAt: number;
+  /** Authored Git identity as recorded by the commit; never treated as current availability. */
+  author?: string;
   files: string[];
 };
 
@@ -123,6 +152,16 @@ export type RankedFile = {
   score: number;
   confidence: "high" | "medium" | "low";
   reasons: string[];
+  /** Present only when hybrid retrieval is requested. Kept separate from structural score. */
+  fusionScore?: number;
+  retrieval?: {
+    structuralRank?: number;
+    structuralScore?: number;
+    lexicalRank?: number;
+    symbolRank?: number;
+    semanticRank?: number;
+    semanticSimilarity?: number;
+  };
 };
 
 export type TestRoute = {
@@ -197,7 +236,30 @@ export type TaskAnalysis = {
     topGap: number | null;
     clustered: boolean;
   };
+  retrievalRanking?: {
+    topFusionScore: number | null;
+    runnerUpFusionScore: number | null;
+    topGap: number | null;
+  };
   nextAction: string;
+};
+
+export type ReportRetrieval = {
+  mode: "structural-lexical" | "structural-lexical-semantic";
+  weights: { structural: number; lexical: number; semantic: number; reciprocalRankConstant: number };
+  semantic?: {
+    id: string;
+    version: string;
+    model: string;
+    artifactHash: string;
+    runtime: string;
+    dimensions: number;
+    normalization: "l2" | "none";
+    local: boolean;
+    cacheKey: string;
+    indexedFiles: number;
+    truncatedFiles: number;
+  };
 };
 
 export type FixMapReport = {
@@ -212,6 +274,19 @@ export type FixMapReport = {
   changedFiles: string[];
   diagnostics: ScanDiagnostic[];
   analysis?: TaskAnalysis;
+  /** Additive provenance for an explicitly requested hybrid ranking. */
+  retrieval?: ReportRetrieval;
+  /** Reviewable repository-local human intent relevant to ranked/impacted paths. */
+  annotations?: {
+    asOf: string;
+    sourcePath: string;
+    sourceFingerprint: string;
+    entries: AnnotationAssessment[];
+  };
+  /** Authored ADR/rationale excerpts relevant to this plan; never generated summaries. */
+  decisions?: DecisionRecord[];
+  /** Repository-owned architecture policy findings with exact policy provenance. */
+  policy?: ArchitecturePolicyResult;
 };
 
 export type VerifyFinding = {
@@ -219,13 +294,19 @@ export type VerifyFinding = {
     | "edit-in-generated-location"
     | "tracked-generated-edit"
     | "unmapped-change"
+    | "unscanned-change"
     | "leading-file-untouched"
     | "no-test-changed"
     | "new-risk-area"
     | "impact-file-unreviewed"
     | "plan-partially-stale"
     | "planned-file-deleted"
-    | "plan-repository-mismatch";
+    | "plan-repository-mismatch"
+    | "architecture-policy-invalid"
+    | "architecture-boundary-violation"
+    | "architecture-required-test"
+    | "architecture-review-required"
+    | "architecture-breaking-contract";
   severity: "info" | "warning" | "error";
   paths: string[];
   message: string;
@@ -243,4 +324,19 @@ export type VerifyResult = {
    */
   diagnostics: ScanDiagnostic[];
   impact?: ImpactMap;
+  narrative?: VerifyNarrativeStatement[];
+};
+
+export type VerifyNarrativeEvidence = {
+  kind: "changed-file" | "impact-relationship" | "test-route" | "risk-rule" | "annotation" | "decision-record" | "architecture-policy";
+  path?: string;
+  relatedPath?: string;
+  detail: string;
+  sourceFingerprint?: string;
+};
+
+export type VerifyNarrativeStatement = {
+  classification: "observation" | "inference";
+  text: string;
+  evidence: VerifyNarrativeEvidence[];
 };

@@ -1,3 +1,4 @@
+import { extractLanguageDefinitions } from "./language-adapters.js";
 import type { RepoFile } from "./types.js";
 
 const STOPWORDS = new Set(`a about above after again against all am an and any are as at be because been before being
@@ -26,40 +27,199 @@ export function retrievalQueryTerms(task: string): string[] {
   return [...new Set(retrievalTokens(task))].filter((term) => !STOPWORDS.has(term));
 }
 
+export type RetrievalQueryExpansion = {
+  term: string;
+  source: string;
+  rule: "technical-alias" | "inflection";
+};
+
+export type RetrievalQuery = {
+  originalTerms: string[];
+  terms: string[];
+  expansions: RetrievalQueryExpansion[];
+};
+
+export type Bm25RankedDocument = {
+  id: string;
+  score: number;
+  rank: number;
+};
+
+export type SymbolRetrievalHit = Bm25RankedDocument & {
+  path: string;
+  symbol: string;
+  kind: string;
+};
+
+const TECHNICAL_ALIASES: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  auth: ["authentication"],
+  authentication: ["auth"],
+  cli: ["commandline"],
+  commandline: ["cli"],
+  config: ["configuration"],
+  configuration: ["config"],
+  db: ["database"],
+  database: ["db"],
+  env: ["environment"],
+  environment: ["env"],
+  ui: ["interface"],
+  interface: ["ui"]
+});
+
+/**
+ * Expands only reversible technical aliases and simple English inflections. The original
+ * terms remain separately inspectable so callers never have to guess what FixMap inferred.
+ */
+export function buildRetrievalQuery(task: string): RetrievalQuery {
+  const originalTerms = retrievalQueryTerms(task);
+  const seen = new Set(originalTerms);
+  const expansions: RetrievalQueryExpansion[] = [];
+  const add = (term: string, source: string, rule: RetrievalQueryExpansion["rule"]) => {
+    if (term.length < 3 || STOPWORDS.has(term) || seen.has(term)) return;
+    seen.add(term);
+    expansions.push({ term, source, rule });
+  };
+
+  for (const source of originalTerms) {
+    const aliases = Object.hasOwn(TECHNICAL_ALIASES, source) ? TECHNICAL_ALIASES[source] ?? [] : [];
+    for (const alias of aliases) add(alias, source, "technical-alias");
+    if (source.endsWith("ies") && source.length > 5) add(`${source.slice(0, -3)}y`, source, "inflection");
+    else if (source.endsWith("s") && !source.endsWith("ss") && source.length > 4) add(source.slice(0, -1), source, "inflection");
+  }
+
+  return { originalTerms, terms: [...seen], expansions };
+}
+
 /** Standard BM25 (k1=1.2, b=0.75) over the scanner's code-only candidate corpus. */
 export function rankByBm25(files: RepoFile[], task: string, limit = 5): string[] {
-  const candidates = files.filter((file) => file.isSource && !file.isTest && file.kind === "code");
-  const terms = retrievalQueryTerms(task);
-  const documents = candidates.map((file) => {
-    const counts = new Map<string, number>();
-    for (const token of retrievalTokens(`${file.path}\n${file.textSample}`)) {
-      counts.set(token, (counts.get(token) ?? 0) + 1);
-    }
-    return { path: file.path, counts, length: [...counts.values()].reduce((sum, count) => sum + count, 0) };
-  });
-  if (documents.length === 0 || terms.length === 0) return [];
-  const averageLength = documents.reduce((sum, document) => sum + document.length, 0) / documents.length || 1;
-  const documentFrequency = new Map(terms.map((term) => [
-    term,
-    documents.reduce((count, document) => count + (document.counts.has(term) ? 1 : 0), 0)
-  ]));
+  return rankByBm25Detailed(files, task, limit).map((entry) => entry.id);
+}
 
-  return documents
-    .map((document) => {
-      let score = 0;
-      for (const term of terms) {
-        const frequency = document.counts.get(term) ?? 0;
-        if (frequency === 0) continue;
-        const df = documentFrequency.get(term) ?? 0;
-        const idf = Math.log(1 + (documents.length - df + 0.5) / (df + 0.5));
-        score += idf * ((frequency * 2.2) / (frequency + 1.2 * (0.25 + (0.75 * document.length) / averageLength)));
-      }
-      return { path: document.path, score };
-    })
-    .filter((entry) => entry.score > 0)
-    .sort((left, right) => right.score - left.score || left.path.localeCompare(right.path))
-    .slice(0, Math.max(0, limit))
-    .map((entry) => entry.path);
+/** Standard BM25 with scores and ranks retained for evidence-bearing fusion. */
+export function rankByBm25Detailed(
+  files: RepoFile[],
+  task: string,
+  limit = 5,
+  eligibleKinds: ReadonlySet<RepoFile["kind"]> = new Set(["code"])
+): Bm25RankedDocument[] {
+  const candidates = files.filter((file) => file.isSource && !file.isTest && eligibleKinds.has(file.kind));
+  return rankDocumentsByBm25(
+    candidates.map((file) => ({ id: file.path, text: `${file.path}\n${file.searchTextSample ?? file.textSample}` })),
+    task,
+    limit
+  );
+}
+
+/**
+ * Retrieves definition-sized units independently from whole-file retrieval. A symbol hit
+ * is mapped back to its owning file, but its symbol identity and rank remain visible.
+ */
+export function rankSymbolsByBm25Detailed(files: RepoFile[], task: string, limit = 50): SymbolRetrievalHit[] {
+  const units = files.flatMap((file) => extractLanguageDefinitions(file).map((definition, index) => {
+    const searchText = file.searchTextSample ?? file.textSample;
+    const offset = definition.offset ?? searchText.indexOf(definition.name);
+    const start = Math.max(0, offset - 500);
+    const end = Math.min(searchText.length, offset + definition.name.length + 1_000);
+    return {
+      id: `${file.path}#${definition.name}:${index}`,
+      path: file.path,
+      symbol: definition.name,
+      kind: definition.kind,
+      text: `${file.path}\n${definition.kind} ${definition.name}\n${searchText.slice(start, end)}`
+    };
+  }));
+  const ranked = rankDocumentsByBm25(units, task, Math.max(limit * 4, limit));
+  const byId = new Map(units.map((unit) => [unit.id, unit]));
+  const seenPaths = new Set<string>();
+  const hits: SymbolRetrievalHit[] = [];
+  for (const entry of ranked) {
+    const unit = byId.get(entry.id);
+    if (!unit || seenPaths.has(unit.path)) continue;
+    seenPaths.add(unit.path);
+    hits.push({ ...entry, rank: hits.length + 1, path: unit.path, symbol: unit.symbol, kind: unit.kind });
+    if (hits.length >= Math.max(0, limit)) break;
+  }
+  return hits;
+}
+
+export function rankDocumentsByBm25(
+  inputs: readonly { id: string; text: string }[],
+  task: string,
+  limit = 5
+): Bm25RankedDocument[] {
+  const terms = buildRetrievalQuery(task).terms;
+  if (inputs.length === 0 || terms.length === 0) return [];
+  const queryTerms = new Set(terms);
+  const documentFrequency = new Map(terms.map((term) => [term, 0]));
+  const documents = inputs.map((input) => {
+    const statistics = bm25DocumentStatistics(input.text, queryTerms);
+    for (const term of statistics.counts.keys()) {
+      documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1);
+    }
+    return { id: input.id, ...statistics };
+  });
+  const averageLength = documents.reduce((sum, document) => sum + document.length, 0) / documents.length || 1;
+
+  const top: Array<{ id: string; score: number }> = [];
+  const boundedLimit = Math.max(0, Math.min(documents.length, limit));
+  if (boundedLimit === 0) return [];
+  for (const document of documents) {
+    let score = 0;
+    for (const term of terms) {
+      const frequency = document.counts.get(term) ?? 0;
+      if (frequency === 0) continue;
+      const df = documentFrequency.get(term) ?? 0;
+      const idf = Math.log(1 + (documents.length - df + 0.5) / (df + 0.5));
+      score += idf * ((frequency * 2.2) / (frequency + 1.2 * (0.25 + (0.75 * document.length) / averageLength)));
+    }
+    if (score > 0) insertBoundedBm25(top, { id: document.id, score }, boundedLimit);
+  }
+  return top.map((entry, index) => ({ ...entry, rank: index + 1 }));
+}
+
+/** Keep the exact full-sort order while bounding sort work and retained candidates to K. */
+function insertBoundedBm25(
+  top: Array<{ id: string; score: number }>,
+  entry: { id: string; score: number },
+  limit: number
+): void {
+  let low = 0;
+  let high = top.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (compareBm25(entry, top[middle]!) < 0) high = middle;
+    else low = middle + 1;
+  }
+  if (low >= limit) return;
+  top.splice(low, 0, entry);
+  if (top.length > limit) top.pop();
+}
+
+function compareBm25(left: { id: string; score: number }, right: { id: string; score: number }): number {
+  return right.score - left.score || left.id.localeCompare(right.id);
+}
+
+/**
+ * BM25 needs total document length plus frequencies for query terms only. Retaining a map
+ * of every token in every file/symbol made large Java repositories spend hundreds of MB on
+ * vocabulary that could never affect the score. This preserves the exact token stream and
+ * score while bounding retained counts by query size.
+ */
+function bm25DocumentStatistics(text: string, queryTerms: ReadonlySet<string>): { counts: Map<string, number>; length: number } {
+  const counts = new Map<string, number>();
+  let length = 0;
+  const record = (token: string) => {
+    length += 1;
+    if (queryTerms.has(token)) counts.set(token, (counts.get(token) ?? 0) + 1);
+  };
+  for (const match of text.matchAll(/[A-Za-z0-9_$]+/g)) {
+    const raw = match[0];
+    const lower = raw.toLowerCase();
+    if (lower.length >= 3) record(lower);
+    const parts = raw.split(/(?<=[a-z0-9])(?=[A-Z])|_/).filter((part) => part.length >= 3);
+    if (parts.length > 1) for (const part of parts) record(part.toLowerCase());
+  }
+  return { counts, length };
 }
 
 export function taskMentionsExpectedPath(task: string, expectedPaths: string[]): boolean {

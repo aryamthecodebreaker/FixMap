@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import {
   buildFixMapReport,
+  createLocalTransformersEmbeddingProvider,
+  withPersistentEmbeddingCache,
   type FixMapReport,
   type ScanDiagnostic
 } from "@aryam/fixmap-core";
@@ -33,6 +35,7 @@ export type RepositoryPlanInput = {
   limit?: number | undefined;
   exclude?: string[] | undefined;
   internalExclude?: string[] | undefined;
+  semanticModelPath?: string | undefined;
 };
 
 export type ClonedRepository = {
@@ -99,7 +102,7 @@ export type ParsedGitHubIssueSource = {
 export function isSafeGitRefName(value: string): boolean {
   return value.length > 0 && value.length <= 255 &&
     value !== "@" &&
-    !/^[.-]|[./]$|[\s\u0000-\u001f\u007f~^:?*\[\\]|\.\.|\/\/|@\{|(?:^|\/)\.|(?:^|\/)[^/]*\.lock(?:\/|$)/i.test(value);
+    !/^[.\/-]|[./]$|[\s\u0000-\u001f\u007f~^:?*\[\\]|\.\.|\/\/|@\{|(?:^|\/)\.|(?:^|\/)[^/]*\.lock(?:\/|$)/i.test(value);
 }
 
 export type PublicGitHubIssue = {
@@ -541,6 +544,12 @@ export async function buildReportForRepository(
     source,
     async (resolvedSource) => {
       reportProgress(`scanning ${resolvedSource.repoRoot}`);
+      const embeddingProvider = input.semanticModelPath
+        ? await withPersistentEmbeddingCache(
+          await createLocalTransformersEmbeddingProvider({ modelPath: input.semanticModelPath }),
+          { repositoryRoot: resolvedSource.repoRoot }
+        )
+        : undefined;
       const report = await buildFixMapReport({
         repoRoot: resolvedSource.repoRoot,
         issueText,
@@ -552,7 +561,8 @@ export async function buildReportForRepository(
         useCache: input.useCache,
         limit: input.limit,
         exclude: input.exclude,
-        internalExclude: input.internalExclude
+        internalExclude: input.internalExclude,
+        embeddingProvider
       });
       reportProgress(`ranked ${report.contextFiles.length} context files`);
       const sourceDiagnostics = [issueDiagnostic, resolvedSource.diagnostic].filter(

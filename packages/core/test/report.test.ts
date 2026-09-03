@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildReportFromRepo, buildRiskNotes, buildTestRoutes, renderJsonReport, renderMarkdownReport } from "../src/report.js";
+import { buildReportFromRepo, buildRiskNotes, buildTestRoutes, renderAgentReport, renderJsonReport, renderMarkdownReport } from "../src/report.js";
+import { addAnnotation, createAnnotation, emptyAnnotationStore } from "../src/annotations.js";
 import type { FixMapReport, RepoMap } from "../src/types.js";
 
 describe("report rendering", () => {
@@ -48,6 +49,26 @@ describe("report rendering", () => {
     );
   });
 
+  it("renders a singular eligible history commit grammatically", () => {
+    const report: FixMapReport = {
+      summary: "FixMap found one context file.",
+      changedFiles: [],
+      contextFiles: [],
+      testRoutes: [],
+      risks: [],
+      diagnostics: [],
+      impact: {
+        seeds: [],
+        files: [],
+        inspectionOrder: [],
+        history: { available: true, eligibleCommits: 1, shallow: false, truncated: false }
+      }
+    };
+
+    expect(renderMarkdownReport(report)).toContain("History evidence: 1 eligible commit.");
+    expect(renderMarkdownReport(report)).not.toContain("1 eligible commits");
+  });
+
   it("renders diagnostic paths and marks new JSON reports with version 1", () => {
     const repo: RepoMap = {
       root: "/repo",
@@ -71,6 +92,100 @@ describe("report rendering", () => {
 
     expect(report.reportVersion).toBe(1);
     expect(renderMarkdownReport(report)).toContain("  - `src/large.ts`");
+  });
+
+  it("surfaces relevant repository annotations in Markdown and agent reports", () => {
+    const annotation = createAnnotation({
+      scope: { kind: "file", path: "src/auth.ts" },
+      note: "Do not refactor; external identity contract.",
+      createdAt: "2026-08-21T10:00:00Z"
+    });
+    const annotationText = JSON.stringify(addAnnotation(emptyAnnotationStore(), annotation));
+    const repo: RepoMap = {
+      root: "/repo",
+      files: [
+        {
+          path: "src/auth.ts", extension: ".ts", sizeBytes: 40, isSource: true, isTest: false,
+          kind: "code", textSample: "export function authenticate() {}"
+        },
+        {
+          path: ".fixmap/annotations.json", extension: ".json", sizeBytes: annotationText.length,
+          contentFingerprint: `worktree:${"a".repeat(64)}`,
+          isSource: true, isTest: false, kind: "config", textSample: annotationText, textSampleComplete: true
+        },
+        {
+          path: "docs/adr/auth.md", extension: ".md", sizeBytes: 120,
+          contentFingerprint: `git:${"b".repeat(40)}`,
+          isSource: true, isTest: false, kind: "documentation", textSampleComplete: true,
+          textSample: "# Keep external identity boundaries\n\n## Status\nAccepted\n\n## Decision\nTreat `src/auth.ts` as an external compatibility boundary.\n"
+        }
+      ],
+      packageScripts: [], changedFiles: [], diffText: "", packageManager: "npm", diagnostics: []
+    };
+    const report = buildReportFromRepo(repo, {
+      issueText: "authenticate users",
+      annotationAsOf: "2026-08-22T00:00:00Z"
+    });
+    expect(report.annotations?.entries).toContainEqual(expect.objectContaining({
+      status: "active",
+      annotation: expect.objectContaining({ note: "Do not refactor; external identity contract." })
+    }));
+    expect(report.annotations?.sourceFingerprint).toBe(`worktree:${"a".repeat(64)}`);
+    expect(report.decisions).toContainEqual(expect.objectContaining({
+      path: "docs/adr/auth.md",
+      status: "accepted",
+      decision: expect.stringContaining("external compatibility boundary")
+    }));
+    expect(renderMarkdownReport(report)).toContain("## Human Intent");
+    expect(renderMarkdownReport(report)).toContain("ADR accepted");
+    expect(renderAgentReport(report)).toContain("INTENT:");
+    expect(renderAgentReport(report)).toContain("external identity contract");
+    expect(renderAgentReport(report)).toContain("docs/adr/auth.md");
+  });
+
+  it("surfaces repository architecture policy findings with exact provenance", () => {
+    const policyText = JSON.stringify({
+      architecturePolicyVersion: 1,
+      boundaries: [{
+        id: "ui-no-data",
+        from: ["src/ui/**"],
+        deny: ["src/data/**"],
+        reason: "UI must use the service layer.",
+        severity: "error"
+      }]
+    });
+    const fingerprint = `worktree:${"c".repeat(64)}`;
+    const repo: RepoMap = {
+      root: "/repo",
+      files: [
+        {
+          path: "src/ui/view.ts", extension: ".ts", sizeBytes: 70, isSource: true, isTest: false,
+          kind: "code", textSample: "import { query } from '../data/query'; export const view = query;"
+        },
+        {
+          path: "src/data/query.ts", extension: ".ts", sizeBytes: 30, isSource: true, isTest: false,
+          kind: "code", textSample: "export const query = true;"
+        },
+        {
+          path: ".fixmap/policy.json", extension: ".json", sizeBytes: policyText.length,
+          contentFingerprint: fingerprint, isSource: true, isTest: false, kind: "config",
+          textSample: policyText, textSampleComplete: true
+        }
+      ],
+      packageScripts: [], changedFiles: ["src/ui/view.ts"], diffText: "", packageManager: "npm", diagnostics: []
+    };
+
+    const report = buildReportFromRepo(repo, { issueText: "change the UI view" });
+    expect(report.policy?.policyFingerprint).toBe(fingerprint);
+    expect(report.policy?.findings).toContainEqual(expect.objectContaining({
+      code: "boundary-violation",
+      ruleId: "ui-no-data",
+      paths: ["src/ui/view.ts", "src/data/query.ts"]
+    }));
+    expect(renderMarkdownReport(report)).toContain("## Architecture Policy");
+    expect(renderMarkdownReport(report)).toContain("`ui-no-data`");
+    expect(renderAgentReport(report)).toContain("POLICY:");
+    expect(renderAgentReport(report)).toContain("ui-no-data");
   });
 
   it("routes nearby tests by path overlap and adds risk notes", () => {

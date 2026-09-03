@@ -99,6 +99,49 @@ describe("test routing beyond package scripts", () => {
     expect(buildTestRoutes(repo, ["command.go"])[0]?.command).toBe("go test ./...");
   });
 
+  it("routes every exact Go module and scopes related tests by module ownership", () => {
+    const repo = repoOf([
+      file("services/auth/go.mod", { isSource: false, kind: "config", textSample: "module corp.example/auth\n" }),
+      file("services/auth/token.go"),
+      file("services/auth/token_test.go", { isTest: true }),
+      file("services/billing/go.mod", { isSource: false, kind: "config", textSample: "module corp.example/billing\n" }),
+      file("services/billing/invoice.go"),
+      file("services/billing/invoice_test.go", { isTest: true }),
+      file("tools/go.mod", { isSource: false, kind: "config", textSample: "module corp.example/tools\n" }),
+      file("tools/unrelated_test.go", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(repo, ["services/billing/invoice.go", "services/auth/token.go"])).toEqual([
+      {
+        command: "go test -C services/billing ./...",
+        kind: "test",
+        reason: "nearest module (services/billing) declared by services/billing/go.mod",
+        relatedFiles: ["services/billing/invoice_test.go"]
+      },
+      {
+        command: "go test -C services/auth ./...",
+        kind: "test",
+        reason: "nearest module (services/auth) declared by services/auth/go.mod",
+        relatedFiles: ["services/auth/token_test.go"]
+      }
+    ]);
+  });
+
+  it("keeps exact Go routes when an unrelated root package script also exists", () => {
+    const repo = repoOf([
+      file("services/auth/go.mod", { isSource: false, kind: "config", textSample: "module corp.example/auth\n" }),
+      file("services/auth/token.go"),
+      file("services/auth/token_test.go", { isTest: true })
+    ], {
+      packageScripts: [{ name: "test", command: "vitest run", packageDir: "" }]
+    });
+
+    expect(buildTestRoutes(repo, ["services/auth/token.go"]).map((route) => route.command)).toEqual([
+      "npm run test",
+      "go test -C services/auth ./..."
+    ]);
+  });
+
   it("routes cargo test for a Rust repository", () => {
     const repo = repoOf([
       file("Cargo.toml", { isSource: false, kind: "config" }),
@@ -106,6 +149,212 @@ describe("test routing beyond package scripts", () => {
     ]);
 
     expect(buildTestRoutes(repo, ["src/parser.rs"])[0]?.command).toBe("cargo test");
+  });
+
+  it("does not invent RSpec from a bare Gemfile", () => {
+    const repo = repoOf([
+      file("Gemfile", { kind: "config", textSample: 'source "https://rubygems.org"\n' }),
+      file("lib/token.rb")
+    ]);
+
+    expect(buildTestRoutes(repo, ["lib/token.rb"])).toEqual([]);
+    const report = buildReportFromRepo(repo, { issueText: "Token fails" });
+    expect(report.diagnostics.find((entry) => entry.code === "no-test-route")?.message)
+      .not.toContain("rspec");
+  });
+
+  it("scopes an evidence-backed RSpec route to the owning Ruby project", () => {
+    const repo = repoOf([
+      file("Gemfile", { kind: "config", textSample: 'gem "minitest"\n' }),
+      file("services/api/Gemfile", { kind: "config", textSample: 'gem "rspec-rails"\n' }),
+      file("services/api/lib/token.rb"),
+      file("services/api/spec/token_spec.rb", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(repo, ["services/api/lib/token.rb"])[0]).toMatchObject({
+      command: "ruby -C services/api -S bundle exec rspec",
+      relatedFiles: ["services/api/spec/token_spec.rb"]
+    });
+  });
+
+  it("routes .NET source changes through an explicit referencing test project", () => {
+    const repo = repoOf([
+      file("src/Auth/Auth.csproj", { kind: "config", textSample: "<Project />" }),
+      file("src/Auth/Token.cs"),
+      file("tests/Auth.Tests/Auth.Tests.csproj", {
+        kind: "config",
+        textSample: [
+          "<Project>",
+          '  <ProjectReference Include="..\\..\\src\\Auth\\Auth.csproj" />',
+          '  <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.0.0" />',
+          "</Project>"
+        ].join("\n")
+      }),
+      file("tests/Auth.Tests/TokenTests.cs", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(repo, ["src/Auth/Token.cs"])[0]).toEqual({
+      command: "dotnet test tests/Auth.Tests/Auth.Tests.csproj",
+      kind: "test",
+      reason: "tests/Auth.Tests/Auth.Tests.csproj is a test project that references src/Auth/Auth.csproj",
+      relatedFiles: ["tests/Auth.Tests/TokenTests.cs"]
+    });
+  });
+
+  it("routes .NET to the nearest exact project when no test project is declared", () => {
+    const repo = repoOf([
+      file("src/Auth/Auth.csproj", { kind: "config", textSample: "<Project />" }),
+      file("src/Auth/Token.cs"),
+      file("src/Billing/Billing.csproj", { kind: "config", textSample: "<Project />" }),
+      file("src/Billing/Invoice.cs")
+    ]);
+
+    expect(buildTestRoutes(repo, ["src/Auth/Token.cs"])[0]?.command)
+      .toBe("dotnet test src/Auth/Auth.csproj");
+  });
+
+  it("routes multiple referencing .NET test projects through their one explicit solution", () => {
+    const repo = repoOf([
+      file("App.sln", {
+        kind: "config",
+        textSample: [
+          'Project("{TYPE}") = "Auth", "src\\Auth\\Auth.csproj", "{AUTH}"',
+          'Project("{TYPE}") = "Unit", "tests\\Auth.UnitTests\\Auth.UnitTests.csproj", "{UNIT}"',
+          'Project("{TYPE}") = "Integration", "tests\\Auth.IntegrationTests\\Auth.IntegrationTests.csproj", "{INTEGRATION}"'
+        ].join("\n")
+      }),
+      file("src/Auth/Auth.csproj", { kind: "config", textSample: "<Project />" }),
+      file("src/Auth/Token.cs"),
+      file("tests/Auth.UnitTests/Auth.UnitTests.csproj", {
+        kind: "config",
+        textSample: '<ProjectReference Include="..\\..\\src\\Auth\\Auth.csproj" /><IsTestProject>true</IsTestProject>'
+      }),
+      file("tests/Auth.UnitTests/TokenTests.cs", { isTest: true }),
+      file("tests/Auth.IntegrationTests/Auth.IntegrationTests.csproj", {
+        kind: "config",
+        textSample: '<ProjectReference Include="..\\..\\src\\Auth\\Auth.csproj" /><IsTestProject>true</IsTestProject>'
+      }),
+      file("tests/Auth.IntegrationTests/TokenFlowTests.cs", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(repo, ["src/Auth/Token.cs"])[0]).toEqual({
+      command: "dotnet test App.sln",
+      kind: "test",
+      reason: "App.sln is the only solution containing src/Auth/Auth.csproj and 2 referencing test projects",
+      relatedFiles: [
+        "tests/Auth.IntegrationTests/TokenFlowTests.cs",
+        "tests/Auth.UnitTests/TokenTests.cs"
+      ]
+    });
+  });
+
+  it("does not choose arbitrarily between multiple solutions for multiple .NET test projects", () => {
+    const solution = [
+      'Project("{TYPE}") = "Auth", "src\\Auth\\Auth.csproj", "{AUTH}"',
+      'Project("{TYPE}") = "Unit", "tests\\Auth.UnitTests\\Auth.UnitTests.csproj", "{UNIT}"',
+      'Project("{TYPE}") = "Integration", "tests\\Auth.IntegrationTests\\Auth.IntegrationTests.csproj", "{INTEGRATION}"'
+    ].join("\n");
+    const repo = repoOf([
+      file("App.sln", { kind: "config", textSample: solution }),
+      file("Duplicate.sln", { kind: "config", textSample: solution }),
+      file("src/Auth/Auth.csproj", { kind: "config", textSample: "<Project />" }),
+      file("src/Auth/Token.cs"),
+      file("tests/Auth.UnitTests/Auth.UnitTests.csproj", {
+        kind: "config",
+        textSample: '<ProjectReference Include="..\\..\\src\\Auth\\Auth.csproj" /><IsTestProject>true</IsTestProject>'
+      }),
+      file("tests/Auth.IntegrationTests/Auth.IntegrationTests.csproj", {
+        kind: "config",
+        textSample: '<ProjectReference Include="..\\..\\src\\Auth\\Auth.csproj" /><IsTestProject>true</IsTestProject>'
+      })
+    ]);
+
+    expect(buildTestRoutes(repo, ["src/Auth/Token.cs"])).toEqual([]);
+  });
+
+  it("does not invent a .NET project when multiple root projects own the same path", () => {
+    const repo = repoOf([
+      file("App.csproj", { kind: "config", textSample: "<Project />" }),
+      file("Tools.csproj", { kind: "config", textSample: "<Project />" }),
+      file("Program.cs")
+    ]);
+
+    expect(buildTestRoutes(repo, ["Program.cs"])).toEqual([]);
+  });
+
+  it("routes only explicitly declared Composer test scripts", () => {
+    const declared = repoOf([
+      file("composer.json", {
+        kind: "config",
+        textSample: JSON.stringify({ scripts: { test: "phpunit" } })
+      }),
+      file("src/App.php"),
+      file("tests/AppTest.php", { isTest: true })
+    ]);
+    const undeclared = repoOf([
+      file("composer.json", { kind: "config", textSample: "{}" }),
+      file("src/App.php")
+    ]);
+
+    expect(buildTestRoutes(declared, ["src/App.php"])[0]).toMatchObject({
+      command: "composer test",
+      relatedFiles: ["tests/AppTest.php"]
+    });
+    expect(buildTestRoutes(undeclared, ["src/App.php"])).toEqual([]);
+  });
+
+  it("scopes Composer scripts and PHPUnit configs to the owning PHP project", () => {
+    const composerScript = repoOf([
+      file("composer.json", { kind: "config", textSample: "{}" }),
+      file("services/api/composer.json", {
+        kind: "config",
+        textSample: JSON.stringify({ scripts: { test: ["@phpunit"] } })
+      }),
+      file("services/api/src/App.php"),
+      file("services/api/tests/AppTest.php", { isTest: true })
+    ]);
+    const phpunit = repoOf([
+      file("services/api/composer.json", { kind: "config", textSample: "{}" }),
+      file("services/api/phpunit.xml.dist", { kind: "config", textSample: "<phpunit />" }),
+      file("services/api/src/App.php"),
+      file("services/api/tests/AppTest.php", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(composerScript, ["services/api/src/App.php"])[0]?.command)
+      .toBe("composer --working-dir services/api test");
+    expect(buildTestRoutes(phpunit, ["services/api/src/App.php"])[0]).toMatchObject({
+      command: "phpunit -c services/api/phpunit.xml.dist",
+      relatedFiles: ["services/api/tests/AppTest.php"]
+    });
+  });
+
+  it("routes PHPUnit from an explicit require-dev dependency when no config exists", () => {
+    const repo = repoOf([
+      file("composer.json", {
+        kind: "config",
+        textSample: JSON.stringify({ "require-dev": { "phpunit/phpunit": "^11" } })
+      }),
+      file("src/App.php")
+    ]);
+
+    expect(buildTestRoutes(repo, ["src/App.php"])[0]?.command).toBe("vendor/bin/phpunit");
+  });
+
+  it("routes a nested Pest suite only from Composer dependency evidence", () => {
+    const repo = repoOf([
+      file("services/api/composer.json", {
+        kind: "config",
+        textSample: JSON.stringify({ "require-dev": { "pestphp/pest": "^3" } })
+      }),
+      file("services/api/tests/Pest.php", { kind: "config", isTest: true }),
+      file("services/api/src/App.php"),
+      file("services/api/tests/AppTest.php", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(repo, ["services/api/src/App.php"])[0]).toMatchObject({
+      command: "services/api/vendor/bin/pest",
+      relatedFiles: ["services/api/tests/AppTest.php"]
+    });
   });
 
   it("scopes a workspace cargo command to the crate being edited", () => {
@@ -148,6 +397,100 @@ describe("test routing beyond package scripts", () => {
     expect(diagnostic!.message).toContain("python");
   });
 
+  it("routes pytest only when Python configuration explicitly selects it", () => {
+    const repo = repoOf([
+      file("pyproject.toml", {
+        isSource: true,
+        kind: "config",
+        textSample: "[tool.pytest.ini_options]\naddopts = '-q'\n"
+      }),
+      file("src/app.py"),
+      file("tests/test_app.py", { isTest: true })
+    ]);
+
+    expect(buildTestRoutes(repo, ["src/app.py"])[0]).toMatchObject({
+      command: "python -m pytest",
+      relatedFiles: ["tests/test_app.py"]
+    });
+  });
+
+  it("scopes nested Python pytest and tox configurations", () => {
+    const pytestRepo = repoOf([
+      file("services/api/pyproject.toml", { textSample: "[tool.pytest.ini_options]\n" }),
+      file("services/api/app.py")
+    ]);
+    const toxRepo = repoOf([
+      file("services/api/pyproject.toml"),
+      file("services/api/tox.ini"),
+      file("services/api/app.py")
+    ]);
+
+    expect(buildTestRoutes(pytestRepo, ["services/api/app.py"])[0]?.command)
+      .toBe("python -m pytest -c services/api/pyproject.toml services/api");
+    expect(buildTestRoutes(toxRepo, ["services/api/app.py"])[0]?.command)
+      .toBe("tox -c services/api/tox.ini");
+  });
+
+  it("routes explicit nox and stdlib unittest evidence without guessing from pyproject alone", () => {
+    const nox = repoOf([
+      file("pyproject.toml"),
+      file("noxfile.py", { textSample: "import nox\n@nox.session\ndef tests(session): pass\n" }),
+      file("src/app.py")
+    ]);
+    const unittest = repoOf([
+      file("pyproject.toml"),
+      file("src/app.py"),
+      file("tests/test_app.py", {
+        isTest: true,
+        textSample: "import unittest\nclass AppTest(unittest.TestCase): pass\n"
+      })
+    ]);
+
+    expect(buildTestRoutes(nox, ["src/app.py"])[0]?.command).toBe("nox");
+    expect(buildTestRoutes(unittest, ["src/app.py"])[0]?.command).toBe("python -m unittest discover -s tests");
+  });
+
+  it("routes Maven and Gradle with wrappers and nested project scope", () => {
+    const maven = repoOf([
+      file("services/api/pom.xml"),
+      file("services/api/mvnw", { isSource: false, kind: "config" }),
+      file("services/api/src/main/java/App.java")
+    ]);
+    const gradle = repoOf([
+      file("build.gradle"),
+      file("gradlew", { isSource: false, kind: "config" }),
+      file("services/payments/build.gradle.kts"),
+      file("services/payments/src/main/java/Payment.java")
+    ]);
+
+    expect(buildTestRoutes(maven, ["services/api/src/main/java/App.java"])[0]?.command)
+      .toBe("./services/api/mvnw test");
+    expect(buildTestRoutes(gradle, ["services/payments/src/main/java/Payment.java"])[0]?.command)
+      .toBe("./gradlew -p services/payments test");
+  });
+
+  it("records JUnit and TestNG evidence in Java route reasons", () => {
+    const junit = repoOf([
+      file("pom.xml", { textSample: "<dependency><artifactId>junit-jupiter</artifactId></dependency>" }),
+      file("src/main/java/App.java"),
+      file("src/test/java/AppTest.java", { isTest: true, textSample: "import org.junit.jupiter.api.Test;" })
+    ]);
+    const testng = repoOf([
+      file("build.gradle", { textSample: "testImplementation 'org.testng:testng:7.11.0'" }),
+      file("src/main/java/App.java"),
+      file("src/test/java/AppTest.java", { isTest: true, textSample: "import org.testng.annotations.Test;" })
+    ]);
+
+    expect(buildTestRoutes(junit, ["src/main/java/App.java"])[0]?.reason).toContain("JUnit tests detected");
+    expect(buildTestRoutes(testng, ["src/main/java/App.java"])[0]?.reason).toContain("TestNG tests detected");
+  });
+
+  it("uses installed Java tools when wrappers are absent", () => {
+    expect(manifestTestCommand("java", "", [file("pom.xml")])?.command).toBe("mvn test");
+    expect(manifestTestCommand("java", "svc", [file("svc/build.gradle"), file("svc/App.java")])?.command)
+      .toBe("gradle -p svc test");
+  });
+
   it("prefers tox when the repository configures it", () => {
     const repo = repoOf([
       file("pyproject.toml", { isSource: false, kind: "config" }),
@@ -155,9 +498,7 @@ describe("test routing beyond package scripts", () => {
       file("src/app.py")
     ]);
 
-    const report = buildReportFromRepo(repo, { issueText: "app fails to start" });
-
-    expect(report.diagnostics.find((entry) => entry.code === "no-test-route")?.message).toContain("tox");
+    expect(buildTestRoutes(repo, ["src/app.py"])[0]?.command).toBe("tox");
   });
 
   it("does not let a nested tox.ini override a shallower Python configuration", () => {

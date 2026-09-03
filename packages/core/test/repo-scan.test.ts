@@ -4,9 +4,18 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { scanRepo, summarizeSkippedScope } from "../src/repo-scan.js";
+import { parseHistoryLog, scanRepo, summarizeSkippedScope } from "../src/repo-scan.js";
 
 const exec = promisify(execFile);
+const HEAVY_GIT_TEST_TIMEOUT = process.platform === "win32" ? 60_000 : 30_000;
+
+async function exactScanCachePath(cacheRoot: string): Promise<string> {
+  const name = (await readdir(cacheRoot)).find((entry) =>
+    /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/.test(entry)
+  );
+  if (!name) throw new Error(`No exact-state scan cache found in ${cacheRoot}`);
+  return join(cacheRoot, name);
+}
 
 describe("summarizeSkippedScope", () => {
   it("names the busiest unread directories so a truncated scan is inspectable", () => {
@@ -88,6 +97,62 @@ describe("scanRepo", () => {
     expect(readme?.textSample).toContain("project documentation");
     expect(dockerfile).toMatchObject({ isSource: true, kind: "config" });
     expect(dockerfile?.textSample).toContain("FROM node:24");
+  });
+
+  it("samples Python and Java runner configuration used for exact test routing", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-runner-config-"));
+    await writeFile(join(root, "pyproject.toml"), "[tool.pytest.ini_options]\naddopts = '-q'\n");
+    await writeFile(join(root, "gradlew"), "#!/bin/sh\n");
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.find((file) => file.path === "pyproject.toml")).toMatchObject({
+      isSource: true,
+      kind: "config",
+      textSample: "[tool.pytest.ini_options]\naddopts = '-q'\n"
+    });
+    expect(repo.files.find((file) => file.path === "gradlew")).toMatchObject({
+      isSource: true,
+      kind: "config"
+    });
+  });
+
+  it("samples Cargo, Go, and .NET project/workspace manifests used by resolution", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-language-manifests-"));
+    await writeFile(join(root, "Cargo.toml"), '[package]\nname = "app"\n');
+    await writeFile(join(root, "go.mod"), "module corp.example/app\n");
+    await writeFile(join(root, "go.work"), "go 1.24\nuse ./services/api\n");
+    await writeFile(join(root, "App.sln"), 'Project("{TYPE}") = "App", "App.csproj", "{APP}"\n');
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.find((file) => file.path === "Cargo.toml")).toMatchObject({
+      isSource: true,
+      kind: "config",
+      textSample: '[package]\nname = "app"\n'
+    });
+    expect(repo.files.find((file) => file.path === "go.mod")?.textSample).toBe("module corp.example/app\n");
+    expect(repo.files.find((file) => file.path === "go.work")?.textSample).toBe("go 1.24\nuse ./services/api\n");
+    expect(repo.files.find((file) => file.path === "App.sln")).toMatchObject({
+      isSource: true,
+      kind: "config",
+      textSample: 'Project("{TYPE}") = "App", "App.csproj", "{APP}"\n'
+    });
+  });
+
+  it("classifies Pest bootstrap files as test configuration, not executable tests", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-pest-config-"));
+    await mkdir(join(root, "tests"), { recursive: true });
+    await writeFile(join(root, "tests", "Pest.php"), "<?php\npest()->extend(TestCase::class);\n");
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.find((file) => file.path === "tests/Pest.php")).toMatchObject({
+      isSource: true,
+      isTest: true,
+      kind: "config",
+      textSample: "<?php\npest()->extend(TestCase::class);\n"
+    });
   });
 
   it("recognizes Go, Python, Ruby, Java, C#, PHP, and TypeScript test naming conventions", async () => {
@@ -186,7 +251,7 @@ describe("scanRepo", () => {
     expect(repo.diagnostics[0]?.code).toBe("diff-unavailable");
   });
 
-  it("includes untracked files as changed for working-tree diff specs", { timeout: 30_000 }, async () => {
+  it("keeps untracked files out of an explicit single-ref diff", { timeout: 30_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-untracked-"));
     await mkdir(join(root, "src"), { recursive: true });
     await mkdir(join(root, "api"), { recursive: true });
@@ -202,7 +267,7 @@ describe("scanRepo", () => {
     const repo = await scanRepo({ repoRoot: root, diffSpec: "HEAD" });
 
     expect(repo.changedFiles).toContain("src/login.ts");
-    expect(repo.changedFiles).toContain("api/index.ts");
+    expect(repo.changedFiles).not.toContain("api/index.ts");
   });
 
   it("maps tracked edits in working-tree mode and leaves untracked files out", { timeout: 30_000 }, async () => {
@@ -440,6 +505,22 @@ describe("scanRepo", () => {
     expect(diagnostic?.message).toContain("Files over 64 kB");
   });
 
+  it("keeps large source rankable through bounded distributed retrieval windows", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-large-search-sample-"));
+    const path = join(root, "routing.py");
+    await writeFile(path, `${"# ordinary route\n".repeat(12_000)}\ndef server_sent_event_disconnect():\n    return True\n`);
+
+    const repo = await scanRepo({ repoRoot: root });
+    const routing = repo.files.find((file) => file.path === "routing.py");
+
+    expect(routing?.textSampleComplete).toBe(false);
+    expect(routing?.textSample.length).toBeGreaterThan(0);
+    expect(routing?.textSample).not.toContain("server_sent_event_disconnect");
+    expect(routing?.searchTextSample).toContain("server_sent_event_disconnect");
+    expect(repo.diagnostics.find((entry) => entry.code === "content-too-large")?.message)
+      .toContain("distributed retrieval samples");
+  });
+
   // A sparse checkout lists paths in the index that are not on disk. Dropping them silently
   // let a partial scan read as a complete one, and --explain blamed .gitignore for a path
   // git tracks.
@@ -475,6 +556,13 @@ describe("scanRepo", () => {
       // An unprivileged Windows session cannot create symlinks. The Linux CI run covers it.
       return;
     }
+    // Keep the alias and real target more than one scanner I/O batch apart. The concurrent
+    // preparation stage must still reduce in Git order and replace the early alias with the
+    // canonical path deterministically.
+    await mkdir(join(root, "middle"), { recursive: true });
+    await Promise.all(Array.from({ length: 40 }, (_, index) =>
+      writeFile(join(root, "middle", `filler-${String(index).padStart(2, "0")}.ts`), `export const filler${index} = ${index};\n`)
+    ));
     await exec("git", ["init", "-b", "main"], { cwd: root });
     await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
     await exec("git", ["config", "user.name", "Test User"], { cwd: root });
@@ -483,7 +571,11 @@ describe("scanRepo", () => {
 
     const repo = await scanRepo({ repoRoot: root });
 
-    expect(repo.files.map((file) => file.path)).toEqual(["real-src/reset.ts"]);
+    expect(repo.files.filter((file) => file.path.endsWith("reset.ts")).map((file) => file.path))
+      .toEqual(["real-src/reset.ts"]);
+    expect(repo.files.map((file) => file.path)).toEqual(
+      repo.files.map((file) => file.path).slice().sort((left, right) => left.localeCompare(right))
+    );
     const diagnostic = repo.diagnostics.find((entry) => entry.code === "duplicate-real-path");
     expect(diagnostic?.message).toContain("link.ts -> real-src/reset.ts");
   });
@@ -506,6 +598,65 @@ describe("scanRepo", () => {
       .toContain("alias-src/reset.ts -> real-src/reset.ts");
   });
 
+  it("never scans a tracked file symlink that resolves outside the repository", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-external-file-link-"));
+    const outside = await mkdtemp(join(tmpdir(), "fixmap-external-file-target-"));
+    await writeFile(join(outside, "secret.ts"), "export const shouldNeverBeScanned = true;\n");
+    try {
+      await symlink(join(outside, "secret.ts"), join(root, "external.ts"), "file");
+    } catch {
+      return;
+    }
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+    await exec("git", ["add", "-A"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.map((file) => file.path)).not.toContain("external.ts");
+    expect(repo.files.some((file) => file.textSample.includes("shouldNeverBeScanned"))).toBe(false);
+    expect(repo.diagnostics.find((entry) => entry.code === "linked-paths-skipped")?.paths)
+      .toEqual(["external.ts"]);
+  });
+
+  it("never traverses a Windows junction that resolves outside the repository", { timeout: 30_000 }, async () => {
+    if (process.platform !== "win32") return;
+    const root = await mkdtemp(join(tmpdir(), "fixmap-external-junction-"));
+    const outside = await mkdtemp(join(tmpdir(), "fixmap-external-junction-target-"));
+    await writeFile(join(outside, "secret.ts"), "export const shouldNeverBeScanned = true;\n");
+    await symlink(outside, join(root, "linked-outside"), "junction");
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.some((file) => file.textSample.includes("shouldNeverBeScanned"))).toBe(false);
+    expect(repo.diagnostics.find((entry) => entry.code === "linked-paths-skipped")?.paths)
+      .toContain("linked-outside/secret.ts");
+  });
+
+  it("diagnoses linked directories skipped by a non-git filesystem scan", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-linked-directory-"));
+    const outside = await mkdtemp(join(tmpdir(), "fixmap-linked-target-"));
+    await writeFile(join(outside, "outside.ts"), "export const outside = true;\n");
+    try {
+      await symlink(outside, join(root, "linked-src"), process.platform === "win32" ? "junction" : "dir");
+    } catch {
+      // Windows developer mode/permissions can prohibit creating links; CI covers it.
+      return;
+    }
+
+    const repo = await scanRepo({ repoRoot: root });
+
+    expect(repo.files.map((file) => file.path)).not.toContain("linked-src/outside.ts");
+    expect(repo.diagnostics.find((entry) => entry.code === "linked-paths-skipped")).toMatchObject({
+      severity: "info",
+      paths: ["linked-src"]
+    });
+  });
+
   it("turns a truncated UTF-16BE manifest into a diagnostic instead of throwing", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-manifest-odd-be-"));
     await writeFile(join(root, "package.json"), Buffer.from([0xfe, 0xff, 0x00]));
@@ -526,11 +677,12 @@ describe("scanRepo", () => {
     await exec("git", ["add", "."], { cwd: root });
     await exec("git", ["commit", "-m", "initial"], { cwd: root });
 
-    const repo = await scanRepo({ repoRoot: root, diffSpec: "HEAD...HEAD" });
+    const repo = await scanRepo({ repoRoot: root, diffSpec: "HEAD...HEAD", includeHistory: true });
 
     expect(repo.changedFiles).toEqual([]);
     expect(repo.diagnostics.find((entry) => entry.code === "diff-resolved")?.message)
       .toContain("resolved to zero changed files");
+    expect(repo.history?.commits[0]?.author).toBe("Test User");
   });
 
   it("distinguishes an unborn repository from a non-repository", { timeout: 30_000 }, async () => {
@@ -598,6 +750,79 @@ describe("scanRepo", () => {
       if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
       else process.env.FIXMAP_CACHE_DIR = previousCache;
       await rm(cacheRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("reuses unchanged file records while refreshing a same-size untracked edit", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-incremental-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-incremental-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "a.ts"), "export const a = 'one';\n");
+      await writeFile(join(root, "b.ts"), "export const b = 'stable';\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await scanRepo({ repoRoot: root, useCache: true });
+      await writeFile(join(root, "untracked.ts"), "export const value = 'one';\n");
+      const added = await scanRepo({ repoRoot: root, useCache: true });
+      expect(added.diagnostics.find((entry) => entry.code === "incremental-index-hit")?.message)
+        .toContain("Reused 2 unchanged file records");
+      expect(added.files.find((file) => file.path === "untracked.ts")?.textSample).toContain("one");
+      const originalFingerprint = added.files.find((file) => file.path === "untracked.ts")?.contentFingerprint;
+      expect(originalFingerprint).toMatch(/^worktree:[a-f0-9]{64}$/);
+      expect(added.files.find((file) => file.path === "b.ts")?.contentFingerprint).toMatch(/^git:[a-f0-9]{40,64}$/);
+
+      // The replacement has exactly the same byte length. A size/mtime-only index can serve
+      // stale text on coarse filesystems; the worktree content fingerprint must not.
+      await writeFile(join(root, "untracked.ts"), "export const value = 'two';\n");
+      const changed = await scanRepo({ repoRoot: root, useCache: true });
+      expect(changed.diagnostics.find((entry) => entry.code === "incremental-index-hit")?.message)
+        .toContain("Reused 2 unchanged file records");
+      expect(changed.files.find((file) => file.path === "untracked.ts")?.textSample).toContain("two");
+      expect(changed.files.find((file) => file.path === "untracked.ts")?.contentFingerprint).not.toBe(originalFingerprint);
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("heals a corrupt persistent file index before reusing records", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-incremental-corrupt-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-incremental-corrupt-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "a.ts"), "export const a = 1;\n");
+      await writeFile(join(root, "b.ts"), "export const b = 1;\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      await scanRepo({ repoRoot: root, useCache: true });
+      const indexName = (await readdir(cacheRoot)).find((entry) => entry.endsWith("-index-v2.json"));
+      expect(indexName).toBeDefined();
+      await writeFile(join(cacheRoot, indexName!), "{truncated");
+      await writeFile(join(root, "a.ts"), "export const a = 2;\n");
+
+      const repaired = await scanRepo({ repoRoot: root, useCache: true });
+      expect(repaired.files.find((file) => file.path === "a.ts")?.textSample).toContain("2");
+      expect(repaired.diagnostics.map((entry) => entry.code)).not.toContain("incremental-index-hit");
+      const repairedIndex = await readFile(join(cacheRoot, indexName!), "utf8");
+      expect(() => JSON.parse(repairedIndex)).not.toThrow();
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true });
     }
   });
 
@@ -724,7 +949,7 @@ describe("scanRepo", () => {
       await exec("git", ["commit", "-m", "initial"], { cwd: root });
 
       await scanRepo({ repoRoot: root, useCache: true });
-      const cachePath = join(cacheRoot, (await readdir(cacheRoot))[0]!);
+      const cachePath = await exactScanCachePath(cacheRoot);
       const cached = JSON.parse(await readFile(cachePath, "utf8")) as Record<string, unknown>;
       cached.createdAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
       await writeFile(cachePath, `${JSON.stringify(cached)}\n`);
@@ -773,7 +998,7 @@ describe("scanRepo", () => {
     }
   });
 
-  it("heals a corrupt exact-state cache and never serves partial JSON", { timeout: 30_000 }, async () => {
+  it("heals a corrupt exact-state cache and never serves partial JSON", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-cache-corrupt-repo-"));
     const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-corrupt-store-"));
     const previousCache = process.env.FIXMAP_CACHE_DIR;
@@ -787,7 +1012,7 @@ describe("scanRepo", () => {
       await exec("git", ["commit", "-m", "initial"], { cwd: root });
 
       await scanRepo({ repoRoot: root, useCache: true });
-      const cachePath = join(cacheRoot, (await readdir(cacheRoot))[0]!);
+      const cachePath = await exactScanCachePath(cacheRoot);
       await writeFile(cachePath, "{truncated");
 
       const repaired = await scanRepo({ repoRoot: root, useCache: true });
@@ -803,7 +1028,7 @@ describe("scanRepo", () => {
     }
   });
 
-  it("heals a parseable cache whose nested scan data is structurally damaged", { timeout: 30_000 }, async () => {
+  it("heals a parseable cache whose nested scan data is structurally damaged", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-cache-shape-repo-"));
     const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-shape-store-"));
     const previousCache = process.env.FIXMAP_CACHE_DIR;
@@ -817,7 +1042,7 @@ describe("scanRepo", () => {
       await exec("git", ["commit", "-m", "initial"], { cwd: root });
 
       await scanRepo({ repoRoot: root, useCache: true });
-      const cachePath = join(cacheRoot, (await readdir(cacheRoot))[0]!);
+      const cachePath = await exactScanCachePath(cacheRoot);
       const cached = JSON.parse(await readFile(cachePath, "utf8")) as Record<string, unknown>;
       cached.files = [null];
       await writeFile(cachePath, `${JSON.stringify(cached)}\n`);
@@ -835,7 +1060,7 @@ describe("scanRepo", () => {
     }
   });
 
-  it("rebuilds typed cache data with unsafe paths, impossible sampling state, or a future timestamp", { timeout: 30_000 }, async () => {
+  it("rebuilds typed cache data with unsafe paths, impossible sampling state, or a future timestamp", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-cache-integrity-repo-"));
     const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-integrity-store-"));
     const previousCache = process.env.FIXMAP_CACHE_DIR;
@@ -849,7 +1074,7 @@ describe("scanRepo", () => {
       await exec("git", ["commit", "-m", "initial"], { cwd: root });
 
       await scanRepo({ repoRoot: root, useCache: true });
-      const cachePath = join(cacheRoot, (await readdir(cacheRoot))[0]!);
+      const cachePath = await exactScanCachePath(cacheRoot);
       type MutableCachedScan = Record<string, unknown> & {
         createdAt: string;
         files: Array<{ path: string; textSampleComplete: boolean; textSampleSkipReason?: string }>;
@@ -891,7 +1116,7 @@ describe("scanRepo", () => {
     }
   });
 
-  it("keeps the exact-state cache valid across concurrent first scans", { timeout: 30_000 }, async () => {
+  it("keeps the exact-state cache valid across concurrent first scans", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-cache-concurrent-repo-"));
     const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-concurrent-store-"));
     const previousCache = process.env.FIXMAP_CACHE_DIR;
@@ -906,9 +1131,11 @@ describe("scanRepo", () => {
 
       await Promise.all(Array.from({ length: 4 }, () => scanRepo({ repoRoot: root, useCache: true })));
       const entries = (await readdir(cacheRoot)).filter((entry) => entry.endsWith(".json"));
-      expect(entries).toHaveLength(1);
-      const concurrentJson = await readFile(join(cacheRoot, entries[0]!), "utf8");
-      expect(() => JSON.parse(concurrentJson)).not.toThrow();
+      expect(entries).toHaveLength(2);
+      for (const entry of entries) {
+        const concurrentJson = await readFile(join(cacheRoot, entry), "utf8");
+        expect(() => JSON.parse(concurrentJson)).not.toThrow();
+      }
       expect((await scanRepo({ repoRoot: root, useCache: true })).diagnostics.map((entry) => entry.code))
         .toContain("cache-hit");
     } finally {
@@ -918,7 +1145,7 @@ describe("scanRepo", () => {
     }
   });
 
-  it("names skipped git submodules and leaves their contents to the nested repository", { timeout: 30_000 }, async () => {
+  it("names skipped git submodules and leaves their contents to the nested repository", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const child = await mkdtemp(join(tmpdir(), "fixmap-submodule-child-"));
     const root = await mkdtemp(join(tmpdir(), "fixmap-submodule-parent-"));
     await writeFile(join(child, "helper.ts"), "export const helper = 1;\n");
@@ -942,7 +1169,50 @@ describe("scanRepo", () => {
 });
 
 describe("repository impact history", () => {
-  it("reads bounded pre-HEAD co-change evidence and excludes oversized commits", async () => {
+  it("accepts exact SHA-1 and SHA-256 commit identities", () => {
+    const sha1 = "a".repeat(40);
+    const sha256 = "b".repeat(64);
+    const parsed = parseHistoryLog(
+      `\x1e${sha1}\x1f1700000000\x1fAlice\0src/a.ts` +
+      `\x1e${sha256}\x1f1700000001\x1fBob\0src/b.ts`,
+      new Set(["src/a.ts", "src/b.ts"])
+    );
+
+    expect(parsed.commits.map((commit) => commit.hash)).toEqual([sha1, sha256]);
+    expect(parsed.inspectedCommits).toBe(2);
+  });
+
+  it("scopes history and file identities to a scanned repository subdirectory", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-nested-history-"));
+    const app = join(root, "app");
+    try {
+      await exec("git", ["init"], { cwd: root });
+      await exec("git", ["config", "user.name", "FixMap Test"], { cwd: root });
+      await exec("git", ["config", "user.email", "fixmap@example.invalid"], { cwd: root });
+      await mkdir(join(app, "src"), { recursive: true });
+      await writeFile(join(app, "src", "seed.ts"), "export const nestedSeed = 1;\n");
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "add nested app"], { cwd: root });
+
+      await mkdir(join(root, "src"), { recursive: true });
+      await writeFile(join(root, "src", "seed.ts"), "export const parentSeed = 1;\n");
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "add unrelated parent source"], { cwd: root });
+      await writeFile(join(root, "src", "seed.ts"), "export const parentSeed = 2;\n");
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "update unrelated parent source"], { cwd: root });
+
+      const repo = await scanRepo({ repoRoot: app, includeHistory: true });
+
+      expect(repo.history).toMatchObject({ inspectedCommits: 1, skippedLargeCommits: 0, truncated: false });
+      expect(repo.history?.commits).toHaveLength(1);
+      expect(repo.history?.commits[0]?.files).toEqual(["src/seed.ts"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reads bounded pre-HEAD co-change evidence and excludes oversized commits", { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-history-"));
     try {
       await exec("git", ["init"], { cwd: root });

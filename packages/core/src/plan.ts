@@ -3,9 +3,11 @@ import { join, resolve } from "node:path";
 import { buildPathExcluder, parseIgnoreFile, NO_EXCLUSIONS } from "./exclude.js";
 import { markdownCode } from "./markdown.js";
 import type { PathExcluder } from "./exclude.js";
-import { buildReportFromRepo } from "./report.js";
+import { buildHybridReportFromRepo, buildReportFromRepo } from "./report.js";
 import { scanRepo } from "./repo-scan.js";
+import type { EmbeddingProvider } from "./semantic.js";
 import type { FixMapInput, FixMapReport } from "./types.js";
+import { fixMapArtifactKind, isFixMapArtifact } from "./artifacts.js";
 
 export async function buildFixMapReport(
   input: Pick<
@@ -16,6 +18,7 @@ export async function buildFixMapReport(
     exclude?: string[] | undefined;
     /** Known command artifacts that must not compete with repository files in ranking. */
     internalExclude?: string[] | undefined;
+    embeddingProvider?: EmbeddingProvider | undefined;
   }
 ): Promise<FixMapReport> {
   return (await buildFixMapAnalysis(input)).report;
@@ -34,23 +37,57 @@ export async function buildFixMapAnalysis(
     limit?: number | undefined;
     exclude?: string[] | undefined;
     internalExclude?: string[] | undefined;
+    embeddingProvider?: EmbeddingProvider | undefined;
   }
 ): Promise<{ report: FixMapReport; repo: Awaited<ReturnType<typeof scanRepo>> }> {
-  const repo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
+  const scannedRepo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
+  const generatedArtifacts = scannedRepo.files.filter(isFixMapArtifact);
+  const generatedPaths = new Set(generatedArtifacts.map((file) => file.path));
+  const repo = generatedArtifacts.length === 0
+    ? scannedRepo
+    : {
+        ...scannedRepo,
+        files: scannedRepo.files.filter((file) => !generatedPaths.has(file.path)),
+        changedFiles: scannedRepo.changedFiles.filter((path) => !generatedPaths.has(path)),
+        ...(scannedRepo.trackedFiles
+          ? { trackedFiles: scannedRepo.trackedFiles.filter((path) => !generatedPaths.has(path)) }
+          : {})
+      };
   const requestedExclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
   const internalExclude = buildPathExcluder(
     (input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern))
   );
   const exclude = combineExclusions(requestedExclude, internalExclude);
 
-  const report = buildReportFromRepo(repo, {
+  const reportInput = {
     issueText: input.issueText,
     limit: input.limit,
-    exclude
-  });
+    exclude,
+    annotationAsOf: new Date().toISOString()
+  };
+  const report = input.embeddingProvider
+    ? await buildHybridReportFromRepo(repo, { ...reportInput, embeddingProvider: input.embeddingProvider })
+    : buildReportFromRepo(repo, reportInput);
+
+  if (generatedArtifacts.length > 0) {
+    const described = generatedArtifacts.slice(0, 8).map((file) =>
+      `${markdownCode(file.path)} (${fixMapArtifactKind(file)})`
+    );
+    report.diagnostics.push({
+      code: "fixmap-artifact-excluded",
+      severity: "info",
+      message:
+        `Excluded ${generatedArtifacts.length} previously generated FixMap ${generatedArtifacts.length === 1 ? "artifact" : "artifacts"} ` +
+        `from ranking, impact analysis, and context packing: ${described.join(", ")}${generatedArtifacts.length > 8 ? ", ..." : ""}.`,
+      paths: generatedArtifacts.slice(0, 8).map((file) => file.path)
+    });
+  }
 
   if (requestedExclude.patterns.length > 0) {
     const excludedPaths = repo.files.filter((file) => requestedExclude.excludes(file.path)).map((file) => file.path);
+    const effectivePatterns = [...new Set(repo.files
+      .map((file) => requestedExclude.reasonFor(file.path))
+      .filter((pattern): pattern is string => pattern !== undefined))];
     const unmatchedPatterns = requestedExclude.patterns.filter((pattern) =>
       !pattern.startsWith("!") && !requestedExclude.matchedPatterns.has(pattern)
     );
@@ -69,8 +106,8 @@ export async function buildFixMapAnalysis(
         code: "paths-excluded",
         severity: report.contextFiles.length === 0 ? "warning" : "info",
         message:
-          `${requestedExclude.patterns.length} exclusion ${requestedExclude.patterns.length === 1 ? "pattern" : "patterns"} ` +
-          `removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${requestedExclude.patterns.map(markdownCode).join(", ")}. ` +
+          `${effectivePatterns.length} exclusion ${effectivePatterns.length === 1 ? "pattern" : "patterns"} ` +
+          `removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${effectivePatterns.map(markdownCode).join(", ")}. ` +
           "Run --explain on a file you expected to see if this is why it is absent.",
         paths: excludedPaths.slice(0, 8)
       });

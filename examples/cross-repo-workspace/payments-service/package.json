@@ -1,0 +1,8 @@
+{
+  "name": "@fixmap-example/payments",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@fixmap-example/auth": "^1.0.0"
+  }
+}

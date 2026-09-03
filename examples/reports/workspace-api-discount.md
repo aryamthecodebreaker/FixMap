@@ -4,8 +4,8 @@ FixMap found 2 context files, 2 impact files, and generated 3 test routes.
 
 ## Context Files
 
-- `apps/api/src/orders.ts` (high confidence, score 41): path matches task terms: order; content matches task terms: discount, order, total, code; defines task identifiers: orderTotal; task identifier is defined in maintained implementation source
-- `packages/utils/src/currency.ts` (medium confidence, score 14): content matches task terms: discount, total; defines symbols matching task terms: applyDiscount, discounted
+- `apps/api/src/orders.ts` (high confidence, score 41): path matches task terms: order; content matches task terms: discount, order, total, code; defines task identifiers: orderTotal; task identifier is defined in maintained implementation source; BM25 whole-file candidate #1; BM25 symbol candidate #1: orderTotal
+- `packages/utils/src/currency.ts` (medium confidence, score 14): content matches task terms: discount, total; defines symbols matching task terms: applyDiscount, discounted; BM25 whole-file candidate #2; BM25 symbol candidate #2: applyDiscount; corroborated by independent retrieval sources
 
 ## Impact Graph
 
@@ -13,7 +13,7 @@ FixMap found 2 context files, 2 impact files, and generated 3 test routes.
 - `packages/utils/test/currency.test.ts` (high confidence, impact 13): this file imports packages/utils/src/currency.ts; routed test for packages/utils/src/currency.ts via pnpm --dir packages/utils run test
 
 Inspection order: `apps/api/src/orders.ts` → `packages/utils/src/currency.ts` → `apps/api/test/orders.test.ts` → `packages/utils/test/currency.test.ts`.
-History evidence: 66 eligible commits.
+History evidence: 1 eligible commit.
 
 ## Test Routes
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateFixMapReport } from "../src/validate.js";
+import { createAnnotation } from "../src/annotations.js";
 
 const envelope = {
   reportVersion: 1,
@@ -29,6 +30,78 @@ describe("validateFixMapReport", () => {
       risks: [{ area: "authentication" }]
     };
     expect(validateFixMapReport(legacy, "report").success).toBe(true);
+  });
+
+  it("validates additive annotation assessments", () => {
+    const annotation = createAnnotation({
+      scope: { kind: "file", path: "src/reset.ts" },
+      note: "Keep stable",
+      createdAt: "2026-08-21T10:00:00Z"
+    });
+    expect(validateFixMapReport({
+      ...envelope,
+      annotations: {
+        asOf: "2026-08-22T00:00:00Z",
+        sourcePath: ".fixmap/annotations.json",
+        sourceFingerprint: `worktree:${"a".repeat(64)}`,
+        entries: [{ annotation, status: "active", message: `Annotation ${annotation.id} is active.` }]
+      }
+    }, "report").success).toBe(true);
+    const invalid = validateFixMapReport({
+      ...envelope,
+      annotations: { asOf: "not-a-date", entries: [] }
+    }, "report");
+    expect(invalid.success).toBe(false);
+  });
+
+  it("validates authored decision records", () => {
+    const valid = validateFixMapReport({
+      ...envelope,
+      decisions: [{
+        id: "decision:0123456789abcdef",
+        path: "docs/adr/auth.md",
+        title: "Keep auth stable",
+        status: "accepted",
+        decision: "Preserve the external contract.",
+        targets: [{ kind: "file", path: "src/reset.ts", evidence: "explicit" }],
+        supersedes: [],
+        sourceFingerprint: `git:${"a".repeat(40)}`
+      }]
+    }, "report");
+    expect(valid.success).toBe(true);
+    const invalid = validateFixMapReport({
+      ...envelope,
+      decisions: [{ id: "decision:bad", path: "../adr.md" }]
+    }, "report");
+    expect(invalid.success).toBe(false);
+  });
+
+  it("validates architecture policy findings and their evidence", () => {
+    const valid = validateFixMapReport({
+      ...envelope,
+      policy: {
+        policyFingerprint: `git:${"d".repeat(40)}`,
+        findings: [{
+          code: "boundary-violation",
+          severity: "error",
+          ruleId: "ui-no-data",
+          message: "UI imports data.",
+          paths: ["src/ui/view.ts", "src/data/query.ts"],
+          evidence: [{
+            kind: "import",
+            path: "src/ui/view.ts",
+            relatedPath: "src/data/query.ts",
+            detail: "src/ui/view.ts imports src/data/query.ts."
+          }]
+        }]
+      }
+    }, "report");
+    expect(valid.success).toBe(true);
+    const invalid = validateFixMapReport({
+      ...envelope,
+      policy: { policyFingerprint: "approximate", findings: [] }
+    }, "report");
+    expect(invalid.success).toBe(false);
   });
 
   it("requires all existing version 1 entry fields while leaving legacy entries compatible", () => {
@@ -73,7 +146,10 @@ describe("validateFixMapReport", () => {
     }, "report");
 
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.message).toContain("invalid contextFiles entry");
+    if (!result.success) {
+      expect(result.message).toContain("contextFiles[0].path must stay inside the repository");
+      expect(result.message).toContain(JSON.stringify(path));
+    }
   });
 
   it("rejects unsupported report versions", () => {

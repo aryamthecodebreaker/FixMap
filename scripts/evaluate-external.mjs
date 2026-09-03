@@ -23,18 +23,24 @@ import { classifyExpectedPathMention, splitCohorts } from "./lib/expected-path-m
 import { wilsonInterval } from "./lib/wilson.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+if (process.argv.includes("--help") || process.argv.includes("-h")) {
+  process.stdout.write("Usage: node scripts/evaluate-external.mjs [--suite external|heldout|multilanguage-dev] [--gate] [--record] [--check-recorded]\n");
+  process.exit(0);
+}
 const { scanRepo, rankContextFiles } = await import(pathToFileURL(join(repoRoot, "packages", "core", "dist", "index.js")).href);
 
 const suiteIndex = process.argv.indexOf("--suite");
 const suite = suiteIndex === -1 ? "external" : process.argv[suiteIndex + 1];
-if (!["external", "heldout"].includes(suite)) {
-  process.stderr.write(`Unknown suite "${suite}"; expected "external" or "heldout".\n`);
+if (!["external", "heldout", "multilanguage-dev"].includes(suite)) {
+  process.stderr.write(`Unknown suite "${suite}"; expected "external", "heldout", or "multilanguage-dev".\n`);
   process.exit(1);
 }
 // The gate that protects the held-out suite named the wrong suite in every failure it
 // reported, which is a poor property for the check standing between a regression and a
 // release.
-const suiteLabel = suite === "heldout" ? "Held-out evaluation" : "External evaluation";
+const suiteLabel = suite === "heldout" ? "Held-out evaluation"
+  : suite === "multilanguage-dev" ? "Multi-language development evaluation"
+    : "External evaluation";
 const suiteDir = join(repoRoot, "benchmarks", suite);
 const dataset = JSON.parse(await readFile(join(suiteDir, "dataset.json"), "utf8"));
 
@@ -45,9 +51,10 @@ const FLOORS = suite === "heldout"
   : { all: { top1: 0.625, top3: 0.937, top5: 0.937 }, unmentioned: { top1: 0.615, top3: 0.923, top5: 0.923 } };
 
 const results = [];
-for (const benchmark of dataset.cases) {
+for (const [caseNumber, benchmark] of dataset.cases.entries()) {
+  process.stderr.write(`[${caseNumber + 1}/${dataset.cases.length}] Evaluating ${benchmark.slug} at its frozen revision...\n`);
   const dir = await materializePinnedRepository(benchmark);
-  const repo = await scanRepo({ repoRoot: dir });
+  const repo = await scanRepo({ repoRoot: dir, includeHistory: false });
   if (repo.files.length === 0) {
     throw new Error(`${suiteLabel} could not scan any files for ${benchmark.slug} at ${benchmark.sha}.`);
   }

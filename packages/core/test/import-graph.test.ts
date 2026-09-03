@@ -67,6 +67,367 @@ describe("buildImportGraph", () => {
     expect([...(graph.imports.get("apps/web/page.ts") ?? [])]).toEqual(["packages/auth/src/reset.ts"]);
   });
 
+  it("resolves an alias whose wildcard captures an empty middle", () => {
+    const graph = buildImportGraph([
+      codeFile("app.ts", 'import { value } from "foo";'),
+      codeFile("tsconfig.json", JSON.stringify({ compilerOptions: { paths: { "*foo": ["src/prefix*"] } } })),
+      codeFile("src/prefix.ts", "export const value = true;")
+    ]);
+
+    expect([...(graph.imports.get("app.ts") ?? [])]).toEqual(["src/prefix.ts"]);
+  });
+
+  it("resolves Python relative, package, and imported-module relationships", () => {
+    const files = [
+      codeFile("services/auth/app/api/reset.py", [
+        "from ..services import tokens",
+        "from app.models import User",
+        "import app.audit.events"
+      ].join("\n")),
+      codeFile("services/auth/app/services/tokens.py", "def decode_token(value): return value"),
+      codeFile("services/auth/app/models/User.py", "class User: pass"),
+      codeFile("services/auth/app/audit/events.py", "def record(): pass")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("services/auth/app/api/reset.py") ?? [])].sort()).toEqual([
+      "services/auth/app/audit/events.py",
+      "services/auth/app/models/User.py",
+      "services/auth/app/services/tokens.py"
+    ]);
+  });
+
+  it("resolves Java imports, static imports, and package wildcards", () => {
+    const files = [
+      codeFile("service/src/main/java/com/acme/auth/ResetService.java", [
+        "import com.acme.accounts.User;",
+        "import static com.acme.security.TokenVerifier.verify;",
+        "import com.acme.events.*;"
+      ].join("\n")),
+      codeFile("accounts/src/main/java/com/acme/accounts/User.java", "class User {}"),
+      codeFile("security/src/main/java/com/acme/security/TokenVerifier.java", "class TokenVerifier {}"),
+      codeFile("events/src/main/java/com/acme/events/PasswordReset.java", "class PasswordReset {}"),
+      codeFile("events/src/main/java/com/acme/events/internal/Hidden.java", "class Hidden {}")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("service/src/main/java/com/acme/auth/ResetService.java") ?? [])].sort()).toEqual([
+      "accounts/src/main/java/com/acme/accounts/User.java",
+      "events/src/main/java/com/acme/events/PasswordReset.java",
+      "security/src/main/java/com/acme/security/TokenVerifier.java"
+    ]);
+  });
+
+  it("resolves Go imports inside the nearest declared module", () => {
+    const files = [
+      codeFile("go.mod", "module example.com/acme\n"),
+      codeFile("cmd/server/main.go", "package main\nimport \"example.com/acme/auth\""),
+      codeFile("auth/token.go", "package auth\ntype Token struct {}"),
+      codeFile("auth/session.go", "package auth\nfunc Session() {}"),
+      codeFile("auth/token_test.go", "package auth\nfunc TestToken() {}")
+    ];
+    const graph = buildImportGraph(files);
+    expect([...(graph.imports.get("cmd/server/main.go") ?? [])].sort()).toEqual([
+      "auth/session.go",
+      "auth/token.go"
+    ]);
+  });
+
+  it("resolves Go cross-module imports only through an explicit workspace and longest module prefix", () => {
+    const files = [
+      codeFile("go.work", "go 1.24\nuse (\n ./services/api\n ./services/auth\n ./services/authv2\n)\n"),
+      codeFile("services/api/go.mod", "module corp.example/api\n"),
+      codeFile("services/api/main.go", [
+        "package api",
+        'import "corp.example/auth/token"',
+        'import authv2 "corp.example/auth/v2/token"'
+      ].join("\n")),
+      codeFile("services/auth/go.mod", "module corp.example/auth\n"),
+      codeFile("services/auth/token/token.go", "package token\ntype Token struct{}"),
+      codeFile("services/authv2/go.mod", "module corp.example/auth/v2\n"),
+      codeFile("services/authv2/token/token.go", "package token\ntype TokenV2 struct{}"),
+      codeFile("decoy/go.mod", "module corp.example/auth\n"),
+      codeFile("decoy/token/token.go", "package token\ntype Decoy struct{}")
+    ];
+    const graph = buildImportGraph(files);
+    expect([...(graph.imports.get("services/api/main.go") ?? [])].sort()).toEqual([
+      "services/auth/token/token.go",
+      "services/authv2/token/token.go"
+    ]);
+  });
+
+  it("does not connect independent Go modules that share a checkout without go.work evidence", () => {
+    const graph = buildImportGraph([
+      codeFile("api/go.mod", "module corp.example/api\n"),
+      codeFile("api/main.go", 'package api\nimport "corp.example/auth"'),
+      codeFile("auth/go.mod", "module corp.example/auth\n"),
+      codeFile("auth/auth.go", "package auth\nfunc Login() {}")
+    ]);
+    expect([...(graph.imports.get("api/main.go") ?? [])]).toEqual([]);
+  });
+
+  it("resolves Go imports through the importing module's exact local replace directive", () => {
+    const graph = buildImportGraph([
+      codeFile("services/api/go.mod", [
+        "module corp.example/api",
+        "replace legacy.example/auth v1.2.0 => ../auth"
+      ].join("\n")),
+      codeFile("services/api/main.go", 'package api\nimport "legacy.example/auth/token"'),
+      codeFile("services/auth/go.mod", "module corp.internal/auth"),
+      codeFile("services/auth/token/token.go", "package token\ntype Token struct{}"),
+      codeFile("services/other/go.mod", "module corp.example/other"),
+      codeFile("services/other/main.go", 'package other\nimport "legacy.example/auth/token"'),
+      codeFile("decoy/go.mod", "module legacy.example/auth"),
+      codeFile("decoy/token/token.go", "package token\ntype Decoy struct{}")
+    ]);
+
+    expect([...(graph.imports.get("services/api/main.go") ?? [])])
+      .toEqual(["services/auth/token/token.go"]);
+    expect([...(graph.imports.get("services/other/main.go") ?? [])]).toEqual([]);
+  });
+
+  it("resolves Rust crate, self-module, and symbol-qualified uses", () => {
+    const files = [
+      codeFile("Cargo.toml", "[package]\nname = 'acme'"),
+      codeFile("src/lib.rs", "pub mod auth;"),
+      codeFile("src/auth.rs", "pub struct Token;"),
+      codeFile("src/service.rs", "use crate::auth::Token;")
+    ];
+    const graph = buildImportGraph(files);
+    expect([...(graph.imports.get("src/lib.rs") ?? [])]).toEqual(["src/auth.rs"]);
+    expect([...(graph.imports.get("src/service.rs") ?? [])]).toEqual(["src/auth.rs"]);
+  });
+
+  it("resolves renamed Cargo path dependencies, inherited workspace dependencies, and path modules", () => {
+    const files = [
+      codeFile("Cargo.toml", [
+        "[workspace]",
+        'members = ["crates/*"]',
+        "[workspace.dependencies]",
+        'shared = { package = "shared-core", path = "crates/shared" }'
+      ].join("\n")),
+      codeFile("crates/app/Cargo.toml", [
+        "[package]",
+        'name = "app"',
+        "[dependencies]",
+        "shared = { workspace = true }",
+        'renamed-util = { package = "util-core", path = "../util" }'
+      ].join("\n")),
+      codeFile("crates/app/src/main.rs", [
+        "use shared::Account;",
+        "use renamed_util::auth::Token;",
+        '#[path = "generated/custom.rs"]',
+        "mod custom;"
+      ].join("\n")),
+      codeFile("crates/app/src/generated/custom.rs", "pub fn custom() {}"),
+      codeFile("crates/shared/Cargo.toml", '[package]\nname = "shared-core"'),
+      codeFile("crates/shared/src/lib.rs", "pub struct Account;"),
+      codeFile("crates/util/Cargo.toml", '[package]\nname = "util-core"'),
+      codeFile("crates/util/src/lib.rs", "pub mod auth;"),
+      codeFile("crates/util/src/auth.rs", "pub struct Token;")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("crates/app/src/main.rs") ?? [])].sort()).toEqual([
+      "crates/app/src/generated/custom.rs",
+      "crates/shared/src/lib.rs",
+      "crates/util/src/auth.rs"
+    ]);
+  });
+
+  it("resolves Ruby relative and load-path requires", () => {
+    const files = [
+      codeFile("app/services/reset.rb", "require_relative '../tokens'\nrequire 'auth/audit'"),
+      codeFile("app/tokens.rb", "class Token; end"),
+      codeFile("lib/auth/audit.rb", "module Audit; end")
+    ];
+    const graph = buildImportGraph(files);
+    expect([...(graph.imports.get("app/services/reset.rb") ?? [])].sort()).toEqual([
+      "app/tokens.rb",
+      "lib/auth/audit.rb"
+    ]);
+  });
+
+  it("resolves exact Rails autoload constants within the evidenced application only", () => {
+    const files = [
+      codeFile("Gemfile", 'gem "rails"'),
+      codeFile("config/application.rb", "class Application < Rails::Application; end"),
+      codeFile("app/models/user.rb", "class User; end"),
+      codeFile("app/services/token_issuer.rb", "class TokenIssuer; end"),
+      codeFile("app/models/unused.rb", "class Unused; end"),
+      codeFile("app/controllers/sessions_controller.rb", [
+        "class SessionsController",
+        "  # Unused must not create an edge from comments",
+        '  LABEL = "Unused"',
+        "  QUERY = <<~SQL",
+        "    SELECT 'Unused'",
+        "  SQL",
+        "  def create; TokenIssuer.call(User.new); end",
+        "end"
+      ].join("\n")),
+      codeFile("services/other/Gemfile", 'gem "rails"'),
+      codeFile("services/other/config/application.rb", "class Application < Rails::Application; end"),
+      codeFile("services/other/app/models/user.rb", "class User; end")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("app/controllers/sessions_controller.rb") ?? [])].sort()).toEqual([
+      "app/models/user.rb",
+      "app/services/token_issuer.rb"
+    ]);
+    expect([...(graph.imports.get("app/controllers/sessions_controller.rb") ?? [])])
+      .not.toContain("services/other/app/models/user.rb");
+  });
+
+  it("does not invent Rails autoload edges from a rails gem without an application class", () => {
+    const files = [
+      codeFile("Gemfile", 'gem "rails"'),
+      codeFile("app/models/user.rb", "class User; end"),
+      codeFile("app/controllers/sessions_controller.rb", "class SessionsController; User.new; end")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("app/controllers/sessions_controller.rb") ?? [])]).toEqual([]);
+  });
+
+  it("resolves PHP file includes and namespace symbols", () => {
+    const files = [
+      codeFile("src/Auth/Reset.php", "<?php\nnamespace Acme\\Auth;\nuse Acme\\Accounts\\User;\nrequire_once './Token.php';"),
+      codeFile("src/Auth/Token.php", "<?php\nnamespace Acme\\Auth;\nclass Token {}"),
+      codeFile("src/Accounts/User.php", "<?php\nnamespace Acme\\Accounts;\nclass User {}")
+    ];
+    const graph = buildImportGraph(files);
+    expect([...(graph.imports.get("src/Auth/Reset.php") ?? [])].sort()).toEqual([
+      "src/Accounts/User.php",
+      "src/Auth/Token.php"
+    ]);
+  });
+
+  it("resolves PHP symbols through Composer PSR-4 and classmap evidence", () => {
+    const files = [
+      codeFile("composer.json", JSON.stringify({
+        autoload: {
+          "psr-4": { "Acme\\": "src/" },
+          classmap: ["legacy/"]
+        }
+      })),
+      codeFile("app/Checkout.php", "<?php\nuse Acme\\Domain\\User;\nuse Legacy\\Token;\nclass Checkout {}"),
+      codeFile("src/Domain/User.php", "<?php\nclass User {}"),
+      codeFile("legacy/models/Token.php", "<?php\nclass Token {}")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("app/Checkout.php") ?? [])].sort()).toEqual([
+      "legacy/models/Token.php",
+      "src/Domain/User.php"
+    ]);
+  });
+
+  it("resolves transitive PHP symbols only through declared Composer path dependencies", () => {
+    const files = [
+      codeFile("apps/api/composer.json", JSON.stringify({
+        name: "acme/api",
+        repositories: [{ type: "path", url: "../../packages/*" }],
+        require: { "acme/shared": "*" }
+      })),
+      codeFile("apps/api/src/Checkout.php", "<?php\nuse Shared\\Domain\\User;\nuse Contracts\\Plan;\nclass Checkout {}"),
+      codeFile("packages/shared/composer.json", JSON.stringify({
+        name: "acme/shared",
+        repositories: [{ type: "path", url: "../contracts" }],
+        require: { "acme/contracts": "*" },
+        autoload: { "psr-4": { "Shared\\": "src/" } }
+      })),
+      codeFile("packages/shared/src/Domain/User.php", "<?php\nclass User {}"),
+      codeFile("packages/contracts/composer.json", JSON.stringify({
+        name: "acme/contracts",
+        autoload: { "psr-4": { "Contracts\\": "src/" } }
+      })),
+      codeFile("packages/contracts/src/Plan.php", "<?php\nclass Plan {}"),
+      codeFile("decoy/composer.json", JSON.stringify({
+        name: "decoy/package",
+        autoload: { "psr-4": { "Shared\\": "src/" } }
+      })),
+      codeFile("decoy/src/Domain/User.php", "<?php\nclass User {}")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("apps/api/src/Checkout.php") ?? [])].sort()).toEqual([
+      "packages/contracts/src/Plan.php",
+      "packages/shared/src/Domain/User.php"
+    ]);
+    expect([...(graph.imports.get("apps/api/composer.json") ?? [])])
+      .toEqual(["packages/shared/composer.json"]);
+    expect([...(graph.imports.get("packages/shared/composer.json") ?? [])])
+      .toEqual(["packages/contracts/composer.json"]);
+  });
+
+  it("resolves .NET namespace imports without matching labels across namespaces", () => {
+    const files = [
+      codeFile("Auth/ResetService.cs", "using Acme.Accounts;\nnamespace Acme.Auth;\nclass ResetService {}"),
+      codeFile("Accounts/User.cs", "namespace Acme.Accounts;\nclass User {}"),
+      codeFile("Accounts/Internal/Audit.cs", "namespace Acme.Accounts.Internal;\nclass Audit {}"),
+      codeFile("Other/User.cs", "namespace Other.Accounts;\nclass User {}")
+    ];
+    const graph = buildImportGraph(files);
+    expect([...(graph.imports.get("Auth/ResetService.cs") ?? [])]).toEqual(["Accounts/User.cs"]);
+  });
+
+  it("uses explicit .NET project references to scope namespace imports and graph projects", () => {
+    const files = [
+      codeFile("src/Auth/Auth.csproj", '<ProjectReference Include="..\\Accounts\\Accounts.csproj" />'),
+      codeFile("src/Auth/ResetService.cs", "using Acme.Accounts;\nusing Acme.Contracts;\nnamespace Acme.Auth;\nclass ResetService {}"),
+      codeFile("src/Accounts/Accounts.csproj", '<ProjectReference Include="..\\Contracts\\Contracts.csproj" />'),
+      codeFile("src/Accounts/User.cs", "namespace Acme.Accounts;\nclass User {}"),
+      codeFile("src/Contracts/Contracts.csproj", "<Project />"),
+      codeFile("src/Contracts/Role.cs", "namespace Acme.Contracts;\nclass Role {}"),
+      codeFile("src/Shadow/Shadow.csproj", "<Project />"),
+      codeFile("src/Shadow/User.cs", "namespace Acme.Accounts;\nclass User {}")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("src/Auth/ResetService.cs") ?? [])].sort()).toEqual([
+      "src/Accounts/User.cs",
+      "src/Contracts/Role.cs"
+    ]);
+    expect([...(graph.imports.get("src/Auth/Auth.csproj") ?? [])]).toEqual(["src/Accounts/Accounts.csproj"]);
+    expect([...(graph.imports.get("src/Accounts/Accounts.csproj") ?? [])]).toEqual(["src/Contracts/Contracts.csproj"]);
+    expect([...(graph.importedBy.get("src/Accounts/Accounts.csproj") ?? [])]).toEqual(["src/Auth/Auth.csproj"]);
+  });
+
+  it("applies project and source global usings only for exact symbols in the reachable .NET project", () => {
+    const files = [
+      codeFile("src/App/App.csproj", [
+        "<Project>",
+        '  <ProjectReference Include="..\\Contracts\\Contracts.csproj" />',
+        '  <Using Include="Acme.Shared" />',
+        "</Project>"
+      ].join("\n")),
+      codeFile("src/App/GlobalUsings.cs", "global using Acme.Contracts;"),
+      codeFile("src/App/Service.cs", "namespace Acme.App; public class Service { Contract contract; Shared shared; }"),
+      codeFile("src/Contracts/Contracts.csproj", "<Project />"),
+      codeFile("src/Contracts/Contract.cs", "namespace Acme.Contracts; public class Contract {}"),
+      codeFile("src/Contracts/Shared.cs", "namespace Acme.Shared; public class Shared {}"),
+      codeFile("src/Contracts/Unused.cs", "namespace Acme.Shared; public class Unused {}"),
+      codeFile("src/Decoy/Decoy.csproj", "<Project />"),
+      codeFile("src/Decoy/Contract.cs", "namespace Acme.Contracts; public class DecoyContract {}")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("src/App/Service.cs") ?? [])].sort()).toEqual([
+      "src/Contracts/Contract.cs",
+      "src/Contracts/Shared.cs"
+    ]);
+  });
+
   it("reports when the graph file budget truncates parseable modules", () => {
     const files = Array.from({ length: 5_001 }, (_, index) =>
       codeFile(`src/module-${index}.ts`, `export const module${index} = ${index};`)

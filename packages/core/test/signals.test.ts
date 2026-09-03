@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { extractTaskSignals, tokenizeText } from "../src/signals.js";
+import { extractTaskSignals, redactSensitiveTaskText, tokenizeText } from "../src/signals.js";
 
 describe("extractTaskSignals", () => {
+  it("redacts sk-style secrets whose final character is a hyphen", () => {
+    const secret = "sk-abcdefghijklmnop-";
+    expect(redactSensitiveTaskText(`token=${secret} next`)).toBe("token=[redacted] next");
+  });
   it.each([
     ["README typo", "readme"],
     ["fix dockerfile", "dockerfile"],

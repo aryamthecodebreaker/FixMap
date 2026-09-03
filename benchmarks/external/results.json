@@ -1,12 +1,12 @@
 {
   "cases": 16,
-  "top1HitRate": 0.688,
+  "top1HitRate": 0.75,
   "top3HitRate": 0.938,
   "top5HitRate": 0.938,
   "intervals95": {
     "top1": [
-      0.444,
-      0.858
+      0.505,
+      0.898
     ],
     "top3": [
       0.717,
@@ -18,35 +18,34 @@
     ]
   },
   "misleadingTopResult": {
-    "cases": 4,
+    "cases": 3,
     "of": 16,
-    "rate": 0.25,
+    "rate": 0.188,
     "slugs": [
       "debug-js/debug",
       "colinhacks/zod",
-      "vitest-dev/vitest",
-      "prettier/prettier"
+      "vitest-dev/vitest"
     ]
   },
   "calibration": [
     {
       "confidence": "high",
-      "cases": 3,
-      "top1Correct": 3,
+      "cases": 4,
+      "top1Correct": 4,
       "top1Accuracy": 1,
       "interval95": [
-        0.438,
+        0.51,
         1
       ]
     },
     {
       "confidence": "medium",
-      "cases": 12,
+      "cases": 11,
       "top1Correct": 8,
-      "top1Accuracy": 0.667,
+      "top1Accuracy": 0.727,
       "interval95": [
-        0.391,
-        0.862
+        0.434,
+        0.903
       ]
     },
     {
@@ -63,13 +62,13 @@
   "cohorts": {
     "all": {
       "cases": 16,
-      "top1HitRate": 0.688,
+      "top1HitRate": 0.75,
       "top3HitRate": 0.938,
       "top5HitRate": 0.938,
       "intervals95": {
         "top1": [
-          0.444,
-          0.858
+          0.505,
+          0.898
         ],
         "top3": [
           0.717,
@@ -101,13 +100,13 @@
     },
     "unmentioned": {
       "cases": 13,
-      "top1HitRate": 0.615,
+      "top1HitRate": 0.692,
       "top3HitRate": 0.923,
       "top5HitRate": 0.923,
       "intervals95": {
         "top1": [
-          0.355,
-          0.823
+          0.424,
+          0.873
         ],
         "top3": [
           0.667,
@@ -182,9 +181,9 @@
       "top5Paths": [
         "lib/request.js",
         "lib/response.js",
+        "History.md",
         "examples/auth/index.js",
-        "examples/route-middleware/index.js",
-        "examples/web-service/index.js"
+        "examples/error-pages/index.js"
       ],
       "topConfidence": "high",
       "top1Hit": true,
@@ -210,9 +209,9 @@
       "top5Paths": [
         "lib/core/AxiosError.js",
         "lib/adapters/http.js",
-        "lib/helpers/HttpStatusCode.js",
+        "lib/adapters/xhr.js",
         "lib/core/Axios.js",
-        "lib/core/AxiosHeaders.js"
+        "sandbox/server.js"
       ],
       "topConfidence": "medium",
       "top1Hit": true,
@@ -232,8 +231,8 @@
         "src/common.js",
         "test.js",
         "src/node.js",
-        "README.md",
-        "src/browser.js"
+        "src/browser.js",
+        "README.md"
       ],
       "topConfidence": "medium",
       "top1Hit": false,
@@ -273,9 +272,9 @@
       "top5Paths": [
         "packages/zod/src/v4/core/json-schema-processors.ts",
         "packages/zod/src/v4/core/regexes.ts",
-        "packages/zod/src/v4/mini/schemas.ts",
         "packages/zod/src/v4/classic/from-json-schema.ts",
-        "packages/zod/src/v4/core/checks.ts"
+        "packages/zod/src/v4/mini/schemas.ts",
+        "packages/zod/src/v4/classic/schemas.ts"
       ],
       "topConfidence": "medium",
       "top1Hit": false,
@@ -316,9 +315,9 @@
       "top5Paths": [
         "lib/request.js",
         "fastify.js",
-        "types/request.d.ts",
         "lib/server.js",
-        "lib/route.js"
+        "lib/handle-request.js",
+        "types/request.d.ts"
       ],
       "topConfidence": "medium",
       "top1Hit": true,
@@ -339,7 +338,7 @@
         "source/vendor/supports-color/browser.js",
         "source/vendor/supports-color/index.d.ts",
         "source/index.d.ts",
-        "package.json"
+        "examples/rainbow.js"
       ],
       "topConfidence": "medium",
       "top1Hit": true,
@@ -359,8 +358,8 @@
         "packages/vitest/src/integrations/env/jsdom-keys.ts",
         "packages/browser/src/client/tester/dialog.ts",
         "packages/vitest/src/runtime/runners/test.ts",
-        "packages/browser/src/client/tester/runner.ts",
-        "packages/vitest/src/create/browser/creator.ts"
+        "packages/vitest/src/node/types/config.ts",
+        "packages/spy/src/types.ts"
       ],
       "topConfidence": "low",
       "top1Hit": false,
@@ -378,8 +377,8 @@
       ],
       "top5Paths": [
         "lib/types/config-api.d.ts",
-        "lib/config/config.js",
         "lib/types/index.d.ts",
+        "lib/config/config.js",
         "package.json",
         "lib/rules/space-before-function-paren.js"
       ],
@@ -399,10 +398,10 @@
       ],
       "top5Paths": [
         "lib/DefinePlugin.js",
-        "lib/dependencies/ImportMetaPlugin.js",
         "lib/WebpackOptionsApply.js",
+        "lib/dependencies/ImportMetaPlugin.js",
         "lib/EnvironmentPlugin.js",
-        "lib/url/URLParserPlugin.js"
+        "lib/DotenvPlugin.js"
       ],
       "topConfidence": "medium",
       "top1Hit": true,
@@ -419,11 +418,11 @@
         "lib/dispatcher/client-h2.js"
       ],
       "top5Paths": [
+        "lib/web/fetch/index.js",
         "lib/web/fetch/request.js",
-        "lib/core/request.js",
         "lib/dispatcher/client-h1.js",
-        "lib/dispatcher/client.js",
-        "lib/web/fetch/body.js"
+        "lib/core/request.js",
+        "lib/dispatcher/client.js"
       ],
       "topConfidence": "medium",
       "top1Hit": false,
@@ -446,7 +445,7 @@
         "packages/toolkit/src/query/core/buildMiddleware/types.ts",
         "packages/toolkit/src/createAsyncThunk.ts"
       ],
-      "topConfidence": "medium",
+      "topConfidence": "high",
       "top1Hit": true,
       "top3Hit": true,
       "top5Hit": true,
@@ -468,14 +467,14 @@
         "src/language-css/print/comma-separated-value-group.js"
       ],
       "top5Paths": [
-        "scripts/build/builders/javascript-module.js",
         "src/language-css/print/comma-separated-value-group.js",
         "website/playground/Playground.jsx",
+        "scripts/build/builders/javascript-module.js",
         "src/language-css/parser-postcss.js",
-        "src/language-css/utilities/index.js"
+        "website/src/pages/index.jsx"
       ],
       "topConfidence": "medium",
-      "top1Hit": false,
+      "top1Hit": true,
       "top3Hit": true,
       "top5Hit": true,
       "mentionsExpectedPath": false,
@@ -492,8 +491,8 @@
         "src/adapter/aws-lambda/types.ts",
         "src/adapter/aws-lambda/handler.ts",
         "src/adapter/aws-lambda/conninfo.ts",
-        "src/middleware/basic-auth/index.ts",
-        "src/middleware/bearer-auth/index.ts"
+        "src/middleware/bearer-auth/index.ts",
+        "runtime-tests/lambda/stream-mock.ts"
       ],
       "topConfidence": "medium",
       "top1Hit": true,
@@ -511,10 +510,10 @@
       ],
       "top5Paths": [
         "source/core/index.ts",
-        "source/as-promise/index.ts",
-        "source/core/errors.ts",
+        "source/core/options.ts",
         "source/core/response.ts",
-        "source/core/diagnostics-channel.ts"
+        "source/as-promise/index.ts",
+        "source/core/errors.ts"
       ],
       "topConfidence": "high",
       "top1Hit": true,

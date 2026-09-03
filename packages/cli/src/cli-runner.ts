@@ -16,7 +16,6 @@ import {
   verifyPlan,
   renderMarkdownReport,
   scanRepo,
-  stripByteOrderMark,
   validateFixMapReport,
   type FixMapReport
 } from "@aryam/fixmap-core";
@@ -25,6 +24,7 @@ import { installAgentCommands, renderFeatureCatalog, type AgentTarget } from "./
 import { clarifyMissingPath } from "./explain-path.js";
 import type { RepositoryBenchmark } from "./benchmark.js";
 import type { WatchRepositoryInput, WatchUpdate } from "./watch.js";
+import { decodeInputText, describeInputReadError, readDecodedTextFile } from "./decode-input.js";
 import {
   buildReportForRepository,
   isSafeGitRefName,
@@ -54,6 +54,7 @@ export type CliOptions = {
   workingTree: boolean;
   includeUntracked: boolean;
   noCache: boolean;
+  semanticModelPath?: string | undefined;
   unknownArgs: string[];
   invalidValues: string[];
 };
@@ -88,6 +89,7 @@ Usage:
   fixmap plan --diff main...HEAD
   fixmap plan --working-tree --include-untracked --limit 12 --exclude "docs/**"
   fixmap plan --no-cache --issue "Fix login" --repo .
+  fixmap plan --issue "Keep signed-in users active" --semantic-model C:\\models\\all-MiniLM-L6-v2
   fixmap plan --issue "Fix login" --format json --output plan.json
   fixmap plan --issue "Fix login" --format agent
   fixmap plan --issue "Fix login in auth middleware" --compare plan.json
@@ -98,9 +100,22 @@ Usage:
   fixmap doctor --format json
   fixmap validate plan.json
   fixmap benchmark --repo . --last 50
+  fixmap change-scope --touch src/auth --touch packages/api --add db/migrations
+  fixmap capability create checkout --touch src/routes/checkout.ts --touch packages/payments
+  fixmap capability checkout
+  fixmap capabilities
   fixmap context --issue "Fix login" --budget 10000
   fixmap graph --issue "Fix login" --format mermaid
+  fixmap workspace --config .fixmap/workspace.json --seed auth --format json
+  fixmap ask --report plan.json --question "Which tests should I run?"
+  fixmap migrate --input migration.json --format markdown
+  fixmap reverse-docs --input reverse-docs.json --format markdown
+  fixmap history --repo . --from v0.9.0 --to HEAD
+  fixmap supply-chain --input supply-chain.json
+  fixmap runtime --input runtime.json
+  fixmap sandbox --request sandbox.json --execute-declared-command
   fixmap watch --report plan.json --repo .
+  fixmap annotate src/auth/token.ts --note "Do not refactor; external contract"
   fixmap features
   fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>]
   fixmap mcp [--repo <path>]
@@ -111,22 +126,36 @@ Commands:
   doctor              Check the FixMap install for stale global or npx shadows
   validate            Validate a saved FixMap JSON report
   benchmark           Backtest BM25, FixMap, and Impact Graph on pre-change snapshots
+  change-scope        Expand explicit planned paths into bounded structural consequences
+  capability          Create, update, remove, or show a persistent product capability
+  capabilities        List persistent product capabilities declared by the repository
   context             Package the highest-value source ranges within a token budget
   graph               Export the evidence-backed Impact Graph as Mermaid or JSON
+  workspace           Map package dependencies and impact across local repositories
+  ask                 Answer structural questions from a saved report with citations
+  migrate             Build a dependency-ordered, review-only migration plan
+  reverse-docs        Draft review-only documentation from exact structural evidence
+  history             Compare architecture at two committed Git refs without checkout
+  supply-chain        Import normalized external scanner and SBOM evidence
+  runtime             Map redaction-reviewed runtime evidence to exact files
+  sandbox             Run one explicitly consented command in an isolated container
   watch               Recheck working-tree drift and impact whenever edits change
+  annotate            Attach reviewable tribal knowledge to files, symbols, services, or contracts
   features            List every FixMap capability and its command
-  setup               Install a discoverable /fixmap command for coding agents
+  setup               Preview workflows, or explicitly install /fixmap for coding agents
   mcp                 Run FixMap as an MCP server over stdio for AI coding agents
 
 Options:
   --issue <text|url>  Task text, or a public GitHub issue or pull request URL
   --issue-file <file> Read task text from a UTF-8 or UTF-16 file (use - for stdin)
+                      For long text, use this flag or stdin; inline argv can exceed Windows' command-line limit
   --diff <spec>       Git diff spec, such as main...HEAD (the repository scan can still rank untracked candidates)
   --base <ref>        Base ref for diffing when --diff is not given
   --head <ref>        Head ref for diffing (defaults to HEAD)
   --working-tree      Map staged and unstaged changes against HEAD
   --include-untracked With --working-tree, also include untracked files
   --no-cache          Bypass the exact git-state repository scan cache
+  --semantic-model <dir> Use an existing local embedding model; never downloads or uploads source
   --repo <source>     Local path or public GitHub HTTPS URL (defaults to current directory)
   --ref <branch|tag>  Branch or tag to scan when --repo is a remote GitHub URL
   --limit <n>         Maximum context files to report (default 8, max 20)
@@ -150,7 +179,7 @@ Set FIXMAP_CACHE_DIR to move the OS scan cache, and FIXMAP_VERBOSE_USAGE=1 to in
 const DOCTOR_USAGE = `Usage: fixmap doctor [--format markdown|json]\n\nChecks the running FixMap binary, PATH/global shadows, and known install blind spots.\n`;
 const MCP_USAGE = `Usage: fixmap mcp [--repo <path>]\n\nRuns the FixMap MCP server over stdio. --repo sets the default local repository for tool calls that omit repo.\n`;
 const FEATURES_USAGE = `Usage: fixmap features [--format markdown|json]\n\nLists every FixMap capability and the command that exposes it.\n`;
-const SETUP_USAGE = `Usage: fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>] [--force]\n\nInstalls a /fixmap command that lists and runs FixMap workflows.\n`;
+const SETUP_USAGE = `Usage: fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>] [--force]\n\nWith no arguments, previews every workflow without writing files. Pass --agent explicitly to install a /fixmap command.\n`;
 const VALIDATE_USAGE = `Usage: fixmap validate <report.json> [--format markdown|json]\n\nChecks a saved report against FixMap's structural compatibility contract.\n`;
 const BENCHMARK_USAGE = `Usage: fixmap benchmark [--repo <local-path>] [--last <1-100>] [--format markdown|json] [--output <file>]\n\nBacktests BM25, FixMap, and Impact Graph against historical parent snapshots without executing repository code.\n`;
 
@@ -205,6 +234,11 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 0;
   }
 
+  if (args[0] === "annotate") {
+    const module = await import("./annotation-command.js");
+    return module.runAnnotateCommand(args.slice(1), { stdout, stderr });
+  }
+
   if (args[0] === "features") {
     const featureArgs = args.slice(1);
     if (featureArgs[0] === "--help" || featureArgs[0] === "-h") { stdout(FEATURES_USAGE); return 0; }
@@ -228,6 +262,10 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
 
   if (args[0] === "setup") {
     if (args[1] === "--help" || args[1] === "-h") { stdout(SETUP_USAGE); return 0; }
+    if (args.length === 1) {
+      stdout(`${renderFeatureCatalog("markdown")}Preview only: no files were changed. Install explicitly with fixmap setup --agent <claude|cursor|copilot|agents|all> [--repo <path>].\n`);
+      return 0;
+    }
     let repoRoot = process.cwd();
     let targets: AgentTarget[] = ["claude", "cursor", "copilot", "agents"];
     let force = false;
@@ -279,6 +317,14 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       stderr(`Unknown setup option: ${arg}\n\n${SETUP_USAGE}`);
       return 1;
     }
+    if (!agentSeen) {
+      if (force) {
+        stderr(`--force requires an explicit --agent target.\n\n${SETUP_USAGE}`);
+        return 1;
+      }
+      stdout(`${renderFeatureCatalog("markdown")}Preview only: no files were changed. Install explicitly with fixmap setup --agent <claude|cursor|copilot|agents|all> [--repo <path>].\n`);
+      return 0;
+    }
     try {
       const installed = await installAgentCommands({ repoRoot, targets, force });
       stdout(`${installed.map((entry) => `${entry.status}: ${entry.path}`).join("\n")}\n\nType /fixmap in a supported agent to open the full FixMap feature menu.\n`);
@@ -318,7 +364,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     }
     if (!reportPath) { stderr(`validate requires a report path.\n\n${VALIDATE_USAGE}`); return 1; }
     try {
-      const parsed = JSON.parse(stripByteOrderMark(readFileSync(reportPath, "utf8"))) as unknown;
+      const parsed = JSON.parse(readDecodedTextFile(reportPath)) as unknown;
       const result = validateFixMapReport(parsed, `"${reportPath}"`);
       if (!result.success) { stderr(`${result.message}\n`); return 1; }
       const payload = {
@@ -332,7 +378,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
         : `Valid FixMap report: ${reportPath} (${payload.contextFiles} context files, reportVersion ${payload.reportVersion}).\n`);
       return 0;
     } catch (error) {
-      stderr(`Could not validate "${reportPath}": ${error instanceof Error ? error.message : String(error)}\n`);
+      stderr(`Could not validate "${reportPath}": ${describeInputReadError(reportPath, error)}\n`);
       return 1;
     }
   }
@@ -412,9 +458,108 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     });
   }
 
+  if (args[0] === "change-scope") {
+    const { runChangeScopeCommand } = await import("./change-scope-command.js");
+    return runChangeScopeCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "capability") {
+    const { runCapabilityCommand } = await import("./capability-command.js");
+    return runCapabilityCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "capabilities") {
+    const { runCapabilitiesCommand } = await import("./capability-command.js");
+    return runCapabilitiesCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
   if (args[0] === "graph") {
     const { runGraphCommand } = await import("./analysis-commands.js");
     return runGraphCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "workspace") {
+    const { runWorkspaceCommand } = await import("./workspace-command.js");
+    return runWorkspaceCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "ask") {
+    const { runAskCommand } = await import("./ask-command.js");
+    return runAskCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "migrate") {
+    const { runMigrationCommand } = await import("./migration-command.js");
+    return runMigrationCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "reverse-docs") {
+    const { runReverseDocsCommand } = await import("./reverse-docs-command.js");
+    return runReverseDocsCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "history") {
+    const { runHistoryCommand } = await import("./history-command.js");
+    return runHistoryCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "supply-chain") {
+    const { runSupplyChainCommand } = await import("./supply-chain-command.js");
+    return runSupplyChainCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "runtime") {
+    const { runRuntimeCommand } = await import("./runtime-command.js");
+    return runRuntimeCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "sandbox") {
+    const { runSandboxCommand } = await import("./sandbox-command.js");
+    return runSandboxCommand(args.slice(1), {
       stdout,
       stderr,
       ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
@@ -477,7 +622,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 1;
   }
   if (options.command === "verify") {
-    const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain"].filter(Boolean);
+    const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain", options.semanticModelPath && "--semantic-model"].filter(Boolean);
     if (planOnly.length > 0) { stderr(`verify does not accept plan-only option(s): ${planOnly.join(", ")}.\n`); return 1; }
     const outputCollision = await describeOutputInputCollision(options);
     if (outputCollision) { stderr(`${outputCollision}\n`); return 1; }
@@ -511,7 +656,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   // property of the repository alone. Requiring a task signal for both made the second
   // unaskable, which is the one you reach for when a file is missing from a report.
   if (!options.issueText && !options.diffSpec && !options.baseRef && !options.workingTree && !options.explainPath) {
-    stderr("Provide --issue, --diff, --base/--head, or --working-tree so FixMap has a task signal.\n");
+    stderr("Provide --issue, --diff, --base/--head, or --working-tree so FixMap has a task signal. Pipe task text directly, or use --issue-file - for explicit stdin.\n");
     return 1;
   }
 
@@ -626,7 +771,8 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       useCache: !options.noCache,
       limit: options.limit,
       exclude: options.exclude,
-      internalExclude: localPlanArtifactExclusions(options)
+      internalExclude: localPlanArtifactExclusions(options),
+      semanticModelPath: options.semanticModelPath
     });
   } catch (error) {
     stderr(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -677,10 +823,10 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     let previous: FixMapReport;
     let previousText: string;
     try {
-      previousText = stripByteOrderMark(readFileSync(options.comparePath, "utf8"));
+      previousText = readDecodedTextFile(options.comparePath);
     } catch (error) {
       stderr(
-        `Could not read comparison file "${options.comparePath}": ${error instanceof Error ? error.message : String(error)}\n` +
+        `Could not read comparison file "${options.comparePath}": ${describeInputReadError(options.comparePath, error)}\n` +
         "Save one first with: fixmap plan --issue \"...\" --format json --output plan.json\n"
       );
       return 1;
@@ -871,6 +1017,7 @@ const SINGLE_VALUE_FLAGS = new Set([
   "--head",
   "--ref",
   "--repo",
+  "--semantic-model",
   "--format",
   "--report",
   "--explain",
@@ -919,6 +1066,7 @@ export function parseArgs(args: string[]): CliOptions {
   let workingTree = false;
   let includeUntracked = false;
   let noCache = false;
+  let semanticModelPath: string | undefined;
   const exclude: string[] = [];
   const unknownArgs: string[] = [];
   const invalidValues: string[] = [];
@@ -993,6 +1141,10 @@ export function parseArgs(args: string[]): CliOptions {
       consumeValue();
       if (value?.trim()) repo = expandHomePath(value.trim());
       else invalidValues.push("--repo requires a local path or public GitHub repository URL");
+    } else if (arg === "--semantic-model") {
+      consumeValue();
+      if (value?.trim()) semanticModelPath = expandHomePath(value.trim());
+      else invalidValues.push("--semantic-model requires a local model directory");
     } else if (arg === "--format") {
       consumeValue();
       const normalized = value?.trim().toLowerCase();
@@ -1077,6 +1229,7 @@ export function parseArgs(args: string[]): CliOptions {
     workingTree,
     includeUntracked,
     noCache,
+    semanticModelPath,
     unknownArgs,
     invalidValues
   };
@@ -1195,10 +1348,10 @@ function loadIssueText(
   } catch (error) {
     throw new Error(
       `Could not read issue text from ${path === "-" ? "stdin" : `\"${path}\"`}: ` +
-      `${error instanceof Error ? error.message : String(error)}`
+      `${path === "-" ? (error instanceof Error ? error.message : String(error)) : describeInputReadError(path, error)}`
     );
   }
-  const text = decodeIssueText(raw);
+  const text = decodeInputText(raw);
   if (!text.trim()) {
     throw new Error(`Issue text from ${path === "-" ? "stdin" : `\"${path}\"`} was empty.`);
   }
@@ -1207,34 +1360,6 @@ function loadIssueText(
 
 function defaultReadIssueFile(path: string | number): Buffer {
   return readFileSync(path);
-}
-
-/** Decode the encodings commonly produced by editors on every supported platform. */
-function decodeIssueText(raw: string | Buffer): string {
-  if (typeof raw === "string") return raw.replace(/^\uFEFF/, "");
-  if (raw.length >= 2 && raw[0] === 0xff && raw[1] === 0xfe) {
-    return raw.subarray(2).toString("utf16le").replace(/^\uFEFF/, "");
-  }
-  if (raw.length >= 2 && raw[0] === 0xfe && raw[1] === 0xff) {
-    const swapped = Buffer.allocUnsafe(raw.length - 2);
-    for (let index = 2; index + 1 < raw.length; index += 2) {
-      swapped[index - 2] = raw[index + 1]!;
-      swapped[index - 1] = raw[index]!;
-    }
-    return swapped.toString("utf16le").replace(/^\uFEFF/, "");
-  }
-  if (raw.length >= 4 && raw.length % 2 === 0) {
-    let evenNuls = 0;
-    let oddNuls = 0;
-    for (let index = 0; index < raw.length; index += 2) {
-      if (raw[index] === 0) evenNuls += 1;
-      if (raw[index + 1] === 0) oddNuls += 1;
-    }
-    const pairs = raw.length / 2;
-    if (oddNuls / pairs >= 0.3 && evenNuls / pairs < 0.1) return raw.toString("utf16le");
-    if (evenNuls / pairs >= 0.3 && oddNuls / pairs < 0.1) return Buffer.from(raw).swap16().toString("utf16le");
-  }
-  return raw.toString("utf8").replace(/^\uFEFF/, "");
 }
 
 function quoteCliValue(value: string): string {
@@ -1303,10 +1428,10 @@ async function runVerify(
 
   let reportText: string;
   try {
-    reportText = stripByteOrderMark(readFileSync(options.reportPath, "utf8"));
+    reportText = readDecodedTextFile(options.reportPath);
   } catch (error) {
     io.stderr(
-      `Could not read "${options.reportPath}": ${error instanceof Error ? error.message : String(error)}\n` +
+      `Could not read "${options.reportPath}": ${describeInputReadError(options.reportPath, error)}\n` +
       "Generate one with: fixmap plan --issue \"...\" --format json --output plan.json\n"
     );
     return 1;
@@ -1407,7 +1532,7 @@ function describeUnsupportedTaskUrl(issueText: string): string | undefined {
   const value = issueText.trim();
   // `tryParse`, not `parse` — this is a boolean probe, and the throwing variant printed a
   // Node stack here for URLs it could not classify instead of this one-line message.
-  if (!/^https?:\/\/\S+$/i.test(value) || tryParseGitHubIssueSource(value)) return undefined;
+  if (!/^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(value) || tryParseGitHubIssueSource(value)) return undefined;
   return "Unsupported task URL. Use a public GitHub issue or pull request URL such as " +
     "https://github.com/owner/repository/issues/123 or /pull/123, or pass descriptive task text. " +
     "The URL must use https. A ?query, #fragment, and a www. or api. host are accepted and normalized; " +

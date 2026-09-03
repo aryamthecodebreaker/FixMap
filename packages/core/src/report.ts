@@ -4,14 +4,22 @@ import {
 } from "./grounding.js";
 import type { RankingShape, TaskGrounding } from "./grounding.js";
 import type { PathExcluder } from "./exclude.js";
-import { detectPrimaryLanguage, manifestTestCommand, suggestedRunner } from "./languages.js";
+import { detectPrimaryLanguage, dotnetTestCommandForPath, manifestTestCommand, phpTestCommandForPath, rubyTestCommandForPath, suggestedRunner } from "./languages.js";
+import { buildGoModules, goModuleForPath, type GoModule } from "./go-projects.js";
 import { buildImpactMap } from "./impact.js";
-import { DEFAULT_CONTEXT_FILE_LIMIT, rankContextFiles, rankContextFilesDetailed } from "./rank.js";
+import { DEFAULT_CONTEXT_FILE_LIMIT, rankContextFiles, rankContextFilesEvidenceDetailed } from "./rank.js";
 import { extractTaskSignals, tokenizePath } from "./signals.js";
 import { findGatedTestDiagnostics } from "./test-gates.js";
 import { markdownCode } from "./markdown.js";
 import { DIAGNOSTIC_TERM_LIMIT, truncateForDiagnostic } from "./text.js";
-import type { FixMapReport, PackageScript, RankedFile, RepoFile, RepoMap, RiskNote, ScanDiagnostic, TestRoute } from "./types.js";
+import { rankContextFilesHybrid } from "./semantic.js";
+import type { EmbeddingProvider, HybridRankingResult } from "./semantic.js";
+import type { FixMapReport, PackageScript, RankedFile, RepoFile, RepoMap, ReportRetrieval, RiskNote, ScanDiagnostic, TestRoute } from "./types.js";
+import { assessAnnotations, validateAnnotationStore } from "./annotations.js";
+import type { AnnotationAssessment, AnnotationRename } from "./annotations.js";
+import { inventoryDecisionRecords, selectDecisionRecords } from "./decisions.js";
+import { architecturePolicyFromRepo, evaluateArchitecturePolicy } from "./architecture.js";
+import type { ArchitecturePolicyResult } from "./architecture.js";
 
 const MAX_REPORTED_TERMS = 8;
 
@@ -25,13 +33,14 @@ export function buildReportFromRepo(
     issueText?: string | undefined;
     limit?: number | undefined;
     exclude?: PathExcluder | undefined;
+    annotationAsOf?: string | undefined;
   }
 ): FixMapReport {
   const grounding = analyzeTaskGrounding(repo, {
     issueText: input.issueText,
     diffText: repo.diffText
   });
-  const ranked = rankContextFilesDetailed(
+  const ranked = rankContextFilesEvidenceDetailed(
     repo,
     {
       issueText: input.issueText,
@@ -42,10 +51,95 @@ export function buildReportFromRepo(
   );
   const contextFiles = ranked.contextFiles;
   const ranking = ranked.ranking;
+  return assembleReport(repo, input, grounding, contextFiles, ranking, ranked.diagnostics);
+}
+
+/** Builds the same report contract with an explicitly requested hybrid rank. */
+export async function buildHybridReportFromRepo(
+  repo: RepoMap,
+  input: {
+    issueText?: string | undefined;
+    limit?: number | undefined;
+    exclude?: PathExcluder | undefined;
+    embeddingProvider: EmbeddingProvider;
+    allowRemoteEmbeddings?: boolean;
+    annotationAsOf?: string | undefined;
+  }
+): Promise<FixMapReport> {
+  const grounding = analyzeTaskGrounding(repo, { issueText: input.issueText, diffText: repo.diffText });
+  const hybrid = await rankContextFilesHybrid(repo, {
+    issueText: input.issueText,
+    diffText: repo.diffText
+  }, {
+    embeddingProvider: input.embeddingProvider,
+    limit: input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT,
+    ...(input.allowRemoteEmbeddings !== undefined ? { allowRemoteEmbeddings: input.allowRemoteEmbeddings } : {}),
+    ...(input.exclude ? { exclude: input.exclude } : {})
+  });
+  const contextFiles = hybrid.files.map((file) => ({
+    ...file,
+    confidence: hybridConfidence(file)
+  }));
+  const retrieval: ReportRetrieval = {
+    mode: hybrid.mode,
+    weights: hybrid.weights,
+    ...(hybrid.semantic ? { semantic: hybrid.semantic } : {})
+  };
+  const diagnostics = hybrid.diagnostics.flatMap((entry): ScanDiagnostic[] =>
+    entry.code === "semantic-disabled" ? [] : [{ ...entry, code: entry.code }]
+  );
+  return assembleReport(
+    repo,
+    input,
+    grounding,
+    contextFiles,
+    hybrid.structuralRanking,
+    hybrid.structuralDiagnostics,
+    diagnostics,
+    retrieval,
+    hybrid
+  );
+}
+
+function assembleReport(
+  repo: RepoMap,
+  input: { issueText?: string | undefined; exclude?: PathExcluder | undefined; annotationAsOf?: string | undefined },
+  grounding: TaskGrounding,
+  contextFiles: RankedFile[],
+  ranking: RankingShape,
+  rankingDiagnostics: ScanDiagnostic[] = [],
+  extraDiagnostics: ScanDiagnostic[] = [],
+  retrieval?: ReportRetrieval,
+  hybrid?: HybridRankingResult
+): FixMapReport {
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
   const impact = buildImpactMap(repo, contextPaths, testRoutes);
+  const annotations = input.annotationAsOf
+    ? buildReportAnnotations(repo, [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles], input.issueText ?? "", input.annotationAsOf)
+    : undefined;
+  const decisionInventory = inventoryDecisionRecords(repo);
+  const decisions = selectDecisionRecords(decisionInventory, {
+    paths: [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles],
+    task: input.issueText ?? ""
+  });
+  let policy: ArchitecturePolicyResult | undefined;
+  const policyDiagnostics: ScanDiagnostic[] = [];
+  try {
+    const architecturePolicy = architecturePolicyFromRepo(repo);
+    if (architecturePolicy) policy = evaluateArchitecturePolicy(architecturePolicy, {
+      repo,
+      focusPaths: [...contextPaths, ...repo.changedFiles]
+    });
+  } catch (error) {
+    policyDiagnostics.push({
+      code: "architecture-policy-invalid",
+      severity: "error",
+      paths: [".fixmap/policy.json"],
+      message: `.fixmap/policy.json was not applied: ${error instanceof Error ? error.message : String(error)}`
+    });
+  }
 
   return {
     reportVersion: 1,
@@ -57,15 +151,32 @@ export function buildReportFromRepo(
     changedFiles: repo.changedFiles,
     diagnostics: [
       ...repo.diagnostics,
+      ...rankingDiagnostics,
       ...findGatedTestDiagnostics(repo.files, routedTestPaths),
       ...findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes),
       ...findTaskDiagnostics(repo, grounding, ranking),
       ...findTaskPreprocessingDiagnostics(input.issueText ?? ""),
-      ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude)
+      ...findEmptyResultDiagnostics(repo, contextFiles, input.issueText ?? "", input.exclude),
+      ...(annotations?.diagnostics ?? []),
+      ...decisionInventory.diagnostics.map((diagnostic): ScanDiagnostic => ({
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        message: diagnostic.message,
+        paths: [diagnostic.path]
+      })),
+      ...policyDiagnostics,
+      ...(policy?.findings ?? []).map((finding): ScanDiagnostic => ({
+        code: policyDiagnosticCode(finding.code),
+        severity: finding.severity,
+        message: finding.message,
+        paths: finding.paths
+      })),
+      ...extraDiagnostics
     ],
     analysis: {
       grounding,
       ranking,
+      ...(hybrid ? { retrievalRanking: buildRetrievalRanking(hybrid) } : {}),
       // Only a test route's related paths are tests. A lint, typecheck or Go route fills the
       // same field with implementation paths, and counting those made nextAction promise
       // "and its routed tests" when nothing of the sort had been routed.
@@ -75,7 +186,116 @@ export function buildReportFromRepo(
         contextFiles,
         testRoutes.some((route) => route.kind === "test" && route.relatedFiles.length > 0)
       )
-    }
+    },
+    ...(retrieval ? { retrieval } : {}),
+    ...(annotations && annotations.entries.length > 0
+      ? { annotations: {
+          asOf: input.annotationAsOf!,
+          sourcePath: ".fixmap/annotations.json",
+          sourceFingerprint: repo.files.find((file) => file.path === ".fixmap/annotations.json")!.contentFingerprint!,
+          entries: annotations.entries
+        } }
+      : {}),
+    ...(decisions.length > 0 ? { decisions } : {}),
+    ...(policy ? { policy } : {})
+  };
+}
+
+function policyDiagnosticCode(code: import("./architecture.js").ArchitecturePolicyFinding["code"]): ScanDiagnostic["code"] {
+  if (code === "boundary-violation") return "architecture-boundary-violation";
+  if (code === "required-test-missing") return "architecture-required-test";
+  if (code === "review-required") return "architecture-review-required";
+  return "architecture-breaking-contract";
+}
+
+function buildReportAnnotations(
+  repo: RepoMap,
+  relevantPaths: readonly string[],
+  issueText: string,
+  asOf: string
+): { entries: AnnotationAssessment[]; diagnostics: ScanDiagnostic[] } | undefined {
+  const source = repo.files.find((file) => file.path === ".fixmap/annotations.json");
+  if (!source) return undefined;
+  if (source.textSampleComplete === false || !source.contentFingerprint) {
+    return { entries: [], diagnostics: [{
+      code: "annotation-source-incomplete",
+      severity: "warning",
+      paths: [source.path],
+      message: ".fixmap/annotations.json exceeded the scanner content bound or could not be read; human-intent notes were not applied."
+    }] };
+  }
+  let assessments: AnnotationAssessment[];
+  try {
+    const store = validateAnnotationStore(JSON.parse(source.textSample) as unknown);
+    assessments = assessAnnotations(store, repo, { now: asOf, renames: diffRenames(repo.diffText) });
+  } catch (error) {
+    return { entries: [], diagnostics: [{
+      code: "annotation-store-invalid",
+      severity: "warning",
+      paths: [source.path],
+      message: `.fixmap/annotations.json was not applied: ${error instanceof Error ? error.message : String(error)}`
+    }] };
+  }
+  const paths = new Set(relevantPaths);
+  const lowerIssue = issueText.toLowerCase();
+  const entries = assessments.filter((assessment) => {
+    const scope = assessment.annotation.scope;
+    if (scope.kind === "file" || scope.kind === "symbol") return paths.has(scope.path);
+    if (scope.kind === "contract") return Boolean(scope.path && paths.has(scope.path)) || lowerIssue.includes(scope.name.toLowerCase());
+    return lowerIssue.includes(scope.name.toLowerCase());
+  });
+  const diagnostics: ScanDiagnostic[] = entries.flatMap((assessment): ScanDiagnostic[] => {
+    const paths = annotationPaths(assessment);
+    if (assessment.status === "expired") return [{
+      code: "annotation-expired",
+      severity: "info",
+      message: assessment.message,
+      ...(paths ? { paths } : {})
+    }];
+    if (assessment.status === "missing-target" || assessment.status === "renamed-target") return [{
+      code: "annotation-target-stale",
+      severity: "warning",
+      message: assessment.message,
+      ...(paths ? { paths } : {})
+    }];
+    return [];
+  });
+  return { entries, diagnostics };
+}
+
+function annotationPaths(assessment: AnnotationAssessment): string[] | undefined {
+  const scope = assessment.annotation.scope;
+  const path = scope.kind === "file" || scope.kind === "symbol" || scope.kind === "contract" ? scope.path : undefined;
+  return path ? [path] : undefined;
+}
+
+function diffRenames(diffText: string): AnnotationRename[] {
+  const lines = diffText.split(/\r?\n/);
+  const renames: AnnotationRename[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const from = lines[index]?.match(/^rename from (.+)$/)?.[1];
+    const to = lines[index + 1]?.match(/^rename to (.+)$/)?.[1];
+    if (from && to) renames.push({ from, to });
+  }
+  return renames;
+}
+
+function hybridConfidence(file: import("./semantic.js").HybridRankedFile): RankedFile["confidence"] {
+  if (file.retrieval.structuralRank === file.rank || file.confidence !== "high") return file.confidence;
+  const anchored = file.reasons.some((reason) =>
+    reason === "changed file" || reason === "explicitly named in the task" ||
+    reason.startsWith("defines task identifiers:") || reason.startsWith("exact task literal at definition:")
+  );
+  return anchored ? file.confidence : "medium";
+}
+
+function buildRetrievalRanking(hybrid: HybridRankingResult): NonNullable<NonNullable<FixMapReport["analysis"]>["retrievalRanking"]> {
+  const top = hybrid.files[0]?.fusionScore;
+  const runnerUp = hybrid.files[1]?.fusionScore;
+  return {
+    topFusionScore: top ?? null,
+    runnerUpFusionScore: runnerUp ?? null,
+    topGap: top !== undefined && runnerUp !== undefined ? Number((top - runnerUp).toFixed(8)) : null
   };
 }
 
@@ -332,7 +552,10 @@ export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRout
     return [];
   }
 
-  const relatedTests = findRelatedTests(repo, contextPaths);
+  const relatedTests = findRelatedTests(repo, contextPaths).filter((path) => {
+    const file = repo.files.find((entry) => entry.path === path);
+    return file?.isTest === true && file.kind === "code";
+  });
   const candidates = repo.packageScripts
     .map((script) => ({ script, kind: classifyScript(script.name) }))
     .filter((candidate): candidate is { script: PackageScript; kind: ScriptKind } => candidate.kind !== undefined)
@@ -360,40 +583,70 @@ export function buildTestRoutes(repo: RepoMap, contextPaths: string[]): TestRout
     if (routes.length === 3) break;
   }
 
-  // Node package scripts are the only route FixMap knew, so a Go or Rust repository got
-  // ranked files and an empty command list — ranking without a way to check the change is
-  // half the job. Their toolchains each have exactly one test command, so it can be routed
-  // rather than guessed at.
-  if (routes.length === 0) {
-    const manifestRoute = buildManifestTestRoute(repo, codeContextPaths, relatedTests);
-    if (manifestRoute) {
-      routes.push(manifestRoute);
-    }
+  // Package scripts do not prove they exercise another toolchain. Keep exact manifest routes
+  // alongside them so a docs-site test script cannot silently suppress Go, Rust, or Java
+  // verification for the ranked implementation files.
+  for (const route of buildManifestTestRoutes(repo, codeContextPaths, relatedTests)) {
+    if (commands.has(route.command)) continue;
+    commands.add(route.command);
+    routes.push(route);
   }
 
   return routes;
 }
 
-function buildManifestTestRoute(
+function buildManifestTestRoutes(
   repo: RepoMap,
   codeContextPaths: string[],
   relatedTests: string[]
-): TestRoute | undefined {
+): TestRoute[] {
   const { language } = detectPrimaryLanguage(repo);
-  const crateDir = language === "rust" ? nearestManifestDir(repo, codeContextPaths, "Cargo.toml") : "";
-  const route = manifestTestCommand(language, crateDir, repo.files);
+  if (language === "go") {
+    const modules = buildGoModules(repo.files);
+    const selected = new Map<string, GoModule>();
+    for (const path of codeContextPaths) {
+      const module = goModuleForPath(modules, path);
+      if (module && !selected.has(module.path)) selected.set(module.path, module);
+    }
+    const exactRoutes = [...selected.values()].map((module): TestRoute => ({
+      command: module.root ? `go test -C ${module.root} ./...` : "go test ./...",
+      kind: "test",
+      reason: module.root
+        ? `nearest module (${module.root}) declared by ${module.path}`
+        : "go.mod at the repository root",
+      relatedFiles: relatedTests.filter((path) => goModuleForPath(modules, path)?.path === module.path)
+    }));
+    if (exactRoutes.length > 0) return exactRoutes;
+  }
+  const packageDir = language === "rust"
+    ? nearestManifestDir(repo, codeContextPaths, ["Cargo.toml"])
+    : language === "python"
+      ? nearestManifestDir(repo, codeContextPaths, ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile"])
+      : language === "java"
+        ? nearestManifestDir(repo, codeContextPaths, ["pom.xml", "build.gradle", "build.gradle.kts"])
+        : "";
+  const route = language === "dotnet"
+    ? codeContextPaths.map((path) => dotnetTestCommandForPath(repo.files, path)).find((entry) => entry !== undefined) ??
+      manifestTestCommand(language, packageDir, repo.files)
+    : language === "php"
+      ? codeContextPaths.map((path) => phpTestCommandForPath(repo.files, path)).find((entry) => entry !== undefined) ??
+        manifestTestCommand(language, packageDir, repo.files)
+    : language === "ruby"
+      ? codeContextPaths.map((path) => rubyTestCommandForPath(repo.files, path, relatedTests)).find((entry) => entry !== undefined) ??
+        manifestTestCommand(language, packageDir, repo.files)
+    : manifestTestCommand(language, packageDir, repo.files);
   if (!route) {
-    return undefined;
+    return [];
   }
 
-  return {
+  return [{
     command: route.command,
     kind: "test",
     reason: route.reason,
     // Only real test files count as related here. Falling back to the implementation made
     // nextAction claim routed tests for a Go module that had none.
-    relatedFiles: scopeToPackage(relatedTests, crateDir)
-  };
+    relatedFiles: scopeToPackage(relatedTests, route.scopeDir ?? packageDir)
+  }];
 }
 
 /**
@@ -402,9 +655,10 @@ function buildManifestTestRoute(
  * the same reason package scripts are scoped: a command that cannot reach a file should
  * not list it.
  */
-function nearestManifestDir(repo: RepoMap, contextPaths: string[], manifest: string): string {
+function nearestManifestDir(repo: RepoMap, contextPaths: string[], manifests: string[]): string {
+  const manifestNames = new Set(manifests.map((manifest) => manifest.toLowerCase()));
   const manifestDirs = repo.files
-    .filter((file) => file.path === manifest || file.path.endsWith(`/${manifest}`))
+    .filter((file) => manifestNames.has(file.path.split("/").pop()?.toLowerCase() ?? ""))
     .map((file) => file.path.split("/").slice(0, -1).join("/"))
     .filter(Boolean);
 
@@ -569,7 +823,7 @@ export function renderMarkdownReport(report: FixMapReport): string {
       "",
       `Inspection order: ${report.impact.inspectionOrder.map(markdownCode).join(" → ") || "None"}.`,
       `History evidence: ${report.impact.history.available
-        ? `${report.impact.history.eligibleCommits.toLocaleString()} eligible commits${report.impact.history.shallow ? " (shallow)" : ""}${report.impact.history.truncated ? " (bounded)" : ""}`
+        ? `${report.impact.history.eligibleCommits.toLocaleString()} eligible ${report.impact.history.eligibleCommits === 1 ? "commit" : "commits"}${report.impact.history.shallow ? " (shallow)" : ""}${report.impact.history.truncated ? " (bounded)" : ""}`
         : "not available; import and test evidence only"}.`
     ] : []),
     "",
@@ -583,6 +837,27 @@ export function renderMarkdownReport(report: FixMapReport): string {
     "## Risk Map",
     "",
     ...listOrEmpty(report.risks.map((risk) => `- **${risk.severity}** ${risk.area}: ${risk.reason}`)),
+    ...(report.annotations || report.decisions ? [
+      "",
+      "## Human Intent",
+      "",
+      ...listOrEmpty([
+        ...(report.decisions ?? []).map((decision) =>
+          `- **ADR ${decision.status}** ${markdownCode(decision.path)} — ${decision.title}: ${inlineProse(decision.decision)}`
+        ),
+        ...(report.annotations?.entries ?? []).map((assessment) =>
+          `- **annotation ${assessment.status}** ${describeAnnotationScope(assessment)}: ${assessment.annotation.note}`
+        )
+      ])
+    ] : []),
+    ...(report.policy ? [
+      "",
+      "## Architecture Policy",
+      "",
+      ...listOrEmpty(report.policy.findings.map((finding) =>
+        `- **${finding.severity}** ${markdownCode(finding.ruleId)}: ${finding.message}`
+      ))
+    ] : []),
     "",
     "## Changed Files",
     "",
@@ -644,6 +919,21 @@ export function renderAgentReport(report: FixMapReport): string {
     "RISK:",
     ...listOrEmpty(report.risks.map((risk) => `${risk.severity} ${risk.area}  # ${risk.reason}`)),
     "",
+    "INTENT:",
+    ...listOrEmpty([
+      ...(report.decisions ?? []).map((decision) =>
+        `ADR ${decision.status} ${decision.path}  # ${decision.title}: ${inlineProse(decision.decision)}`
+      ),
+      ...(report.annotations?.entries ?? []).map((assessment) =>
+        `annotation ${assessment.status} ${describeAnnotationScope(assessment)}  # ${assessment.annotation.note}`
+      )
+    ]),
+    "",
+    "POLICY:",
+    ...listOrEmpty((report.policy?.findings ?? []).map((finding) =>
+      `${finding.severity} ${finding.ruleId}  # ${finding.message}`
+    )),
+    "",
     "AVOID:",
     ...listOrEmpty(avoided),
     "",
@@ -651,6 +941,18 @@ export function renderAgentReport(report: FixMapReport): string {
     ...listOrEmpty(uncertainty)
   ];
   return `${lines.join("\n")}\n`;
+}
+
+function describeAnnotationScope(assessment: AnnotationAssessment): string {
+  const scope = assessment.annotation.scope;
+  if (scope.kind === "file") return markdownCode(scope.path);
+  if (scope.kind === "symbol") return `${markdownCode(scope.symbol)} in ${markdownCode(scope.path)}`;
+  if (scope.kind === "service") return `service ${markdownCode(scope.name)}`;
+  return `contract ${markdownCode(scope.name)}${scope.path ? ` in ${markdownCode(scope.path)}` : ""}`;
+}
+
+function inlineProse(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
 }
 
 function listOrEmpty(lines: string[]): string[] {

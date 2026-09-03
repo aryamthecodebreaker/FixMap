@@ -46,6 +46,8 @@ node scripts/evaluate-baseline.mjs --suite external --check-recorded
 
 The first run shallow-clones each repository at its pinned SHA into the OS temp directory (network required); later runs reuse the clones. Because of the network dependency this is not part of `npm run ci`; the [`external-eval` workflow](../../.github/workflows/external-eval.yml) runs it on a weekly schedule and on manual dispatch. Scheduled and release runs use `--check-recorded`, so a ranking change must deliberately refresh and review [`results.json`](results.json).
 
+Baseline runs print scan, ranking, and end-to-end timings for live performance diagnosis. Those machine-dependent values and checkout-specific candidate counts are intentionally omitted from committed `baseline-results.json`; `--check-recorded` compares deterministic rankings, hit outcomes, and evidence only.
+
 ## Results
 
 Measured 2026-08-04 on the dataset above (Node v24, `rankContextFiles` with a top-5 window):

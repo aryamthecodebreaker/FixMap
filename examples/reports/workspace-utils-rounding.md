@@ -4,14 +4,14 @@ FixMap found 1 context file, 1 impact file, and generated 2 test routes.
 
 ## Context Files
 
-- `packages/utils/src/currency.ts` (high confidence, score 37): path matches task terms: currency; content matches task terms: round, cent; defines task identifiers: roundToCents; task identifier is defined in maintained implementation source
+- `packages/utils/src/currency.ts` (high confidence, score 37): path matches task terms: currency; content matches task terms: round, cent; defines task identifiers: roundToCents; task identifier is defined in maintained implementation source; BM25 whole-file candidate #1; BM25 symbol candidate #1: roundToCents
 
 ## Impact Graph
 
 - `packages/utils/test/currency.test.ts` (high confidence, impact 13): this file imports packages/utils/src/currency.ts; routed test for packages/utils/src/currency.ts via pnpm --dir packages/utils run test
 
 Inspection order: `packages/utils/src/currency.ts` → `packages/utils/test/currency.test.ts`.
-History evidence: 66 eligible commits.
+History evidence: 1 eligible commit.
 
 ## Test Routes
 

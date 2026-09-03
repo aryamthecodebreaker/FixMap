@@ -3,9 +3,22 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  isInitializedNotification,
+  isJSONRPCRequest,
+  type JSONRPCMessage,
+  type MessageExtraInfo
+} from "@modelcontextprotocol/sdk/types.js";
+import {
+  answerFixMapQuestion,
+  buildMigrationPlan,
+  draftReverseDocumentation,
+  mapRuntimeEvidence,
   compareReports,
+  compareArchitectureRefs,
   buildFixMapGraph,
   explainFile,
   renderComparisonMarkdown,
@@ -18,14 +31,23 @@ import {
   renderVerifyMarkdown,
   resolveExclusions,
   scanRepo,
-  stripByteOrderMark,
   validateFixMapReport,
   verifyPlan,
   type FixMapReport
 } from "@aryam/fixmap-core";
 import { renderDoctorReport, runDoctorChecks } from "./doctor.js";
+import { describeInputReadError, readDecodedTextFile } from "./decode-input.js";
 import { clarifyMissingPath } from "./explain-path.js";
 import { analyzeRepository, contextFromAnalysis } from "./analysis-source.js";
+import { renderAskMarkdown } from "./ask-command.js";
+import { parseMigrationInput, renderMigrationPlanMarkdown } from "./migration-command.js";
+import { parseReverseDocsInput, renderReverseDocsMarkdown } from "./reverse-docs-command.js";
+import { renderHistoryMarkdown } from "./history-command.js";
+import { buildSupplyChainReport, renderSupplyChainMarkdown } from "./supply-chain-command.js";
+import { parseRuntimeInput, renderRuntimeMarkdown } from "./runtime-command.js";
+import { runWorkspaceCommand } from "./workspace-command.js";
+import { runChangeScopeCommand } from "./change-scope-command.js";
+import { runCapabilitiesCommand, runCapabilityCommand } from "./capability-command.js";
 import {
   buildReportForRepository,
   isSafeGitRefName,
@@ -48,6 +70,7 @@ type PlanArguments = {
   workingTree?: boolean;
   includeUntracked?: boolean;
   noCache?: boolean;
+  semanticModel?: string;
 };
 
 type ExplainArguments = {
@@ -143,7 +166,11 @@ const PLAN_TOOL = {
       },
       workingTree: { type: "boolean", description: "Map staged and unstaged tracked changes against HEAD" },
       includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" },
-      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" }
+      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" },
+      semanticModel: {
+        type: "string",
+        description: "Existing local Transformers.js embedding model directory. Never downloads a model or uploads source."
+      }
     },
     additionalProperties: false
   }
@@ -221,6 +248,197 @@ const GRAPH_TOOL = {
   }
 };
 
+const WORKSPACE_TOOL = {
+  name: "fixmap_workspace",
+  title: "FixMap workspace",
+  description:
+    "Build a versioned package and impact graph across 1-32 local repository checkouts from a reviewed JSON config. " +
+    "Resolves Node, Python, and Maven package versions plus manifest/import/submodule evidence without executing repository code. " +
+    "Use seeds to trace provider-to-consumer impact.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      config: { type: "string", description: "Local workspace JSON config path; repository paths inside it are relative to this file" },
+      seeds: {
+        type: "array",
+        items: { type: "string" },
+        description: "Repository IDs whose downstream consumers should be traced"
+      },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" },
+      noCache: { type: "boolean", description: "Bypass the exact-state scan cache in every workspace repository" }
+    },
+    required: ["config"],
+    additionalProperties: false
+  }
+};
+
+const CHANGE_SCOPE_TOOL = {
+  name: "fixmap_change_scope",
+  title: "FixMap change scope",
+  description:
+    "Expand explicit planned files/directories over bounded import and dependent evidence, then join tests, contracts, ADRs, owners, and architecture policy. " +
+    "The caller supplies every starting anchor; FixMap does not interpret product requirements, call an API or LLM, or require an account.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      touch: { type: "array", items: { type: "string" }, description: "Existing file or directory anchors" },
+      add: { type: "array", items: { type: "string" }, description: "Planned path anchors; missing paths stay unresolved" },
+      direction: { type: "string", enum: ["dependencies", "dependents", "both"], description: "Structural traversal direction (default both)" },
+      depth: { type: "integer", minimum: 0, maximum: 8, description: "Maximum traversal depth (default 2)" },
+      maxNodes: { type: "integer", minimum: 1, maximum: 2000, description: "Maximum selected plus affected nodes (default 200)" },
+      workspace: { type: "string", description: "Stable workspace identity (default local)" },
+      repository: { type: "string", description: "Stable repository identity (default checkout name)" },
+      repo: { type: "string", description: "Local checkout path (defaults to the MCP server repository)" },
+      format: { type: "string", description: "Output format: markdown (default) or json" },
+      noCache: { type: "boolean", description: "Bypass repository scan caches" }
+    },
+    additionalProperties: false
+  }
+};
+
+const CAPABILITY_TOOL = {
+  name: "fixmap_capability",
+  title: "FixMap capability",
+  description:
+    "List human-owned product capabilities, rebuild one current capability map, or compare it across exact Git refs from .fixmap/capabilities.json. " +
+    "The store contains explicit names, anchors, and bounds only; no generated conclusions, API, LLM, semantic inference, or account.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      id: { type: "string", description: "Capability id to show; omit to list definitions" },
+      from: { type: "string", description: "Earlier exact Git ref; requires id and to" },
+      to: { type: "string", description: "Later exact Git ref; requires id and from" },
+      repo: { type: "string", description: "Local checkout path (defaults to the MCP server repository)" },
+      format: { type: "string", description: "Output format: markdown (default) or json" },
+      noCache: { type: "boolean", description: "Bypass repository scan caches" }
+    },
+    additionalProperties: false
+  }
+};
+
+const ASK_TOOL = {
+  name: "fixmap_ask",
+  title: "FixMap ask",
+  description:
+    "Answer structural questions from a saved FixMap report using ranked context, impact, tests, risks, diagnostics, annotations, ADRs, and architecture policy. " +
+    "Deterministic mode reads no source content, calls no model, cites report evidence, and preserves unknowns instead of guessing.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      report: {
+        description: "FixMap report JSON object or local report path",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
+      question: { type: "string", description: "Structural question of at most 5,000 characters" },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    required: ["report", "question"],
+    additionalProperties: false
+  }
+};
+
+const MIGRATION_TOOL = {
+  name: "fixmap_migrate",
+  title: "FixMap migrate",
+  description:
+    "Build dependency-ordered, review-only migration phases against one exact identity graph. " +
+    "Every explicit step must declare edits, compatibility, tests, and rollback; cycles, unknown identities, and unsafe parallel overlap fail closed. " +
+    "This tool never executes commands or applies changes.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      input: {
+        description: "Version-1 migration input object or path to a local JSON input file",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    required: ["input"],
+    additionalProperties: false
+  }
+};
+
+const REVERSE_DOCS_TOOL = {
+  name: "fixmap_reverse_docs",
+  title: "FixMap reverse docs",
+  description:
+    "Build deterministic, review-only module or architecture documentation drafts from exact file fingerprints, structural edges, and authored decisions. " +
+    "Observations, inferences, and unknowns remain separate; this tool never writes or overwrites repository files.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      input: {
+        description: "Version-1 reverse-documentation input object or path to a local JSON input file",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    required: ["input"],
+    additionalProperties: false
+  }
+};
+
+const HISTORY_TOOL = {
+  name: "fixmap_history",
+  title: "FixMap history",
+  description:
+    "Compare architecture at two exact committed Git refs without checking out either ref or changing the worktree. " +
+    "Returns immutable commit IDs plus added/removed edges, cycle and boundary drift, and coupling growth.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      repo: { type: "string", description: "Local Git checkout path (defaults to the MCP server repository)" },
+      from: { type: "string", description: "Earlier committed Git ref" },
+      to: { type: "string", description: "Later committed Git ref" },
+      couplingDelta: { type: "integer", minimum: 1, maximum: 10000, description: "Minimum coupling growth to report (default 2)" },
+      applyPolicy: { type: "boolean", description: "Apply the repository architecture policy when present (default true)" },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    required: ["from", "to"],
+    additionalProperties: false
+  }
+};
+
+const SUPPLY_CHAIN_TOOL = {
+  name: "fixmap_supply_chain",
+  title: "FixMap supply chain",
+  description:
+    "Validate and render a version-1 normalized external scanner or SBOM bundle with package-aware vulnerability, outdated-version, and license-policy evidence. " +
+    "FixMap never fetches advisory data, maintains no vulnerability corpus, executes no scanner, and authorizes no remediation.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      input: {
+        description: "Version-1 supply-chain bundle object or path to a local JSON file",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    required: ["input"],
+    additionalProperties: false
+  }
+};
+
+const RUNTIME_TOOL = {
+  name: "fixmap_runtime",
+  title: "FixMap runtime",
+  description:
+    "Map a redaction-reviewed OpenTelemetry, normalized APM, Speedscope, or pprof bundle only through explicit repository IDs, paths, and exact file fingerprints. " +
+    "Labels and symbols never establish identity; correlation never establishes causality.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      input: {
+        description: "Version-1 runtime input object or path containing bundle and exact repository snapshots",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    required: ["input"],
+    additionalProperties: false
+  }
+};
+
 const VERIFY_TOOL = {
   name: "fixmap_verify",
   title: "FixMap verify",
@@ -290,7 +508,7 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -311,7 +529,8 @@ export function createFixMapMcpServer(
           includeUntracked: args.includeUntracked,
           useCache: !args.noCache,
           limit: args.limit,
-          exclude: args.exclude
+          exclude: args.exclude,
+          semanticModelPath: args.semanticModel
         }, repositorySourceDependencies);
         if (kind === "context") {
           const pack = contextFromAnalysis(analysis, args.budget ?? 10_000);
@@ -323,6 +542,279 @@ export function createFixMapMcpServer(
         return { ...(graph.nodes.length === 0 ? { isError: true } : {}), content: [{ type: "text", text }] };
       } catch (error) {
         return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }] };
+      }
+    }
+    if (request.params.name === CHANGE_SCOPE_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["touch", "add", "direction", "depth", "maxNodes", "workspace", "repository", "repo", "format", "noCache"].includes(key));
+      if (unknown.length > 0) return { isError: true, content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }] };
+      const touch = validateStringList(record?.touch, "touch");
+      if (!touch.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${touch.message}` }] };
+      const add = validateStringList(record?.add, "add");
+      if (!add.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${add.message}` }] };
+      if (touch.values.length + add.values.length === 0) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: provide at least one "touch" or "add" path.' }] };
+      if (touch.values.length + add.values.length > 64) return { isError: true, content: [{ type: "text", text: "Invalid arguments: change scope supports at most 64 total anchors." }] };
+      for (const key of ["workspace", "repository", "repo"] as const) {
+        if (record?.[key] !== undefined && (typeof record[key] !== "string" || !record[key].trim())) {
+          return { isError: true, content: [{ type: "text", text: `Invalid arguments: "${key}" must be a non-empty string.` }] };
+        }
+      }
+      if (record?.repo && /^https?:\/\//i.test(String(record.repo))) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "repo" must be a local checkout.' }] };
+      if (record?.direction !== undefined && !["dependencies", "dependents", "both"].includes(String(record.direction))) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "direction" must be dependencies, dependents, or both.' }] };
+      if (record?.depth !== undefined && (!Number.isSafeInteger(record.depth) || Number(record.depth) < 0 || Number(record.depth) > 8)) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "depth" must be an integer from 0 to 8.' }] };
+      if (record?.maxNodes !== undefined && (!Number.isSafeInteger(record.maxNodes) || Number(record.maxNodes) < 1 || Number(record.maxNodes) > 2_000)) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "maxNodes" must be an integer from 1 to 2000.' }] };
+      if (record?.noCache !== undefined && typeof record.noCache !== "boolean") return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "noCache" must be a boolean.' }] };
+      const format = normalizeFormat(record?.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const commandArgs: string[] = [];
+      for (const path of touch.values) commandArgs.push("--touch", path);
+      for (const path of add.values) commandArgs.push("--add", path);
+      commandArgs.push("--repo", typeof record?.repo === "string" ? record.repo.trim() : defaultRepo, "--format", format.value ?? "markdown");
+      if (typeof record?.direction === "string") commandArgs.push("--direction", record.direction);
+      if (record?.depth !== undefined) commandArgs.push("--depth", String(record.depth));
+      if (record?.maxNodes !== undefined) commandArgs.push("--max-nodes", String(record.maxNodes));
+      if (typeof record?.workspace === "string") commandArgs.push("--workspace", record.workspace.trim());
+      if (typeof record?.repository === "string") commandArgs.push("--repository", record.repository.trim());
+      if (record?.noCache === true) commandArgs.push("--no-cache");
+      const exitCode = await runChangeScopeCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
+      return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }] };
+    }
+    if (request.params.name === CAPABILITY_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["id", "from", "to", "repo", "format", "noCache"].includes(key));
+      if (unknown.length > 0) return { isError: true, content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }] };
+      for (const key of ["id", "from", "to", "repo"] as const) if (record?.[key] !== undefined && (typeof record[key] !== "string" || !record[key].trim())) return { isError: true, content: [{ type: "text", text: `Invalid arguments: "${key}" must be a non-empty string.` }] };
+      if (record?.repo && /^https?:\/\//i.test(String(record.repo))) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "repo" must be a local checkout.' }] };
+      if (record?.noCache !== undefined && typeof record.noCache !== "boolean") return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "noCache" must be a boolean.' }] };
+      const refCount = Number(record?.from !== undefined) + Number(record?.to !== undefined);
+      if (refCount === 1) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "from" and "to" must be provided together.' }] };
+      if (refCount === 2 && typeof record?.id !== "string") return { isError: true, content: [{ type: "text", text: 'Invalid arguments: capability history requires "id".' }] };
+      if (refCount === 2 && record?.noCache === true) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "noCache" does not apply to immutable Git-ref capability history.' }] };
+      const format = normalizeFormat(record?.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const commandArgs = ["--repo", typeof record?.repo === "string" ? record.repo.trim() : defaultRepo, "--format", format.value ?? "markdown"];
+      if (record?.noCache === true) commandArgs.push("--no-cache");
+      const exitCode = refCount === 2
+        ? await runCapabilityCommand([
+            "diff", String(record!.id).trim(), "--from", String(record!.from).trim(), "--to", String(record!.to).trim(), ...commandArgs
+          ], { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) })
+        : typeof record?.id === "string"
+        ? await runCapabilityCommand([record.id.trim(), ...commandArgs], { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) })
+        : await runCapabilitiesCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
+      return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }] };
+    }
+    if (request.params.name === WORKSPACE_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["config", "seeds", "format", "noCache"].includes(key));
+      if (unknown.length > 0) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }]
+        };
+      }
+      if (typeof record?.config !== "string" || !record.config.trim()) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "config" is required and must be a non-empty local path.' }] };
+      }
+      if (record.seeds !== undefined && (
+        !Array.isArray(record.seeds) || record.seeds.length > 32 ||
+        record.seeds.some((seed) => typeof seed !== "string" || !seed.trim())
+      )) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "seeds" must be an array of at most 32 non-empty repository IDs.' }] };
+      }
+      if (record.noCache !== undefined && typeof record.noCache !== "boolean") {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "noCache" must be a boolean.' }] };
+      }
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const commandArgs = ["--config", record.config.trim(), "--format", format.value ?? "markdown"];
+      for (const seed of (record.seeds as string[] | undefined) ?? []) commandArgs.push("--seed", seed.trim());
+      if (record.noCache === true) commandArgs.push("--no-cache");
+      const exitCode = await runWorkspaceCommand(commandArgs, {
+        stdout: (text) => stdout.push(text),
+        stderr: (text) => stderr.push(text)
+      });
+      return {
+        ...(exitCode === 0 ? {} : { isError: true }),
+        content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }]
+      };
+    }
+    if (request.params.name === ASK_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["report", "question", "format"].includes(key));
+      if (unknown.length > 0) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }]
+        };
+      }
+      const loaded = loadReportInput(record?.report, '"report"');
+      if (!loaded.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${loaded.message}` }] };
+      if (typeof record?.question !== "string" || !record.question.trim() || record.question.length > 5_000 || record.question.includes("\0")) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "question" is required and must contain at most 5,000 characters and no null bytes.' }] };
+      }
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      try {
+        const answer = await answerFixMapQuestion(loaded.report, record.question);
+        return {
+          content: [{
+            type: "text",
+            text: format.value === "json" ? `${JSON.stringify(answer, null, 2)}\n` : renderAskMarkdown(answer)
+          }]
+        };
+      } catch (error) {
+        return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }] };
+      }
+    }
+    if (request.params.name === MIGRATION_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["input", "format"].includes(key));
+      if (unknown.length > 0) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }]
+        };
+      }
+      if (record?.input === undefined) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "input" is required and must be a migration object or local JSON path.' }] };
+      }
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      try {
+        const raw: unknown = typeof record.input === "string"
+          ? JSON.parse(readDecodedTextFile(record.input))
+          : record.input;
+        const input = parseMigrationInput(raw);
+        const plan = buildMigrationPlan(input.graph, input.steps);
+        return {
+          content: [{
+            type: "text",
+            text: format.value === "json" ? `${JSON.stringify(plan, null, 2)}\n` : renderMigrationPlanMarkdown(plan)
+          }]
+        };
+      } catch (error) {
+        const message = typeof record.input === "string"
+          ? describeInputReadError(record.input, error)
+          : error instanceof Error ? error.message : String(error);
+        return { isError: true, content: [{ type: "text", text: message }] };
+      }
+    }
+    if (request.params.name === REVERSE_DOCS_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["input", "format"].includes(key));
+      if (unknown.length > 0) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }]
+        };
+      }
+      if (record?.input === undefined) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "input" is required and must be a reverse-documentation object or local JSON path.' }] };
+      }
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      try {
+        const raw: unknown = typeof record.input === "string"
+          ? JSON.parse(readDecodedTextFile(record.input))
+          : record.input;
+        const input = parseReverseDocsInput(raw);
+        const drafts = draftReverseDocumentation(input.repo, input.architecture, input.decisions, input.targets);
+        return {
+          content: [{
+            type: "text",
+            text: format.value === "json" ? `${JSON.stringify(drafts, null, 2)}\n` : renderReverseDocsMarkdown(drafts)
+          }]
+        };
+      } catch (error) {
+        const message = typeof record.input === "string"
+          ? describeInputReadError(record.input, error)
+          : error instanceof Error ? error.message : String(error);
+        return { isError: true, content: [{ type: "text", text: message }] };
+      }
+    }
+    if (request.params.name === HISTORY_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["repo", "from", "to", "couplingDelta", "applyPolicy", "format"].includes(key));
+      if (unknown.length > 0) {
+        return { isError: true, content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }] };
+      }
+      if (typeof record?.from !== "string" || !record.from.trim() || /[\0\r\n]/.test(record.from) || record.from.length > 500 ||
+        typeof record.to !== "string" || !record.to.trim() || /[\0\r\n]/.test(record.to) || record.to.length > 500) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "from" and "to" are required bounded single-line Git refs.' }] };
+      }
+      if (record.repo !== undefined && (typeof record.repo !== "string" || !record.repo.trim() || record.repo.includes("\0"))) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "repo" must be a non-empty local path.' }] };
+      }
+      if (record.couplingDelta !== undefined && (!Number.isSafeInteger(record.couplingDelta) || Number(record.couplingDelta) < 1 || Number(record.couplingDelta) > 10_000)) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "couplingDelta" must be an integer from 1 to 10000.' }] };
+      }
+      if (record.applyPolicy !== undefined && typeof record.applyPolicy !== "boolean") {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "applyPolicy" must be a boolean.' }] };
+      }
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      const repoRoot = resolve(typeof record.repo === "string" ? record.repo.trim() : defaultRepo ?? process.cwd());
+      try {
+        const result = await compareArchitectureRefs({
+          repoRoot,
+          fromRef: record.from.trim(),
+          toRef: record.to.trim(),
+          couplingDelta: record.couplingDelta === undefined ? 2 : Number(record.couplingDelta),
+          applyRepositoryPolicy: record.applyPolicy === undefined ? true : record.applyPolicy
+        });
+        return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(result, null, 2)}\n` : renderHistoryMarkdown(result) }] };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return { isError: true, content: [{ type: "text", text: message.includes("Could not resolve Git ref")
+          ? `Could not resolve one of the requested Git refs in "${repoRoot}". Confirm both refs exist and the path is a Git checkout.`
+          : `Could not compare historical architecture in "${repoRoot}".` }] };
+      }
+    }
+    if (request.params.name === SUPPLY_CHAIN_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["input", "format"].includes(key));
+      if (unknown.length > 0) {
+        return { isError: true, content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }] };
+      }
+      if (record?.input === undefined) {
+        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "input" is required and must be a supply-chain object or local JSON path.' }] };
+      }
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      try {
+        const raw: unknown = typeof record.input === "string" ? JSON.parse(readDecodedTextFile(record.input)) : record.input;
+        const report = await buildSupplyChainReport(raw);
+        return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(report, null, 2)}\n` : renderSupplyChainMarkdown(report) }] };
+      } catch (error) {
+        const message = typeof record.input === "string"
+          ? describeInputReadError(record.input, error)
+          : error instanceof Error ? error.message : String(error);
+        return { isError: true, content: [{ type: "text", text: message }] };
+      }
+    }
+    if (request.params.name === RUNTIME_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const unknown = Object.keys(record ?? {}).filter((key) => !["input", "format"].includes(key));
+      if (unknown.length > 0) return { isError: true, content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }] };
+      if (record?.input === undefined) return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "input" is required and must be a runtime object or local JSON path.' }] };
+      const format = normalizeFormat(record.format);
+      if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
+      try {
+        const raw: unknown = typeof record.input === "string" ? JSON.parse(readDecodedTextFile(record.input)) : record.input;
+        const input = parseRuntimeInput(raw);
+        const mapped = mapRuntimeEvidence(input.bundle, input.snapshots);
+        return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(mapped, null, 2)}\n` : renderRuntimeMarkdown(mapped) }] };
+      } catch (error) {
+        const message = typeof record.input === "string"
+          ? describeInputReadError(record.input, error)
+          : error instanceof Error ? error.message : String(error);
+        return { isError: true, content: [{ type: "text", text: message }] };
       }
     }
     if (request.params.name === COMPARE_TOOL.name) {
@@ -488,7 +980,8 @@ export function createFixMapMcpServer(
         includeUntracked: args.includeUntracked,
         useCache: !args.noCache,
         limit: args.limit,
-        exclude: args.exclude
+        exclude: args.exclude,
+        semanticModelPath: args.semanticModel
       }, repositorySourceDependencies);
     } catch (error) {
       return {
@@ -530,7 +1023,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache"]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return {
@@ -544,6 +1037,9 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
     if (value !== undefined && typeof value !== "string") {
       return { success: false, message: `"${name}" must be a string.` };
     }
+  }
+  if (record.semanticModel !== undefined && (typeof record.semanticModel !== "string" || !record.semanticModel.trim())) {
+    return { success: false, message: '"semanticModel" must be a non-empty local directory path.' };
   }
   for (const name of ["issue", "diff", "base", "head", "repo", "ref"] as const) {
     if (typeof record[name] === "string" && !record[name].trim()) return { success: false, message: `"${name}" must not be blank.` };
@@ -580,6 +1076,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   if (record.workingTree === true) value.workingTree = true;
   if (record.includeUntracked === true) value.includeUntracked = true;
   if (record.noCache === true) value.noCache = true;
+  if (typeof record.semanticModel === "string") value.semanticModel = record.semanticModel.trim();
   if (value.ref && !/^https?:\/\//i.test(value.repo ?? "") && !tryParseGitHubIssueSource(value.issue ?? "")) {
     return { success: false, message: '"ref" requires a remote GitHub "repo" or issue URL.' };
   }
@@ -598,7 +1095,7 @@ function parseAnalysisToolArguments(
     return { success: false, message: "tool arguments must be an object." };
   }
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", ...(kind === "context" ? ["budget"] : [])]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", ...(kind === "context" ? ["budget"] : [])]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
 
@@ -736,6 +1233,9 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
   }
+  if (record.report === undefined) {
+    return { success: false, message: '"report" is required and must be a FixMap report object or a path to a FixMap JSON report.' };
+  }
   const loaded = loadReportInput(record.report, '"report"');
   if (!loaded.success) {
     return { success: false, message: loaded.message };
@@ -782,6 +1282,18 @@ function normalizePlanFormat(candidate: unknown): { success: true; value: "markd
     : { success: false, message: '"format" must be "markdown", "json", or "agent".' };
 }
 
+function validateStringList(
+  candidate: unknown,
+  label: string
+): { success: true; values: string[] } | { success: false; message: string } {
+  if (candidate === undefined) return { success: true, values: [] };
+  if (!Array.isArray(candidate) || candidate.length > 64 ||
+    candidate.some((entry) => typeof entry !== "string" || !entry.trim() || entry.length > 1_000 || entry.includes("\0"))) {
+    return { success: false, message: `"${label}" must be an array of at most 64 bounded non-empty paths.` };
+  }
+  return { success: true, values: candidate.map((entry) => String(entry).trim()) };
+}
+
 function normalizeFormat(candidate: unknown): { success: true; value: "markdown" | "json" | undefined } | { success: false; message: string } {
   if (candidate === undefined) return { success: true, value: undefined };
   if (typeof candidate !== "string") return { success: false, message: '"format" must be either "markdown" or "json".' };
@@ -809,11 +1321,11 @@ function loadReportInput(input: unknown, label: string): LoadedReport {
     }
     let contents: string;
     try {
-      contents = stripByteOrderMark(readFileSync(path, "utf8"));
+      contents = readDecodedTextFile(path);
     } catch (error) {
       return {
         success: false,
-        message: `${label} looked like a file path but could not be read: ${error instanceof Error ? error.message : String(error)}.`
+        message: `${label} looked like a file path but could not be read: ${describeInputReadError(path, error)}`
       };
     }
     let parsed: unknown;
@@ -836,7 +1348,72 @@ function asFixMapReport(candidate: unknown, label: string): LoadedReport {
 }
 
 export async function runMcpServer(defaultRepo = process.cwd()): Promise<void> {
-  await createFixMapMcpServer({}, defaultRepo).connect(new StdioServerTransport());
+  await createFixMapMcpServer({}, defaultRepo).connect(
+    new InitializationGuardTransport(new StdioServerTransport())
+  );
+}
+
+/**
+ * The SDK handles capability negotiation but currently dispatches requests received before
+ * `notifications/initialized`. Keep the protocol boundary honest here, and turn malformed
+ * JSON lines into JSON-RPC parse errors instead of leaving a stdio client waiting forever.
+ */
+export class InitializationGuardTransport implements Transport {
+  onclose?: () => void;
+  onerror?: (error: Error) => void;
+  onmessage?: <T extends JSONRPCMessage>(message: T, extra?: MessageExtraInfo) => void;
+  private initializeRequested = false;
+  private initialized = false;
+
+  constructor(private readonly inner: Transport) {}
+
+  async start(): Promise<void> {
+    this.inner.onclose = () => this.onclose?.();
+    this.inner.onerror = (error) => {
+      if (error instanceof SyntaxError) {
+        void this.inner.send({
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32700, message: "Parse error" }
+        } as unknown as JSONRPCMessage).catch((sendError: unknown) => this.onerror?.(toError(sendError)));
+        return;
+      }
+      this.onerror?.(error);
+    };
+    this.inner.onmessage = (message, extra) => {
+      if (isInitializedNotification(message)) {
+        if (!this.initializeRequested) return;
+        this.initialized = true;
+        this.onmessage?.(message, extra);
+        return;
+      }
+      if (isJSONRPCRequest(message) && message.method === "initialize") {
+        this.initializeRequested = true;
+      }
+      if (isJSONRPCRequest(message) && message.method !== "initialize" && message.method !== "ping" && !this.initialized) {
+        void this.inner.send({
+          jsonrpc: "2.0",
+          id: message.id,
+          error: { code: -32002, message: "Server not initialized" }
+        }).catch((sendError: unknown) => this.onerror?.(toError(sendError)));
+        return;
+      }
+      this.onmessage?.(message, extra);
+    };
+    await this.inner.start();
+  }
+
+  send(message: JSONRPCMessage): Promise<void> {
+    return this.inner.send(message);
+  }
+
+  close(): Promise<void> {
+    return this.inner.close();
+  }
+}
+
+function toError(candidate: unknown): Error {
+  return candidate instanceof Error ? candidate : new Error(String(candidate));
 }
 
 function readVersion(): string {

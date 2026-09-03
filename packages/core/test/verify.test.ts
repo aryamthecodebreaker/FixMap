@@ -135,6 +135,21 @@ describe("verifyPlan", () => {
     expect(finding?.severity).toBe("warning");
   });
 
+  it("separates changed paths that were never scanned from genuine unmapped source", () => {
+    const result = verifyPlan(
+      planFor("src/auth/reset-password.ts"),
+      repoWith(["src/auth/reset-password.ts", "artifacts/blob.bin"])
+    );
+
+    expect(result.findings).toContainEqual(expect.objectContaining({
+      code: "unscanned-change",
+      severity: "warning",
+      paths: ["artifacts/blob.bin"]
+    }));
+    expect(result.findings.find((entry) => entry.code === "unmapped-change")?.paths ?? [])
+      .not.toContain("artifacts/blob.bin");
+  });
+
   it("does not count a new test as an unmapped change", () => {
     const result = verifyPlan(
       planFor("src/auth/reset-password.ts"),
@@ -215,6 +230,98 @@ describe("verifyPlan", () => {
     expect(markdown).toContain("# FixMap Verification");
     expect(markdown).toContain("**error**");
     expect(markdown).toContain("`dist/auth/reset-password.js`");
+    expect(markdown).toContain("## Why This Diff Needs Attention");
+  });
+
+  it("narrates changed paths, impact relationships, tests, risks, and human intent with evidence", () => {
+    const repo = repoWith(["src/auth/reset-password.ts"]);
+    repo.files = [
+      source("src/auth/reset-password.ts", { textSample: "import { charge } from '../billing/charge'; export const reset = charge;" }),
+      source("src/billing/charge.ts", { textSample: "export const charge = true;" }),
+      source("test/reset-password.test.ts", { isTest: true })
+    ];
+    const plan = planFor("src/auth/reset-password.ts");
+    plan.annotations = {
+      asOf: "2026-08-22T00:00:00Z",
+      sourcePath: ".fixmap/annotations.json",
+      sourceFingerprint: `worktree:${"a".repeat(64)}`,
+      entries: [{
+        annotation: {
+          id: "annotation:0123456789abcdef",
+          scope: { kind: "file", path: "src/auth/reset-password.ts" },
+          note: "External identity contract.",
+          createdAt: "2026-08-21T00:00:00Z"
+        },
+        status: "active",
+        message: "Annotation is active."
+      }]
+    };
+    plan.decisions = [{
+      id: "decision:0123456789abcdef",
+      path: "docs/adr/auth.md",
+      title: "Keep auth boundary",
+      status: "accepted",
+      decision: "Preserve the provider boundary.",
+      targets: [{ kind: "file", path: "src/auth/reset-password.ts", evidence: "explicit" }],
+      supersedes: [],
+      sourceFingerprint: `git:${"b".repeat(40)}`
+    }];
+
+    const result = verifyPlan(plan, repo);
+    expect(result.narrative).toEqual(expect.arrayContaining([
+      expect.objectContaining({ classification: "observation", evidence: expect.arrayContaining([expect.objectContaining({ kind: "changed-file" })]) }),
+      expect.objectContaining({ classification: "observation", evidence: expect.arrayContaining([expect.objectContaining({ kind: "impact-relationship", relatedPath: "src/billing/charge.ts" })]) }),
+      expect.objectContaining({ evidence: expect.arrayContaining([expect.objectContaining({ kind: "test-route" })]) }),
+      expect.objectContaining({ evidence: expect.arrayContaining([expect.objectContaining({ kind: "annotation", sourceFingerprint: `worktree:${"a".repeat(64)}` })]) }),
+      expect.objectContaining({ evidence: expect.arrayContaining([expect.objectContaining({ kind: "decision-record", sourceFingerprint: `git:${"b".repeat(40)}` })]) })
+    ]));
+    expect(result.narrative?.every((statement) => statement.evidence.length > 0)).toBe(true);
+  });
+
+  it("enforces current architecture policy and narrates exact policy evidence", () => {
+    const policyText = JSON.stringify({
+      architecturePolicyVersion: 1,
+      boundaries: [{
+        id: "ui-no-data",
+        from: ["src/ui/**"],
+        deny: ["src/data/**"],
+        reason: "UI must use the service layer.",
+        severity: "error"
+      }],
+      requiredReviews: [{
+        id: "ui-review",
+        paths: ["src/ui/**"],
+        reviewers: ["frontend-team"],
+        reason: "UI ownership."
+      }]
+    });
+    const fingerprint = `worktree:${"e".repeat(64)}`;
+    const repo = repoWith(["src/ui/view.ts"]);
+    repo.files = [
+      source("src/ui/view.ts", { textSample: "import { query } from '../data/query'; export const view = query;" }),
+      source("src/data/query.ts"),
+      source(".fixmap/policy.json", {
+        contentFingerprint: fingerprint,
+        extension: ".json",
+        kind: "config",
+        textSample: policyText,
+        textSampleComplete: true
+      })
+    ];
+
+    const result = verifyPlan(planFor("src/ui/view.ts"), repo);
+    expect(result.findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "architecture-boundary-violation", severity: "error" }),
+      expect.objectContaining({ code: "architecture-review-required", severity: "info" })
+    ]));
+    expect(result.narrative).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        classification: "observation",
+        evidence: expect.arrayContaining([
+          expect.objectContaining({ kind: "architecture-policy", sourceFingerprint: fingerprint })
+        ])
+      })
+    ]));
   });
 
   it("uses a longer code fence for paths containing backticks", () => {

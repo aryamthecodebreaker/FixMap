@@ -1,0 +1,219 @@
+{
+  "generatedAt": "2026-08-22",
+  "status": "development-only",
+  "taskTextRule": "Closing issue title plus the first 600 characters of its body.",
+  "selectionRule": "Per configured repository: the first of the 50 most recently updated merged pull requests that closes an issue with at least 80 body characters, is not docs-titled, changes no more than 20 files total, and modifies 1-3 non-test Python or Java source files. The PR base commit and exact fixing source paths are frozen before FixMap is measured.",
+  "languages": [
+    "python",
+    "java"
+  ],
+  "cases": [
+    {
+      "slug": "pydantic/pydantic",
+      "repo": "https://github.com/pydantic/pydantic.git",
+      "license": "MIT",
+      "sha": "f002759018732fc7208d9c9547ab6dd3f8a35e35",
+      "issue": 13675,
+      "pullRequest": 13676,
+      "task": "`TypeAdapter` config not used for JSON Schema generation\n\n```python\nfrom pydantic import BaseModel, TypeAdapter\n\nclass Model(BaseModel, ser_json_bytes='base64'):\n    b: bytes\n\nModel.model_json_schema()['properties']['b']\n#> {'format': 'base64url', 'title': 'B', 'type': 'string'}\n\nta = TypeAdapter(bytes, config={'ser_json_bytes': 'base64'})\nta.json_schema()\n#> {'format': 'binary', 'type': 'string'}\n```",
+      "expected": [
+        "pydantic/type_adapter.py"
+      ]
+    },
+    {
+      "slug": "pallets/flask",
+      "repo": "https://github.com/pallets/flask.git",
+      "license": "BSD-3-Clause",
+      "sha": "3596b1ab61cea85edb8970e83ff61daa073facf8",
+      "issue": 3193,
+      "pullRequest": 6133,
+      "task": "Flask Session variable not available in threads\n\nFor example of passing via a Queue that does not work. https://github.com/HourGlss/FlaskSSE/blob/master/sse/sse.py\r\n\r\n### Expected Behavior\r\nSession is a global variable\r\n\r\n### Actual Behavior\r\nWhen passed via a queue the keys and associated values are dropped. When attempting to access globally, no keys are available even if they had been added by endpoints\r\n\r\n### Environment\r\n\r\n* Python version: 3.7\r\n* Flask version: Default install\r\n* Werkzeug version: Default install\r\n",
+      "expected": [
+        "src/flask/sansio/scaffold.py"
+      ]
+    },
+    {
+      "slug": "fastapi/fastapi",
+      "repo": "https://github.com/fastapi/fastapi.git",
+      "license": "MIT",
+      "sha": "98b12fe56f97107e71a20fc1cf334ccfa590efb5",
+      "issue": 15401,
+      "pullRequest": 15077,
+      "task": "SSE `stream_item_type` not propagated through `APIRouter` + `include_router`\n\n### Summary\n\nWhen an SSE route (`response_class=EventSourceResponse` + `AsyncIterator[Frame]` return annotation) is defined on an `APIRouter` and then merged onto a `FastAPI` app via `include_router`, the resulting merged route loses its `stream_item_type`. As a consequence, the OpenAPI `text/event-stream` response schema omits the `data.contentSchema`, so tooling like `datamodel-codegen` cannot generate frame models.\n\nDefining the same route directly on the `FastAPI` app via `@app.post(...)` works correctly.\n\n### Reproduction\n\n```python\nfrom collections.abc import AsyncIterator\n\nfrom fastapi ",
+      "expected": [
+        "fastapi/routing.py"
+      ]
+    },
+    {
+      "slug": "encode/httpx",
+      "repo": "https://github.com/encode/httpx.git",
+      "license": "BSD-3-Clause",
+      "sha": "08355c62f56b899af15967906aa45392cd45dbdd",
+      "issue": 306,
+      "pullRequest": 307,
+      "task": "Add support for SSL_CERT_FILE, REQUESTS_CA_BUNDLE, and CURL_CA_BUNDLE\n\nPart of #33 these three environment variables all have the same behavior, to specify where a CA bundle is if none are specified by default and `trust_env` is True.\r\n\r\nWe should check the three environment variables in the order above, as SSL_CERT_FILE is a PEP and a standard whereas the other are products of other projects.\r\n\r\nIf multiple are set and that file doesn't exist we should skip it and try the next environment variable.\r\n\r\nWe'll also have to document these environment variables within `docs/environment.md`.",
+      "expected": [
+        "httpx/config.py",
+        "httpx/utils.py"
+      ]
+    },
+    {
+      "slug": "psf/requests",
+      "repo": "https://github.com/psf/requests.git",
+      "license": "Apache-2.0",
+      "sha": "0b401c76b6e80a4eecf3c690085b2553f6e261ca",
+      "issue": 7434,
+      "pullRequest": 7436,
+      "task": "Inline annotations in 2.34.0 cause mypy error for Request json payloads\n\nrequests version 2.34.0 added inline type annotations. This is causing some issues with mypy, specifically building a `Request` with a `json` argument.\n\nThe MR (https://github.com/psf/requests/pull/7272) that introduced the feature  notes that `mypy` support is not currently a goal, but I think it's worth sharing this issue.\n\n## Expected Result\nPassing a JSON-compatible dictionary to the `json` argument of `requests.Request` should type-check successfully.\n\nFor example, a value typed as:\n\n```python\ndict[str, None | bool | int | float | str]\n```\nor the narrower:\n```python\ndict[str, str]\n```\nsho",
+      "expected": [
+        "src/requests/_types.py"
+      ]
+    },
+    {
+      "slug": "python-poetry/poetry",
+      "repo": "https://github.com/python-poetry/poetry.git",
+      "license": "MIT",
+      "sha": "9b1dfc571c445183f038a0477c881e299729d547",
+      "issue": 10314,
+      "pullRequest": 10987,
+      "task": "Optional dependencies for git dependencies aren't resolved with `poetry lock`\n\n### Description\n\nWhen optional dependency for a package as a git dependency is updated in `pyproject.toml`, running `poetry.lock` fails to add it to install.\n\nSteps to reproduce (checked with 2.1.2 on Mac)\n1. Create a new poetry project with `poetry new`\n2. Add the non-optional dependency by `poetry add sqlalchemy@git+https://github.com/sqlalchemy/sqlalchemy`\n3. Edit `pyproject.toml`, replacing `sqlalchemy` in dependency to `sqlalchemy[postgresql]`\n4. Run `poetry lock` and `poetry show`\n`psycopg2` is expected to be added, but it doesn't get added.\n5. Run `poetry add sqlalchemy[postgresql]@git+",
+      "expected": [
+        "src/poetry/puzzle/provider.py"
+      ]
+    },
+    {
+      "slug": "pytest-dev/pytest",
+      "repo": "https://github.com/pytest-dev/pytest.git",
+      "license": "MIT",
+      "sha": "c0ab40c93b3a6bc0c1d586f5c313b265f7ceabed",
+      "issue": 13292,
+      "pullRequest": 14905,
+      "task": "Incorrect pyc cache loaded when test file is updated in short time\n\ngiven this test:\n\n``` python\ndef test_example(pytester):\n    pytester.makepyfile(\"\"\"\n    def test_dummy1():\n        def func():\n            pass\n        print(func.__qualname__)\n    \"\"\")\n    r = pytester.runpytest(\"-s\")\n    assert r.ret.value == 0\n    assert \"test_example.py test_dummy1.<locals>.func\" in r.stdout.str()\n    pytester.makepyfile(\"\"\"\n    def test_dummy2():\n        def func():\n            pass\n        print(func.__qualname__)\n    \"\"\")\n    r = pytester.runpytest(\"-s\")\n    assert r.ret.value == 0\n    assert \"test_example.py test_dummy2.<locals>.func\" in r.stdout.str()\n```\nthe test fi",
+      "expected": [
+        "src/_pytest/assertion/rewrite.py"
+      ]
+    },
+    {
+      "slug": "scrapy/scrapy",
+      "repo": "https://github.com/scrapy/scrapy.git",
+      "license": "BSD-3-Clause",
+      "sha": "da7c2fc59e286e796d0f8cfe01d4363d6fa3729f",
+      "issue": 2378,
+      "pullRequest": 8051,
+      "task": "get_project_settings of doesn't reflect per-spider settings\n\nIt's possible I'm using this wrong. But I'm doing the following:\r\n\r\n```\r\nclass MySpider (Spider)\r\n  def __init__(self):\r\n\t\tcustom_settings = {\r\n\t\t\t'AUTOTHROTTLE_ENABLED': False\r\n\t\t}\r\n\r\n  a = scrapy.utils.project.get_project_settings()\r\n  print(a.copy_to_dict())\r\n```\r\nMy **settings.py** has `AUTOTHROTTLE_ENABLED: True`.\r\n\r\nBased on my reading of https://doc.scrapy.org/en/latest/topics/settings.html#populating-the-settings - the custom_settings value should override the value of settings.py. But the result of the above is:\r\n\r\n> ....\r\n> AUTOTHROTTLE_ENABLED: True\r\n> ...\r\n\r\nIt's using the value fr",
+      "expected": [
+        "scrapy/utils/project.py"
+      ]
+    },
+    {
+      "slug": "google/guava",
+      "repo": "https://github.com/google/guava.git",
+      "license": "Apache-2.0",
+      "sha": "d61606187e4a89e10982a6bfbdcf2773b44bd939",
+      "issue": 3910,
+      "pullRequest": 8564,
+      "task": "Document behavior of Splitter that uses both limit() and omitEmptyStrings()\n\nhttps://stackoverflow.com/q/62026064/28465\r\n\r\nConceivably we could even change the behavior, but that may be more dangerous than it's worth.",
+      "expected": [
+        "android/guava/src/com/google/common/base/Splitter.java",
+        "guava/src/com/google/common/base/Splitter.java"
+      ]
+    },
+    {
+      "slug": "spring-projects/spring-framework",
+      "repo": "https://github.com/spring-projects/spring-framework.git",
+      "license": "Apache-2.0",
+      "sha": "1502ab0b20bf6ac048fd818a4c15935eb60c19aa",
+      "issue": 37068,
+      "pullRequest": 37081,
+      "task": "`BeanWrapperImpl` discovers static getter methods as JavaBean properties\n\n**Affects:** Spring Framework 7.0.8 (regression since 6.0)\n\n## Summary\n\n`AbstractNestablePropertyAccessor` / `BeanWrapperImpl` discovers `public static` getter methods as JavaBean properties. A `@ConfigurationProperties` class with `public static Xxx getInstance()` gets a read-only property named `instance` that returns the singleton object. This is a regression from Spring\nFramework 5.x where `CachedIntrospectionResults` explicitly filtered static methods via `Modifier.isStatic()`.\n\n## Root Cause\n\nSpring Framework 6.0 replaced `java.beans.Introspector`-based property discovery with a custom \"",
+      "expected": [
+        "spring-beans/src/main/java/org/springframework/beans/PropertyDescriptorUtils.java"
+      ]
+    },
+    {
+      "slug": "mockito/mockito",
+      "repo": "https://github.com/mockito/mockito.git",
+      "license": "MIT",
+      "sha": "c9fe6a05550e04a86d069e42845a83766590140c",
+      "issue": 3814,
+      "pullRequest": 3815,
+      "task": "Package-level clinit suppression\n\nThank you for contributing this! I already have a use case.\r\n\r\nAs in my use case I have a lot of classes with static initializers (third party integration I would like to mock away) do you think adding a prefix / packaging version is sensible?\r\nLike:\r\n\r\n```\r\n            \"-Dmockito.suppress.clinit.packages=some.thirdparty.\"\r\n```\r\n\r\n_Originally posted by @ddingel in https://github.com/mockito/mockito/issues/3801#issuecomment-4207738949_\r\n            \r\nI see this as an enhancement of the feature - as this requirement is real and could simplify test configuration for interaction with legacy system",
+      "expected": [
+        "mockito-core/src/main/java/org/mockito/Mockito.java",
+        "mockito-core/src/main/java/org/mockito/internal/PremainAttach.java",
+        "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/ClinitSuppressionTransformer.java"
+      ]
+    },
+    {
+      "slug": "FasterXML/jackson-databind",
+      "repo": "https://github.com/FasterXML/jackson-databind.git",
+      "license": "Apache-2.0",
+      "sha": "b3b341bb970b3b3d957f47692731f4eb77614137",
+      "issue": 6149,
+      "pullRequest": 6162,
+      "task": "Document that sharing a `LookupCache` across mappers with different\n`PolymorphicTypeValidator` configurations makes the first-won PTV stick\n\nIn 3.x, the deserializer cache (`DeserializerCache`) is keyed directly on\n`JavaType` (`LookupCache<JavaType, ValueDeserializer<Object>>`), so the cache\nkey does not carry any PTV / deserialization-config identity. A\n`TypeDeserializer` embeds its `ClassNameIdResolver`, which captures the PTV at\nconstruction time (protected final field) and never re-fetches it from the live\ncontext.\n\n`MapperBuilder.cacheProvider(CacheProvider)` lets applications supply a\ncustom cache. If such a `CacheProvider` returns the **same** `LookupCache`\ninstance for multiple mappers configured with different PTVs (e.g. a",
+      "expected": [
+        "src/main/java/tools/jackson/databind/cfg/CacheProvider.java",
+        "src/main/java/tools/jackson/databind/deser/DeserializerCache.java"
+      ]
+    },
+    {
+      "slug": "brettwooldridge/HikariCP",
+      "repo": "https://github.com/brettwooldridge/HikariCP.git",
+      "license": "Apache-2.0",
+      "sha": "bba167f0a28905e8e63083cd7b5cbf479263271a",
+      "issue": 2398,
+      "pullRequest": 2402,
+      "task": "HikariCP 7.0.2 — ConcurrentBag.requite() yield-spin still saturates all carrier threads under virtual thread load\n\n## Summary\n\nHikariCP 7.0.2 — which was supposed to fix the virtual-thread yield-spin first reported in #2329 — **still causes complete carrier-thread saturation** under moderate virtual-thread load. The `Thread.yield()` branch in `ConcurrentBag.requite()` (line 199) and `unreserve()` (line 323) is taken on the overwhelming majority of iterations because the `parkNanos` fallback only triggers once every 256 iterations (or `i % waiting == 0`, which doesn't help when there are many waiters).\n\nWe captured thread dumps showing **all 6 carrier threads simultaneously running virtual threads that are ",
+      "expected": [
+        "src/main/java/com/zaxxer/hikari/util/ConcurrentBag.java"
+      ]
+    },
+    {
+      "slug": "google/gson",
+      "repo": "https://github.com/google/gson.git",
+      "license": "Apache-2.0",
+      "sha": "c9f3fd55854a743b66f857ace3c7b268ea3e2ef7",
+      "issue": 992,
+      "pullRequest": 3059,
+      "task": "JsonPrimitive with LazilyParsedNumber integers breaks contract for hashCode()\n\nWhile most types maintain consistency between `equals()` and `hashCode()` after string serialization and parsing (`JsonElement#toString()` + `JsonParser#parse(String)`, integers do not. `equals()` returns true, but the hash codes are different.\r\n\r\n```\r\n  public void testEqualsIntegerAndLazilyParsedInteger() {\r\n    MoreAsserts.assertEqualsAndHashCode(new JsonPrimitive(42), new JsonPrimitive(new LazilyParsedNumber(\"42\")));\r\n  }\r\n```",
+      "expected": [
+        "gson/src/main/java/com/google/gson/JsonPrimitive.java"
+      ]
+    },
+    {
+      "slug": "netty/netty",
+      "repo": "https://github.com/netty/netty.git",
+      "license": "Apache-2.0",
+      "sha": "62c9ac3847f8ba6db5425221b19d339fd5ba4a97",
+      "issue": 17305,
+      "pullRequest": 17308,
+      "task": "Stale JavaDoc in FileRegion still warns about JDK 1.6.0_18 bugs\n\nThe JavaDoc for [](https://netty.io/4.2/api/io/netty/channel/FileRegion.html) contains a big jarring \"Upgrade your JDK / JRE\" heading that warns about four FileChannel.transferTo() bugs and anachronically advises upgrading to JDK 1.6.0_18 or later.\nThis warning is severely outdated: JDK 1.6.0_18 was released in 2010.\nAfaik, the four referenced bugs (5103988, 6253145, 6427312, 6470086) were fixed in that same release.\nNetty 4.x has required Java 8+ for many years, making this warning totally irrelevant.\n\nSuggested fix: Remove the entire \"Upgrade your JDK / JRE\" section from the FileRegion inter",
+      "expected": [
+        "transport/src/main/java/io/netty/channel/FileRegion.java"
+      ]
+    }
+  ],
+  "skipped": [
+    {
+      "slug": "django/django",
+      "reason": "no eligible fixing pull request among the 50 most recently updated merged PRs"
+    },
+    {
+      "slug": "boto/botocore",
+      "reason": "no eligible fixing pull request among the 50 most recently updated merged PRs"
+    },
+    {
+      "slug": "junit-team/junit5",
+      "reason": "no eligible fixing pull request among the 50 most recently updated merged PRs"
+    },
+    {
+      "slug": "apache/commons-lang",
+      "reason": "no eligible fixing pull request among the 50 most recently updated merged PRs"
+    },
+    {
+      "slug": "apache/kafka",
+      "reason": "no eligible fixing pull request among the 50 most recently updated merged PRs"
+    }
+  ]
+}

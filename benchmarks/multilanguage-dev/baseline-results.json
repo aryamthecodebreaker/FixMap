@@ -1,0 +1,5461 @@
+{
+  "suite": "multilanguage-dev",
+  "cases": 15,
+  "configuration": {
+    "topN": 5,
+    "corpus": "one scanRepo() result per case, shared by every arm",
+    "recordedCorpusFields": "rankings, hit outcomes, and deterministic evidence only; platform-dependent checkout counts and timings are deliberately omitted",
+    "searchField": "file path + scanner text sample (files over the scanner's sample limit are truncated for every arm alike)",
+    "tokenizer": "lowercase [A-Za-z0-9_$]+ of length >= 3, plus camelCase and underscore sub-tokens",
+    "stopwords": 158,
+    "caseSensitivity": "case-insensitive for both keyword arms, which favours the baselines",
+    "bm25": {
+      "k1": 1.2,
+      "b": 0.75
+    },
+    "candidatePolicies": {
+      "raw": "every scanned file; ranks READMEs first and is not a fair comparison",
+      "source": "isSource && !isTest — FixMap's own candidate gate",
+      "code": "isSource && !isTest && kind === 'code' — also drops documentation, as FixMap's scoring effectively does for implementation tasks"
+    },
+    "bestPolicyPerFamily": {
+      "path-extraction": "raw",
+      "lexical-literal": "code",
+      "bm25": "code"
+    },
+    "armDescriptions": {
+      "path-extraction": "path-shaped tokens read out of the task text, resolved against the corpus, ranked by order of appearance",
+      "lexical-literal": "literal keyword search ranked by distinct query terms matched, then raw occurrence count",
+      "bm25": "BM25 retrieval over the same text; a retrieval baseline, not a grep",
+      "fixmap": "rankContextFiles from @aryam/fixmap-core, which applies its own candidate gate internally"
+    }
+  },
+  "arms": {
+    "path-extraction:raw": {
+      "all": {
+        "cases": 15,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0,
+        "intervals95": {
+          "top1": [
+            0,
+            0.204
+          ],
+          "top3": [
+            0,
+            0.204
+          ],
+          "top5": [
+            0,
+            0.204
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 15,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0,
+        "intervals95": {
+          "top1": [
+            0,
+            0.204
+          ],
+          "top3": [
+            0,
+            0.204
+          ],
+          "top5": [
+            0,
+            0.204
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "path-extraction:source": {
+      "all": {
+        "cases": 15,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0,
+        "intervals95": {
+          "top1": [
+            0,
+            0.204
+          ],
+          "top3": [
+            0,
+            0.204
+          ],
+          "top5": [
+            0,
+            0.204
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 15,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0,
+        "intervals95": {
+          "top1": [
+            0,
+            0.204
+          ],
+          "top3": [
+            0,
+            0.204
+          ],
+          "top5": [
+            0,
+            0.204
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "path-extraction:code": {
+      "all": {
+        "cases": 15,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0,
+        "intervals95": {
+          "top1": [
+            0,
+            0.204
+          ],
+          "top3": [
+            0,
+            0.204
+          ],
+          "top5": [
+            0,
+            0.204
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 15,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0,
+        "intervals95": {
+          "top1": [
+            0,
+            0.204
+          ],
+          "top3": [
+            0,
+            0.204
+          ],
+          "top5": [
+            0,
+            0.204
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "lexical-literal:raw": {
+      "all": {
+        "cases": 15,
+        "top1HitRate": 0.2,
+        "top3HitRate": 0.333,
+        "top5HitRate": 0.467,
+        "intervals95": {
+          "top1": [
+            0.07,
+            0.452
+          ],
+          "top3": [
+            0.152,
+            0.583
+          ],
+          "top5": [
+            0.248,
+            0.699
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 15,
+        "top1HitRate": 0.2,
+        "top3HitRate": 0.333,
+        "top5HitRate": 0.467,
+        "intervals95": {
+          "top1": [
+            0.07,
+            0.452
+          ],
+          "top3": [
+            0.152,
+            0.583
+          ],
+          "top5": [
+            0.248,
+            0.699
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "lexical-literal:source": {
+      "all": {
+        "cases": 15,
+        "top1HitRate": 0.2,
+        "top3HitRate": 0.333,
+        "top5HitRate": 0.533,
+        "intervals95": {
+          "top1": [
+            0.07,
+            0.452
+          ],
+          "top3": [
+            0.152,
+            0.583
+          ],
+          "top5": [
+            0.301,
+            0.752
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 15,
+        "top1HitRate": 0.2,
+        "top3HitRate": 0.333,
+        "top5HitRate": 0.533,
+        "intervals95": {
+          "top1": [
+            0.07,
+            0.452
+          ],
+          "top3": [
+            0.152,
+            0.583
+          ],
+          "top5": [
+            0.301,
+            0.752
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "lexical-literal:code": {
+      "all": {
+        "cases": 15,
+        "top1HitRate": 0.2,
+        "top3HitRate": 0.467,
+        "top5HitRate": 0.533,
+        "intervals95": {
+          "top1": [
+            0.07,
+            0.452
+          ],
+          "top3": [
+            0.248,
+            0.699
+          ],
+          "top5": [
+            0.301,
+            0.752
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 15,
+        "top1HitRate": 0.2,
+        "top3HitRate": 0.467,
+        "top5HitRate": 0.533,
+        "intervals95": {
+          "top1": [
+            0.07,
+            0.452
+          ],
+          "top3": [
+            0.248,
+            0.699
+          ],
+          "top5": [
+            0.301,
+            0.752
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "bm25:raw": {
+      "all": {
+        "cases": 15,
+        "top1HitRate": 0.333,
+        "top3HitRate": 0.4,
+        "top5HitRate": 0.6,
+        "intervals95": {
+          "top1": [
+            0.152,
+            0.583
+          ],
+          "top3": [
+            0.198,
+            0.643
+          ],
+          "top5": [
+            0.357,
+            0.802
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 15,
+        "top1HitRate": 0.333,
+        "top3HitRate": 0.4,
+        "top5HitRate": 0.6,
+        "intervals95": {
+          "top1": [
+            0.152,
+            0.583
+          ],
+          "top3": [
+            0.198,
+            0.643
+          ],
+          "top5": [
+            0.357,
+            0.802
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "bm25:source": {
+      "all": {
+        "cases": 15,
+        "top1HitRate": 0.333,
+        "top3HitRate": 0.6,
+        "top5HitRate": 0.6,
+        "intervals95": {
+          "top1": [
+            0.152,
+            0.583
+          ],
+          "top3": [
+            0.357,
+            0.802
+          ],
+          "top5": [
+            0.357,
+            0.802
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 15,
+        "top1HitRate": 0.333,
+        "top3HitRate": 0.6,
+        "top5HitRate": 0.6,
+        "intervals95": {
+          "top1": [
+            0.152,
+            0.583
+          ],
+          "top3": [
+            0.357,
+            0.802
+          ],
+          "top5": [
+            0.357,
+            0.802
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "bm25:code": {
+      "all": {
+        "cases": 15,
+        "top1HitRate": 0.467,
+        "top3HitRate": 0.667,
+        "top5HitRate": 0.667,
+        "intervals95": {
+          "top1": [
+            0.248,
+            0.699
+          ],
+          "top3": [
+            0.417,
+            0.848
+          ],
+          "top5": [
+            0.417,
+            0.848
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 15,
+        "top1HitRate": 0.467,
+        "top3HitRate": 0.667,
+        "top5HitRate": 0.667,
+        "intervals95": {
+          "top1": [
+            0.248,
+            0.699
+          ],
+          "top3": [
+            0.417,
+            0.848
+          ],
+          "top5": [
+            0.417,
+            0.848
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "fixmap": {
+      "all": {
+        "cases": 15,
+        "top1HitRate": 0.333,
+        "top3HitRate": 0.6,
+        "top5HitRate": 0.733,
+        "intervals95": {
+          "top1": [
+            0.152,
+            0.583
+          ],
+          "top3": [
+            0.357,
+            0.802
+          ],
+          "top5": [
+            0.48,
+            0.891
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 15,
+        "top1HitRate": 0.333,
+        "top3HitRate": 0.6,
+        "top5HitRate": 0.733,
+        "intervals95": {
+          "top1": [
+            0.152,
+            0.583
+          ],
+          "top3": [
+            0.357,
+            0.802
+          ],
+          "top5": [
+            0.48,
+            0.891
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    }
+  },
+  "pairedVsFixmapMcnemarExact": {
+    "all": {
+      "path-extraction:raw": {
+        "top1": {
+          "aWins": 5,
+          "bWins": 0,
+          "discordant": 5,
+          "pValue": 0.0625
+        },
+        "top3": {
+          "aWins": 9,
+          "bWins": 0,
+          "discordant": 9,
+          "pValue": 0.0039
+        },
+        "top5": {
+          "aWins": 11,
+          "bWins": 0,
+          "discordant": 11,
+          "pValue": 0.001
+        }
+      },
+      "lexical-literal:code": {
+        "top1": {
+          "aWins": 3,
+          "bWins": 1,
+          "discordant": 4,
+          "pValue": 0.625
+        },
+        "top3": {
+          "aWins": 3,
+          "bWins": 1,
+          "discordant": 4,
+          "pValue": 0.625
+        },
+        "top5": {
+          "aWins": 4,
+          "bWins": 1,
+          "discordant": 5,
+          "pValue": 0.375
+        }
+      },
+      "bm25:code": {
+        "top1": {
+          "aWins": 0,
+          "bWins": 2,
+          "discordant": 2,
+          "pValue": 0.5
+        },
+        "top3": {
+          "aWins": 0,
+          "bWins": 1,
+          "discordant": 1,
+          "pValue": 1
+        },
+        "top5": {
+          "aWins": 1,
+          "bWins": 0,
+          "discordant": 1,
+          "pValue": 1
+        }
+      }
+    },
+    "unmentioned": {
+      "path-extraction:raw": {
+        "top1": {
+          "aWins": 5,
+          "bWins": 0,
+          "discordant": 5,
+          "pValue": 0.0625
+        },
+        "top3": {
+          "aWins": 9,
+          "bWins": 0,
+          "discordant": 9,
+          "pValue": 0.0039
+        },
+        "top5": {
+          "aWins": 11,
+          "bWins": 0,
+          "discordant": 11,
+          "pValue": 0.001
+        }
+      },
+      "lexical-literal:code": {
+        "top1": {
+          "aWins": 3,
+          "bWins": 1,
+          "discordant": 4,
+          "pValue": 0.625
+        },
+        "top3": {
+          "aWins": 3,
+          "bWins": 1,
+          "discordant": 4,
+          "pValue": 0.625
+        },
+        "top5": {
+          "aWins": 4,
+          "bWins": 1,
+          "discordant": 5,
+          "pValue": 0.375
+        }
+      },
+      "bm25:code": {
+        "top1": {
+          "aWins": 0,
+          "bWins": 2,
+          "discordant": 2,
+          "pValue": 0.5
+        },
+        "top3": {
+          "aWins": 0,
+          "bWins": 1,
+          "discordant": 1,
+          "pValue": 1
+        },
+        "top5": {
+          "aWins": 1,
+          "bWins": 0,
+          "discordant": 1,
+          "pValue": 1
+        }
+      }
+    }
+  },
+  "diagnostics": {
+    "meanReciprocalRankAt5": 0.485556,
+    "candidateRecallAt50": {
+      "structuralAt50": 0.933,
+      "lexicalAt50": 1,
+      "symbolAt50": 1,
+      "unionAt50": 1
+    },
+    "failureClasses": {
+      "none": 11,
+      "rerank-miss": 4
+    },
+    "cases": [
+      {
+        "slug": "pydantic/pydantic",
+        "expected": [
+          "pydantic/type_adapter.py"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 2,
+        "reciprocalRank": 0.5,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 3,
+          "lexical": 2,
+          "symbol": 4
+        },
+        "intent": "types",
+        "queryExpansions": [
+          {
+            "term": "configuration",
+            "source": "config",
+            "rule": "technical-alias"
+          },
+          {
+            "term": "ser_json_byte",
+            "source": "ser_json_bytes",
+            "rule": "inflection"
+          },
+          {
+            "term": "byte",
+            "source": "bytes",
+            "rule": "inflection"
+          },
+          {
+            "term": "property",
+            "source": "properties",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "pydantic/json_schema.py",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 99,
+            "lexicalRank": 3,
+            "symbolRank": 3,
+            "symbol": "Model",
+            "fusionScore": 104.8
+          },
+          {
+            "path": "pydantic/type_adapter.py",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 91,
+            "lexicalRank": 2,
+            "symbolRank": 4,
+            "symbol": "TypeAdapter",
+            "fusionScore": 96.82
+          },
+          {
+            "path": "pydantic/config.py",
+            "tier": "direct",
+            "structuralRank": 5,
+            "structuralScore": 89,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "ForceInputModel",
+            "fusionScore": 95
+          },
+          {
+            "path": "pydantic/main.py",
+            "tier": "direct",
+            "structuralRank": 6,
+            "structuralScore": 89,
+            "lexicalRank": 6,
+            "symbolRank": 14,
+            "symbol": "model_parametrized_name",
+            "fusionScore": 94.18
+          },
+          {
+            "path": "pydantic-core/src/serializers/type_serializers/json_or_python.rs",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 94,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 94
+          },
+          {
+            "path": "pydantic-core/src/validators/json_or_python.rs",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 89,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 89
+          },
+          {
+            "path": "pydantic/types.py",
+            "tier": "direct",
+            "structuralRank": 7,
+            "structuralScore": 73,
+            "lexicalRank": 7,
+            "symbolRank": 2,
+            "symbol": "Base64UrlEncoder",
+            "fusionScore": 78.6
+          },
+          {
+            "path": "pydantic/_internal/_generate_schema.py",
+            "tier": "direct",
+            "structuralRank": 8,
+            "structuralScore": 68,
+            "lexicalRank": 10,
+            "symbolRank": 9,
+            "symbol": "_pattern_schema",
+            "fusionScore": 73.14
+          },
+          {
+            "path": "pydantic/networks.py",
+            "tier": "direct",
+            "structuralRank": 10,
+            "structuralScore": 61,
+            "lexicalRank": 5,
+            "symbolRank": 5,
+            "symbol": "_build_type_adapter",
+            "fusionScore": 66.6
+          },
+          {
+            "path": "pydantic/fields.py",
+            "tier": "direct",
+            "structuralRank": 9,
+            "structuralScore": 61,
+            "lexicalRank": 17,
+            "symbolRank": 11,
+            "symbol": "Parent",
+            "fusionScore": 65.64
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "pydantic/type_adapter.py",
+            "intent": "types",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 3,
+            "structuralScore": 91,
+            "lexicalRank": 2,
+            "lexicalScore": 44.094441,
+            "symbolRank": 4,
+            "symbolScore": 30.124735,
+            "symbol": "TypeAdapter",
+            "queryExpansions": [
+              {
+                "term": "configuration",
+                "source": "config",
+                "rule": "technical-alias"
+              },
+              {
+                "term": "ser_json_byte",
+                "source": "ser_json_bytes",
+                "rule": "inflection"
+              },
+              {
+                "term": "byte",
+                "source": "bytes",
+                "rule": "inflection"
+              },
+              {
+                "term": "property",
+                "source": "properties",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 96.82
+          }
+        ]
+      },
+      {
+        "slug": "pallets/flask",
+        "expected": [
+          "src/flask/sansio/scaffold.py"
+        ],
+        "failureClass": "rerank-miss",
+        "bestFinalRank": null,
+        "reciprocalRank": 0,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 13,
+          "lexical": 6,
+          "symbol": 7
+        },
+        "intent": "implementation",
+        "queryExpansions": [
+          {
+            "term": "thread",
+            "source": "threads",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "value",
+            "source": "values",
+            "rule": "inflection"
+          },
+          {
+            "term": "endpoint",
+            "source": "endpoints",
+            "rule": "inflection"
+          },
+          {
+            "term": "env",
+            "source": "environment",
+            "rule": "technical-alias"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "src/flask/sessions.py",
+            "tier": "corroborated",
+            "structuralRank": 1,
+            "structuralScore": 41,
+            "lexicalRank": 9,
+            "symbolRank": 9,
+            "symbol": "permanent",
+            "fusionScore": 46.2
+          },
+          {
+            "path": "src/flask/globals.py",
+            "tier": "corroborated",
+            "structuralRank": 2,
+            "structuralScore": 39,
+            "lexicalRank": 21,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 41.3
+          },
+          {
+            "path": "src/flask/cli.py",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 33,
+            "lexicalRank": 2,
+            "symbolRank": 1,
+            "symbol": "load_dotenv",
+            "fusionScore": 38.94
+          },
+          {
+            "path": "src/flask/app.py",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 33,
+            "lexicalRank": 3,
+            "symbolRank": 3,
+            "symbol": "url_for",
+            "fusionScore": 38.8
+          },
+          {
+            "path": "src/flask/ctx.py",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 33,
+            "lexicalRank": 7,
+            "symbolRank": 8,
+            "symbol": "do_some_work",
+            "fusionScore": 38.36
+          },
+          {
+            "path": "src/flask/testing.py",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 33,
+            "lexicalRank": 10,
+            "symbolRank": 10,
+            "symbol": "json_dumps",
+            "fusionScore": 38.1
+          },
+          {
+            "path": "src/flask/templating.py",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 33,
+            "lexicalRank": 11,
+            "symbolRank": 11,
+            "symbol": "Environment",
+            "fusionScore": 38
+          },
+          {
+            "path": "src/flask/json/tag.py",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 33,
+            "lexicalRank": 14,
+            "symbolRank": 12,
+            "symbol": "JSONTag",
+            "fusionScore": 37.78
+          },
+          {
+            "path": "src/flask/sansio/app.py",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 31,
+            "lexicalRank": 4,
+            "symbolRank": 6,
+            "symbol": "handle_url_build_error",
+            "fusionScore": 36.62
+          },
+          {
+            "path": "src/flask/sansio/scaffold.py",
+            "tier": "corroborated",
+            "structuralRank": 13,
+            "structuralScore": 31,
+            "lexicalRank": 6,
+            "symbolRank": 7,
+            "symbol": "example",
+            "fusionScore": 36.46
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "src/flask/sansio/scaffold.py",
+            "intent": "implementation",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 13,
+            "structuralScore": 31,
+            "lexicalRank": 6,
+            "lexicalScore": 19.438499,
+            "symbolRank": 7,
+            "symbolScore": 16.448208,
+            "symbol": "example",
+            "queryExpansions": [
+              {
+                "term": "thread",
+                "source": "threads",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "value",
+                "source": "values",
+                "rule": "inflection"
+              },
+              {
+                "term": "endpoint",
+                "source": "endpoints",
+                "rule": "inflection"
+              },
+              {
+                "term": "env",
+                "source": "environment",
+                "rule": "technical-alias"
+              }
+            ],
+            "fusionScore": 36.46
+          }
+        ]
+      },
+      {
+        "slug": "fastapi/fastapi",
+        "expected": [
+          "fastapi/routing.py"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 1,
+          "lexical": 3,
+          "symbol": 7
+        },
+        "intent": "implementation",
+        "queryExpansions": [
+          {
+            "term": "lose",
+            "source": "loses",
+            "rule": "inflection"
+          },
+          {
+            "term": "omit",
+            "source": "omits",
+            "rule": "inflection"
+          },
+          {
+            "term": "model",
+            "source": "models",
+            "rule": "inflection"
+          },
+          {
+            "term": "work",
+            "source": "works",
+            "rule": "inflection"
+          },
+          {
+            "term": "collection",
+            "source": "collections",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "fastapi/routing.py",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 125,
+            "lexicalRank": 3,
+            "symbolRank": 7,
+            "symbol": "Item",
+            "fusionScore": 130.64
+          },
+          {
+            "path": "fastapi/applications.py",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 89,
+            "lexicalRank": 8,
+            "symbolRank": 9,
+            "symbol": "get",
+            "fusionScore": 94.26
+          },
+          {
+            "path": "fastapi/openapi/models.py",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 85,
+            "lexicalRank": 30,
+            "symbolRank": 39,
+            "symbol": "Example",
+            "fusionScore": 87.74
+          },
+          {
+            "path": "fastapi/sse.py",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 77,
+            "lexicalRank": 5,
+            "symbolRank": 1,
+            "symbol": "EventSourceResponse",
+            "fusionScore": 82.76
+          },
+          {
+            "path": "docs_src/server_sent_events/tutorial005_py310.py",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 49,
+            "lexicalRank": 2,
+            "symbolRank": 3,
+            "symbol": "stream_chat",
+            "fusionScore": 54.86
+          },
+          {
+            "path": "fastapi/openapi/utils.py",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 49,
+            "lexicalRank": 7,
+            "symbolRank": 12,
+            "symbol": "get_openapi_path",
+            "fusionScore": 54.2
+          },
+          {
+            "path": "docs_src/custom_request_and_route/tutorial003_py310.py",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 49,
+            "lexicalRank": 10,
+            "symbolRank": 8,
+            "symbol": "TimedRoute",
+            "fusionScore": 54.18
+          },
+          {
+            "path": "fastapi/dependencies/utils.py",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 49,
+            "lexicalRank": 46,
+            "symbolRank": 26,
+            "symbol": "get_typed_annotation",
+            "fusionScore": 51.3
+          },
+          {
+            "path": "docs_src/server_sent_events/tutorial001_py310.py",
+            "tier": "corroborated",
+            "structuralRank": 14,
+            "structuralScore": 41,
+            "lexicalRank": 1,
+            "symbolRank": 2,
+            "symbol": "Item",
+            "fusionScore": 46.96
+          },
+          {
+            "path": "docs_src/server_sent_events/tutorial002_py310.py",
+            "tier": "corroborated",
+            "structuralRank": 15,
+            "structuralScore": 41,
+            "lexicalRank": 4,
+            "symbolRank": 4,
+            "symbol": "Item",
+            "fusionScore": 46.7
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "fastapi/routing.py",
+            "intent": "implementation",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 1,
+            "structuralScore": 125,
+            "lexicalRank": 3,
+            "lexicalScore": 57.117247,
+            "symbolRank": 7,
+            "symbolScore": 45.296871,
+            "symbol": "Item",
+            "queryExpansions": [
+              {
+                "term": "lose",
+                "source": "loses",
+                "rule": "inflection"
+              },
+              {
+                "term": "omit",
+                "source": "omits",
+                "rule": "inflection"
+              },
+              {
+                "term": "model",
+                "source": "models",
+                "rule": "inflection"
+              },
+              {
+                "term": "work",
+                "source": "works",
+                "rule": "inflection"
+              },
+              {
+                "term": "collection",
+                "source": "collections",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 130.64
+          }
+        ]
+      },
+      {
+        "slug": "encode/httpx",
+        "expected": [
+          "httpx/config.py",
+          "httpx/utils.py"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 4,
+        "reciprocalRank": 0.25,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 8,
+          "lexical": 4,
+          "symbol": 1
+        },
+        "intent": "documentation",
+        "queryExpansions": [
+          {
+            "term": "request",
+            "source": "requests",
+            "rule": "inflection"
+          },
+          {
+            "term": "wherea",
+            "source": "whereas",
+            "rule": "inflection"
+          },
+          {
+            "term": "product",
+            "source": "products",
+            "rule": "inflection"
+          },
+          {
+            "term": "project",
+            "source": "projects",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "docs/environment_variables.md",
+            "tier": "corroborated",
+            "structuralRank": 1,
+            "structuralScore": 37,
+            "lexicalRank": 1,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 40.5
+          },
+          {
+            "path": "docs/advanced.md",
+            "tier": "corroborated",
+            "structuralRank": 2,
+            "structuralScore": 35,
+            "lexicalRank": 3,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 38.38
+          },
+          {
+            "path": "CHANGELOG.md",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 32,
+            "lexicalRank": 2,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 35.44
+          },
+          {
+            "path": "httpx/config.py",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 26,
+            "lexicalRank": 4,
+            "symbolRank": 1,
+            "symbol": "load_ssl_context_verify",
+            "fusionScore": 31.82
+          },
+          {
+            "path": "httpx/client.py",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 26,
+            "lexicalRank": 5,
+            "symbolRank": 2,
+            "symbol": "close",
+            "fusionScore": 31.72
+          },
+          {
+            "path": "docs/quickstart.md",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 27,
+            "lexicalRank": 13,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 29.78
+          },
+          {
+            "path": "docs/contributing.md",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 27,
+            "lexicalRank": 15,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 29.66
+          },
+          {
+            "path": "docs/api.md",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 27,
+            "lexicalRank": 18,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 29.48
+          },
+          {
+            "path": "httpx/dispatch/proxy_http.py",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 24,
+            "lexicalRank": 10,
+            "symbolRank": 8,
+            "symbol": "request_tunnel_proxy_connection",
+            "fusionScore": 29.18
+          },
+          {
+            "path": "httpx/dispatch/connection_pool.py",
+            "tier": "corroborated",
+            "structuralRank": 12,
+            "structuralScore": 22,
+            "lexicalRank": 7,
+            "symbolRank": 6,
+            "symbol": "add",
+            "fusionScore": 27.44
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "httpx/config.py",
+            "intent": "documentation",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 8,
+            "structuralScore": 26,
+            "lexicalRank": 4,
+            "lexicalScore": 30.485597,
+            "symbolRank": 1,
+            "symbolScore": 27.289682,
+            "symbol": "load_ssl_context_verify",
+            "queryExpansions": [
+              {
+                "term": "request",
+                "source": "requests",
+                "rule": "inflection"
+              },
+              {
+                "term": "wherea",
+                "source": "whereas",
+                "rule": "inflection"
+              },
+              {
+                "term": "product",
+                "source": "products",
+                "rule": "inflection"
+              },
+              {
+                "term": "project",
+                "source": "projects",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 31.82
+          },
+          {
+            "path": "httpx/utils.py",
+            "intent": "documentation",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 24,
+            "structuralScore": 12,
+            "lexicalRank": 8,
+            "lexicalScore": 21.087017,
+            "symbolRank": 3,
+            "symbolScore": 24.556987,
+            "symbol": "get_environment_proxies",
+            "queryExpansions": [
+              {
+                "term": "request",
+                "source": "requests",
+                "rule": "inflection"
+              },
+              {
+                "term": "wherea",
+                "source": "whereas",
+                "rule": "inflection"
+              },
+              {
+                "term": "product",
+                "source": "products",
+                "rule": "inflection"
+              },
+              {
+                "term": "project",
+                "source": "projects",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 17.5
+          }
+        ]
+      },
+      {
+        "slug": "psf/requests",
+        "expected": [
+          "src/requests/_types.py"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 3,
+        "reciprocalRank": 0.333333,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 3,
+          "lexical": 3,
+          "symbol": 3
+        },
+        "intent": "types",
+        "queryExpansions": [
+          {
+            "term": "annotation",
+            "source": "annotations",
+            "rule": "inflection"
+          },
+          {
+            "term": "payload",
+            "source": "payloads",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "note",
+            "source": "notes",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "src/requests/models.py",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 73,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "prepare_url",
+            "fusionScore": 79
+          },
+          {
+            "path": "src/requests/cookies.py",
+            "tier": "corroborated",
+            "structuralRank": 2,
+            "structuralScore": 41,
+            "lexicalRank": 4,
+            "symbolRank": 6,
+            "symbol": "get_dict",
+            "fusionScore": 46.62
+          },
+          {
+            "path": "src/requests/_types.py",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 37,
+            "lexicalRank": 3,
+            "symbolRank": 3,
+            "symbol": "BaseRequestKwargs",
+            "fusionScore": 42.8
+          },
+          {
+            "path": "src/requests/__init__.py",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 33,
+            "lexicalRank": 2,
+            "symbolRank": 5,
+            "symbol": "_check_cryptography",
+            "fusionScore": 38.78
+          },
+          {
+            "path": "src/requests/sessions.py",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 33,
+            "lexicalRank": 5,
+            "symbolRank": 7,
+            "symbol": "__enter__",
+            "fusionScore": 38.52
+          },
+          {
+            "path": "src/requests/utils.py",
+            "tier": "corroborated",
+            "structuralRank": 10,
+            "structuralScore": 33,
+            "lexicalRank": 6,
+            "symbolRank": 9,
+            "symbol": "parse_dict_header",
+            "fusionScore": 38.38
+          },
+          {
+            "path": "src/requests/auth.py",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 33,
+            "lexicalRank": 10,
+            "symbolRank": 4,
+            "symbol": "handle_redirect",
+            "fusionScore": 38.34
+          },
+          {
+            "path": "src/requests/api.py",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 33,
+            "lexicalRank": 9,
+            "symbolRank": 8,
+            "symbol": "request",
+            "fusionScore": 38.24
+          },
+          {
+            "path": "src/requests/exceptions.py",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 33,
+            "lexicalRank": 12,
+            "symbolRank": 13,
+            "symbol": "__init__",
+            "fusionScore": 37.86
+          },
+          {
+            "path": "src/requests/hooks.py",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 33,
+            "lexicalRank": 16,
+            "symbolRank": 15,
+            "symbol": "dispatch_hook",
+            "fusionScore": 37.54
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "src/requests/_types.py",
+            "intent": "types",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 3,
+            "structuralScore": 37,
+            "lexicalRank": 3,
+            "lexicalScore": 19.780423,
+            "symbolRank": 3,
+            "symbolScore": 19.547203,
+            "symbol": "BaseRequestKwargs",
+            "queryExpansions": [
+              {
+                "term": "annotation",
+                "source": "annotations",
+                "rule": "inflection"
+              },
+              {
+                "term": "payload",
+                "source": "payloads",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "note",
+                "source": "notes",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 42.8
+          }
+        ]
+      },
+      {
+        "slug": "python-poetry/poetry",
+        "expected": [
+          "src/poetry/puzzle/provider.py"
+        ],
+        "failureClass": "rerank-miss",
+        "bestFinalRank": null,
+        "reciprocalRank": 0,
+        "candidateRecall": {
+          "structuralAt50": false,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": null,
+          "lexical": 25,
+          "symbol": 34
+        },
+        "intent": "implementation",
+        "queryExpansions": [
+          {
+            "term": "fail",
+            "source": "fails",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "src/poetry/console/commands/lock.py",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 65,
+            "lexicalRank": 9,
+            "symbolRank": 2,
+            "symbol": "handle",
+            "fusionScore": 70.48
+          },
+          {
+            "path": "src/poetry/console/commands/install.py",
+            "tier": "corroborated",
+            "structuralRank": 2,
+            "structuralScore": 65,
+            "lexicalRank": 2,
+            "symbolRank": 22,
+            "symbol": "activated_groups",
+            "fusionScore": 70.1
+          },
+          {
+            "path": "src/poetry/console/commands/check.py",
+            "tier": "corroborated",
+            "structuralRank": 1,
+            "structuralScore": 65,
+            "lexicalRank": 5,
+            "symbolRank": 20,
+            "symbol": "_validate_classifiers",
+            "fusionScore": 70
+          },
+          {
+            "path": "src/poetry/console/commands/update.py",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 65,
+            "lexicalRank": 17,
+            "symbolRank": 30,
+            "symbol": "UpdateCommand",
+            "fusionScore": 68.88
+          },
+          {
+            "path": "src/poetry/console/commands/sync.py",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 57,
+            "lexicalRank": 11,
+            "symbolRank": 3,
+            "symbol": "_with_synchronization",
+            "fusionScore": 62.32
+          },
+          {
+            "path": "src/poetry/factory.py",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 57,
+            "lexicalRank": 10,
+            "symbolRank": 12,
+            "symbol": "validate",
+            "fusionScore": 62.02
+          },
+          {
+            "path": "src/poetry/console/commands/show.py",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 57,
+            "lexicalRank": 14,
+            "symbolRank": 11,
+            "symbol": "OutputFormats",
+            "fusionScore": 61.82
+          },
+          {
+            "path": "src/poetry/plugins/plugin_manager.py",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 57,
+            "lexicalRank": 18,
+            "symbolRank": 15,
+            "symbol": "add_project_plugin_path",
+            "fusionScore": 61.42
+          },
+          {
+            "path": "src/poetry/console/commands/add.py",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 55,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "handle",
+            "fusionScore": 61
+          },
+          {
+            "path": "src/poetry/packages/locker.py",
+            "tier": "corroborated",
+            "structuralRank": 13,
+            "structuralScore": 55,
+            "lexicalRank": 3,
+            "symbolRank": 8,
+            "symbol": "Locker",
+            "fusionScore": 60.6
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "src/poetry/puzzle/provider.py",
+            "intent": "implementation",
+            "tier": "corroborated",
+            "direct": false,
+            "lexicalRank": 25,
+            "lexicalScore": 21.103346,
+            "symbolRank": 34,
+            "symbolScore": 16.131492,
+            "symbol": "_resolve_overlapping_markers",
+            "queryExpansions": [
+              {
+                "term": "fail",
+                "source": "fails",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 31.74
+          }
+        ]
+      },
+      {
+        "slug": "pytest-dev/pytest",
+        "expected": [
+          "src/_pytest/assertion/rewrite.py"
+        ],
+        "failureClass": "rerank-miss",
+        "bestFinalRank": null,
+        "reciprocalRank": 0,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 26,
+          "lexical": 7,
+          "symbol": 8
+        },
+        "intent": "tests",
+        "queryExpansions": [
+          {
+            "term": "local",
+            "source": "locals",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "src/_pytest/pytester.py",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 97,
+            "lexicalRank": 2,
+            "symbolRank": 3,
+            "symbol": "_getpytestargs",
+            "fusionScore": 102.86
+          },
+          {
+            "path": "src/_pytest/legacypath.py",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 94,
+            "lexicalRank": 5,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 97.26
+          },
+          {
+            "path": "testing/python/metafunc.py",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 80,
+            "lexicalRank": 3,
+            "symbolRank": 4,
+            "symbol": "test_parametrize_with_ids",
+            "fusionScore": 85.76
+          },
+          {
+            "path": "testing/python/integration.py",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 80,
+            "lexicalRank": 9,
+            "symbolRank": 6,
+            "symbol": "test_pytestconfig_is_session_scoped",
+            "fusionScore": 85.32
+          },
+          {
+            "path": "testing/python/collect.py",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 56,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "check_meth",
+            "fusionScore": 62
+          },
+          {
+            "path": "testing/python/fixtures.py",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 56,
+            "lexicalRank": 4,
+            "symbolRank": 5,
+            "symbol": "test_scoped",
+            "fusionScore": 61.66
+          },
+          {
+            "path": "testing/python/raises.py",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 56,
+            "lexicalRank": 6,
+            "symbolRank": 2,
+            "symbol": "test_raises_match_failure_suppresses_exception_context",
+            "fusionScore": 61.66
+          },
+          {
+            "path": "testing/python/approx.py",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 56,
+            "lexicalRank": 25,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 58.06
+          },
+          {
+            "path": "testing/python/raises_group.py",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 48,
+            "lexicalRank": 26,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 50
+          },
+          {
+            "path": "src/_pytest/config/__init__.py",
+            "tier": "corroborated",
+            "structuralRank": 10,
+            "structuralScore": 46,
+            "lexicalRank": 8,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 49.08
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "src/_pytest/assertion/rewrite.py",
+            "intent": "tests",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 26,
+            "structuralScore": 28,
+            "lexicalRank": 7,
+            "lexicalScore": 32.220284,
+            "symbolRank": 8,
+            "symbolScore": 18.794399,
+            "symbol": "AssertionRewritingHook",
+            "queryExpansions": [
+              {
+                "term": "local",
+                "source": "locals",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 33.36
+          }
+        ]
+      },
+      {
+        "slug": "scrapy/scrapy",
+        "expected": [
+          "scrapy/utils/project.py"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 5,
+        "reciprocalRank": 0.2,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 5,
+          "lexical": 44,
+          "symbol": 15
+        },
+        "intent": "documentation",
+        "queryExpansions": [
+          {
+            "term": "get_project_setting",
+            "source": "get_project_settings",
+            "rule": "inflection"
+          },
+          {
+            "term": "setting",
+            "source": "settings",
+            "rule": "inflection"
+          },
+          {
+            "term": "custom_setting",
+            "source": "custom_settings",
+            "rule": "inflection"
+          },
+          {
+            "term": "util",
+            "source": "utils",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "topic",
+            "source": "topics",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "scrapy/settings/__init__.py",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 104,
+            "lexicalRank": 1,
+            "symbolRank": 3,
+            "symbol": "pop",
+            "fusionScore": 109.92
+          },
+          {
+            "path": "scrapy/commands/settings.py",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 101,
+            "lexicalRank": 8,
+            "symbolRank": 6,
+            "symbol": "run",
+            "fusionScore": 106.38
+          },
+          {
+            "path": "scrapy/spiders/__init__.py",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 96,
+            "lexicalRank": 4,
+            "symbolRank": 12,
+            "symbol": "Spider",
+            "fusionScore": 101.38
+          },
+          {
+            "path": "scrapy/utils/defer.py",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 88,
+            "lexicalRank": 23,
+            "symbolRank": 28,
+            "symbol": "parse",
+            "fusionScore": 91.6
+          },
+          {
+            "path": "scrapy/utils/project.py",
+            "tier": "direct",
+            "structuralRank": 5,
+            "structuralScore": 84,
+            "lexicalRank": 44,
+            "symbolRank": 15,
+            "symbol": "get_project_settings",
+            "fusionScore": 86.86
+          },
+          {
+            "path": "scrapy/extensions/throttle.py",
+            "tier": "direct",
+            "structuralRank": 6,
+            "structuralScore": 81,
+            "lexicalRank": 19,
+            "symbolRank": 8,
+            "symbol": "AutoThrottle",
+            "fusionScore": 85.64
+          },
+          {
+            "path": "tests/test_cmdline_crawl_with_pipeline/test_spider/settings.py",
+            "tier": "direct",
+            "structuralRank": 7,
+            "structuralScore": 79,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 79
+          },
+          {
+            "path": "scrapy/commands/__init__.py",
+            "tier": "direct",
+            "structuralRank": 8,
+            "structuralScore": 73,
+            "lexicalRank": 18,
+            "symbolRank": 7,
+            "symbol": "process_options",
+            "fusionScore": 77.74
+          },
+          {
+            "path": "scrapy/core/downloader/__init__.py",
+            "tier": "direct",
+            "structuralRank": 9,
+            "structuralScore": 73,
+            "lexicalRank": 29,
+            "symbolRank": 32,
+            "symbol": "Downloader",
+            "fusionScore": 76.08
+          },
+          {
+            "path": "scrapy/http/request/__init__.py",
+            "tier": "direct",
+            "structuralRank": 11,
+            "structuralScore": 73,
+            "lexicalRank": 25,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 75.06
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "scrapy/utils/project.py",
+            "intent": "documentation",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 5,
+            "structuralScore": 84,
+            "lexicalRank": 44,
+            "lexicalScore": 17.513486,
+            "symbolRank": 15,
+            "symbolScore": 21.020112,
+            "symbol": "get_project_settings",
+            "queryExpansions": [
+              {
+                "term": "get_project_setting",
+                "source": "get_project_settings",
+                "rule": "inflection"
+              },
+              {
+                "term": "setting",
+                "source": "settings",
+                "rule": "inflection"
+              },
+              {
+                "term": "custom_setting",
+                "source": "custom_settings",
+                "rule": "inflection"
+              },
+              {
+                "term": "util",
+                "source": "utils",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "topic",
+                "source": "topics",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 86.86
+          }
+        ]
+      },
+      {
+        "slug": "google/guava",
+        "expected": [
+          "android/guava/src/com/google/common/base/Splitter.java",
+          "guava/src/com/google/common/base/Splitter.java"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 7,
+          "lexical": 1,
+          "symbol": 1
+        },
+        "intent": "implementation",
+        "queryExpansions": [
+          {
+            "term": "omitemptystring",
+            "source": "omitemptystrings",
+            "rule": "inflection"
+          },
+          {
+            "term": "string",
+            "source": "strings",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "dangerou",
+            "source": "dangerous",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "guava/src/com/google/common/base/Splitter.java",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 29,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "provides",
+            "fusionScore": 35
+          },
+          {
+            "path": "android/guava/src/com/google/common/base/Splitter.java",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 29,
+            "lexicalRank": 2,
+            "symbolRank": 2,
+            "symbol": "provides",
+            "fusionScore": 34.9
+          },
+          {
+            "path": "guava/src/com/google/common/hash/Java8Compatibility.java",
+            "tier": "direct",
+            "structuralRank": 5,
+            "structuralScore": 32,
+            "lexicalRank": null,
+            "symbolRank": 30,
+            "symbol": "Java8Compatibility",
+            "fusionScore": 33.34
+          },
+          {
+            "path": "android/guava/src/com/google/common/hash/Java8Compatibility.java",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 32,
+            "lexicalRank": null,
+            "symbolRank": 31,
+            "symbol": "Java8Compatibility",
+            "fusionScore": 33.3
+          },
+          {
+            "path": "guava/src/com/google/common/io/Java8Compatibility.java",
+            "tier": "direct",
+            "structuralRank": 6,
+            "structuralScore": 32,
+            "lexicalRank": null,
+            "symbolRank": 32,
+            "symbol": "reset",
+            "fusionScore": 33.26
+          },
+          {
+            "path": "android/guava/src/com/google/common/io/Java8Compatibility.java",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 32,
+            "lexicalRank": null,
+            "symbolRank": 33,
+            "symbol": "reset",
+            "fusionScore": 33.22
+          },
+          {
+            "path": "guava/src/com/google/common/base/Java8Compatibility.java",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 32,
+            "lexicalRank": null,
+            "symbolRank": 34,
+            "symbol": "Java8Compatibility",
+            "fusionScore": 33.18
+          },
+          {
+            "path": "android/guava/src/com/google/common/base/Java8Compatibility.java",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 32,
+            "lexicalRank": null,
+            "symbolRank": 35,
+            "symbol": "Java8Compatibility",
+            "fusionScore": 33.14
+          },
+          {
+            "path": "guava/src/com/google/common/reflect/ClassPath.java",
+            "tier": "corroborated",
+            "structuralRank": 12,
+            "structuralScore": 20,
+            "lexicalRank": 3,
+            "symbolRank": 3,
+            "symbol": "with",
+            "fusionScore": 25.8
+          },
+          {
+            "path": "android/guava/src/com/google/common/reflect/ClassPath.java",
+            "tier": "corroborated",
+            "structuralRank": 10,
+            "structuralScore": 20,
+            "lexicalRank": 4,
+            "symbolRank": 4,
+            "symbol": "with",
+            "fusionScore": 25.7
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "guava/src/com/google/common/base/Splitter.java",
+            "intent": "implementation",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 8,
+            "structuralScore": 29,
+            "lexicalRank": 1,
+            "lexicalScore": 49.181862,
+            "symbolRank": 1,
+            "symbolScore": 54.800453,
+            "symbol": "provides",
+            "queryExpansions": [
+              {
+                "term": "omitemptystring",
+                "source": "omitemptystrings",
+                "rule": "inflection"
+              },
+              {
+                "term": "string",
+                "source": "strings",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "dangerou",
+                "source": "dangerous",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 35
+          },
+          {
+            "path": "android/guava/src/com/google/common/base/Splitter.java",
+            "intent": "implementation",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 7,
+            "structuralScore": 29,
+            "lexicalRank": 2,
+            "lexicalScore": 49.160148,
+            "symbolRank": 2,
+            "symbolScore": 54.748178,
+            "symbol": "provides",
+            "queryExpansions": [
+              {
+                "term": "omitemptystring",
+                "source": "omitemptystrings",
+                "rule": "inflection"
+              },
+              {
+                "term": "string",
+                "source": "strings",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "dangerou",
+                "source": "dangerous",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 34.9
+          }
+        ]
+      },
+      {
+        "slug": "spring-projects/spring-framework",
+        "expected": [
+          "spring-beans/src/main/java/org/springframework/beans/PropertyDescriptorUtils.java"
+        ],
+        "failureClass": "rerank-miss",
+        "bestFinalRank": null,
+        "reciprocalRank": 0,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 37,
+          "lexical": 31,
+          "symbol": 11
+        },
+        "intent": "implementation",
+        "queryExpansions": [
+          {
+            "term": "discover",
+            "source": "discovers",
+            "rule": "inflection"
+          },
+          {
+            "term": "method",
+            "source": "methods",
+            "rule": "inflection"
+          },
+          {
+            "term": "affect",
+            "source": "affects",
+            "rule": "inflection"
+          },
+          {
+            "term": "configurationproperty",
+            "source": "configurationproperties",
+            "rule": "inflection"
+          },
+          {
+            "term": "config",
+            "source": "configuration",
+            "rule": "technical-alias"
+          },
+          {
+            "term": "return",
+            "source": "returns",
+            "rule": "inflection"
+          },
+          {
+            "term": "cachedintrospectionresult",
+            "source": "cachedintrospectionresults",
+            "rule": "inflection"
+          },
+          {
+            "term": "result",
+            "source": "results",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "spring-beans/src/main/java/org/springframework/beans/CachedIntrospectionResults.java",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 100,
+            "lexicalRank": 2,
+            "symbolRank": 3,
+            "symbol": "introspectPlainAccessors",
+            "fusionScore": 105.86
+          },
+          {
+            "path": "spring-core/src/main/java/org/springframework/util/ClassUtils.java",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 96,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 96
+          },
+          {
+            "path": "spring-core/src/main/java/org/springframework/cglib/core/TypeUtils.java",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 86,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 86
+          },
+          {
+            "path": "spring-beans/src/main/java/org/springframework/beans/AbstractNestablePropertyAccessor.java",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 79,
+            "lexicalRank": 3,
+            "symbolRank": 2,
+            "symbol": "AbstractNestablePropertyAccessor",
+            "fusionScore": 84.84
+          },
+          {
+            "path": "spring-beans/src/main/java/org/springframework/beans/BeanWrapperImpl.java",
+            "tier": "direct",
+            "structuralRank": 5,
+            "structuralScore": 73,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "BeanWrapperImpl",
+            "fusionScore": 79
+          },
+          {
+            "path": "spring-beans/src/main/java/org/springframework/beans/factory/support/ConstructorResolver.java",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 67,
+            "lexicalRank": 8,
+            "symbolRank": 12,
+            "symbol": "none",
+            "fusionScore": 72.14
+          },
+          {
+            "path": "spring-core/src/main/java/org/springframework/cglib/core/MethodInfoTransformer.java",
+            "tier": "direct",
+            "structuralRank": 6,
+            "structuralScore": 71,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 71
+          },
+          {
+            "path": "spring-beans/src/main/java/org/springframework/beans/ExtendedBeanInfo.java",
+            "tier": "corroborated",
+            "structuralRank": 13,
+            "structuralScore": 65,
+            "lexicalRank": 5,
+            "symbolRank": 9,
+            "symbol": "ExtendedBeanInfo",
+            "fusionScore": 70.44
+          },
+          {
+            "path": "spring-beans/src/main/java/org/springframework/beans/factory/aot/BeanInstanceSupplier.java",
+            "tier": "single-source",
+            "structuralRank": 7,
+            "structuralScore": 70,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 70
+          },
+          {
+            "path": "spring-beans/src/main/java/org/springframework/beans/factory/support/RegisteredBean.java",
+            "tier": "single-source",
+            "structuralRank": 9,
+            "structuralScore": 67,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 67
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "spring-beans/src/main/java/org/springframework/beans/PropertyDescriptorUtils.java",
+            "intent": "implementation",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 37,
+            "structuralScore": 60,
+            "lexicalRank": 31,
+            "lexicalScore": 46.130575,
+            "symbolRank": 11,
+            "symbolScore": 42.743383,
+            "symbol": "PropertyDescriptorUtils",
+            "queryExpansions": [
+              {
+                "term": "discover",
+                "source": "discovers",
+                "rule": "inflection"
+              },
+              {
+                "term": "method",
+                "source": "methods",
+                "rule": "inflection"
+              },
+              {
+                "term": "affect",
+                "source": "affects",
+                "rule": "inflection"
+              },
+              {
+                "term": "configurationproperty",
+                "source": "configurationproperties",
+                "rule": "inflection"
+              },
+              {
+                "term": "config",
+                "source": "configuration",
+                "rule": "technical-alias"
+              },
+              {
+                "term": "return",
+                "source": "returns",
+                "rule": "inflection"
+              },
+              {
+                "term": "cachedintrospectionresult",
+                "source": "cachedintrospectionresults",
+                "rule": "inflection"
+              },
+              {
+                "term": "result",
+                "source": "results",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 63.8
+          }
+        ]
+      },
+      {
+        "slug": "mockito/mockito",
+        "expected": [
+          "mockito-core/src/main/java/org/mockito/Mockito.java",
+          "mockito-core/src/main/java/org/mockito/internal/PremainAttach.java",
+          "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/ClinitSuppressionTransformer.java"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 2,
+        "reciprocalRank": 0.5,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 3,
+          "lexical": 2,
+          "symbol": 1
+        },
+        "intent": "tests",
+        "queryExpansions": [
+          {
+            "term": "classe",
+            "source": "classes",
+            "rule": "inflection"
+          },
+          {
+            "term": "initializer",
+            "source": "initializers",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "config",
+            "source": "configuration",
+            "rule": "technical-alias"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": ".github/CONTRIBUTING.md",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 65,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 65
+          },
+          {
+            "path": "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/ClinitSuppressionTransformer.java",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 32,
+            "lexicalRank": 2,
+            "symbolRank": 1,
+            "symbol": "is",
+            "fusionScore": 37.94
+          },
+          {
+            "path": "mockito-integration-tests/inline-mocks-tests/build.gradle.kts",
+            "tier": "single-source",
+            "structuralRank": 2,
+            "structuralScore": 37,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 37
+          },
+          {
+            "path": "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/InlineDelegateByteBuddyMockMaker.java",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 29,
+            "lexicalRank": 13,
+            "symbolRank": 22,
+            "symbol": "InlineDelegateByteBuddyMockMaker",
+            "fusionScore": 33.44
+          },
+          {
+            "path": "mockito-core/src/main/java/org/mockito/internal/PremainAttach.java",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 24,
+            "lexicalRank": 3,
+            "symbolRank": 3,
+            "symbol": "premain",
+            "fusionScore": 29.8
+          },
+          {
+            "path": "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/InlineBytecodeGenerator.java",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 26,
+            "lexicalRank": 32,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 27.64
+          },
+          {
+            "path": "mockito-core/src/main/java/org/mockito/internal/configuration/MockAnnotationProcessor.java",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 26,
+            "lexicalRank": 46,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 26.8
+          },
+          {
+            "path": "mockito-core/src/main/java/org/mockito/configuration/IMockitoConfiguration.java",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 21,
+            "lexicalRank": 9,
+            "symbolRank": 9,
+            "symbol": "might",
+            "fusionScore": 26.2
+          },
+          {
+            "path": "mockito-core/src/main/java/org/mockito/internal/stubbing/answers/CallsRealMethods.java",
+            "tier": "corroborated",
+            "structuralRank": 14,
+            "structuralScore": 21,
+            "lexicalRank": 14,
+            "symbolRank": 7,
+            "symbol": "CallsRealMethods",
+            "fusionScore": 25.98
+          },
+          {
+            "path": "mockito-core/src/main/java/org/mockito/internal/util/reflection/FieldInitializer.java",
+            "tier": "corroborated",
+            "structuralRank": 16,
+            "structuralScore": 21,
+            "lexicalRank": 17,
+            "symbolRank": 23,
+            "symbol": "FieldInitializer",
+            "fusionScore": 25.16
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/ClinitSuppressionTransformer.java",
+            "intent": "tests",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 3,
+            "structuralScore": 32,
+            "lexicalRank": 2,
+            "lexicalScore": 36.042947,
+            "symbolRank": 1,
+            "symbolScore": 35.443023,
+            "symbol": "is",
+            "queryExpansions": [
+              {
+                "term": "classe",
+                "source": "classes",
+                "rule": "inflection"
+              },
+              {
+                "term": "initializer",
+                "source": "initializers",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "config",
+                "source": "configuration",
+                "rule": "technical-alias"
+              }
+            ],
+            "fusionScore": 37.94
+          },
+          {
+            "path": "mockito-core/src/main/java/org/mockito/internal/PremainAttach.java",
+            "intent": "tests",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 8,
+            "structuralScore": 24,
+            "lexicalRank": 3,
+            "lexicalScore": 33.448734,
+            "symbolRank": 3,
+            "symbolScore": 30.713603,
+            "symbol": "premain",
+            "queryExpansions": [
+              {
+                "term": "classe",
+                "source": "classes",
+                "rule": "inflection"
+              },
+              {
+                "term": "initializer",
+                "source": "initializers",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "config",
+                "source": "configuration",
+                "rule": "technical-alias"
+              }
+            ],
+            "fusionScore": 29.8
+          },
+          {
+            "path": "mockito-core/src/main/java/org/mockito/Mockito.java",
+            "intent": "tests",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 40,
+            "structuralScore": 18,
+            "lexicalRank": 5,
+            "lexicalScore": 28.870215,
+            "symbolRank": 12,
+            "symbolScore": 18.282643,
+            "symbol": "with",
+            "queryExpansions": [
+              {
+                "term": "classe",
+                "source": "classes",
+                "rule": "inflection"
+              },
+              {
+                "term": "initializer",
+                "source": "initializers",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "config",
+                "source": "configuration",
+                "rule": "technical-alias"
+              }
+            ],
+            "fusionScore": 23.32
+          }
+        ]
+      },
+      {
+        "slug": "FasterXML/jackson-databind",
+        "expected": [
+          "src/main/java/tools/jackson/databind/cfg/CacheProvider.java",
+          "src/main/java/tools/jackson/databind/deser/DeserializerCache.java"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 1,
+          "lexical": 1,
+          "symbol": 1
+        },
+        "intent": "configuration",
+        "queryExpansions": [
+          {
+            "term": "configuration",
+            "source": "configurations",
+            "rule": "inflection"
+          },
+          {
+            "term": "make",
+            "source": "makes",
+            "rule": "inflection"
+          },
+          {
+            "term": "embed",
+            "source": "embeds",
+            "rule": "inflection"
+          },
+          {
+            "term": "capture",
+            "source": "captures",
+            "rule": "inflection"
+          },
+          {
+            "term": "fetche",
+            "source": "fetches",
+            "rule": "inflection"
+          },
+          {
+            "term": "application",
+            "source": "applications",
+            "rule": "inflection"
+          },
+          {
+            "term": "return",
+            "source": "returns",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "src/main/java/tools/jackson/databind/cfg/CacheProvider.java",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 75,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "CacheProvider",
+            "fusionScore": 81
+          },
+          {
+            "path": "src/main/java/tools/jackson/databind/deser/DeserializerCache.java",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 75,
+            "lexicalRank": 6,
+            "symbolRank": 7,
+            "symbol": "DeserializerCache",
+            "fusionScore": 80.46
+          },
+          {
+            "path": "src/main/java/tools/jackson/databind/ValueDeserializer.java",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 63,
+            "lexicalRank": 9,
+            "symbolRank": 27,
+            "symbol": "ValueDeserializer",
+            "fusionScore": 67.48
+          },
+          {
+            "path": "src/main/java/tools/jackson/databind/jsontype/PolymorphicTypeValidator.java",
+            "tier": "direct",
+            "structuralRank": 5,
+            "structuralScore": 62,
+            "lexicalRank": 22,
+            "symbolRank": 13,
+            "symbol": "PolymorphicTypeValidator",
+            "fusionScore": 66.26
+          },
+          {
+            "path": "src/main/java/tools/jackson/databind/type/TypeFactory.java",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 64,
+            "lexicalRank": null,
+            "symbolRank": 14,
+            "symbol": "TypeFactory",
+            "fusionScore": 65.98
+          },
+          {
+            "path": "src/main/java/tools/jackson/databind/jsontype/impl/ClassNameIdResolver.java",
+            "tier": "direct",
+            "structuralRank": 6,
+            "structuralScore": 61,
+            "lexicalRank": 17,
+            "symbolRank": 6,
+            "symbol": "ClassNameIdResolver",
+            "fusionScore": 65.84
+          },
+          {
+            "path": "src/main/java/tools/jackson/databind/cfg/MapperBuilder.java",
+            "tier": "direct",
+            "structuralRank": 8,
+            "structuralScore": 59,
+            "lexicalRank": 2,
+            "symbolRank": 4,
+            "symbol": "MapperBuilder",
+            "fusionScore": 64.82
+          },
+          {
+            "path": "src/main/java/tools/jackson/databind/deser/BeanDeserializerFactory.java",
+            "tier": "direct",
+            "structuralRank": 10,
+            "structuralScore": 58,
+            "lexicalRank": 11,
+            "symbolRank": 39,
+            "symbol": "materializeAbstractType",
+            "fusionScore": 61.88
+          },
+          {
+            "path": "src/main/java/tools/jackson/databind/JavaType.java",
+            "tier": "direct",
+            "structuralRank": 7,
+            "structuralScore": 60,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 60
+          },
+          {
+            "path": "src/main/java/tools/jackson/databind/jsontype/TypeDeserializer.java",
+            "tier": "direct",
+            "structuralRank": 9,
+            "structuralScore": 59,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 59
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "src/main/java/tools/jackson/databind/cfg/CacheProvider.java",
+            "intent": "configuration",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 1,
+            "structuralScore": 75,
+            "lexicalRank": 1,
+            "lexicalScore": 72.904941,
+            "symbolRank": 1,
+            "symbolScore": 77.265269,
+            "symbol": "CacheProvider",
+            "queryExpansions": [
+              {
+                "term": "configuration",
+                "source": "configurations",
+                "rule": "inflection"
+              },
+              {
+                "term": "make",
+                "source": "makes",
+                "rule": "inflection"
+              },
+              {
+                "term": "embed",
+                "source": "embeds",
+                "rule": "inflection"
+              },
+              {
+                "term": "capture",
+                "source": "captures",
+                "rule": "inflection"
+              },
+              {
+                "term": "fetche",
+                "source": "fetches",
+                "rule": "inflection"
+              },
+              {
+                "term": "application",
+                "source": "applications",
+                "rule": "inflection"
+              },
+              {
+                "term": "return",
+                "source": "returns",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 81
+          },
+          {
+            "path": "src/main/java/tools/jackson/databind/deser/DeserializerCache.java",
+            "intent": "configuration",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 2,
+            "structuralScore": 75,
+            "lexicalRank": 6,
+            "lexicalScore": 64.422478,
+            "symbolRank": 7,
+            "symbolScore": 43.429069,
+            "symbol": "DeserializerCache",
+            "queryExpansions": [
+              {
+                "term": "configuration",
+                "source": "configurations",
+                "rule": "inflection"
+              },
+              {
+                "term": "make",
+                "source": "makes",
+                "rule": "inflection"
+              },
+              {
+                "term": "embed",
+                "source": "embeds",
+                "rule": "inflection"
+              },
+              {
+                "term": "capture",
+                "source": "captures",
+                "rule": "inflection"
+              },
+              {
+                "term": "fetche",
+                "source": "fetches",
+                "rule": "inflection"
+              },
+              {
+                "term": "application",
+                "source": "applications",
+                "rule": "inflection"
+              },
+              {
+                "term": "return",
+                "source": "returns",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 80.46
+          }
+        ]
+      },
+      {
+        "slug": "brettwooldridge/HikariCP",
+        "expected": [
+          "src/main/java/com/zaxxer/hikari/util/ConcurrentBag.java"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 1,
+          "lexical": 1,
+          "symbol": 1
+        },
+        "intent": "implementation",
+        "queryExpansions": [
+          {
+            "term": "saturate",
+            "source": "saturates",
+            "rule": "inflection"
+          },
+          {
+            "term": "cause",
+            "source": "causes",
+            "rule": "inflection"
+          },
+          {
+            "term": "iteration",
+            "source": "iterations",
+            "rule": "inflection"
+          },
+          {
+            "term": "parknano",
+            "source": "parknanos",
+            "rule": "inflection"
+          },
+          {
+            "term": "nano",
+            "source": "nanos",
+            "rule": "inflection"
+          },
+          {
+            "term": "trigger",
+            "source": "triggers",
+            "rule": "inflection"
+          },
+          {
+            "term": "waiter",
+            "source": "waiters",
+            "rule": "inflection"
+          },
+          {
+            "term": "dump",
+            "source": "dumps",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "src/main/java/com/zaxxer/hikari/util/ConcurrentBag.java",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 83,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "ConcurrentBag",
+            "fusionScore": 89
+          },
+          {
+            "path": "src/main/java/com/zaxxer/hikari/pool/HikariPool.java",
+            "tier": "corroborated",
+            "structuralRank": 2,
+            "structuralScore": 33,
+            "lexicalRank": 2,
+            "symbolRank": 4,
+            "symbol": "PoolInitializationException",
+            "fusionScore": 38.82
+          },
+          {
+            "path": "src/main/java/com/zaxxer/hikari/HikariConfig.java",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 25,
+            "lexicalRank": 6,
+            "symbolRank": 6,
+            "symbol": "seal",
+            "fusionScore": 30.5
+          },
+          {
+            "path": "src/main/java/com/zaxxer/hikari/HikariDataSource.java",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 21,
+            "lexicalRank": 11,
+            "symbolRank": 11,
+            "symbol": "HikariDataSource",
+            "fusionScore": 26
+          },
+          {
+            "path": "src/main/java/com/zaxxer/hikari/metrics/prometheus/PrometheusHistogramMetricsTracker.java",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 17,
+            "lexicalRank": 3,
+            "symbolRank": 2,
+            "symbol": "PrometheusHistogramMetricsTracker",
+            "fusionScore": 22.84
+          },
+          {
+            "path": "src/main/java/com/zaxxer/hikari/pool/ProxyLeakTask.java",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 17,
+            "lexicalRank": 10,
+            "symbolRank": 9,
+            "symbol": "cancel",
+            "fusionScore": 22.14
+          },
+          {
+            "path": "src/main/java/com/zaxxer/hikari/pool/PoolBase.java",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 17,
+            "lexicalRank": 14,
+            "symbolRank": 15,
+            "symbol": "PoolBase",
+            "fusionScore": 21.66
+          },
+          {
+            "path": "src/main/java/com/zaxxer/hikari/util/UtilityElf.java",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 15,
+            "lexicalRank": 7,
+            "symbolRank": 7,
+            "symbol": "DefaultThreadFactory",
+            "fusionScore": 20.4
+          },
+          {
+            "path": "src/main/java/com/zaxxer/hikari/pool/ProxyConnection.java",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 15,
+            "lexicalRank": 26,
+            "symbolRank": 18,
+            "symbol": "try",
+            "fusionScore": 18.82
+          },
+          {
+            "path": "src/main/java/com/zaxxer/hikari/metrics/prometheus/PrometheusMetricsTracker.java",
+            "tier": "corroborated",
+            "structuralRank": 14,
+            "structuralScore": 13,
+            "lexicalRank": 4,
+            "symbolRank": 3,
+            "symbol": "PrometheusMetricsTracker",
+            "fusionScore": 18.74
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "src/main/java/com/zaxxer/hikari/util/ConcurrentBag.java",
+            "intent": "implementation",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 1,
+            "structuralScore": 83,
+            "lexicalRank": 1,
+            "lexicalScore": 67.881964,
+            "symbolRank": 1,
+            "symbolScore": 29.271863,
+            "symbol": "ConcurrentBag",
+            "queryExpansions": [
+              {
+                "term": "saturate",
+                "source": "saturates",
+                "rule": "inflection"
+              },
+              {
+                "term": "cause",
+                "source": "causes",
+                "rule": "inflection"
+              },
+              {
+                "term": "iteration",
+                "source": "iterations",
+                "rule": "inflection"
+              },
+              {
+                "term": "parknano",
+                "source": "parknanos",
+                "rule": "inflection"
+              },
+              {
+                "term": "nano",
+                "source": "nanos",
+                "rule": "inflection"
+              },
+              {
+                "term": "trigger",
+                "source": "triggers",
+                "rule": "inflection"
+              },
+              {
+                "term": "waiter",
+                "source": "waiters",
+                "rule": "inflection"
+              },
+              {
+                "term": "dump",
+                "source": "dumps",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 89
+          }
+        ]
+      },
+      {
+        "slug": "google/gson",
+        "expected": [
+          "gson/src/main/java/com/google/gson/JsonPrimitive.java"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 2,
+        "reciprocalRank": 0.5,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 2,
+          "lexical": 1,
+          "symbol": 3
+        },
+        "intent": "types",
+        "queryExpansions": [
+          {
+            "term": "break",
+            "source": "breaks",
+            "rule": "inflection"
+          },
+          {
+            "term": "equal",
+            "source": "equals",
+            "rule": "inflection"
+          },
+          {
+            "term": "return",
+            "source": "returns",
+            "rule": "inflection"
+          },
+          {
+            "term": "moreassert",
+            "source": "moreasserts",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 75,
+            "lexicalRank": 3,
+            "symbolRank": 1,
+            "symbol": "readObject",
+            "fusionScore": 80.88
+          },
+          {
+            "path": "gson/src/main/java/com/google/gson/JsonPrimitive.java",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 72,
+            "lexicalRank": 1,
+            "symbolRank": 3,
+            "symbol": "representing",
+            "fusionScore": 77.92
+          },
+          {
+            "path": "gson/src/main/java/com/google/gson/JsonParser.java",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 56,
+            "lexicalRank": 5,
+            "symbolRank": 5,
+            "symbol": "JsonParser",
+            "fusionScore": 61.6
+          },
+          {
+            "path": "gson/src/main/java/com/google/gson/JsonElement.java",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 56,
+            "lexicalRank": 8,
+            "symbolRank": 4,
+            "symbol": "provides",
+            "fusionScore": 61.46
+          },
+          {
+            "path": "metrics/src/main/java/com/google/gson/metrics/ParseBenchmark.java",
+            "tier": "direct",
+            "structuralRank": 5,
+            "structuralScore": 49,
+            "lexicalRank": 11,
+            "symbolRank": 6,
+            "symbol": "GsonDomParser",
+            "fusionScore": 54.2
+          },
+          {
+            "path": "gson/src/main/java/com/google/gson/reflect/TypeToken.java",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 41,
+            "lexicalRank": 26,
+            "symbolRank": 19,
+            "symbol": "isCapturingTypeVariablesForbidden",
+            "fusionScore": 44.78
+          },
+          {
+            "path": "gson/src/main/java/com/google/gson/internal/GsonTypes.java",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 39,
+            "lexicalRank": 6,
+            "symbolRank": 9,
+            "symbol": "equal",
+            "fusionScore": 44.38
+          },
+          {
+            "path": "gson/src/main/java/com/google/gson/JsonArray.java",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 39,
+            "lexicalRank": 4,
+            "symbolRank": 21,
+            "symbol": "getAsSingleElement",
+            "fusionScore": 44.02
+          },
+          {
+            "path": "gson/src/main/java/com/google/gson/internal/bind/TreeTypeAdapter.java",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 41,
+            "lexicalRank": 30,
+            "symbolRank": 33,
+            "symbol": "GsonContextImpl",
+            "fusionScore": 43.98
+          },
+          {
+            "path": "proto/src/main/java/com/google/gson/protobuf/LegacyProtoTypeAdapterFactory.java",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 39,
+            "lexicalRank": 19,
+            "symbolRank": 26,
+            "symbol": "readByteString",
+            "fusionScore": 42.92
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "gson/src/main/java/com/google/gson/JsonPrimitive.java",
+            "intent": "types",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 2,
+            "structuralScore": 72,
+            "lexicalRank": 1,
+            "lexicalScore": 49.443476,
+            "symbolRank": 3,
+            "symbolScore": 33.435631,
+            "symbol": "representing",
+            "queryExpansions": [
+              {
+                "term": "break",
+                "source": "breaks",
+                "rule": "inflection"
+              },
+              {
+                "term": "equal",
+                "source": "equals",
+                "rule": "inflection"
+              },
+              {
+                "term": "return",
+                "source": "returns",
+                "rule": "inflection"
+              },
+              {
+                "term": "moreassert",
+                "source": "moreasserts",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 77.92
+          }
+        ]
+      },
+      {
+        "slug": "netty/netty",
+        "expected": [
+          "transport/src/main/java/io/netty/channel/FileRegion.java"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 1,
+          "lexical": 1,
+          "symbol": 1
+        },
+        "intent": "implementation",
+        "queryExpansions": [
+          {
+            "term": "warn",
+            "source": "warns",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "contain",
+            "source": "contains",
+            "rule": "inflection"
+          },
+          {
+            "term": "advise",
+            "source": "advises",
+            "rule": "inflection"
+          },
+          {
+            "term": "year",
+            "source": "years",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "transport/src/main/java/io/netty/channel/FileRegion.java",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 89,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "FileRegion",
+            "fusionScore": 95
+          },
+          {
+            "path": "transport/src/main/java/io/netty/channel/DefaultFileRegion.java",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 43,
+            "lexicalRank": 2,
+            "symbolRank": 2,
+            "symbol": "DefaultFileRegion",
+            "fusionScore": 48.9
+          },
+          {
+            "path": "transport-classes-io_uring/src/main/java/io/netty/channel/uring/AbstractIoUringStreamChannel.java",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 43,
+            "lexicalRank": 3,
+            "symbolRank": 3,
+            "symbol": "handleWriteCompleteFileRegion",
+            "fusionScore": 48.8
+          },
+          {
+            "path": "transport-classes-io_uring/src/main/java/io/netty/channel/uring/IoUringFileRegion.java",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 43,
+            "lexicalRank": 7,
+            "symbolRank": 7,
+            "symbol": "closePipeIfNeeded",
+            "fusionScore": 48.4
+          },
+          {
+            "path": "transport-classes-kqueue/src/main/java/io/netty/channel/kqueue/AbstractKQueueStreamChannel.java",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 43,
+            "lexicalRank": 4,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 46.32
+          },
+          {
+            "path": "transport-classes-epoll/src/main/java/io/netty/channel/epoll/AbstractEpollStreamChannel.java",
+            "tier": "corroborated",
+            "structuralRank": 2,
+            "structuralScore": 43,
+            "lexicalRank": 9,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 46.02
+          },
+          {
+            "path": "transport/src/main/java/io/netty/channel/socket/nio/NioSocketChannel.java",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 41,
+            "lexicalRank": 35,
+            "symbolRank": 18,
+            "symbol": "adjustMaxBytesPerGatheringWrite",
+            "fusionScore": 44.28
+          },
+          {
+            "path": "transport/src/main/java/io/netty/channel/socket/nio/NioDomainSocketChannel.java",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 39,
+            "lexicalRank": null,
+            "symbolRank": 17,
+            "symbol": "adjustMaxBytesPerGatheringWrite",
+            "fusionScore": 40.86
+          },
+          {
+            "path": "transport/src/main/java/io/netty/channel/nio/AbstractNioByteChannel.java",
+            "tier": "corroborated",
+            "structuralRank": 10,
+            "structuralScore": 35,
+            "lexicalRank": 5,
+            "symbolRank": 5,
+            "symbol": "incompleteWrite",
+            "fusionScore": 40.6
+          },
+          {
+            "path": "transport/src/main/java/io/netty/channel/oio/OioByteStreamChannel.java",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 35,
+            "lexicalRank": 26,
+            "symbolRank": 8,
+            "symbol": "checkEOF",
+            "fusionScore": 39.22
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "transport/src/main/java/io/netty/channel/FileRegion.java",
+            "intent": "implementation",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 1,
+            "structuralScore": 89,
+            "lexicalRank": 1,
+            "lexicalScore": 130.332721,
+            "symbolRank": 1,
+            "symbolScore": 60.599215,
+            "symbol": "FileRegion",
+            "queryExpansions": [
+              {
+                "term": "warn",
+                "source": "warns",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "contain",
+                "source": "contains",
+                "rule": "inflection"
+              },
+              {
+                "term": "advise",
+                "source": "advises",
+                "rule": "inflection"
+              },
+              {
+                "term": "year",
+                "source": "years",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 95
+          }
+        ]
+      }
+    ]
+  },
+  "results": [
+    {
+      "slug": "pydantic/pydantic",
+      "expected": [
+        "pydantic/type_adapter.py"
+      ],
+      "queryTermCount": 24,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "pydantic/json_schema.py",
+            "tests/test_json_schema.py",
+            "pydantic/config.py",
+            "tests/test_types.py",
+            "tests/test_json.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "pydantic/json_schema.py",
+            "pydantic/config.py",
+            "docs/migration.md",
+            "docs/concepts/models.md",
+            "docs/concepts/json_schema.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "pydantic/json_schema.py",
+            "pydantic/config.py",
+            "pydantic/_internal/_generate_schema.py",
+            "pydantic/main.py",
+            "pydantic/networks.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "tests/test_json_schema.py",
+            "docs/concepts/json_schema.md",
+            "tests/test_types.py",
+            "tests/test_json.py",
+            "pydantic/config.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "docs/concepts/json_schema.md",
+            "pydantic/config.py",
+            "docs/why.md",
+            "pydantic/json_schema.py",
+            "docs/concepts/types.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "pydantic/config.py",
+            "pydantic/json_schema.py",
+            "pydantic/type_adapter.py",
+            "pydantic/__init__.py",
+            "pydantic/networks.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "pydantic/json_schema.py",
+            "pydantic/type_adapter.py",
+            "pydantic/config.py",
+            "pydantic/main.py",
+            "pydantic-core/src/serializers/type_serializers/json_or_python.rs"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "pallets/flask",
+      "expected": [
+        "src/flask/sansio/scaffold.py"
+      ],
+      "queryTermCount": 36,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "src/flask/app.py",
+            "src/flask/cli.py",
+            "src/flask/helpers.py",
+            "src/flask/sansio/scaffold.py",
+            "tests/test_basic.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "src/flask/app.py",
+            "src/flask/cli.py",
+            "src/flask/helpers.py",
+            "src/flask/sansio/scaffold.py",
+            "src/flask/sansio/app.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "src/flask/app.py",
+            "src/flask/cli.py",
+            "src/flask/helpers.py",
+            "src/flask/sansio/scaffold.py",
+            "src/flask/sansio/app.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "src/flask/helpers.py",
+            "pyproject.toml",
+            "src/flask/config.py",
+            "src/flask/sansio/app.py",
+            "src/flask/app.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "src/flask/helpers.py",
+            "src/flask/app.py",
+            "src/flask/cli.py",
+            "src/flask/config.py",
+            "src/flask/sansio/app.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "src/flask/helpers.py",
+            "src/flask/cli.py",
+            "src/flask/app.py",
+            "src/flask/config.py",
+            "src/flask/sansio/app.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5Paths": [
+            "src/flask/sessions.py",
+            "src/flask/globals.py",
+            "src/flask/cli.py",
+            "src/flask/app.py",
+            "src/flask/helpers.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        }
+      }
+    },
+    {
+      "slug": "fastapi/fastapi",
+      "expected": [
+        "fastapi/routing.py"
+      ],
+      "queryTermCount": 57,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "fastapi/routing.py",
+            "fastapi/applications.py",
+            "fastapi/.agents/skills/fastapi/SKILL.md",
+            "docs/en/docs/release-notes.md",
+            "tests/test_router_include_context.py"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "fastapi/routing.py",
+            "fastapi/applications.py",
+            "fastapi/.agents/skills/fastapi/SKILL.md",
+            "docs/en/docs/release-notes.md",
+            "fastapi/openapi/utils.py"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "fastapi/routing.py",
+            "fastapi/applications.py",
+            "fastapi/openapi/utils.py",
+            "fastapi/dependencies/utils.py",
+            "fastapi/_compat/v2.py"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "fastapi/routing.py",
+            "tests/test_sse.py",
+            "fastapi/.agents/skills/fastapi/SKILL.md",
+            "fastapi/.agents/skills/fastapi/references/streaming.md",
+            "docs_src/server_sent_events/tutorial001_py310.py"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "fastapi/routing.py",
+            "fastapi/.agents/skills/fastapi/SKILL.md",
+            "fastapi/.agents/skills/fastapi/references/streaming.md",
+            "docs_src/server_sent_events/tutorial001_py310.py",
+            "docs_src/server_sent_events/tutorial005_py310.py"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "fastapi/routing.py",
+            "docs_src/server_sent_events/tutorial001_py310.py",
+            "docs_src/server_sent_events/tutorial005_py310.py",
+            "fastapi/sse.py",
+            "docs_src/server_sent_events/tutorial002_py310.py"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "fastapi/routing.py",
+            "fastapi/applications.py",
+            "fastapi/openapi/models.py",
+            "fastapi/sse.py",
+            "docs_src/server_sent_events/tutorial005_py310.py"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "encode/httpx",
+      "expected": [
+        "httpx/config.py",
+        "httpx/utils.py"
+      ],
+      "queryTermCount": 41,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "httpx/client.py",
+            "httpx/models.py",
+            "CHANGELOG.md",
+            "httpx/config.py",
+            "docs/advanced.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "httpx/client.py",
+            "httpx/models.py",
+            "CHANGELOG.md",
+            "httpx/config.py",
+            "docs/advanced.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "httpx/client.py",
+            "httpx/models.py",
+            "httpx/config.py",
+            "httpx/dispatch/proxy_http.py",
+            "httpx/utils.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "docs/advanced.md",
+            "docs/environment_variables.md",
+            "CHANGELOG.md",
+            "httpx/config.py",
+            "tests/test_config.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "docs/environment_variables.md",
+            "docs/advanced.md",
+            "httpx/config.py",
+            "CHANGELOG.md",
+            "httpx/client.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "httpx/config.py",
+            "httpx/client.py",
+            "httpx/utils.py",
+            "httpx/models.py",
+            "httpx/dispatch/connection_pool.py"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "docs/environment_variables.md",
+            "docs/advanced.md",
+            "CHANGELOG.md",
+            "httpx/config.py",
+            "httpx/client.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "psf/requests",
+      "expected": [
+        "src/requests/_types.py"
+      ],
+      "queryTermCount": 45,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "HISTORY.md",
+            "src/requests/models.py",
+            "src/requests/sessions.py",
+            "src/requests/adapters.py",
+            "src/requests/utils.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "HISTORY.md",
+            "src/requests/models.py",
+            "src/requests/sessions.py",
+            "src/requests/adapters.py",
+            "src/requests/utils.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "src/requests/models.py",
+            "src/requests/sessions.py",
+            "src/requests/adapters.py",
+            "src/requests/utils.py",
+            "src/requests/cookies.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "HISTORY.md",
+            "src/requests/_types.py",
+            "src/requests/models.py",
+            "src/requests/utils.py",
+            "src/requests/cookies.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "HISTORY.md",
+            "src/requests/_types.py",
+            "src/requests/models.py",
+            "src/requests/utils.py",
+            "src/requests/cookies.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "src/requests/models.py",
+            "src/requests/_types.py",
+            "src/requests/cookies.py",
+            "src/requests/utils.py",
+            "src/requests/sessions.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "src/requests/models.py",
+            "src/requests/cookies.py",
+            "src/requests/_types.py",
+            "src/requests/__init__.py",
+            "src/requests/sessions.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "python-poetry/poetry",
+      "expected": [
+        "src/poetry/puzzle/provider.py"
+      ],
+      "queryTermCount": 35,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "CHANGELOG.md",
+            "docs/cli.md",
+            "docs/pyproject.md",
+            "docs/faq.md",
+            "tests/console/commands/test_add.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "CHANGELOG.md",
+            "docs/cli.md",
+            "docs/pyproject.md",
+            "docs/faq.md",
+            "src/poetry/console/commands/add.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "src/poetry/console/commands/add.py",
+            "src/poetry/packages/locker.py",
+            "src/poetry/installation/executor.py",
+            "src/poetry/console/commands/init.py",
+            "src/poetry/plugins/plugin_manager.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "docs/cli.md",
+            "docs/pre-commit-hooks.md",
+            "docs/faq.md",
+            "tests/packages/test_locker.py",
+            "tests/console/commands/test_add.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "docs/cli.md",
+            "docs/pre-commit-hooks.md",
+            "CHANGELOG.md",
+            "docs/faq.md",
+            "docs/pyproject.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "src/poetry/console/commands/add.py",
+            "src/poetry/console/commands/install.py",
+            "src/poetry/packages/locker.py",
+            "src/poetry/console/commands/init.py",
+            "src/poetry/installation/executor.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5Paths": [
+            "src/poetry/console/commands/lock.py",
+            "src/poetry/console/commands/install.py",
+            "src/poetry/console/commands/check.py",
+            "src/poetry/console/commands/update.py",
+            "src/poetry/console/commands/add.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        }
+      }
+    },
+    {
+      "slug": "pytest-dev/pytest",
+      "expected": [
+        "src/_pytest/assertion/rewrite.py"
+      ],
+      "queryTermCount": 30,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "src/_pytest/pytester.py",
+            "testing/test_terminal.py",
+            "testing/test_collection.py",
+            "testing/test_assertrewrite.py",
+            "testing/acceptance_test.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "src/_pytest/pytester.py",
+            "src/_pytest/config/__init__.py",
+            "testing/python/collect.py",
+            "testing/python/raises.py",
+            "testing/python/metafunc.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "src/_pytest/pytester.py",
+            "src/_pytest/config/__init__.py",
+            "testing/python/collect.py",
+            "testing/python/raises.py",
+            "testing/python/metafunc.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "testing/test_assertrewrite.py",
+            "testing/acceptance_test.py",
+            "testing/test_terminal.py",
+            "testing/test_conftest.py",
+            "testing/test_pytester.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "testing/python/collect.py",
+            "src/_pytest/pytester.py",
+            "testing/python/metafunc.py",
+            "testing/python/fixtures.py",
+            "testing/python/raises.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "testing/python/collect.py",
+            "src/_pytest/pytester.py",
+            "testing/python/metafunc.py",
+            "testing/python/fixtures.py",
+            "testing/python/raises.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5Paths": [
+            "src/_pytest/pytester.py",
+            "src/_pytest/legacypath.py",
+            "testing/python/metafunc.py",
+            "testing/python/integration.py",
+            "testing/python/collect.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        }
+      }
+    },
+    {
+      "slug": "scrapy/scrapy",
+      "expected": [
+        "scrapy/utils/project.py"
+      ],
+      "queryTermCount": 40,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "scrapy/settings/__init__.py",
+            "tests/test_crawler.py",
+            "tests/utils/bases/download_handlers_http.py",
+            "tests/test_pipeline_files.py",
+            "scrapy/extensions/feedexport.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "scrapy/settings/__init__.py",
+            "scrapy/extensions/feedexport.py",
+            "scrapy/spidermiddlewares/referer.py",
+            "pyproject.toml",
+            "scrapy/crawler.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "scrapy/settings/__init__.py",
+            "scrapy/extensions/feedexport.py",
+            "scrapy/spidermiddlewares/referer.py",
+            "scrapy/crawler.py",
+            "scrapy/pipelines/files.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "tests/test_crawler.py",
+            "scrapy/settings/__init__.py",
+            "scrapy/cmdline.py",
+            "tests/test_commands.py",
+            "tests/test_command_check.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "scrapy/settings/__init__.py",
+            "scrapy/spiders/__init__.py",
+            "scrapy/cmdline.py",
+            "scrapy/settings/default_settings.py",
+            "scrapy/extensions/telnet.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "scrapy/cmdline.py",
+            "scrapy/settings/__init__.py",
+            "scrapy/spiders/__init__.py",
+            "scrapy/settings/default_settings.py",
+            "scrapy/extensions/telnet.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5Paths": [
+            "scrapy/settings/__init__.py",
+            "scrapy/commands/settings.py",
+            "scrapy/spiders/__init__.py",
+            "scrapy/utils/defer.py",
+            "scrapy/utils/project.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "google/guava",
+      "expected": [
+        "android/guava/src/com/google/common/base/Splitter.java",
+        "guava/src/com/google/common/base/Splitter.java"
+      ],
+      "queryTermCount": 17,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "android/guava/src/com/google/common/reflect/ClassPath.java",
+            "guava/src/com/google/common/reflect/ClassPath.java",
+            "android/guava/src/com/google/common/base/Splitter.java",
+            "guava/src/com/google/common/base/Splitter.java",
+            "android/guava/src/com/google/common/io/Files.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "android/guava/src/com/google/common/reflect/ClassPath.java",
+            "guava/src/com/google/common/reflect/ClassPath.java",
+            "android/guava/src/com/google/common/base/Splitter.java",
+            "guava/src/com/google/common/base/Splitter.java",
+            "android/guava/src/com/google/common/io/Files.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "android/guava/src/com/google/common/reflect/ClassPath.java",
+            "guava/src/com/google/common/reflect/ClassPath.java",
+            "android/guava/src/com/google/common/base/Splitter.java",
+            "guava/src/com/google/common/base/Splitter.java",
+            "android/guava/src/com/google/common/io/Files.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "guava/src/com/google/common/base/Splitter.java",
+            "android/guava/src/com/google/common/base/Splitter.java",
+            "guava-tests/test/com/google/common/base/SplitterTest.java",
+            "android/guava-tests/test/com/google/common/base/SplitterTest.java",
+            "README.md"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "guava/src/com/google/common/base/Splitter.java",
+            "android/guava/src/com/google/common/base/Splitter.java",
+            "README.md",
+            "guava/src/com/google/common/reflect/ClassPath.java",
+            "android/guava/src/com/google/common/reflect/ClassPath.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "guava/src/com/google/common/base/Splitter.java",
+            "android/guava/src/com/google/common/base/Splitter.java",
+            "guava/src/com/google/common/reflect/ClassPath.java",
+            "android/guava/src/com/google/common/reflect/ClassPath.java",
+            "guava/src/com/google/common/io/Files.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "guava/src/com/google/common/base/Splitter.java",
+            "android/guava/src/com/google/common/base/Splitter.java",
+            "guava/src/com/google/common/hash/Java8Compatibility.java",
+            "android/guava/src/com/google/common/hash/Java8Compatibility.java",
+            "guava/src/com/google/common/reflect/ClassPath.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "spring-projects/spring-framework",
+      "expected": [
+        "spring-beans/src/main/java/org/springframework/beans/PropertyDescriptorUtils.java"
+      ],
+      "queryTermCount": 53,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "spring-beans/src/main/java/org/springframework/beans/factory/support/AbstractAutowireCapableBeanFactory.java",
+            "spring-beans/src/main/java/org/springframework/beans/AbstractNestablePropertyAccessor.java",
+            "spring-context/src/main/java/org/springframework/validation/DataBinder.java",
+            "spring-beans/src/main/java/org/springframework/beans/CachedIntrospectionResults.java",
+            "spring-beans/src/main/java/org/springframework/beans/factory/support/DefaultListableBeanFactory.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "spring-beans/src/main/java/org/springframework/beans/factory/support/AbstractAutowireCapableBeanFactory.java",
+            "spring-beans/src/main/java/org/springframework/beans/AbstractNestablePropertyAccessor.java",
+            "spring-context/src/main/java/org/springframework/validation/DataBinder.java",
+            "spring-beans/src/main/java/org/springframework/beans/CachedIntrospectionResults.java",
+            "spring-beans/src/main/java/org/springframework/beans/factory/support/DefaultListableBeanFactory.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "spring-beans/src/main/java/org/springframework/beans/factory/support/AbstractAutowireCapableBeanFactory.java",
+            "spring-beans/src/main/java/org/springframework/beans/AbstractNestablePropertyAccessor.java",
+            "spring-context/src/main/java/org/springframework/validation/DataBinder.java",
+            "spring-beans/src/main/java/org/springframework/beans/CachedIntrospectionResults.java",
+            "spring-beans/src/main/java/org/springframework/beans/factory/support/DefaultListableBeanFactory.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "spring-beans/src/main/java/org/springframework/beans/BeanWrapperImpl.java",
+            "spring-beans/src/main/java/org/springframework/beans/CachedIntrospectionResults.java",
+            "spring-beans/src/main/java/org/springframework/beans/AbstractNestablePropertyAccessor.java",
+            "spring-beans/src/test/java/org/springframework/beans/CachedIntrospectionResultsTests.java",
+            "spring-beans/src/main/java/org/springframework/beans/factory/support/AbstractAutowireCapableBeanFactory.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "spring-beans/src/main/java/org/springframework/beans/BeanWrapperImpl.java",
+            "spring-beans/src/main/java/org/springframework/beans/CachedIntrospectionResults.java",
+            "spring-beans/src/main/java/org/springframework/beans/AbstractNestablePropertyAccessor.java",
+            "spring-beans/src/main/java/org/springframework/beans/factory/support/AbstractAutowireCapableBeanFactory.java",
+            "spring-expression/src/main/java/org/springframework/expression/spel/support/ReflectivePropertyAccessor.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "spring-beans/src/main/java/org/springframework/beans/BeanWrapperImpl.java",
+            "spring-beans/src/main/java/org/springframework/beans/CachedIntrospectionResults.java",
+            "spring-beans/src/main/java/org/springframework/beans/AbstractNestablePropertyAccessor.java",
+            "spring-beans/src/main/java/org/springframework/beans/factory/support/AbstractAutowireCapableBeanFactory.java",
+            "spring-expression/src/main/java/org/springframework/expression/spel/support/ReflectivePropertyAccessor.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5Paths": [
+            "spring-beans/src/main/java/org/springframework/beans/CachedIntrospectionResults.java",
+            "spring-core/src/main/java/org/springframework/util/ClassUtils.java",
+            "spring-core/src/main/java/org/springframework/cglib/core/TypeUtils.java",
+            "spring-beans/src/main/java/org/springframework/beans/AbstractNestablePropertyAccessor.java",
+            "spring-beans/src/main/java/org/springframework/beans/BeanWrapperImpl.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        }
+      }
+    },
+    {
+      "slug": "mockito/mockito",
+      "expected": [
+        "mockito-core/src/main/java/org/mockito/Mockito.java",
+        "mockito-core/src/main/java/org/mockito/internal/PremainAttach.java",
+        "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/ClinitSuppressionTransformer.java"
+      ],
+      "queryTermCount": 47,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "mockito-core/src/main/java/org/mockito/Mockito.java",
+            "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/InlineDelegateByteBuddyMockMaker.java",
+            "doc/release-notes/official.md",
+            "mockito-core/src/main/java/org/mockito/MockSettings.java",
+            "mockito-core/src/main/java/org/mockito/MockitoSession.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "mockito-core/src/main/java/org/mockito/Mockito.java",
+            "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/InlineDelegateByteBuddyMockMaker.java",
+            "doc/release-notes/official.md",
+            "mockito-core/src/main/java/org/mockito/MockSettings.java",
+            "mockito-core/src/main/java/org/mockito/MockitoSession.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "mockito-core/src/main/java/org/mockito/Mockito.java",
+            "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/InlineDelegateByteBuddyMockMaker.java",
+            "mockito-core/src/main/java/org/mockito/MockSettings.java",
+            "mockito-core/src/main/java/org/mockito/MockitoSession.java",
+            "mockito-core/src/main/java/org/mockito/junit/MockitoRule.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            ".github/CONTRIBUTING.md",
+            "mockito-integration-tests/inline-mocks-tests/build.gradle.kts",
+            "mockito-core/src/main/java/org/mockito/junit/MockitoRule.java",
+            "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/ClinitSuppressionTransformer.java",
+            "mockito-core/src/main/java/org/mockito/Mockito.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "mockito-integration-tests/inline-mocks-tests/build.gradle.kts",
+            ".github/CONTRIBUTING.md",
+            "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/ClinitSuppressionTransformer.java",
+            "mockito-core/src/main/java/org/mockito/junit/MockitoRule.java",
+            "mockito-core/src/main/java/org/mockito/Mockito.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "mockito-core/src/main/java/org/mockito/junit/MockitoRule.java",
+            "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/ClinitSuppressionTransformer.java",
+            "mockito-core/src/main/java/org/mockito/Mockito.java",
+            "mockito-core/src/main/java/org/mockito/internal/PremainAttach.java",
+            "mockito-core/src/main/java/org/mockito/exceptions/misusing/PotentialStubbingProblem.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            ".github/CONTRIBUTING.md",
+            "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/ClinitSuppressionTransformer.java",
+            "mockito-integration-tests/inline-mocks-tests/build.gradle.kts",
+            "mockito-core/src/main/java/org/mockito/internal/creation/bytebuddy/InlineDelegateByteBuddyMockMaker.java",
+            "mockito-core/src/main/java/org/mockito/internal/PremainAttach.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "FasterXML/jackson-databind",
+      "expected": [
+        "src/main/java/tools/jackson/databind/cfg/CacheProvider.java",
+        "src/main/java/tools/jackson/databind/deser/DeserializerCache.java"
+      ],
+      "queryTermCount": 61,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "src/main/java/tools/jackson/databind/cfg/MapperBuilder.java",
+            "src/main/java/tools/jackson/databind/DeserializationContext.java",
+            "src/main/java/tools/jackson/databind/deser/BeanDeserializerFactory.java",
+            "src/main/java/tools/jackson/databind/ObjectMapper.java",
+            "src/main/java/tools/jackson/databind/deser/bean/BeanDeserializerBase.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "src/main/java/tools/jackson/databind/cfg/MapperBuilder.java",
+            "src/main/java/tools/jackson/databind/DeserializationContext.java",
+            "src/main/java/tools/jackson/databind/deser/BeanDeserializerFactory.java",
+            "src/main/java/tools/jackson/databind/ObjectMapper.java",
+            "src/main/java/tools/jackson/databind/deser/bean/BeanDeserializerBase.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "src/main/java/tools/jackson/databind/cfg/MapperBuilder.java",
+            "src/main/java/tools/jackson/databind/DeserializationContext.java",
+            "src/main/java/tools/jackson/databind/deser/BeanDeserializerFactory.java",
+            "src/main/java/tools/jackson/databind/ObjectMapper.java",
+            "src/main/java/tools/jackson/databind/deser/bean/BeanDeserializerBase.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "src/main/java/tools/jackson/databind/cfg/CacheProvider.java",
+            "src/test/java/tools/jackson/databind/cfg/CacheProviderTest.java",
+            "src/main/java/tools/jackson/databind/cfg/MapperBuilder.java",
+            "src/main/java/tools/jackson/databind/deser/DeserializerCache.java",
+            "src/main/java/tools/jackson/databind/DatabindContext.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "src/main/java/tools/jackson/databind/cfg/CacheProvider.java",
+            "src/main/java/tools/jackson/databind/cfg/MapperBuilder.java",
+            "src/main/java/tools/jackson/databind/DatabindContext.java",
+            "src/main/java/tools/jackson/databind/jsontype/impl/StdTypeResolverBuilder.java",
+            "src/main/java/tools/jackson/databind/deser/DeserializerCache.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "src/main/java/tools/jackson/databind/cfg/CacheProvider.java",
+            "src/main/java/tools/jackson/databind/cfg/MapperBuilder.java",
+            "src/main/java/tools/jackson/databind/DatabindContext.java",
+            "src/main/java/tools/jackson/databind/jsontype/impl/StdTypeResolverBuilder.java",
+            "src/main/java/tools/jackson/databind/deser/DeserializerCache.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "src/main/java/tools/jackson/databind/cfg/CacheProvider.java",
+            "src/main/java/tools/jackson/databind/deser/DeserializerCache.java",
+            "src/main/java/tools/jackson/databind/ValueDeserializer.java",
+            "src/main/java/tools/jackson/databind/jsontype/PolymorphicTypeValidator.java",
+            "src/main/java/tools/jackson/databind/cfg/MapperBuilder.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "brettwooldridge/HikariCP",
+      "expected": [
+        "src/main/java/com/zaxxer/hikari/util/ConcurrentBag.java"
+      ],
+      "queryTermCount": 49,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "src/main/java/com/zaxxer/hikari/util/ConcurrentBag.java",
+            "README.md",
+            "src/main/java/com/zaxxer/hikari/pool/HikariPool.java",
+            "src/test/java/com/zaxxer/hikari/util/TomcatConcurrentBagLeakTest.java",
+            "documents/Welcome-To-The-Jungle.md"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "src/main/java/com/zaxxer/hikari/util/ConcurrentBag.java",
+            "README.md",
+            "src/main/java/com/zaxxer/hikari/pool/HikariPool.java",
+            "documents/Welcome-To-The-Jungle.md",
+            "src/main/java/com/zaxxer/hikari/HikariConfig.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "src/main/java/com/zaxxer/hikari/util/ConcurrentBag.java",
+            "src/main/java/com/zaxxer/hikari/pool/HikariPool.java",
+            "src/main/java/com/zaxxer/hikari/HikariConfig.java",
+            "src/main/java/com/zaxxer/hikari/util/UtilityElf.java",
+            "src/main/java/com/zaxxer/hikari/metrics/micrometer/MicrometerMetricsTracker.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "src/main/java/com/zaxxer/hikari/util/ConcurrentBag.java",
+            "README.md",
+            "src/test/java/com/zaxxer/hikari/util/TomcatConcurrentBagLeakTest.java",
+            "src/main/java/com/zaxxer/hikari/pool/HikariPool.java",
+            "src/test/java/com/zaxxer/hikari/pool/ConnectionPoolSizeVsThreadsTest.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "src/main/java/com/zaxxer/hikari/util/ConcurrentBag.java",
+            "README.md",
+            "src/main/java/com/zaxxer/hikari/pool/HikariPool.java",
+            "documents/Welcome-To-The-Jungle.md",
+            "src/main/java/com/zaxxer/hikari/metrics/prometheus/PrometheusHistogramMetricsTracker.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "src/main/java/com/zaxxer/hikari/util/ConcurrentBag.java",
+            "src/main/java/com/zaxxer/hikari/pool/HikariPool.java",
+            "src/main/java/com/zaxxer/hikari/metrics/prometheus/PrometheusHistogramMetricsTracker.java",
+            "src/main/java/com/zaxxer/hikari/metrics/prometheus/PrometheusMetricsTracker.java",
+            "src/main/java/com/zaxxer/hikari/metrics/prometheus/HikariCPCollector.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "src/main/java/com/zaxxer/hikari/util/ConcurrentBag.java",
+            "src/main/java/com/zaxxer/hikari/pool/HikariPool.java",
+            "src/main/java/com/zaxxer/hikari/HikariConfig.java",
+            "src/main/java/com/zaxxer/hikari/HikariDataSource.java",
+            "src/main/java/com/zaxxer/hikari/metrics/prometheus/PrometheusHistogramMetricsTracker.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "google/gson",
+      "expected": [
+        "gson/src/main/java/com/google/gson/JsonPrimitive.java"
+      ],
+      "queryTermCount": 39,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "CHANGELOG.md",
+            "gson/src/test/java/com/google/gson/functional/MapTest.java",
+            "gson/src/test/java/com/google/gson/JsonArrayTest.java",
+            "gson/src/test/java/com/google/gson/JsonObjectTest.java",
+            "UserGuide.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "CHANGELOG.md",
+            "UserGuide.md",
+            "gson/src/main/java/com/google/gson/GsonBuilder.java",
+            "gson/src/main/java/com/google/gson/JsonPrimitive.java",
+            "Troubleshooting.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "gson/src/main/java/com/google/gson/GsonBuilder.java",
+            "gson/src/main/java/com/google/gson/JsonPrimitive.java",
+            "gson/src/main/java/com/google/gson/Gson.java",
+            "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java",
+            "gson/src/main/java/com/google/gson/stream/JsonReader.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "gson/src/test/java/com/google/gson/JsonPrimitiveTest.java",
+            "gson/src/test/java/com/google/gson/JsonObjectTest.java",
+            "gson/src/test/java/com/google/gson/JsonArrayTest.java",
+            "CHANGELOG.md",
+            "gson/src/main/java/com/google/gson/JsonPrimitive.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "CHANGELOG.md",
+            "gson/src/main/java/com/google/gson/JsonPrimitive.java",
+            "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+            "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java",
+            "gson/src/main/java/com/google/gson/JsonParser.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "gson/src/main/java/com/google/gson/JsonPrimitive.java",
+            "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+            "gson/src/main/java/com/google/gson/JsonParser.java",
+            "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java",
+            "gson/src/main/java/com/google/gson/JsonElement.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+            "gson/src/main/java/com/google/gson/JsonPrimitive.java",
+            "gson/src/main/java/com/google/gson/JsonParser.java",
+            "gson/src/main/java/com/google/gson/JsonElement.java",
+            "metrics/src/main/java/com/google/gson/metrics/ParseBenchmark.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "netty/netty",
+      "expected": [
+        "transport/src/main/java/io/netty/channel/FileRegion.java"
+      ],
+      "queryTermCount": 55,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "buffer/src/main/java/io/netty/buffer/AdaptivePoolingAllocator.java",
+            "transport/src/main/java/io/netty/channel/FileRegion.java",
+            "handler/src/main/java/io/netty/handler/ssl/SslHandler.java",
+            "codec-http/src/main/java/io/netty/handler/codec/http/HttpObjectDecoder.java",
+            "handler/src/main/java/io/netty/handler/ssl/ReferenceCountedOpenSslEngine.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "buffer/src/main/java/io/netty/buffer/AdaptivePoolingAllocator.java",
+            "transport/src/main/java/io/netty/channel/FileRegion.java",
+            "handler/src/main/java/io/netty/handler/ssl/SslHandler.java",
+            "codec-http/src/main/java/io/netty/handler/codec/http/HttpObjectDecoder.java",
+            "handler/src/main/java/io/netty/handler/ssl/ReferenceCountedOpenSslEngine.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "buffer/src/main/java/io/netty/buffer/AdaptivePoolingAllocator.java",
+            "transport/src/main/java/io/netty/channel/FileRegion.java",
+            "handler/src/main/java/io/netty/handler/ssl/SslHandler.java",
+            "codec-http/src/main/java/io/netty/handler/codec/http/HttpObjectDecoder.java",
+            "handler/src/main/java/io/netty/handler/ssl/ReferenceCountedOpenSslEngine.java"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "transport/src/main/java/io/netty/channel/FileRegion.java",
+            "transport/src/main/java/io/netty/channel/DefaultFileRegion.java",
+            "transport-native-io_uring/src/test/java/io/netty/channel/uring/IoUringSocketFileRegionTest.java",
+            "transport-classes-io_uring/src/main/java/io/netty/channel/uring/AbstractIoUringStreamChannel.java",
+            "testsuite/src/main/java/io/netty/testsuite/transport/socket/SocketFileRegionTest.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "transport/src/main/java/io/netty/channel/FileRegion.java",
+            "transport/src/main/java/io/netty/channel/DefaultFileRegion.java",
+            "transport-classes-io_uring/src/main/java/io/netty/channel/uring/AbstractIoUringStreamChannel.java",
+            "pom.xml",
+            "transport-classes-kqueue/src/main/java/io/netty/channel/kqueue/AbstractKQueueStreamChannel.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "transport/src/main/java/io/netty/channel/FileRegion.java",
+            "transport/src/main/java/io/netty/channel/DefaultFileRegion.java",
+            "transport-classes-io_uring/src/main/java/io/netty/channel/uring/AbstractIoUringStreamChannel.java",
+            "transport-classes-kqueue/src/main/java/io/netty/channel/kqueue/AbstractKQueueStreamChannel.java",
+            "transport/src/main/java/io/netty/channel/nio/AbstractNioByteChannel.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "transport/src/main/java/io/netty/channel/FileRegion.java",
+            "transport/src/main/java/io/netty/channel/DefaultFileRegion.java",
+            "transport-classes-io_uring/src/main/java/io/netty/channel/uring/AbstractIoUringStreamChannel.java",
+            "transport-classes-io_uring/src/main/java/io/netty/channel/uring/IoUringFileRegion.java",
+            "transport/src/main/java/io/netty/channel/nio/AbstractNioByteChannel.java"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    }
+  ]
+}

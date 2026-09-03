@@ -153,7 +153,7 @@ describe("GitHub issues #600-#627", () => {
       expect(scanned.files.map((file) => file.path)).toContain("vendor/first-party/copy.php");
       expect(buildTestRoutes(scanned, ["apps/api/src/config.ts"])[0]?.command).toBe("yarn workspace @app/api run test");
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
     }
   });
 
@@ -167,7 +167,7 @@ describe("GitHub issues #600-#627", () => {
       expect(scanned.packageManager).toBe("pnpm");
       expect(scanned.diagnostics).toContainEqual(expect.objectContaining({ code: "package-manager-conflict" }));
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
     }
   });
 });

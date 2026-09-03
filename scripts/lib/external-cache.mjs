@@ -22,6 +22,9 @@ export async function materializePinnedRepository(
 
   try {
     git(["init", "--quiet"], staging);
+    // Repository-local long-path support is harmless on POSIX and required for real .NET
+    // trees on Windows. Keeping it local avoids mutating the developer's global Git config.
+    git(["config", "core.longpaths", "true"], staging);
     git(["remote", "add", "origin", benchmark.repo], staging);
     git(["fetch", "--quiet", "--depth", "1", "origin", benchmark.sha], staging);
     git(["checkout", "--quiet", "--detach", "FETCH_HEAD"], staging);
