@@ -29,6 +29,7 @@
 // Both keyword arms are case-insensitive and expand camelCase, which favours the
 // baselines. That is deliberate: a baseline that has been handicapped proves nothing.
 
+import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
@@ -39,7 +40,7 @@ import { wilsonInterval } from "./lib/wilson.mjs";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
   process.stdout.write(
-    "Usage: node scripts/evaluate-baseline.mjs [--suite external|heldout|multilanguage-dev|polyglot-dev] [--case owner/repo] [--reranker-ablations] [--compact] [--record|--check-recorded|--record-ablation|--check-ablation]\n"
+    "Usage: node scripts/evaluate-baseline.mjs [--suite external|heldout|multilanguage-dev|polyglot-dev|polyglot-validation] [--case owner/repo] [--reranker-ablations] [--compact] [--record|--check-recorded|--record-ablation|--check-ablation]\n"
   );
   process.exit(0);
 }
@@ -49,13 +50,15 @@ const { scanRepo, rankContextFilesEvidenceDetailed } = await import(
 
 const suiteIndex = process.argv.indexOf("--suite");
 const suite = suiteIndex === -1 ? "external" : process.argv[suiteIndex + 1];
-if (!["external", "heldout", "multilanguage-dev", "polyglot-dev"].includes(suite)) {
-  process.stderr.write(`Unknown suite "${suite}"; expected "external", "heldout", "multilanguage-dev", or "polyglot-dev".\n`);
+if (!["external", "heldout", "multilanguage-dev", "polyglot-dev", "polyglot-validation"].includes(suite)) {
+  process.stderr.write(`Unknown suite "${suite}"; expected "external", "heldout", "multilanguage-dev", "polyglot-dev", or "polyglot-validation".\n`);
   process.exit(1);
 }
 
 const suiteDir = join(repoRoot, "benchmarks", suite);
-const loadedDataset = JSON.parse(await readFile(join(suiteDir, "dataset.json"), "utf8"));
+const loadedDatasetText = await readFile(join(suiteDir, "dataset.json"), "utf8");
+const loadedDataset = JSON.parse(loadedDatasetText);
+const datasetSha256 = createHash("sha256").update(loadedDatasetText).digest("hex");
 const caseIndex = process.argv.indexOf("--case");
 const caseSlug = caseIndex === -1 ? undefined : process.argv[caseIndex + 1];
 const dataset = caseSlug
@@ -286,6 +289,11 @@ const RERANKER_ABLATIONS = {
   "rrf-balanced": { structural: 1, lexical: 1, symbol: 1, constant: 60 },
   "rrf-bm25-heavy": { structural: 1, lexical: 4, symbol: 1, constant: 60 }
 };
+const VALIDATION_CANDIDATE = {
+  name: "candidate-rrf-bm25-heavy",
+  weights: { structural: 1, lexical: 4, symbol: 1, constant: 60 }
+};
+const includeValidationCandidate = suite === "polyglot-validation";
 const ARMS = [];
 for (const arm of BASELINE_ARMS) {
   for (const policy of Object.keys(CANDIDATE_POLICIES)) {
@@ -293,6 +301,7 @@ for (const arm of BASELINE_ARMS) {
   }
 }
 if (includeRerankerAblations) ARMS.push(...Object.keys(RERANKER_ABLATIONS));
+if (includeValidationCandidate) ARMS.push(VALIDATION_CANDIDATE.name);
 ARMS.push("fixmap");
 
 const perArmResults = Object.fromEntries(ARMS.map((arm) => [arm, []]));
@@ -339,6 +348,12 @@ for (const [caseNumber, benchmark] of dataset.cases.entries()) {
     for (const [arm, weights] of Object.entries(RERANKER_ABLATIONS)) {
       ranked[arm] = rankEvidenceProfilesByRrf(evidenceRanking.profiles, weights);
     }
+  }
+  if (includeValidationCandidate) {
+    ranked[VALIDATION_CANDIDATE.name] = rankEvidenceProfilesByRrf(
+      evidenceRanking.profiles,
+      VALIDATION_CANDIDATE.weights
+    );
   }
   for (const [policy, predicate] of Object.entries(CANDIDATE_POLICIES)) {
     const files = repo.files.filter(predicate);
@@ -549,6 +564,8 @@ const summary = {
     caseSensitivity: "case-insensitive for both keyword arms, which favours the baselines",
     bm25: { k1: 1.2, b: 0.75 },
     ...(includeRerankerAblations ? { rerankerAblations: RERANKER_ABLATIONS } : {}),
+    ...(includeValidationCandidate ? { preRegisteredValidationCandidate: VALIDATION_CANDIDATE } : {}),
+    ...(includeValidationCandidate ? { datasetSha256 } : {}),
     candidatePolicies: {
       raw: "every scanned file; ranks READMEs first and is not a fair comparison",
       source: "isSource && !isTest — FixMap's own candidate gate",
@@ -562,6 +579,9 @@ const summary = {
       ...(includeRerankerAblations ? {
         "rrf-balanced": "development-only equal-weight reciprocal-rank fusion over structural, whole-file BM25, and symbol BM25 candidate ranks",
         "rrf-bm25-heavy": "development-only reciprocal-rank fusion that gives whole-file BM25 four times the structural or symbol weight; not shipped Core behavior"
+      } : {}),
+      ...(includeValidationCandidate ? {
+        [VALIDATION_CANDIDATE.name]: "pre-registered one-shot rank-fusion candidate fixed before this post-change validation cohort was frozen"
       } : {}),
       fixmap: "rankContextFiles from @aryam/fixmap-core, which applies its own candidate gate internally"
     }
@@ -599,12 +619,12 @@ const renderedSummary = compactOutput
       suite: summary.suite,
       cases: summary.cases,
       arms: Object.fromEntries(Object.entries(summary.arms).filter(([arm]) =>
-        arm === "fixmap" || arm === "bm25:code" || arm in RERANKER_ABLATIONS)),
+        arm === "fixmap" || arm === "bm25:code" || arm in RERANKER_ABLATIONS || arm === VALIDATION_CANDIDATE.name)),
       results: summary.results.map((entry) => ({
         slug: entry.slug,
         expected: entry.expected,
         arms: Object.fromEntries(Object.entries(entry.arms).filter(([arm]) =>
-          arm === "fixmap" || arm === "bm25:code" || arm in RERANKER_ABLATIONS))
+          arm === "fixmap" || arm === "bm25:code" || arm in RERANKER_ABLATIONS || arm === VALIDATION_CANDIDATE.name))
       }))
     }
   : summary;

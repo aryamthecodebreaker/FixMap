@@ -4,14 +4,22 @@
 import { execFile } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const suiteDir = join(root, "benchmarks", "polyglot-dev");
+const suiteIndex = process.argv.indexOf("--suite");
+const suite = suiteIndex === -1 ? "polyglot-dev" : process.argv[suiteIndex + 1];
+if (!suite || !["polyglot-dev", "polyglot-validation"].includes(suite)) {
+  throw new Error(`Unknown polyglot cohort suite: ${suite ?? "(missing)"}.`);
+}
+const suiteDir = join(root, "benchmarks", suite);
 const config = JSON.parse(await readFile(join(suiteDir, "repositories.json"), "utf8"));
 const outputPath = join(suiteDir, "dataset.json");
+const mergedAfter = parseOptionalTimestamp(config.mergedAfter, "mergedAfter");
+const excludedPullRequests = await loadExcludedPullRequests(config.excludePullRequestsFrom);
 const languageExtensions = {
   go: /\.go$/i,
   rust: /\.rs$/i,
@@ -43,9 +51,19 @@ for (const configured of config.repositories) {
   if (!owner || !name || !extension) throw new Error(`Invalid polyglot repository config: ${JSON.stringify(configured)}`);
   const response = await graphql({ owner, name });
   const repository = response.data?.repository;
-  const selected = repository?.pullRequests?.nodes?.find((pullRequest) => eligible(pullRequest, extension));
+  const selected = repository?.pullRequests?.nodes?.find((pullRequest) =>
+    eligible(pullRequest, extension) &&
+    (!mergedAfter || Date.parse(pullRequest.mergedAt) > mergedAfter) &&
+    !excludedPullRequests.has(`${configured.slug}#${pullRequest.number}`)
+  );
   if (!selected) {
-    skipped.push({ slug: configured.slug, language: configured.language, reason: "no eligible fixing pull request among the 100 most recently updated merged PRs" });
+    skipped.push({
+      slug: configured.slug,
+      language: configured.language,
+      reason: mergedAfter
+        ? `no eligible fixing pull request merged after ${config.mergedAfter} among the 100 most recently updated merged PRs`
+        : "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    });
     continue;
   }
   const issue = selected.closingIssuesReferences.nodes.find((entry) => entry.body.trim().length >= 80);
@@ -65,9 +83,13 @@ for (const configured of config.repositories) {
 
 const dataset = {
   generatedAt: new Date().toISOString().slice(0, 10),
-  status: "development-only",
+  status: config.status ?? "development-only",
   taskTextRule: "Closing issue title plus the first 600 characters of its body.",
-  selectionRule: "Per configured repository and language: the first of the 100 most recently updated merged pull requests that closes an issue with at least 80 body characters, is not docs-titled, changes no more than 20 files total, and modifies 1-3 non-test implementation files in that language. The PR base commit and exact fixing source paths are frozen before FixMap is measured.",
+  selectionRule:
+    "Per configured repository and language: the first of the 100 most recently updated merged pull requests that closes an issue with at least 80 body characters, is not docs-titled, changes no more than 20 files total, and modifies 1-3 non-test implementation files in that language." +
+    (config.mergedAfter ? ` It must have merged after ${config.mergedAfter}.` : "") +
+    (config.excludePullRequestsFrom ? ` Pull requests already present in ${config.excludePullRequestsFrom} are excluded.` : "") +
+    " The PR base commit and exact fixing source paths are frozen before FixMap is measured.",
   languages: ["go", "rust", "ruby", "php", "dotnet"],
   cases,
   skipped
@@ -86,9 +108,51 @@ function sourceFixPath(path, extension) {
   return extension.test(path) && !excludedPath.test(path) && !generatedPath.test(path);
 }
 async function graphql(variables) {
-  const { stdout } = await exec("gh", [
-    "api", "graphql", "-f", `query=${query}`,
-    "-F", `owner=${variables.owner}`, "-F", `name=${variables.name}`
-  ], { cwd: root, maxBuffer: 32 * 1024 * 1024 });
-  return JSON.parse(stdout);
+  const attempts = 3;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const { stdout } = await exec("gh", [
+        "api", "graphql", "-f", `query=${query}`,
+        "-F", `owner=${variables.owner}`, "-F", `name=${variables.name}`
+      ], { cwd: root, maxBuffer: 32 * 1024 * 1024 });
+      return JSON.parse(stdout);
+    } catch (error) {
+      const detail = [error?.stderr, error?.stdout, error?.message].filter(Boolean).join("\n");
+      const status = detail.match(/\bHTTP\s+(429|5\d\d)\b/)?.[1];
+      if (!status || attempt === attempts) {
+        throw new Error(
+          `GitHub metadata query failed for ${variables.owner}/${variables.name}` +
+          `${status ? ` after ${attempts} attempts (HTTP ${status})` : ""}.`,
+          { cause: error }
+        );
+      }
+      await delay(1_000 * 2 ** (attempt - 1));
+    }
+  }
+  throw new Error(`GitHub metadata query failed for ${variables.owner}/${variables.name}.`);
+}
+
+function parseOptionalTimestamp(value, field) {
+  if (value === undefined) return undefined;
+  const timestamp = Date.parse(value);
+  if (typeof value !== "string" || !Number.isFinite(timestamp)) {
+    throw new Error(`Invalid ${field} timestamp in ${suite}/repositories.json.`);
+  }
+  return timestamp;
+}
+
+async function loadExcludedPullRequests(relativePath) {
+  if (relativePath === undefined) return new Set();
+  if (typeof relativePath !== "string" || !relativePath.trim()) {
+    throw new Error(`Invalid excludePullRequestsFrom in ${suite}/repositories.json.`);
+  }
+  const prior = JSON.parse(await readFile(resolve(suiteDir, relativePath), "utf8"));
+  if (!Array.isArray(prior.cases)) {
+    throw new Error(`Excluded cohort ${relativePath} does not contain a cases array.`);
+  }
+  return new Set(prior.cases.flatMap((entry) =>
+    typeof entry.slug === "string" && Number.isSafeInteger(entry.pullRequest)
+      ? [`${entry.slug}#${entry.pullRequest}`]
+      : []
+  ));
 }

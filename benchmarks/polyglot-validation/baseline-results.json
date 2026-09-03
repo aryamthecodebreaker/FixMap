@@ -1,0 +1,3365 @@
+{
+  "suite": "polyglot-validation",
+  "cases": 8,
+  "configuration": {
+    "topN": 5,
+    "corpus": "one scanRepo() result per case, shared by every arm",
+    "recordedCorpusFields": "rankings, hit outcomes, and deterministic evidence only; platform-dependent checkout counts and timings are deliberately omitted",
+    "searchField": "file path + scanner text sample (files over the scanner's sample limit are truncated for every arm alike)",
+    "tokenizer": "lowercase [A-Za-z0-9_$]+ of length >= 3, plus camelCase and underscore sub-tokens",
+    "stopwords": 158,
+    "caseSensitivity": "case-insensitive for both keyword arms, which favours the baselines",
+    "bm25": {
+      "k1": 1.2,
+      "b": 0.75
+    },
+    "preRegisteredValidationCandidate": {
+      "name": "candidate-rrf-bm25-heavy",
+      "weights": {
+        "structural": 1,
+        "lexical": 4,
+        "symbol": 1,
+        "constant": 60
+      }
+    },
+    "datasetSha256": "b433d84b28f4552a8bde485769022d8a5bcf69cc8e184b39f866ffee0989c031",
+    "candidatePolicies": {
+      "raw": "every scanned file; ranks READMEs first and is not a fair comparison",
+      "source": "isSource && !isTest — FixMap's own candidate gate",
+      "code": "isSource && !isTest && kind === 'code' — also drops documentation, as FixMap's scoring effectively does for implementation tasks"
+    },
+    "bestPolicyPerFamily": {
+      "path-extraction": "raw",
+      "lexical-literal": "code",
+      "bm25": "code"
+    },
+    "armDescriptions": {
+      "path-extraction": "path-shaped tokens read out of the task text, resolved against the corpus, ranked by order of appearance",
+      "lexical-literal": "literal keyword search ranked by distinct query terms matched, then raw occurrence count",
+      "bm25": "BM25 retrieval over the same text; a retrieval baseline, not a grep",
+      "candidate-rrf-bm25-heavy": "pre-registered one-shot rank-fusion candidate fixed before this post-change validation cohort was frozen",
+      "fixmap": "rankContextFiles from @aryam/fixmap-core, which applies its own candidate gate internally"
+    }
+  },
+  "arms": {
+    "path-extraction:raw": {
+      "all": {
+        "cases": 8,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0,
+        "intervals95": {
+          "top1": [
+            0,
+            0.324
+          ],
+          "top3": [
+            0,
+            0.324
+          ],
+          "top5": [
+            0,
+            0.324
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 8,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0,
+        "intervals95": {
+          "top1": [
+            0,
+            0.324
+          ],
+          "top3": [
+            0,
+            0.324
+          ],
+          "top5": [
+            0,
+            0.324
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "path-extraction:source": {
+      "all": {
+        "cases": 8,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0,
+        "intervals95": {
+          "top1": [
+            0,
+            0.324
+          ],
+          "top3": [
+            0,
+            0.324
+          ],
+          "top5": [
+            0,
+            0.324
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 8,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0,
+        "intervals95": {
+          "top1": [
+            0,
+            0.324
+          ],
+          "top3": [
+            0,
+            0.324
+          ],
+          "top5": [
+            0,
+            0.324
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "path-extraction:code": {
+      "all": {
+        "cases": 8,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0,
+        "intervals95": {
+          "top1": [
+            0,
+            0.324
+          ],
+          "top3": [
+            0,
+            0.324
+          ],
+          "top5": [
+            0,
+            0.324
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 8,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0,
+        "intervals95": {
+          "top1": [
+            0,
+            0.324
+          ],
+          "top3": [
+            0,
+            0.324
+          ],
+          "top5": [
+            0,
+            0.324
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "lexical-literal:raw": {
+      "all": {
+        "cases": 8,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0.125,
+        "intervals95": {
+          "top1": [
+            0,
+            0.324
+          ],
+          "top3": [
+            0,
+            0.324
+          ],
+          "top5": [
+            0.022,
+            0.471
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 8,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0.125,
+        "intervals95": {
+          "top1": [
+            0,
+            0.324
+          ],
+          "top3": [
+            0,
+            0.324
+          ],
+          "top5": [
+            0.022,
+            0.471
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "lexical-literal:source": {
+      "all": {
+        "cases": 8,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0.125,
+        "intervals95": {
+          "top1": [
+            0,
+            0.324
+          ],
+          "top3": [
+            0,
+            0.324
+          ],
+          "top5": [
+            0.022,
+            0.471
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 8,
+        "top1HitRate": 0,
+        "top3HitRate": 0,
+        "top5HitRate": 0.125,
+        "intervals95": {
+          "top1": [
+            0,
+            0.324
+          ],
+          "top3": [
+            0,
+            0.324
+          ],
+          "top5": [
+            0.022,
+            0.471
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "lexical-literal:code": {
+      "all": {
+        "cases": 8,
+        "top1HitRate": 0.125,
+        "top3HitRate": 0.375,
+        "top5HitRate": 0.625,
+        "intervals95": {
+          "top1": [
+            0.022,
+            0.471
+          ],
+          "top3": [
+            0.137,
+            0.694
+          ],
+          "top5": [
+            0.306,
+            0.863
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 8,
+        "top1HitRate": 0.125,
+        "top3HitRate": 0.375,
+        "top5HitRate": 0.625,
+        "intervals95": {
+          "top1": [
+            0.022,
+            0.471
+          ],
+          "top3": [
+            0.137,
+            0.694
+          ],
+          "top5": [
+            0.306,
+            0.863
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "bm25:raw": {
+      "all": {
+        "cases": 8,
+        "top1HitRate": 0.25,
+        "top3HitRate": 0.375,
+        "top5HitRate": 0.375,
+        "intervals95": {
+          "top1": [
+            0.071,
+            0.591
+          ],
+          "top3": [
+            0.137,
+            0.694
+          ],
+          "top5": [
+            0.137,
+            0.694
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 8,
+        "top1HitRate": 0.25,
+        "top3HitRate": 0.375,
+        "top5HitRate": 0.375,
+        "intervals95": {
+          "top1": [
+            0.071,
+            0.591
+          ],
+          "top3": [
+            0.137,
+            0.694
+          ],
+          "top5": [
+            0.137,
+            0.694
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "bm25:source": {
+      "all": {
+        "cases": 8,
+        "top1HitRate": 0.25,
+        "top3HitRate": 0.375,
+        "top5HitRate": 0.375,
+        "intervals95": {
+          "top1": [
+            0.071,
+            0.591
+          ],
+          "top3": [
+            0.137,
+            0.694
+          ],
+          "top5": [
+            0.137,
+            0.694
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 8,
+        "top1HitRate": 0.25,
+        "top3HitRate": 0.375,
+        "top5HitRate": 0.375,
+        "intervals95": {
+          "top1": [
+            0.071,
+            0.591
+          ],
+          "top3": [
+            0.137,
+            0.694
+          ],
+          "top5": [
+            0.137,
+            0.694
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "bm25:code": {
+      "all": {
+        "cases": 8,
+        "top1HitRate": 0.25,
+        "top3HitRate": 0.5,
+        "top5HitRate": 0.625,
+        "intervals95": {
+          "top1": [
+            0.071,
+            0.591
+          ],
+          "top3": [
+            0.215,
+            0.785
+          ],
+          "top5": [
+            0.306,
+            0.863
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 8,
+        "top1HitRate": 0.25,
+        "top3HitRate": 0.5,
+        "top5HitRate": 0.625,
+        "intervals95": {
+          "top1": [
+            0.071,
+            0.591
+          ],
+          "top3": [
+            0.215,
+            0.785
+          ],
+          "top5": [
+            0.306,
+            0.863
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "candidate-rrf-bm25-heavy": {
+      "all": {
+        "cases": 8,
+        "top1HitRate": 0.375,
+        "top3HitRate": 0.75,
+        "top5HitRate": 0.875,
+        "intervals95": {
+          "top1": [
+            0.137,
+            0.694
+          ],
+          "top3": [
+            0.409,
+            0.929
+          ],
+          "top5": [
+            0.529,
+            0.978
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 8,
+        "top1HitRate": 0.375,
+        "top3HitRate": 0.75,
+        "top5HitRate": 0.875,
+        "intervals95": {
+          "top1": [
+            0.137,
+            0.694
+          ],
+          "top3": [
+            0.409,
+            0.929
+          ],
+          "top5": [
+            0.529,
+            0.978
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    },
+    "fixmap": {
+      "all": {
+        "cases": 8,
+        "top1HitRate": 0.5,
+        "top3HitRate": 0.75,
+        "top5HitRate": 0.875,
+        "intervals95": {
+          "top1": [
+            0.215,
+            0.785
+          ],
+          "top3": [
+            0.409,
+            0.929
+          ],
+          "top5": [
+            0.529,
+            0.978
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 8,
+        "top1HitRate": 0.5,
+        "top3HitRate": 0.75,
+        "top5HitRate": 0.875,
+        "intervals95": {
+          "top1": [
+            0.215,
+            0.785
+          ],
+          "top3": [
+            0.409,
+            0.929
+          ],
+          "top5": [
+            0.529,
+            0.978
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 0,
+        "top1HitRate": null,
+        "top3HitRate": null,
+        "top5HitRate": null,
+        "intervals95": {
+          "top1": null,
+          "top3": null,
+          "top5": null
+        }
+      }
+    }
+  },
+  "pairedVsFixmapMcnemarExact": {
+    "all": {
+      "path-extraction:raw": {
+        "top1": {
+          "aWins": 4,
+          "bWins": 0,
+          "discordant": 4,
+          "pValue": 0.125
+        },
+        "top3": {
+          "aWins": 6,
+          "bWins": 0,
+          "discordant": 6,
+          "pValue": 0.0313
+        },
+        "top5": {
+          "aWins": 7,
+          "bWins": 0,
+          "discordant": 7,
+          "pValue": 0.0156
+        }
+      },
+      "lexical-literal:code": {
+        "top1": {
+          "aWins": 3,
+          "bWins": 0,
+          "discordant": 3,
+          "pValue": 0.25
+        },
+        "top3": {
+          "aWins": 4,
+          "bWins": 1,
+          "discordant": 5,
+          "pValue": 0.375
+        },
+        "top5": {
+          "aWins": 2,
+          "bWins": 0,
+          "discordant": 2,
+          "pValue": 0.5
+        }
+      },
+      "bm25:code": {
+        "top1": {
+          "aWins": 2,
+          "bWins": 0,
+          "discordant": 2,
+          "pValue": 0.5
+        },
+        "top3": {
+          "aWins": 3,
+          "bWins": 1,
+          "discordant": 4,
+          "pValue": 0.625
+        },
+        "top5": {
+          "aWins": 2,
+          "bWins": 0,
+          "discordant": 2,
+          "pValue": 0.5
+        }
+      }
+    },
+    "unmentioned": {
+      "path-extraction:raw": {
+        "top1": {
+          "aWins": 4,
+          "bWins": 0,
+          "discordant": 4,
+          "pValue": 0.125
+        },
+        "top3": {
+          "aWins": 6,
+          "bWins": 0,
+          "discordant": 6,
+          "pValue": 0.0313
+        },
+        "top5": {
+          "aWins": 7,
+          "bWins": 0,
+          "discordant": 7,
+          "pValue": 0.0156
+        }
+      },
+      "lexical-literal:code": {
+        "top1": {
+          "aWins": 3,
+          "bWins": 0,
+          "discordant": 3,
+          "pValue": 0.25
+        },
+        "top3": {
+          "aWins": 4,
+          "bWins": 1,
+          "discordant": 5,
+          "pValue": 0.375
+        },
+        "top5": {
+          "aWins": 2,
+          "bWins": 0,
+          "discordant": 2,
+          "pValue": 0.5
+        }
+      },
+      "bm25:code": {
+        "top1": {
+          "aWins": 2,
+          "bWins": 0,
+          "discordant": 2,
+          "pValue": 0.5
+        },
+        "top3": {
+          "aWins": 3,
+          "bWins": 1,
+          "discordant": 4,
+          "pValue": 0.625
+        },
+        "top5": {
+          "aWins": 2,
+          "bWins": 0,
+          "discordant": 2,
+          "pValue": 0.5
+        }
+      }
+    }
+  },
+  "diagnostics": {
+    "meanReciprocalRankAt5": 0.65,
+    "candidateRecallAt50": {
+      "structuralAt50": 0.75,
+      "lexicalAt50": 1,
+      "symbolAt50": 0.875,
+      "unionAt50": 1
+    },
+    "failureClasses": {
+      "none": 7,
+      "rerank-miss": 1
+    },
+    "cases": [
+      {
+        "slug": "prometheus/prometheus",
+        "expected": [
+          "cmd/prometheus/main.go",
+          "config/config.go"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 1,
+          "lexical": 6,
+          "symbol": 1
+        },
+        "intent": "configuration",
+        "queryExpansions": [
+          {
+            "term": "configuration",
+            "source": "config",
+            "rule": "technical-alias"
+          },
+          {
+            "term": "prometheu",
+            "source": "prometheus",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "config/config.go",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 21,
+            "lexicalRank": 6,
+            "symbolRank": 1,
+            "symbol": "DefaultGoGCPercentage",
+            "fusionScore": 26.7
+          },
+          {
+            "path": "discovery/kubernetes/endpoints.go",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 21,
+            "lexicalRank": 3,
+            "symbolRank": 12,
+            "symbol": "Endpoints",
+            "fusionScore": 26.44
+          },
+          {
+            "path": "cmd/prometheus/main.go",
+            "tier": "corroborated",
+            "structuralRank": 1,
+            "structuralScore": 21,
+            "lexicalRank": 16,
+            "symbolRank": 8,
+            "symbol": "klogv1DefaultPrefixLength",
+            "fusionScore": 25.82
+          },
+          {
+            "path": "discovery/dns/dns.go",
+            "tier": "corroborated",
+            "structuralRank": 25,
+            "structuralScore": 20,
+            "lexicalRank": 5,
+            "symbolRank": 5,
+            "symbol": "lookupFromAnyServer",
+            "fusionScore": 25.6
+          },
+          {
+            "path": "discovery/kubernetes/endpointslice.go",
+            "tier": "corroborated",
+            "structuralRank": 31,
+            "structuralScore": 20,
+            "lexicalRank": 7,
+            "symbolRank": 7,
+            "symbol": "EndpointSlice",
+            "fusionScore": 25.4
+          },
+          {
+            "path": "discovery/kubernetes/kubernetes.go",
+            "tier": "corroborated",
+            "structuralRank": 33,
+            "structuralScore": 20,
+            "lexicalRank": 2,
+            "symbolRank": 21,
+            "symbol": "init",
+            "fusionScore": 25.14
+          },
+          {
+            "path": "model/histogram/float_histogram.go",
+            "tier": "corroborated",
+            "structuralRank": null,
+            "structuralScore": null,
+            "lexicalRank": 11,
+            "symbolRank": 2,
+            "symbol": "adjustCounterReset",
+            "fusionScore": 24.86
+          },
+          {
+            "path": "storage/remote/otlptranslator/prometheusremotewrite/otlp_to_openmetrics_metadata.go",
+            "tier": "corroborated",
+            "structuralRank": null,
+            "structuralScore": null,
+            "lexicalRank": 17,
+            "symbolRank": 3,
+            "symbol": "otelMetricTypeToPromMetricType",
+            "fusionScore": 24.46
+          },
+          {
+            "path": "tracing/tracing.go",
+            "tier": "corroborated",
+            "structuralRank": null,
+            "structuralScore": null,
+            "lexicalRank": 8,
+            "symbolRank": 25,
+            "symbol": "blankTLSConfig",
+            "fusionScore": 24.12
+          },
+          {
+            "path": "discovery/discovery.go",
+            "tier": "corroborated",
+            "structuralRank": 24,
+            "structuralScore": 20,
+            "lexicalRank": 12,
+            "symbolRank": 38,
+            "symbol": "SDMetrics",
+            "fusionScore": 23.86
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "config/config.go",
+            "intent": "configuration",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 3,
+            "structuralScore": 21,
+            "lexicalRank": 6,
+            "lexicalScore": 23.728063,
+            "symbolRank": 1,
+            "symbolScore": 24.672915,
+            "symbol": "DefaultGoGCPercentage",
+            "queryExpansions": [
+              {
+                "term": "configuration",
+                "source": "config",
+                "rule": "technical-alias"
+              },
+              {
+                "term": "prometheu",
+                "source": "prometheus",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 26.7
+          },
+          {
+            "path": "cmd/prometheus/main.go",
+            "intent": "configuration",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 1,
+            "structuralScore": 21,
+            "lexicalRank": 16,
+            "lexicalScore": 20.523071,
+            "symbolRank": 8,
+            "symbolScore": 18.602755,
+            "symbol": "klogv1DefaultPrefixLength",
+            "queryExpansions": [
+              {
+                "term": "configuration",
+                "source": "config",
+                "rule": "technical-alias"
+              },
+              {
+                "term": "prometheu",
+                "source": "prometheus",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 25.82
+          }
+        ]
+      },
+      {
+        "slug": "tokio-rs/tokio",
+        "expected": [
+          "tokio/src/io/util/mem.rs"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 1,
+          "lexical": 1,
+          "symbol": 1
+        },
+        "intent": "implementation",
+        "queryExpansions": [
+          {
+            "term": "deadlock",
+            "source": "deadlocks",
+            "rule": "inflection"
+          },
+          {
+            "term": "wait",
+            "source": "waits",
+            "rule": "inflection"
+          },
+          {
+            "term": "hang",
+            "source": "hangs",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "tokio/src/io/util/mem.rs",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 81,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "simplex",
+            "fusionScore": 87
+          },
+          {
+            "path": "tokio/src/io/util/async_write_ext.rs",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 64,
+            "lexicalRank": 24,
+            "symbolRank": 7,
+            "symbol": "write_u8",
+            "fusionScore": 68.38
+          },
+          {
+            "path": "tokio/src/io/util/write_all.rs",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 65,
+            "lexicalRank": null,
+            "symbolRank": 41,
+            "symbol": "write_all",
+            "fusionScore": 65.9
+          },
+          {
+            "path": "tokio-util/src/io/sync_bridge.rs",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 57,
+            "lexicalRank": 9,
+            "symbolRank": 27,
+            "symbol": "SyncIoBridge",
+            "fusionScore": 61.48
+          },
+          {
+            "path": "tokio/src/net/tcp/stream.rs",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 51,
+            "lexicalRank": 16,
+            "symbolRank": 39,
+            "symbol": "connect",
+            "fusionScore": 54.58
+          },
+          {
+            "path": "tokio-util/src/io/simplex.rs",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 43,
+            "lexicalRank": 6,
+            "symbolRank": 8,
+            "symbol": "Sender",
+            "fusionScore": 48.42
+          },
+          {
+            "path": "tokio/src/net/unix/pipe.rs",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 43,
+            "lexicalRank": 14,
+            "symbolRank": 13,
+            "symbol": "ready",
+            "fusionScore": 47.74
+          },
+          {
+            "path": "tokio/src/net/unix/stream.rs",
+            "tier": "corroborated",
+            "structuralRank": 10,
+            "structuralScore": 43,
+            "lexicalRank": 21,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 45.3
+          },
+          {
+            "path": "tokio/src/io/util/empty.rs",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 43,
+            "lexicalRank": null,
+            "symbolRank": 20,
+            "symbol": "Empty",
+            "fusionScore": 44.74
+          },
+          {
+            "path": "tokio-util/src/io/stream_reader.rs",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 41,
+            "lexicalRank": 29,
+            "symbolRank": 17,
+            "symbol": "StreamReader",
+            "fusionScore": 44.68
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "tokio/src/io/util/mem.rs",
+            "intent": "implementation",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 1,
+            "structuralScore": 81,
+            "lexicalRank": 1,
+            "lexicalScore": 93.221035,
+            "symbolRank": 1,
+            "symbolScore": 81.020159,
+            "symbol": "simplex",
+            "queryExpansions": [
+              {
+                "term": "deadlock",
+                "source": "deadlocks",
+                "rule": "inflection"
+              },
+              {
+                "term": "wait",
+                "source": "waits",
+                "rule": "inflection"
+              },
+              {
+                "term": "hang",
+                "source": "hangs",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 87
+          }
+        ]
+      },
+      {
+        "slug": "rust-lang/cargo",
+        "expected": [
+          "src/resolver/version_prefs.rs",
+          "src/workspace/features.rs",
+          "src/workspace/workspace.rs"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 5,
+        "reciprocalRank": 0.2,
+        "candidateRecall": {
+          "structuralAt50": false,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": null,
+          "lexical": 7,
+          "symbol": 6
+        },
+        "intent": "documentation",
+        "queryExpansions": [
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "config",
+            "source": "configuration",
+            "rule": "technical-alias"
+          },
+          {
+            "term": "thing",
+            "source": "things",
+            "rule": "inflection"
+          },
+          {
+            "term": "file",
+            "source": "files",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "crates/cargo-test-support/src/registry.rs",
+            "tier": "corroborated",
+            "structuralRank": 2,
+            "structuralScore": 41,
+            "lexicalRank": 18,
+            "symbolRank": 35,
+            "symbol": "Message",
+            "fusionScore": 44.62
+          },
+          {
+            "path": "src/ops/registry/cargo_publish.rs",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 39,
+            "lexicalRank": null,
+            "symbolRank": 4,
+            "symbol": "PublishPlan",
+            "fusionScore": 41.38
+          },
+          {
+            "path": "crates/cargo-test-support/src/publish.rs",
+            "tier": "single-source",
+            "structuralRank": 1,
+            "structuralScore": 41,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 41
+          },
+          {
+            "path": "crates/cargo-util-schemas/src/index.rs",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 29,
+            "lexicalRank": 5,
+            "symbolRank": 3,
+            "symbol": "dump_index_schema",
+            "fusionScore": 34.68
+          },
+          {
+            "path": "src/sources/registry/mod.rs",
+            "tier": "corroborated",
+            "structuralRank": 36,
+            "structuralScore": 29,
+            "lexicalRank": 4,
+            "symbolRank": 18,
+            "symbol": "LockMetadata",
+            "fusionScore": 34.14
+          },
+          {
+            "path": "src/ops/registry/cargo_info/mod.rs",
+            "tier": "single-source",
+            "structuralRank": 4,
+            "structuralScore": 34,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 34
+          },
+          {
+            "path": "src/workspace/registry.rs",
+            "tier": "corroborated",
+            "structuralRank": 40,
+            "structuralScore": 29,
+            "lexicalRank": 20,
+            "symbolRank": 2,
+            "symbol": "add_override",
+            "fusionScore": 33.82
+          },
+          {
+            "path": "crates/cargo-test-support/src/compare.rs",
+            "tier": "single-source",
+            "structuralRank": 5,
+            "structuralScore": 33,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 33
+          },
+          {
+            "path": "crates/cargo-test-support/src/lib.rs",
+            "tier": "single-source",
+            "structuralRank": 6,
+            "structuralScore": 33,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 33
+          },
+          {
+            "path": "src/util/cache_lock.rs",
+            "tier": "corroborated",
+            "structuralRank": 37,
+            "structuralScore": 29,
+            "lexicalRank": 19,
+            "symbolRank": 26,
+            "symbol": "BlockingMode",
+            "fusionScore": 32.92
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "src/workspace/features.rs",
+            "intent": "documentation",
+            "tier": "corroborated",
+            "direct": false,
+            "lexicalRank": 7,
+            "lexicalScore": 51.112912,
+            "symbolRank": 9,
+            "symbolScore": 46.152155,
+            "symbol": "STABILIZED_CACHE_MESSAGES",
+            "queryExpansions": [
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "config",
+                "source": "configuration",
+                "rule": "technical-alias"
+              },
+              {
+                "term": "thing",
+                "source": "things",
+                "rule": "inflection"
+              },
+              {
+                "term": "file",
+                "source": "files",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 30.82
+          },
+          {
+            "path": "src/resolver/version_prefs.rs",
+            "intent": "documentation",
+            "tier": "corroborated",
+            "direct": false,
+            "lexicalRank": 12,
+            "lexicalScore": 48.339754,
+            "symbolRank": 6,
+            "symbolScore": 47.288053,
+            "symbol": "msrv_compat_count",
+            "queryExpansions": [
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "config",
+                "source": "configuration",
+                "rule": "technical-alias"
+              },
+              {
+                "term": "thing",
+                "source": "things",
+                "rule": "inflection"
+              },
+              {
+                "term": "file",
+                "source": "files",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 30.64
+          },
+          {
+            "path": "src/workspace/workspace.rs",
+            "intent": "documentation",
+            "tier": "corroborated",
+            "direct": false,
+            "lexicalRank": 25,
+            "lexicalScore": 42.536815,
+            "symbolRank": 44,
+            "symbolScore": 29.303876,
+            "symbol": "set_resolve_honors_publish_age",
+            "queryExpansions": [
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "config",
+                "source": "configuration",
+                "rule": "technical-alias"
+              },
+              {
+                "term": "thing",
+                "source": "things",
+                "rule": "inflection"
+              },
+              {
+                "term": "file",
+                "source": "files",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 28.34
+          }
+        ]
+      },
+      {
+        "slug": "rails/rails",
+        "expected": [
+          "activesupport/lib/active_support/cache/strategy/local_cache.rb"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 2,
+        "reciprocalRank": 0.5,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 2,
+          "lexical": 12,
+          "symbol": 16
+        },
+        "intent": "tests",
+        "queryExpansions": [
+          {
+            "term": "rail",
+            "source": "rails",
+            "rule": "inflection"
+          },
+          {
+            "term": "return",
+            "source": "returns",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "rubygem",
+            "source": "rubygems",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "activesupport/lib/active_support/cache.rb",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 136,
+            "lexicalRank": 7,
+            "symbolRank": 12,
+            "symbol": "Strategy",
+            "fusionScore": 141.2
+          },
+          {
+            "path": "activesupport/lib/active_support/cache/strategy/local_cache.rb",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 134,
+            "lexicalRank": 12,
+            "symbolRank": 16,
+            "symbol": "LocalCache",
+            "fusionScore": 138.74
+          },
+          {
+            "path": "activesupport/lib/active_support/cache/redis_cache_store.rb",
+            "tier": "direct",
+            "structuralRank": 6,
+            "structuralScore": 94,
+            "lexicalRank": 10,
+            "symbolRank": 14,
+            "symbol": "Cache",
+            "fusionScore": 98.94
+          },
+          {
+            "path": "activesupport/lib/active_support/cache/deprecated_redis_cache_store.rb",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 94,
+            "lexicalRank": 14,
+            "symbolRank": 15,
+            "symbol": "ActiveSupport",
+            "fusionScore": 98.66
+          },
+          {
+            "path": "activesupport/lib/active_support/cache/mem_cache_store.rb",
+            "tier": "direct",
+            "structuralRank": 5,
+            "structuralScore": 94,
+            "lexicalRank": 17,
+            "symbolRank": 13,
+            "symbol": "ActiveSupport",
+            "fusionScore": 98.56
+          },
+          {
+            "path": "activesupport/lib/active_support/cache/coder.rb",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 95,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 95
+          },
+          {
+            "path": "activesupport/lib/active_support/cache/null_store.rb",
+            "tier": "direct",
+            "structuralRank": 7,
+            "structuralScore": 91,
+            "lexicalRank": null,
+            "symbolRank": 31,
+            "symbol": "ActiveSupport",
+            "fusionScore": 92.3
+          },
+          {
+            "path": "activesupport/lib/active_support/cache/strategy/local_cache_middleware.rb",
+            "tier": "direct",
+            "structuralRank": 8,
+            "structuralScore": 90,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 90
+          },
+          {
+            "path": "activesupport/lib/active_support/cache/serializer_with_fallback.rb",
+            "tier": "direct",
+            "structuralRank": 9,
+            "structuralScore": 87,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 87
+          },
+          {
+            "path": "activesupport/lib/active_support/cache/file_store.rb",
+            "tier": "direct",
+            "structuralRank": 10,
+            "structuralScore": 86,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 86
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "activesupport/lib/active_support/cache/strategy/local_cache.rb",
+            "intent": "tests",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 2,
+            "structuralScore": 134,
+            "lexicalRank": 12,
+            "lexicalScore": 66.375233,
+            "symbolRank": 16,
+            "symbolScore": 55.522621,
+            "symbol": "LocalCache",
+            "queryExpansions": [
+              {
+                "term": "rail",
+                "source": "rails",
+                "rule": "inflection"
+              },
+              {
+                "term": "return",
+                "source": "returns",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "rubygem",
+                "source": "rubygems",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 138.74
+          }
+        ]
+      },
+      {
+        "slug": "rubocop/rubocop",
+        "expected": [
+          "lib/rubocop/cop/lint/cop_directive_syntax.rb"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 2,
+          "lexical": 1,
+          "symbol": 1
+        },
+        "intent": "presentation",
+        "queryExpansions": [
+          {
+            "term": "flag",
+            "source": "flags",
+            "rule": "inflection"
+          },
+          {
+            "term": "treat",
+            "source": "treats",
+            "rule": "inflection"
+          },
+          {
+            "term": "scan",
+            "source": "scans",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "lib/rubocop/cop/lint/cop_directive_syntax.rb",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 65,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "CopDirectiveSyntax",
+            "fusionScore": 71
+          },
+          {
+            "path": "lib/rubocop/cop/layout/line_length.rb",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 65,
+            "lexicalRank": 48,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 65.68
+          },
+          {
+            "path": "lib/rubocop/cop/style/encoding.rb",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 39,
+            "lexicalRank": 20,
+            "symbolRank": 12,
+            "symbol": "register_offense",
+            "fusionScore": 43.42
+          },
+          {
+            "path": "lib/rubocop/cop/style/disable_cops_within_source_code_directive.rb",
+            "tier": "corroborated",
+            "structuralRank": 12,
+            "structuralScore": 37,
+            "lexicalRank": 4,
+            "symbolRank": 3,
+            "symbol": "DisableCopsWithinSourceCodeDirective",
+            "fusionScore": 42.74
+          },
+          {
+            "path": "lib/rubocop/cop/lint/syntax.rb",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 39,
+            "lexicalRank": 31,
+            "symbolRank": 24,
+            "symbol": "diagnostic_location",
+            "fusionScore": 42.28
+          },
+          {
+            "path": "lib/rubocop/cop/lint/redundant_cop_disable_directive.rb",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 37,
+            "lexicalRank": 10,
+            "symbolRank": 8,
+            "symbol": "Lint",
+            "fusionScore": 42.18
+          },
+          {
+            "path": "lib/rubocop/cop/layout/empty_line_after_guard_clause.rb",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 37,
+            "lexicalRank": 12,
+            "symbolRank": 28,
+            "symbol": "on_if",
+            "fusionScore": 41.26
+          },
+          {
+            "path": "lib/rubocop/cop/style/if_inside_else.rb",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 39,
+            "lexicalRank": 39,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 40.22
+          },
+          {
+            "path": "changelog/change_move_double_directive_checking_into_lint_cop_directive_syntax_20260828130052.md",
+            "tier": "single-source",
+            "structuralRank": 3,
+            "structuralScore": 40,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 40
+          },
+          {
+            "path": "lib/rubocop/cop/layout/empty_line_after_magic_comment.rb",
+            "tier": "single-source",
+            "structuralRank": 4,
+            "structuralScore": 40,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 40
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "lib/rubocop/cop/lint/cop_directive_syntax.rb",
+            "intent": "presentation",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 2,
+            "structuralScore": 65,
+            "lexicalRank": 1,
+            "lexicalScore": 67.29852,
+            "symbolRank": 1,
+            "symbolScore": 59.839058,
+            "symbol": "CopDirectiveSyntax",
+            "queryExpansions": [
+              {
+                "term": "flag",
+                "source": "flags",
+                "rule": "inflection"
+              },
+              {
+                "term": "treat",
+                "source": "treats",
+                "rule": "inflection"
+              },
+              {
+                "term": "scan",
+                "source": "scans",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 71
+          }
+        ]
+      },
+      {
+        "slug": "symfony/symfony",
+        "expected": [
+          "src/Symfony/Component/Finder/Finder.php",
+          "src/Symfony/Component/Finder/Iterator/ExcludeDirectoryFilterIterator.php"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 1,
+          "lexical": 2,
+          "symbol": 1
+        },
+        "intent": "configuration",
+        "queryExpansions": [
+          {
+            "term": "file",
+            "source": "files",
+            "rule": "inflection"
+          },
+          {
+            "term": "project",
+            "source": "projects",
+            "rule": "inflection"
+          },
+          {
+            "term": "rule",
+            "source": "rules",
+            "rule": "inflection"
+          },
+          {
+            "term": "email",
+            "source": "emails",
+            "rule": "inflection"
+          },
+          {
+            "term": "template",
+            "source": "templates",
+            "rule": "inflection"
+          },
+          {
+            "term": "view",
+            "source": "views",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "src/Symfony/Component/Finder/Finder.php",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 96,
+            "lexicalRank": 2,
+            "symbolRank": 1,
+            "symbol": "size",
+            "fusionScore": 101.94
+          },
+          {
+            "path": "src/Symfony/Component/Emoji/EmojiTransliterator.php",
+            "tier": "direct",
+            "structuralRank": 5,
+            "structuralScore": 64,
+            "lexicalRank": 42,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 65.04
+          },
+          {
+            "path": "src/Symfony/Bundle/SecurityBundle/DependencyInjection/Security/AccessToken/OidcTokenHandlerFactory.php",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 64,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 64
+          },
+          {
+            "path": "src/Symfony/Component/Cache/Adapter/PhpArrayAdapter.php",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 64,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 64
+          },
+          {
+            "path": "src/Symfony/Component/DependencyInjection/Loader/Configurator/PrototypeConfigurator.php",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 64,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 64
+          },
+          {
+            "path": "src/Symfony/Component/Form/ButtonBuilder.php",
+            "tier": "direct",
+            "structuralRank": 6,
+            "structuralScore": 64,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 64
+          },
+          {
+            "path": "src/Symfony/Component/Form/FormBuilder.php",
+            "tier": "direct",
+            "structuralRank": 7,
+            "structuralScore": 64,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 64
+          },
+          {
+            "path": "src/Symfony/Component/HttpClient/HttpClient.php",
+            "tier": "direct",
+            "structuralRank": 8,
+            "structuralScore": 64,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 64
+          },
+          {
+            "path": "src/Symfony/Component/HttpFoundation/Cookie.php",
+            "tier": "direct",
+            "structuralRank": 9,
+            "structuralScore": 64,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 64
+          },
+          {
+            "path": "src/Symfony/Component/HttpFoundation/Request.php",
+            "tier": "direct",
+            "structuralRank": 10,
+            "structuralScore": 64,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 64
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "src/Symfony/Component/Finder/Finder.php",
+            "intent": "configuration",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 1,
+            "structuralScore": 96,
+            "lexicalRank": 2,
+            "lexicalScore": 59.599795,
+            "symbolRank": 1,
+            "symbolScore": 47.146238,
+            "symbol": "size",
+            "queryExpansions": [
+              {
+                "term": "file",
+                "source": "files",
+                "rule": "inflection"
+              },
+              {
+                "term": "project",
+                "source": "projects",
+                "rule": "inflection"
+              },
+              {
+                "term": "rule",
+                "source": "rules",
+                "rule": "inflection"
+              },
+              {
+                "term": "email",
+                "source": "emails",
+                "rule": "inflection"
+              },
+              {
+                "term": "template",
+                "source": "templates",
+                "rule": "inflection"
+              },
+              {
+                "term": "view",
+                "source": "views",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 101.94
+          },
+          {
+            "path": "src/Symfony/Component/Finder/Iterator/ExcludeDirectoryFilterIterator.php",
+            "intent": "configuration",
+            "tier": "corroborated",
+            "direct": false,
+            "lexicalRank": 50,
+            "lexicalScore": 25.619452,
+            "symbolRank": 13,
+            "symbolScore": 30.589804,
+            "symbol": "ExcludeDirectoryFilterIterator",
+            "queryExpansions": [
+              {
+                "term": "file",
+                "source": "files",
+                "rule": "inflection"
+              },
+              {
+                "term": "project",
+                "source": "projects",
+                "rule": "inflection"
+              },
+              {
+                "term": "rule",
+                "source": "rules",
+                "rule": "inflection"
+              },
+              {
+                "term": "email",
+                "source": "emails",
+                "rule": "inflection"
+              },
+              {
+                "term": "template",
+                "source": "templates",
+                "rule": "inflection"
+              },
+              {
+                "term": "view",
+                "source": "views",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 51.08
+          }
+        ]
+      },
+      {
+        "slug": "composer/composer",
+        "expected": [
+          "src/Composer/Command/ShowCommand.php"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 2,
+        "reciprocalRank": 0.5,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 9,
+          "lexical": 5,
+          "symbol": 8
+        },
+        "intent": "implementation",
+        "queryExpansions": [
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "graph",
+            "source": "graphs",
+            "rule": "inflection"
+          },
+          {
+            "term": "promise",
+            "source": "promises",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "src/Composer/Command/BaseDependencyCommand.php",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 32,
+            "lexicalRank": 3,
+            "symbolRank": 11,
+            "symbol": "BaseDependencyCommand",
+            "fusionScore": 37.48
+          },
+          {
+            "path": "src/Composer/Command/ShowCommand.php",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 32,
+            "lexicalRank": 5,
+            "symbolRank": 8,
+            "symbol": "addTree",
+            "fusionScore": 37.48
+          },
+          {
+            "path": "src/Composer/Installer/InstallationManager.php",
+            "tier": "corroborated",
+            "structuralRank": 19,
+            "structuralScore": 32,
+            "lexicalRank": 4,
+            "symbolRank": 10,
+            "symbol": "markForNotification",
+            "fusionScore": 37.46
+          },
+          {
+            "path": "src/Composer/Downloader/GitDownloader.php",
+            "tier": "corroborated",
+            "structuralRank": 17,
+            "structuralScore": 32,
+            "lexicalRank": 10,
+            "symbolRank": 4,
+            "symbol": "getCommitLogs",
+            "fusionScore": 37.34
+          },
+          {
+            "path": "src/Composer/Command/RequireCommand.php",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 32,
+            "lexicalRank": 6,
+            "symbolRank": 18,
+            "symbol": "execute",
+            "fusionScore": 37.02
+          },
+          {
+            "path": "src/Composer/Util/Git.php",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 33,
+            "lexicalRank": 29,
+            "symbolRank": 9,
+            "symbol": "getGitHubDomainsRegex",
+            "fusionScore": 37
+          },
+          {
+            "path": "src/Composer/DependencyResolver/PoolBuilder.php",
+            "tier": "corroborated",
+            "structuralRank": 12,
+            "structuralScore": 32,
+            "lexicalRank": 16,
+            "symbolRank": 13,
+            "symbol": "isRootRequire",
+            "fusionScore": 36.62
+          },
+          {
+            "path": "src/Composer/DependencyResolver/Request.php",
+            "tier": "corroborated",
+            "structuralRank": 14,
+            "structuralScore": 32,
+            "lexicalRank": 34,
+            "symbolRank": 3,
+            "symbol": "requireName",
+            "fusionScore": 35.94
+          },
+          {
+            "path": "src/Composer/Repository/InstalledRepository.php",
+            "tier": "corroborated",
+            "structuralRank": 28,
+            "structuralScore": 32,
+            "lexicalRank": 19,
+            "symbolRank": 32,
+            "symbol": "getDependents",
+            "fusionScore": 35.68
+          },
+          {
+            "path": "src/Composer/Util/Url.php",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 33,
+            "lexicalRank": 49,
+            "symbolRank": 15,
+            "symbol": "updateDistReference",
+            "fusionScore": 35.56
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "src/Composer/Command/ShowCommand.php",
+            "intent": "implementation",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 9,
+            "structuralScore": 32,
+            "lexicalRank": 5,
+            "lexicalScore": 34.968536,
+            "symbolRank": 8,
+            "symbolScore": 23.70639,
+            "symbol": "addTree",
+            "queryExpansions": [
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "graph",
+                "source": "graphs",
+                "rule": "inflection"
+              },
+              {
+                "term": "promise",
+                "source": "promises",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 37.48
+          }
+        ]
+      },
+      {
+        "slug": "dotnet/runtime",
+        "expected": [
+          "src/libraries/System.Net.Quic/src/System/Net/Quic/QuicConnection.cs"
+        ],
+        "failureClass": "rerank-miss",
+        "bestFinalRank": null,
+        "reciprocalRank": 0,
+        "candidateRecall": {
+          "structuralAt50": false,
+          "lexicalAt50": true,
+          "symbolAt50": false,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": null,
+          "lexical": 33,
+          "symbol": null
+        },
+        "intent": "tests",
+        "queryExpansions": [
+          {
+            "term": "auth",
+            "source": "authentication",
+            "rule": "technical-alias"
+          },
+          {
+            "term": "statu",
+            "source": "status",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "result",
+            "source": "results",
+            "rule": "inflection"
+          },
+          {
+            "term": "msquictest",
+            "source": "msquictests",
+            "rule": "inflection"
+          },
+          {
+            "term": "analysi",
+            "source": "analysis",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "src/libraries/System.Net.Ping/src/System/Net/NetworkInformation/Ping.cs",
+            "tier": "single-source",
+            "structuralRank": 1,
+            "structuralScore": 55,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 55
+          },
+          {
+            "path": "src/libraries/System.Net.Http/src/System/Net/Http/SocketsHttpHandler/AuthenticationHelper.cs",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 47,
+            "lexicalRank": 15,
+            "symbolRank": 2,
+            "symbol": "SendWithProxyAuthAsync",
+            "fusionScore": 52.12
+          },
+          {
+            "path": "src/libraries/System.Net.Http/src/System/Net/Http/HttpRequestMessage.cs",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 50,
+            "lexicalRank": null,
+            "symbolRank": 13,
+            "symbol": "IsAuthDisabled",
+            "fusionScore": 52.02
+          },
+          {
+            "path": "src/libraries/System.Net.Http.WinHttpHandler/src/System/Net/Http/WinHttpRequestCallback.cs",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 47,
+            "lexicalRank": 2,
+            "symbolRank": 29,
+            "symbol": "OnRequestSendingRequest",
+            "fusionScore": 51.82
+          },
+          {
+            "path": "src/libraries/System.Net.Http/src/System/Net/Http/SocketsHttpHandler/AuthenticationHelper.NtAuth.cs",
+            "tier": "corroborated",
+            "structuralRank": 12,
+            "structuralScore": 47,
+            "lexicalRank": 19,
+            "symbolRank": 14,
+            "symbol": "ProxySupportsConnectionAuth",
+            "fusionScore": 51.4
+          },
+          {
+            "path": "src/libraries/System.Net.Requests/ref/System.Net.Requests.cs",
+            "tier": "corroborated",
+            "structuralRank": 26,
+            "structuralScore": 47,
+            "lexicalRank": 24,
+            "symbolRank": 8,
+            "symbol": "WebRequest",
+            "fusionScore": 51.34
+          },
+          {
+            "path": "src/libraries/System.Net.Http/src/System/Net/Http/SocketsHttpHandler/Http3RequestStream.cs",
+            "tier": "corroborated",
+            "structuralRank": 13,
+            "structuralScore": 47,
+            "lexicalRank": 13,
+            "symbolRank": 42,
+            "symbol": "Http3RequestStream",
+            "fusionScore": 50.64
+          },
+          {
+            "path": "src/libraries/System.Net.Quic/src/System/Net/Quic/Internal/ThrowHelper.cs",
+            "tier": "corroborated",
+            "structuralRank": 23,
+            "structuralScore": 47,
+            "lexicalRank": 9,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 50.02
+          },
+          {
+            "path": "src/libraries/Common/src/System/Net/Http/aspnetcore/Http2/Hpack/StatusCodes.cs",
+            "tier": "single-source",
+            "structuralRank": 2,
+            "structuralScore": 50,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 50
+          },
+          {
+            "path": "src/libraries/System.Net.Security/src/System/Net/Security/TlsSession.cs",
+            "tier": "corroborated",
+            "structuralRank": 38,
+            "structuralScore": 47,
+            "lexicalRank": 10,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 49.96
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "src/libraries/System.Net.Quic/src/System/Net/Quic/QuicConnection.cs",
+            "intent": "tests",
+            "tier": "single-source",
+            "direct": false,
+            "lexicalRank": 33,
+            "lexicalScore": 54.981064,
+            "queryExpansions": [
+              {
+                "term": "auth",
+                "source": "authentication",
+                "rule": "technical-alias"
+              },
+              {
+                "term": "statu",
+                "source": "status",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "result",
+                "source": "results",
+                "rule": "inflection"
+              },
+              {
+                "term": "msquictest",
+                "source": "msquictests",
+                "rule": "inflection"
+              },
+              {
+                "term": "analysi",
+                "source": "analysis",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 44.08
+          }
+        ]
+      }
+    ]
+  },
+  "results": [
+    {
+      "slug": "prometheus/prometheus",
+      "expected": [
+        "cmd/prometheus/main.go",
+        "config/config.go"
+      ],
+      "queryTermCount": 29,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "CHANGELOG.md",
+            "docs/configuration/configuration.md",
+            "docs/querying/api.md",
+            "docs/feature_flags.md",
+            "model/histogram/float_histogram.go"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "CHANGELOG.md",
+            "docs/configuration/configuration.md",
+            "docs/querying/api.md",
+            "docs/feature_flags.md",
+            "model/histogram/float_histogram.go"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "model/histogram/float_histogram.go",
+            "config/config.go",
+            "cmd/prometheus/main.go",
+            "storage/remote/queue_manager.go",
+            "tsdb/head_append.go"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "docs/feature_flags.md",
+            "AGENTS.md",
+            "CHANGELOG.md",
+            "discovery/README.md",
+            ".github/ISSUE_TEMPLATE/feature_request.yml"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "docs/feature_flags.md",
+            "AGENTS.md",
+            ".github/ISSUE_TEMPLATE/feature_request.yml",
+            "CHANGELOG.md",
+            "web/ui/README.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "discovery/kubernetes/endpoints.go",
+            "discovery/kubernetes/endpointslice.go",
+            "storage/remote/write.go",
+            "discovery/kubernetes/kubernetes.go",
+            "discovery/kubernetes/pod.go"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "candidate-rrf-bm25-heavy": {
+          "top5Paths": [
+            "discovery/kubernetes/endpoints.go",
+            "config/config.go",
+            "discovery/dns/dns.go",
+            "discovery/kubernetes/kubernetes.go",
+            "discovery/kubernetes/endpointslice.go"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "config/config.go",
+            "discovery/kubernetes/endpoints.go",
+            "cmd/prometheus/main.go",
+            "discovery/dns/dns.go",
+            "discovery/kubernetes/endpointslice.go"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "tokio-rs/tokio",
+      "expected": [
+        "tokio/src/io/util/mem.rs"
+      ],
+      "queryTermCount": 46,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "tokio/CHANGELOG.md",
+            "tokio/src/process/mod.rs",
+            "tokio/src/net/tcp/stream.rs",
+            "tokio/src/net/unix/pipe.rs",
+            "tokio/src/io/util/mem.rs"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "tokio/CHANGELOG.md",
+            "tokio/src/process/mod.rs",
+            "tokio/src/net/tcp/stream.rs",
+            "tokio/src/net/unix/pipe.rs",
+            "tokio/src/io/util/mem.rs"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "tokio/src/process/mod.rs",
+            "tokio/src/net/tcp/stream.rs",
+            "tokio/src/net/unix/pipe.rs",
+            "tokio/src/io/util/mem.rs",
+            "tokio/src/net/windows/named_pipe.rs"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "tokio/src/io/util/mem.rs",
+            "tokio/src/io/mod.rs",
+            "tokio/src/io/util/mod.rs",
+            "tokio/tests/io_mem_stream.rs",
+            "tokio/src/fs/mod.rs"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "tokio/src/io/util/mem.rs",
+            "tokio/src/io/mod.rs",
+            "tokio/src/io/util/mod.rs",
+            "tokio/src/fs/mod.rs",
+            "tokio-util/src/io/simplex.rs"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "tokio/src/io/util/mem.rs",
+            "tokio/src/io/mod.rs",
+            "tokio/src/io/util/mod.rs",
+            "tokio/src/fs/mod.rs",
+            "tokio-util/src/io/simplex.rs"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "candidate-rrf-bm25-heavy": {
+          "top5Paths": [
+            "tokio/src/io/util/mem.rs",
+            "tokio-util/src/io/simplex.rs",
+            "tokio/src/net/windows/named_pipe.rs",
+            "tokio-util/src/io/write_all_vectored.rs",
+            "tokio-util/src/io/sync_bridge.rs"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "tokio/src/io/util/mem.rs",
+            "tokio/src/io/util/async_write_ext.rs",
+            "tokio/src/io/util/write_all.rs",
+            "tokio-util/src/io/sync_bridge.rs",
+            "tokio-util/src/io/simplex.rs"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "rust-lang/cargo",
+      "expected": [
+        "src/resolver/version_prefs.rs",
+        "src/workspace/features.rs",
+        "src/workspace/workspace.rs"
+      ],
+      "queryTermCount": 50,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "doc/book/src/reference/unstable.md",
+            "doc/book/src/CHANGELOG.md",
+            "src/sources/registry/mod.rs",
+            "doc/book/src/faq.md",
+            "src/compiler/mod.rs"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "doc/book/src/reference/unstable.md",
+            "doc/book/src/CHANGELOG.md",
+            "src/sources/registry/mod.rs",
+            "doc/book/src/faq.md",
+            "src/compiler/mod.rs"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "src/sources/registry/mod.rs",
+            "src/compiler/mod.rs",
+            "src/workspace/features.rs",
+            "src/compiler/fingerprint/mod.rs",
+            "src/compiler/job_queue/mod.rs"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            ".github/ISSUE_TEMPLATE/tracking_issue.yml",
+            "doc/book/src/reference/unstable.md",
+            "doc/book/src/CHANGELOG.md",
+            "doc/contrib/src/process/unstable.md",
+            "tests/testsuite/min_publish_age.rs"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "doc/book/src/reference/unstable.md",
+            "doc/book/src/CHANGELOG.md",
+            ".github/ISSUE_TEMPLATE/tracking_issue.yml",
+            "doc/book/src/faq.md",
+            "crates/cargo-util-schemas/src/index.rs"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "crates/cargo-util-schemas/src/index.rs",
+            "src/sources/registry/mod.rs",
+            "src/workspace/features.rs",
+            "src/resolver/mod.rs",
+            "src/compiler/mod.rs"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "candidate-rrf-bm25-heavy": {
+          "top5Paths": [
+            "crates/cargo-util-schemas/src/index.rs",
+            "src/sources/registry/mod.rs",
+            "crates/cargo-test-support/src/registry.rs",
+            "src/workspace/registry.rs",
+            "src/workspace/features.rs"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "crates/cargo-test-support/src/registry.rs",
+            "src/ops/registry/cargo_publish.rs",
+            "crates/cargo-test-support/src/publish.rs",
+            "crates/cargo-util-schemas/src/index.rs",
+            "src/workspace/features.rs"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "rails/rails",
+      "expected": [
+        "activesupport/lib/active_support/cache/strategy/local_cache.rb"
+      ],
+      "queryTermCount": 62,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "guides/source/upgrading_ruby_on_rails.md",
+            "activesupport/lib/active_support/cache.rb",
+            "guides/source/7_1_release_notes.md",
+            "railties/test/application/configuration_test.rb",
+            "activerecord/test/cases/adapters/postgresql/postgresql_adapter_test.rb"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "guides/source/upgrading_ruby_on_rails.md",
+            "activesupport/lib/active_support/cache.rb",
+            "guides/source/7_1_release_notes.md",
+            "activerecord/lib/active_record/connection_adapters/postgresql_adapter.rb",
+            "activesupport/CHANGELOG.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "activesupport/lib/active_support/cache.rb",
+            "activerecord/lib/active_record/connection_adapters/postgresql_adapter.rb",
+            "railties/lib/rails/generators/app_base.rb",
+            "activerecord/lib/active_record/fixtures.rb",
+            "activesupport/lib/active_support/cache/redis_cache_store.rb"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "guides/bug_report_templates/generic.rb",
+            "guides/bug_report_templates/active_storage.rb",
+            "guides/bug_report_templates/active_record.rb",
+            "activesupport/lib/active_support/cache.rb",
+            "activesupport/test/cache/stores/mem_cache_store_test.rb"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "guides/bug_report_templates/generic.rb",
+            "guides/bug_report_templates/active_storage.rb",
+            "guides/bug_report_templates/active_record.rb",
+            "activesupport/lib/active_support/cache.rb",
+            "guides/bug_report_templates/action_mailbox.rb"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "guides/bug_report_templates/generic.rb",
+            "guides/bug_report_templates/active_storage.rb",
+            "guides/bug_report_templates/active_record.rb",
+            "guides/bug_report_templates/action_mailbox.rb",
+            "guides/bug_report_templates/action_mailer.rb"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "candidate-rrf-bm25-heavy": {
+          "top5Paths": [
+            "activesupport/lib/active_support/cache.rb",
+            "activesupport/lib/active_support/cache/redis_cache_store.rb",
+            "activesupport/lib/active_support/cache/strategy/local_cache.rb",
+            "activesupport/lib/active_support/cache/deprecated_redis_cache_store.rb",
+            "guides/bug_report_templates/generic.rb"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "activesupport/lib/active_support/cache.rb",
+            "activesupport/lib/active_support/cache/strategy/local_cache.rb",
+            "activesupport/lib/active_support/cache/redis_cache_store.rb",
+            "activesupport/lib/active_support/cache/deprecated_redis_cache_store.rb",
+            "guides/bug_report_templates/generic.rb"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "rubocop/rubocop",
+      "expected": [
+        "lib/rubocop/cop/lint/cop_directive_syntax.rb"
+      ],
+      "queryTermCount": 37,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "config/default.yml",
+            "CHANGELOG.md",
+            "relnotes/CHANGELOG_v0.md",
+            "relnotes/v0.36.0.md",
+            "spec/rubocop/comment_config_spec.rb"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "config/default.yml",
+            "CHANGELOG.md",
+            "relnotes/CHANGELOG_v0.md",
+            "relnotes/v0.36.0.md",
+            "relnotes/v1.89.0.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "lib/rubocop/cop/lint/cop_directive_syntax.rb",
+            "lib/rubocop/options.rb",
+            "lib/rubocop/cop/base.rb",
+            "lib/rubocop/runner.rb",
+            "lib/rubocop/cop/lint/redundant_cop_disable_directive.rb"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "lib/rubocop/cop/lint/cop_directive_syntax.rb",
+            "spec/rubocop/cop/lint/cop_directive_syntax_spec.rb",
+            "config/obsoletion.yml",
+            "spec/rubocop/comment_config_spec.rb",
+            "spec/rubocop/cli_spec.rb"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "lib/rubocop/cop/lint/cop_directive_syntax.rb",
+            "config/obsoletion.yml",
+            "lib/rubocop/cop/style/disable_cops_within_source_code_directive.rb",
+            "lib/rubocop/cop/mixin/line_length_help.rb",
+            "lib/rubocop/cop/lint/misplaced_magic_comment.rb"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "lib/rubocop/cop/lint/cop_directive_syntax.rb",
+            "lib/rubocop/cop/mixin/line_length_help.rb",
+            "lib/rubocop/cop/style/disable_cops_within_source_code_directive.rb",
+            "lib/rubocop/cop/lint/redundant_cop_enable_directive.rb",
+            "lib/rubocop/cop/lint/misplaced_magic_comment.rb"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "candidate-rrf-bm25-heavy": {
+          "top5Paths": [
+            "lib/rubocop/cop/lint/cop_directive_syntax.rb",
+            "lib/rubocop/cop/style/disable_cops_within_source_code_directive.rb",
+            "lib/rubocop/cop/mixin/line_length_help.rb",
+            "lib/rubocop/cop/lint/misplaced_magic_comment.rb",
+            "lib/rubocop/cop/lint/redundant_cop_enable_directive.rb"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "lib/rubocop/cop/lint/cop_directive_syntax.rb",
+            "lib/rubocop/cop/layout/line_length.rb",
+            "lib/rubocop/cop/style/encoding.rb",
+            "lib/rubocop/cop/style/disable_cops_within_source_code_directive.rb",
+            "lib/rubocop/cop/mixin/line_length_help.rb"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "symfony/symfony",
+      "expected": [
+        "src/Symfony/Component/Finder/Finder.php",
+        "src/Symfony/Component/Finder/Iterator/ExcludeDirectoryFilterIterator.php"
+      ],
+      "queryTermCount": 34,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "CHANGELOG-8.1.md",
+            "src/Symfony/Bundle/FrameworkBundle/DependencyInjection/FrameworkExtension.php",
+            ".agents/skills/merge-up/SKILL.md",
+            ".agents/skills/pr-review-merge-prep/SKILL.md",
+            "src/Symfony/Bridge/PhpUnit/bin/simple-phpunit.php"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "CHANGELOG-8.1.md",
+            "src/Symfony/Bundle/FrameworkBundle/DependencyInjection/FrameworkExtension.php",
+            ".agents/skills/merge-up/SKILL.md",
+            ".agents/skills/pr-review-merge-prep/SKILL.md",
+            "src/Symfony/Bridge/PhpUnit/bin/simple-phpunit.php"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "src/Symfony/Bundle/FrameworkBundle/DependencyInjection/FrameworkExtension.php",
+            "src/Symfony/Bridge/PhpUnit/bin/simple-phpunit.php",
+            "src/Symfony/Component/Process/Process.php",
+            "src/Symfony/Component/ErrorHandler/DebugClassLoader.php",
+            "src/Symfony/Component/Finder/Finder.php"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            ".php-cs-fixer.dist.php",
+            "src/Symfony/Component/Finder/Finder.php",
+            "src/Symfony/Component/Finder/Tests/FinderTest.php",
+            "src/Symfony/Component/Finder/CHANGELOG.md",
+            "src/Symfony/Component/Finder/Tests/FinderOpenBasedirTest.php"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:source": {
+          "top5Paths": [
+            ".php-cs-fixer.dist.php",
+            "src/Symfony/Component/Finder/Finder.php",
+            ".twig-cs-fixer.dist.php",
+            "src/Symfony/Bundle/TwigBundle/TemplateIterator.php",
+            "src/Symfony/Component/Finder/CHANGELOG.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "bm25:code": {
+          "top5Paths": [
+            ".php-cs-fixer.dist.php",
+            "src/Symfony/Component/Finder/Finder.php",
+            ".twig-cs-fixer.dist.php",
+            "src/Symfony/Bundle/TwigBundle/TemplateIterator.php",
+            "src/Symfony/Component/Emoji/Resources/bin/build.php"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "candidate-rrf-bm25-heavy": {
+          "top5Paths": [
+            "src/Symfony/Component/Finder/Finder.php",
+            ".php-cs-fixer.dist.php",
+            "src/Symfony/Bundle/TwigBundle/TemplateIterator.php",
+            "src/Symfony/Bridge/Twig/Translation/TwigExtractor.php",
+            "src/Symfony/Component/Finder/Iterator/VcsIgnoredFilterIterator.php"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "src/Symfony/Component/Finder/Finder.php",
+            "src/Symfony/Component/Emoji/EmojiTransliterator.php",
+            "src/Symfony/Bundle/SecurityBundle/DependencyInjection/Security/AccessToken/OidcTokenHandlerFactory.php",
+            "src/Symfony/Component/Cache/Adapter/PhpArrayAdapter.php",
+            "src/Symfony/Bundle/TwigBundle/TemplateIterator.php"
+          ],
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "composer/composer",
+      "expected": [
+        "src/Composer/Command/ShowCommand.php"
+      ],
+      "queryTermCount": 39,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "CHANGELOG.md",
+            "doc/03-cli.md",
+            "doc/05-repositories.md",
+            "doc/04-schema.md",
+            "src/Composer/Installer.php"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "CHANGELOG.md",
+            "doc/03-cli.md",
+            "doc/05-repositories.md",
+            "doc/04-schema.md",
+            "src/Composer/Installer.php"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "src/Composer/Installer.php",
+            "src/Composer/Command/RequireCommand.php",
+            "src/Composer/Console/Application.php",
+            "src/Composer/Command/InitCommand.php",
+            "src/Composer/Command/ConfigCommand.php"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "doc/06-config.md",
+            "doc/04-schema.md",
+            "doc/05-repositories.md",
+            "doc/articles/handling-private-packages.md",
+            "doc/03-cli.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "doc/04-schema.md",
+            "doc/06-config.md",
+            "doc/05-repositories.md",
+            "CHANGELOG.md",
+            "doc/03-cli.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "src/Composer/Command/InitCommand.php",
+            "src/Composer/Command/BaseDependencyCommand.php",
+            "src/Composer/Installer.php",
+            "src/Composer/Command/ShowCommand.php",
+            "src/Composer/Command/RequireCommand.php"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
+        "candidate-rrf-bm25-heavy": {
+          "top5Paths": [
+            "src/Composer/Command/BaseDependencyCommand.php",
+            "src/Composer/Command/ShowCommand.php",
+            "src/Composer/Installer/InstallationManager.php",
+            "src/Composer/Command/RequireCommand.php",
+            "src/Composer/Downloader/GitDownloader.php"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        },
+        "fixmap": {
+          "top5Paths": [
+            "src/Composer/Command/BaseDependencyCommand.php",
+            "src/Composer/Command/ShowCommand.php",
+            "src/Composer/Installer/InstallationManager.php",
+            "src/Composer/Downloader/GitDownloader.php",
+            "src/Composer/Command/RequireCommand.php"
+          ],
+          "top1Hit": false,
+          "top3Hit": true,
+          "top5Hit": true
+        }
+      }
+    },
+    {
+      "slug": "dotnet/runtime",
+      "expected": [
+        "src/libraries/System.Net.Quic/src/System/Net/Quic/QuicConnection.cs"
+      ],
+      "queryTermCount": 61,
+      "mentionsExpectedPath": false,
+      "mentionTier": "none",
+      "arms": {
+        "path-extraction:raw": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:source": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "path-extraction:code": {
+          "top5Paths": [],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:raw": {
+          "top5Paths": [
+            "docs/workflow/ci/failure-analysis.md",
+            ".github/workflows/ci-failure-fix.md",
+            ".github/workflows/ci-failure-scan.md",
+            ".github/skills/ci-pipeline-monitor/SKILL.md",
+            "docs/coding-guidelines/clr-code-guide.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:source": {
+          "top5Paths": [
+            "docs/workflow/ci/failure-analysis.md",
+            ".github/workflows/ci-failure-fix.md",
+            ".github/workflows/ci-failure-scan.md",
+            ".github/skills/ci-pipeline-monitor/SKILL.md",
+            "docs/coding-guidelines/clr-code-guide.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "lexical-literal:code": {
+          "top5Paths": [
+            "src/libraries/Common/src/Interop/Unix/System.Security.Cryptography.Native/Interop.OpenSsl.cs",
+            "src/libraries/System.Net.HttpListener/src/System/Net/Windows/HttpListener.Windows.cs",
+            "src/coreclr/scripts/superpmi.py",
+            "src/libraries/System.IO.Ports/src/System/IO/Ports/SerialStream.Windows.cs",
+            "src/coreclr/tools/aot/crossgen2/Program.cs"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:raw": {
+          "top5Paths": [
+            "docs/workflow/ci/failure-analysis.md",
+            ".github/skills/ci-pipeline-monitor/report-template.md",
+            ".github/workflows/ci-failure-scan.md",
+            ".github/workflows/ci-failure-fix.md",
+            ".github/skills/ci-pipeline-monitor/log-template.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:source": {
+          "top5Paths": [
+            "docs/workflow/ci/failure-analysis.md",
+            ".github/skills/ci-pipeline-monitor/report-template.md",
+            ".github/workflows/ci-failure-scan.md",
+            ".github/workflows/ci-failure-fix.md",
+            ".github/skills/ci-pipeline-monitor/log-template.md"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "bm25:code": {
+          "top5Paths": [
+            "src/libraries/System.Net.Http/src/System/Net/Http/SocketsHttpHandler/ConnectionPool/HttpConnectionPool.cs",
+            "src/libraries/System.Net.Quic/src/System/Net/Quic/QuicConnection.SslConnectionOptions.cs",
+            "src/libraries/System.Net.Quic/src/System/Net/Quic/Internal/ThrowHelper.cs",
+            "src/coreclr/scripts/superpmi_nativeaot_app.py",
+            "src/coreclr/scripts/superpmi_aspnet2.py"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "candidate-rrf-bm25-heavy": {
+          "top5Paths": [
+            "src/libraries/System.Net.Http.WinHttpHandler/src/System/Net/Http/WinHttpRequestCallback.cs",
+            "src/libraries/System.Net.Http/src/System/Net/Http/SocketsHttpHandler/AuthenticationHelper.cs",
+            "src/libraries/System.Net.Http/src/System/Net/Http/SocketsHttpHandler/ConnectionPool/HttpConnectionPool.cs",
+            "src/libraries/System.Net.Quic/src/System/Net/Quic/QuicConnection.SslConnectionOptions.cs",
+            "src/libraries/System.Net.Http/src/System/Net/Http/SocketsHttpHandler/Http3RequestStream.cs"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        },
+        "fixmap": {
+          "top5Paths": [
+            "src/libraries/System.Net.Ping/src/System/Net/NetworkInformation/Ping.cs",
+            "src/libraries/System.Net.Http/src/System/Net/Http/SocketsHttpHandler/AuthenticationHelper.cs",
+            "src/libraries/System.Net.Http/src/System/Net/Http/HttpRequestMessage.cs",
+            "src/libraries/System.Net.Http.WinHttpHandler/src/System/Net/Http/WinHttpRequestCallback.cs",
+            "src/libraries/System.Net.Quic/src/System/Net/Quic/QuicConnection.SslConnectionOptions.cs"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": false
+        }
+      }
+    }
+  ]
+}
