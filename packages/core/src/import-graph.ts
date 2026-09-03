@@ -72,27 +72,30 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
 
   for (const file of parseable) {
     let edges = 0;
+    let edgeTruncated = false;
+    importsLoop:
     for (const imported of extractLanguageImports(file)) {
       for (const target of resolveLanguageImport(file.path, imported, resolverIndex, aliases, workspacePackages)) {
         if (edges >= MAX_EDGES_PER_FILE) {
           truncatedEdges += 1;
-          break;
+          edgeTruncated = true;
+          break importsLoop;
         }
         if (target === file.path || imports.get(file.path)?.has(target)) continue;
         addEdge(imports, file.path, target);
         addEdge(importedBy, target, file.path);
         edges += 1;
       }
-      if (edges >= MAX_EDGES_PER_FILE) break;
     }
     const dotnetProject = resolverIndex.dotnetProjectByFile.get(file.path);
-    if (dotnetProject && file.path.toLowerCase().endsWith(".cs")) {
+    if (!edgeTruncated && dotnetProject && file.path.toLowerCase().endsWith(".cs")) {
       const identifiers = new Set(file.textSample.match(/\b[A-Za-z_][A-Za-z0-9_]*\b/g) ?? []);
       const targetsBySymbol = resolverIndex.dotnetGlobalTargetsByProject.get(dotnetProject.path);
       for (const identifier of identifiers) {
         for (const target of targetsBySymbol?.get(identifier) ?? []) {
           if (edges >= MAX_EDGES_PER_FILE) {
             truncatedEdges += 1;
+            edgeTruncated = true;
             break;
           }
           if (target === file.path || imports.get(file.path)?.has(target)) continue;
@@ -104,12 +107,13 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
       }
     }
     const rubyProject = resolverIndex.rubyProjectByFile.get(file.path);
-    if (rubyProject && file.path.toLowerCase().endsWith(".rb")) {
+    if (!edgeTruncated && rubyProject && file.path.toLowerCase().endsWith(".rb")) {
       const targetsBySymbol = resolverIndex.rubyAutoloadTargetsByProject.get(rubyProject.path);
       for (const identifier of rubyConstantIdentifiers(file.textSample)) {
         for (const target of targetsBySymbol?.get(identifier) ?? []) {
           if (edges >= MAX_EDGES_PER_FILE) {
             truncatedEdges += 1;
+            edgeTruncated = true;
             break;
           }
           if (target === file.path || imports.get(file.path)?.has(target)) continue;

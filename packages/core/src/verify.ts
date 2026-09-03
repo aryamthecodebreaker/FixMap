@@ -119,7 +119,7 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
     !isTest(path) &&
     !discardedEdits.includes(path) &&
     !trackedGeneratedEdits.includes(path) &&
-    fileByPath.get(path)?.isSource !== false
+    fileByPath.get(path)?.isSource === true
   );
   if (unmapped.length > 0) {
     findings.push({
@@ -129,6 +129,18 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
       message:
         `${unmapped.length === 1 ? "One file" : `${unmapped.length} files`} changed that the plan did not rank. ` +
         "Either the task grew beyond the original description, or the ranking missed them — worth checking which."
+    });
+  }
+
+  const unscanned = changed.filter((path) => !fileByPath.has(path) && !planned.has(path));
+  if (unscanned.length > 0) {
+    findings.push({
+      code: "unscanned-change",
+      severity: "warning",
+      paths: unscanned,
+      message:
+        `${unscanned.length === 1 ? "One changed path was" : `${unscanned.length} changed paths were`} outside the scanned file set. ` +
+        "FixMap cannot judge whether the plan covered these changes; inspect scan-limit, sparse-checkout, binary, deletion, and exclusion diagnostics."
     });
   }
 

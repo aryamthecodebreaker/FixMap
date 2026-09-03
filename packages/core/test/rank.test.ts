@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { rankContextFiles, REPORT_SCORE_CUTOFF } from "../src/rank.js";
+import { rankContextFiles, rankContextFilesEvidenceDetailed, REPORT_SCORE_CUTOFF } from "../src/rank.js";
+import { buildHybridReportFromRepo, buildReportFromRepo } from "../src/report.js";
 import type { RepoMap } from "../src/types.js";
 
 function codeFile(path: string, textSample: string): RepoMap["files"][number] {
@@ -25,6 +26,37 @@ function repoWith(files: RepoMap["files"], options: { root?: string; changedFile
 }
 
 describe("rankContextFiles", () => {
+  it("returns graph truncation diagnostics without mutating the caller repository", async () => {
+    const imports = Array.from({ length: 201 }, (_, index) => `import "./dep-${index}";`).join("\n");
+    const repo = repoWith([
+      codeFile("src/seed.ts", `${imports}\nexport const truncationNeedle = true;`),
+      ...Array.from({ length: 201 }, (_, index) => codeFile(`src/dep-${index}.ts`, `export const dep${index} = true;`))
+    ], { changedFiles: ["src/seed.ts"] });
+
+    const detailed = rankContextFilesEvidenceDetailed(repo, { issueText: "truncationNeedle fails" }, 1);
+
+    expect(repo.diagnostics).toEqual([]);
+    expect(detailed.diagnostics).toContainEqual(expect.objectContaining({ code: "import-graph-truncated" }));
+    expect(buildReportFromRepo(repo, { issueText: "truncationNeedle fails", limit: 1 }).diagnostics)
+      .toContainEqual(expect.objectContaining({ code: "import-graph-truncated" }));
+    const hybrid = await buildHybridReportFromRepo(repo, {
+      issueText: "truncationNeedle fails",
+      limit: 1,
+      embeddingProvider: {
+        id: "local-test",
+        version: "1",
+        model: "constant",
+        artifactHash: "a".repeat(64),
+        runtime: "test",
+        dimensions: 1,
+        normalization: "l2",
+        local: true,
+        async embed(texts) { return texts.map(() => [1]); }
+      }
+    });
+    expect(hybrid.diagnostics.filter((entry) => entry.code === "import-graph-truncated")).toHaveLength(1);
+    expect(repo.diagnostics).toEqual([]);
+  });
   it("lets an exact definition site beat vocabulary-dense consumers", () => {
     const repo: RepoMap = {
       root: "/repo",

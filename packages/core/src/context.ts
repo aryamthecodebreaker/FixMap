@@ -1,5 +1,5 @@
 import { extractTaskSignals } from "./signals.js";
-import { markdownCode } from "./markdown.js";
+import { longestBacktickRun, markdownCode } from "./markdown.js";
 import { isFixMapArtifact } from "./artifacts.js";
 import type { FixMapReport, RepoFile, RepoMap } from "./types.js";
 
@@ -260,7 +260,7 @@ function truncateUtf8(text: string, maxBytes: number): string {
 }
 
 function safeFence(content: string): string {
-  const longest = Math.max(0, ...[...content.matchAll(/`+/g)].map((match) => match[0].length));
+  const longest = longestBacktickRun(content);
   return "`".repeat(Math.max(3, longest + 1));
 }
 

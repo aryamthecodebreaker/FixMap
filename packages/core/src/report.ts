@@ -51,7 +51,7 @@ export function buildReportFromRepo(
   );
   const contextFiles = ranked.contextFiles;
   const ranking = ranked.ranking;
-  return assembleReport(repo, input, grounding, contextFiles, ranking);
+  return assembleReport(repo, input, grounding, contextFiles, ranking, ranked.diagnostics);
 }
 
 /** Builds the same report contract with an explicitly requested hybrid rank. */
@@ -94,6 +94,7 @@ export async function buildHybridReportFromRepo(
     grounding,
     contextFiles,
     hybrid.structuralRanking,
+    hybrid.structuralDiagnostics,
     diagnostics,
     retrieval,
     hybrid
@@ -106,6 +107,7 @@ function assembleReport(
   grounding: TaskGrounding,
   contextFiles: RankedFile[],
   ranking: RankingShape,
+  rankingDiagnostics: ScanDiagnostic[] = [],
   extraDiagnostics: ScanDiagnostic[] = [],
   retrieval?: ReportRetrieval,
   hybrid?: HybridRankingResult
@@ -149,6 +151,7 @@ function assembleReport(
     changedFiles: repo.changedFiles,
     diagnostics: [
       ...repo.diagnostics,
+      ...rankingDiagnostics,
       ...findGatedTestDiagnostics(repo.files, routedTestPaths),
       ...findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes),
       ...findTaskDiagnostics(repo, grounding, ranking),

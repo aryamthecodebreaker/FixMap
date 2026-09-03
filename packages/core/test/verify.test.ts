@@ -135,6 +135,21 @@ describe("verifyPlan", () => {
     expect(finding?.severity).toBe("warning");
   });
 
+  it("separates changed paths that were never scanned from genuine unmapped source", () => {
+    const result = verifyPlan(
+      planFor("src/auth/reset-password.ts"),
+      repoWith(["src/auth/reset-password.ts", "artifacts/blob.bin"])
+    );
+
+    expect(result.findings).toContainEqual(expect.objectContaining({
+      code: "unscanned-change",
+      severity: "warning",
+      paths: ["artifacts/blob.bin"]
+    }));
+    expect(result.findings.find((entry) => entry.code === "unmapped-change")?.paths ?? [])
+      .not.toContain("artifacts/blob.bin");
+  });
+
   it("does not count a new test as an unmapped change", () => {
     const result = verifyPlan(
       planFor("src/auth/reset-password.ts"),

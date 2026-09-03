@@ -94,10 +94,16 @@ function globToRegExp(glob) {
 
 // packages/core/dist/markdown.js
 function markdownCode(value) {
-  const longestRun = Math.max(0, ...[...value.matchAll(/`+/g)].map((match) => match[0].length));
+  const longestRun = longestBacktickRun(value);
   const fence = "`".repeat(longestRun + 1);
   const needsPadding = value.startsWith("`") || value.endsWith("`") || value.startsWith(" ") || value.endsWith(" ");
   return `${fence}${needsPadding ? " " : ""}${value}${needsPadding ? " " : ""}${fence}`;
+}
+function longestBacktickRun(value) {
+  let longest = 0;
+  for (const match of value.matchAll(/`+/g))
+    longest = Math.max(longest, match[0].length);
+  return longest;
 }
 
 // packages/core/dist/language-adapters.js
@@ -2256,11 +2262,13 @@ function buildImportGraph(files) {
   let truncatedEdges = 0;
   for (const file of parseable) {
     let edges = 0;
-    for (const imported of extractLanguageImports(file)) {
+    let edgeTruncated = false;
+    importsLoop: for (const imported of extractLanguageImports(file)) {
       for (const target of resolveLanguageImport(file.path, imported, resolverIndex, aliases, workspacePackages)) {
         if (edges >= MAX_EDGES_PER_FILE) {
           truncatedEdges += 1;
-          break;
+          edgeTruncated = true;
+          break importsLoop;
         }
         if (target === file.path || imports.get(file.path)?.has(target))
           continue;
@@ -2268,17 +2276,16 @@ function buildImportGraph(files) {
         addEdge(importedBy, target, file.path);
         edges += 1;
       }
-      if (edges >= MAX_EDGES_PER_FILE)
-        break;
     }
     const dotnetProject = resolverIndex.dotnetProjectByFile.get(file.path);
-    if (dotnetProject && file.path.toLowerCase().endsWith(".cs")) {
+    if (!edgeTruncated && dotnetProject && file.path.toLowerCase().endsWith(".cs")) {
       const identifiers = new Set(file.textSample.match(/\b[A-Za-z_][A-Za-z0-9_]*\b/g) ?? []);
       const targetsBySymbol = resolverIndex.dotnetGlobalTargetsByProject.get(dotnetProject.path);
       for (const identifier of identifiers) {
         for (const target of targetsBySymbol?.get(identifier) ?? []) {
           if (edges >= MAX_EDGES_PER_FILE) {
             truncatedEdges += 1;
+            edgeTruncated = true;
             break;
           }
           if (target === file.path || imports.get(file.path)?.has(target))
@@ -2292,12 +2299,13 @@ function buildImportGraph(files) {
       }
     }
     const rubyProject = resolverIndex.rubyProjectByFile.get(file.path);
-    if (rubyProject && file.path.toLowerCase().endsWith(".rb")) {
+    if (!edgeTruncated && rubyProject && file.path.toLowerCase().endsWith(".rb")) {
       const targetsBySymbol = resolverIndex.rubyAutoloadTargetsByProject.get(rubyProject.path);
       for (const identifier of rubyConstantIdentifiers(file.textSample)) {
         for (const target of targetsBySymbol?.get(identifier) ?? []) {
           if (edges >= MAX_EDGES_PER_FILE) {
             truncatedEdges += 1;
+            edgeTruncated = true;
             break;
           }
           if (target === file.path || imports.get(file.path)?.has(target))
@@ -3459,7 +3467,8 @@ function rankContextFilesEvidenceDetailed(repo, input, limit = DEFAULT_CONTEXT_F
       symbol: roundRetrieval(symbolFinishedAt - lexicalFinishedAt),
       rerank: roundRetrieval(finishedAt - symbolFinishedAt),
       total: roundRetrieval(finishedAt - startedAt)
-    }
+    },
+    diagnostics: structuralResult.diagnostics
   };
 }
 function rankContextFilesDetailed(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMIT, minScore = REPORT_SCORE_CUTOFF) {
@@ -3643,7 +3652,7 @@ function rankContextFilesDetailed(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMI
     }
     return { path: file.path, score, isChanged, reasons };
   });
-  applyImportProximity(scored, repo);
+  const diagnostics = applyImportProximity(scored, repo);
   const candidates = scored.filter((file) => file.score >= minScore).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
   const ranking = buildRankingShape(candidates);
   const clustered = ranking.clustered;
@@ -3661,7 +3670,7 @@ function rankContextFilesDetailed(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMI
     }),
     reasons: entry.reasons.length > 0 ? entry.reasons : ["source file baseline"]
   }));
-  return { contextFiles, ranking };
+  return { contextFiles, ranking, diagnostics };
 }
 function hasContestedLead(ranked) {
   const leader = ranked[0];
@@ -3677,13 +3686,14 @@ function applyImportProximity(scored, repo) {
   const directSeeds = scored.filter((entry) => entry.score >= 8 && hasDirectEvidence(entry)).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, MAX_PROXIMITY_SEEDS);
   const seedEntries = directSeeds.length > 0 ? directSeeds : scored.filter((entry) => entry.score >= 8).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, 2);
   if (seedEntries.length === 0) {
-    return;
+    return [];
   }
   const seeds = seedEntries.map((entry) => entry.path);
   const seedScores = new Map(seedEntries.map((entry) => [entry.path, entry.score]));
   const graph = buildImportGraph(repo.files);
+  const diagnostics = [];
   if ((graph.truncatedFiles > 0 || graph.truncatedEdges > 0) && !repo.diagnostics.some((entry) => entry.code === "import-graph-truncated")) {
-    repo.diagnostics.push({
+    diagnostics.push({
       code: "import-graph-truncated",
       severity: "info",
       message: `Import proximity was bounded: ${graph.truncatedFiles.toLocaleString()} parseable files and ${graph.truncatedEdges.toLocaleString()} high-fanout files were not fully traversed. Ranking still uses path and content evidence.`
@@ -3703,6 +3713,7 @@ function applyImportProximity(scored, repo) {
       entry.reasons.push(proximityReason(hit));
     }
   }
+  return diagnostics;
 }
 function proximityReason(hit) {
   if (hit.distance === 2) {
@@ -4212,6 +4223,7 @@ async function rankContextFilesHybrid(repo, input, options = {}) {
     weights,
     ...semantic ? { semantic } : {},
     diagnostics,
+    structuralDiagnostics: detailed.diagnostics,
     structuralRanking: detailed.ranking
   };
 }
@@ -4950,7 +4962,7 @@ function buildReportFromRepo(repo, input) {
   }, input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT);
   const contextFiles = ranked.contextFiles;
   const ranking = ranked.ranking;
-  return assembleReport(repo, input, grounding, contextFiles, ranking);
+  return assembleReport(repo, input, grounding, contextFiles, ranking, ranked.diagnostics);
 }
 async function buildHybridReportFromRepo(repo, input) {
   const grounding = analyzeTaskGrounding(repo, { issueText: input.issueText, diffText: repo.diffText });
@@ -4973,9 +4985,9 @@ async function buildHybridReportFromRepo(repo, input) {
     ...hybrid.semantic ? { semantic: hybrid.semantic } : {}
   };
   const diagnostics = hybrid.diagnostics.flatMap((entry) => entry.code === "semantic-disabled" ? [] : [{ ...entry, code: entry.code }]);
-  return assembleReport(repo, input, grounding, contextFiles, hybrid.structuralRanking, diagnostics, retrieval, hybrid);
+  return assembleReport(repo, input, grounding, contextFiles, hybrid.structuralRanking, hybrid.structuralDiagnostics, diagnostics, retrieval, hybrid);
 }
-function assembleReport(repo, input, grounding, contextFiles, ranking, extraDiagnostics = [], retrieval, hybrid) {
+function assembleReport(repo, input, grounding, contextFiles, ranking, rankingDiagnostics = [], extraDiagnostics = [], retrieval, hybrid) {
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
@@ -5013,6 +5025,7 @@ function assembleReport(repo, input, grounding, contextFiles, ranking, extraDiag
     changedFiles: repo.changedFiles,
     diagnostics: [
       ...repo.diagnostics,
+      ...rankingDiagnostics,
       ...findGatedTestDiagnostics(repo.files, routedTestPaths),
       ...findMissingTestRouteDiagnostics(repo, contextFiles, testRoutes),
       ...findTaskDiagnostics(repo, grounding, ranking),
@@ -6894,13 +6907,22 @@ function verifyPlan(report, repo) {
       message: `${trackedGeneratedEdits.length === 1 ? "A committed generated artifact was" : `${trackedGeneratedEdits.length} committed generated artifacts were`} edited. Confirm the maintained source changed too and the artifact was rebuilt; tracked release artifacts are not treated as discarded edits.`
     });
   }
-  const unmapped = changed.filter((path) => !planned.has(path) && !isTest(path) && !discardedEdits.includes(path) && !trackedGeneratedEdits.includes(path) && fileByPath.get(path)?.isSource !== false);
+  const unmapped = changed.filter((path) => !planned.has(path) && !isTest(path) && !discardedEdits.includes(path) && !trackedGeneratedEdits.includes(path) && fileByPath.get(path)?.isSource === true);
   if (unmapped.length > 0) {
     findings.push({
       code: "unmapped-change",
       severity: "warning",
       paths: unmapped,
       message: `${unmapped.length === 1 ? "One file" : `${unmapped.length} files`} changed that the plan did not rank. Either the task grew beyond the original description, or the ranking missed them \u2014 worth checking which.`
+    });
+  }
+  const unscanned = changed.filter((path) => !fileByPath.has(path) && !planned.has(path));
+  if (unscanned.length > 0) {
+    findings.push({
+      code: "unscanned-change",
+      severity: "warning",
+      paths: unscanned,
+      message: `${unscanned.length === 1 ? "One changed path was" : `${unscanned.length} changed paths were`} outside the scanned file set. FixMap cannot judge whether the plan covered these changes; inspect scan-limit, sparse-checkout, binary, deletion, and exclusion diagnostics.`
     });
   }
   const leading = report.contextFiles[0];

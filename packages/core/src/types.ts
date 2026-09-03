@@ -294,6 +294,7 @@ export type VerifyFinding = {
     | "edit-in-generated-location"
     | "tracked-generated-edit"
     | "unmapped-change"
+    | "unscanned-change"
     | "leading-file-untouched"
     | "no-test-changed"
     | "new-risk-area"

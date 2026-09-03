@@ -19,7 +19,7 @@ import {
   rankByBm25Detailed,
   rankSymbolsByBm25Detailed
 } from "./retrieval.js";
-import type { RankedFile, RepoFile, RepoMap } from "./types.js";
+import type { RankedFile, RepoFile, RepoMap, ScanDiagnostic } from "./types.js";
 
 const DEPLOYMENT_TERMS = [
   "deploy", "deployment", "vercel", "netlify", "docker", "kubernetes", "hosting", "serverless", "production"
@@ -128,6 +128,7 @@ export type EvidenceRankingResult = {
   ranking: import("./grounding.js").RankingShape;
   candidateCounts: { structural: number; lexical: number; symbol: number; union: number };
   timingsMs: { structural: number; lexical: number; symbol: number; rerank: number; total: number };
+  diagnostics: ScanDiagnostic[];
 };
 
 export function rankContextFiles(
@@ -282,7 +283,8 @@ export function rankContextFilesEvidenceDetailed(
       symbol: roundRetrieval(symbolFinishedAt - lexicalFinishedAt),
       rerank: roundRetrieval(finishedAt - symbolFinishedAt),
       total: roundRetrieval(finishedAt - startedAt)
-    }
+    },
+    diagnostics: structuralResult.diagnostics
   };
 }
 
@@ -297,7 +299,7 @@ export function rankContextFilesDetailed(
   // `explainFile` lowers this to see what a file scored below the reporting cutoff.
   // Ranking never calls it with anything but the default.
   minScore = REPORT_SCORE_CUTOFF
-): { contextFiles: RankedFile[]; ranking: import("./grounding.js").RankingShape } {
+): { contextFiles: RankedFile[]; ranking: import("./grounding.js").RankingShape; diagnostics: ScanDiagnostic[] } {
   const exclude = input.exclude ?? NO_EXCLUSIONS;
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
@@ -582,7 +584,7 @@ export function rankContextFilesDetailed(
       return { path: file.path, score, isChanged, reasons };
     });
 
-  applyImportProximity(scored, repo);
+  const diagnostics = applyImportProximity(scored, repo);
 
   const candidates = scored
     .filter((file) => file.score >= minScore)
@@ -605,7 +607,7 @@ export function rankContextFilesDetailed(
       }),
       reasons: entry.reasons.length > 0 ? entry.reasons : ["source file baseline"]
     }));
-  return { contextFiles, ranking };
+  return { contextFiles, ranking, diagnostics };
 }
 
 /**
@@ -637,7 +639,7 @@ function hasDefinitionEvidence(entry: ScoredFile): boolean {
   );
 }
 
-function applyImportProximity(scored: ScoredFile[], repo: RepoMap): void {
+function applyImportProximity(scored: ScoredFile[], repo: RepoMap): ScanDiagnostic[] {
   const directSeeds = scored
     .filter((entry) => entry.score >= 8 && hasDirectEvidence(entry))
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
@@ -649,14 +651,15 @@ function applyImportProximity(scored: ScoredFile[], repo: RepoMap): void {
       .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
       .slice(0, 2);
   if (seedEntries.length === 0) {
-    return;
+    return [];
   }
 
   const seeds = seedEntries.map((entry) => entry.path);
   const seedScores = new Map(seedEntries.map((entry) => [entry.path, entry.score]));
   const graph = buildImportGraph(repo.files);
+  const diagnostics: ScanDiagnostic[] = [];
   if ((graph.truncatedFiles > 0 || graph.truncatedEdges > 0) && !repo.diagnostics.some((entry) => entry.code === "import-graph-truncated")) {
-    repo.diagnostics.push({
+    diagnostics.push({
       code: "import-graph-truncated",
       severity: "info",
       message:
@@ -678,6 +681,7 @@ function applyImportProximity(scored: ScoredFile[], repo: RepoMap): void {
       entry.reasons.push(proximityReason(hit));
     }
   }
+  return diagnostics;
 }
 
 function proximityReason(hit: ImportProximity): string {

@@ -1,7 +1,7 @@
 import { rankContextFilesEvidenceDetailed } from "./rank.js";
 import { isFixMapArtifact } from "./artifacts.js";
 import type { PathExcluder } from "./exclude.js";
-import type { RankedFile, RepoMap } from "./types.js";
+import type { RankedFile, RepoMap, ScanDiagnostic } from "./types.js";
 import type { RankingShape } from "./grounding.js";
 
 export type EmbeddingNormalization = "l2" | "none";
@@ -60,6 +60,7 @@ export type HybridRankingResult = {
   weights: { structural: number; lexical: number; semantic: number; reciprocalRankConstant: number };
   semantic?: SemanticIndexProvenance;
   diagnostics: HybridRetrievalDiagnostic[];
+  structuralDiagnostics: ScanDiagnostic[];
   structuralRanking: RankingShape;
 };
 
@@ -239,7 +240,8 @@ export async function rankContextFilesHybrid(
     weights,
     ...(semantic ? { semantic } : {}),
     diagnostics,
-      structuralRanking: detailed.ranking
+    structuralDiagnostics: detailed.diagnostics,
+    structuralRanking: detailed.ranking
   };
 }
 
