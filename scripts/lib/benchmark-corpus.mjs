@@ -1,10 +1,16 @@
 import { posix } from "node:path";
-import { runGit } from "./external-cache.mjs";
+import { execFileSync } from "node:child_process";
+
+function readGit(args, cwd) {
+  // Large pinned repositories exceed Node's default 1 MiB process-output limit.
+  // Preserve raw target bytes, including whitespace in valid symlink names.
+  return execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+}
 
 // Windows Git may materialize a symlink as its target-name text. Linux's scanner
 // deduplicates the real link against its target. Give every benchmark arm that
 // same corpus, using committed link identities rather than host link support.
-export function normalizePinnedAliases(repo, git = runGit) {
+export function normalizePinnedAliases(repo, git = readGit) {
   const aliases = new Map();
   for (const entry of git(["ls-tree", "-r", "-z", "HEAD"], repo.root).split("\0")) {
     const match = /^120000 blob ([0-9a-f]+)\t([\s\S]+)$/.exec(entry);
