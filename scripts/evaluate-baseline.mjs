@@ -33,6 +33,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { materializePinnedRepository } from "./lib/external-cache.mjs";
+import { normalizePinnedAliases } from "./lib/benchmark-corpus.mjs";
 import { classifyExpectedPathMention, splitCohorts } from "./lib/expected-path-mention.mjs";
 import { wilsonInterval } from "./lib/wilson.mjs";
 
@@ -49,7 +50,18 @@ if (!["external", "heldout"].includes(suite)) {
 }
 
 const suiteDir = join(repoRoot, "benchmarks", suite);
-const dataset = JSON.parse(await readFile(join(suiteDir, "dataset.json"), "utf8"));
+const loadedDataset = JSON.parse(await readFile(join(suiteDir, "dataset.json"), "utf8"));
+const caseIndex = process.argv.indexOf("--case");
+const caseSlug = caseIndex === -1 ? undefined : process.argv[caseIndex + 1];
+if (caseIndex !== -1 && (!caseSlug || !loadedDataset.cases.some((entry) => entry.slug === caseSlug))) {
+  throw new Error("--case must name a case in the selected suite.");
+}
+if (caseSlug && (process.argv.includes("--record") || process.argv.includes("--check-recorded"))) {
+  throw new Error("Filtered runs cannot record or check the full suite snapshot.");
+}
+const dataset = caseSlug
+  ? { ...loadedDataset, cases: loadedDataset.cases.filter((entry) => entry.slug === caseSlug) }
+  : loadedDataset;
 const recordedResultsPath = join(suiteDir, "baseline-results.json");
 
 const TOP_N = 5;
@@ -246,7 +258,7 @@ for (const benchmark of dataset.cases) {
   const dir = await materializePinnedRepository(benchmark);
   // One scan, shared by every arm, so the comparison isolates ranking and candidate policy
   // rather than what was read off disk.
-  const repo = await scanRepo({ repoRoot: dir });
+  const repo = normalizePinnedAliases(await scanRepo({ repoRoot: dir }));
   if (repo.files.length === 0) {
     throw new Error(`Baseline evaluation could not scan any files for ${benchmark.slug} at ${benchmark.sha}.`);
   }

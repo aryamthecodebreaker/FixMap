@@ -1318,7 +1318,7 @@
             "packages/zod/README.md",
             "packages/resolution/src/index.mts",
             "packages/resolution/src/index.cts",
-            "packages/resolution/src/index.ts"
+            "wiki/optionality.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
