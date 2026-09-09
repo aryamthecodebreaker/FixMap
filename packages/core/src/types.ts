@@ -201,6 +201,8 @@ export type ImpactFile = {
 export type ImpactMap = {
   seeds: string[];
   files: ImpactFile[];
+  /** Observed direct imports among requested primary paths, independent of impact seed limits. */
+  primaryImports?: Array<{ from: string; to: string }>;
   inspectionOrder: string[];
   history: {
     available: boolean;

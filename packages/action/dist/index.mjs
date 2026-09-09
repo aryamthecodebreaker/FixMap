@@ -3011,7 +3011,7 @@ function isRecord2(candidate) {
 var DEFAULT_IMPACT_LIMIT = 12;
 var MAX_IMPACT_SEEDS = 3;
 var MIN_CO_CHANGE_OCCURRENCES = 2;
-function buildImpactMap(repo, requestedSeeds, testRoutes = [], limit = DEFAULT_IMPACT_LIMIT) {
+function buildImpactMap(repo, requestedSeeds, testRoutes = [], limit = DEFAULT_IMPACT_LIMIT, primaryPaths = []) {
   const repositoryPaths = new Set(repo.files.filter((file) => !isFixMapArtifact(file)).map((file) => file.path));
   const seeds = [...new Set(requestedSeeds)].filter((path) => repositoryPaths.has(path)).slice(0, MAX_IMPACT_SEEDS);
   const seedSet = new Set(seeds);
@@ -3027,6 +3027,8 @@ function buildImpactMap(repo, requestedSeeds, testRoutes = [], limit = DEFAULT_I
     candidates.set(path, current);
   };
   const graph = buildImportGraph(repo.files);
+  const primarySet = new Set(primaryPaths.filter((path) => repositoryPaths.has(path)));
+  const primaryImports = [...primarySet].sort((a, b) => a.localeCompare(b)).flatMap((from) => [...graph.imports.get(from) ?? []].filter((to) => to !== from && primarySet.has(to)).sort((a, b) => a.localeCompare(b)).map((to) => ({ from, to })));
   for (const seed of seeds) {
     for (const imported of [...graph.imports.get(seed) ?? []].sort((a, b) => a.localeCompare(b))) {
       addEvidence(imported, 4, {
@@ -3087,6 +3089,7 @@ function buildImpactMap(repo, requestedSeeds, testRoutes = [], limit = DEFAULT_I
   return {
     seeds,
     files,
+    ...primaryImports.length > 0 ? { primaryImports } : {},
     inspectionOrder: [...seeds, ...files.map((file) => file.path)],
     history: {
       available: Boolean(history),
@@ -4991,7 +4994,7 @@ function assembleReport(repo, input, grounding, contextFiles, ranking, rankingDi
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
-  const impact = buildImpactMap(repo, contextPaths, testRoutes);
+  const impact = buildImpactMap(repo, contextPaths, testRoutes, void 0, contextPaths);
   const annotations = input.annotationAsOf ? buildReportAnnotations(repo, [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles], input.issueText ?? "", input.annotationAsOf) : void 0;
   const decisionInventory = inventoryDecisionRecords(repo);
   const decisions = selectDecisionRecords(decisionInventory, {
@@ -7270,6 +7273,21 @@ function validateFixMapReport(candidate, label) {
     });
     if (invalidImpact !== -1) {
       return { success: false, message: `${label} has an invalid impact.files entry at index ${invalidImpact}.` };
+    }
+    if (impact.primaryImports !== void 0) {
+      const primaryPaths = new Set(contextFiles.map((file) => file.path));
+      const seenEdges = /* @__PURE__ */ new Set();
+      if (!Array.isArray(impact.primaryImports) || impact.primaryImports.some((edge) => {
+        if (!isRecord6(edge) || !isRepositoryRelativePath(edge.from) || !isRepositoryRelativePath(edge.to) || edge.from === edge.to || !primaryPaths.has(edge.from) || !primaryPaths.has(edge.to))
+          return true;
+        const key = JSON.stringify([edge.from, edge.to]);
+        if (seenEdges.has(key))
+          return true;
+        seenEdges.add(key);
+        return false;
+      })) {
+        return { success: false, message: `${label} has invalid impact.primaryImports; each unique edge must join two distinct primary context paths.` };
+      }
     }
   }
   if (!isRepositoryRelativePathArray(record.changedFiles)) {

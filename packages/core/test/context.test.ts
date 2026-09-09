@@ -25,6 +25,27 @@ const repo: RepoMap = {
 };
 
 describe("context packs", () => {
+  it.each([
+    ["export const resetPassword = 1;", 1],
+    ["export const resetPassword = 1;\n", 1],
+    ["export const resetPassword = 1;\r\n", 1],
+    ["export const resetPassword = 1;\r", 1],
+    ["export const resetPassword = 1;\n\n", 2]
+  ])("does not count a terminating newline as an extra source line: %j", (text, endLine) => {
+    const sourceRepo: RepoMap = { ...repo, files: [{ ...repo.files[0]!, textSample: text }] };
+    const pack = buildContextPack({ report: { ...report, impact: undefined }, repo: sourceRepo, task: "resetPassword", budgetTokens: 256 });
+    expect(pack.snippets[0]).toMatchObject({ startLine: 1, endLine, content: text.replace(/\r\n?/g, "\n") });
+    expect(pack.estimatedSourceTokens).toBe(estimateContextTokens(text.replace(/\r\n?/g, "\n")));
+  });
+
+  it("keeps a budget-selected range at EOF within real source lines", () => {
+    const text = `${"unrelated ".repeat(100)}\nexport function resetPassword() {}\n`;
+    const sourceRepo: RepoMap = { ...repo, files: [{ ...repo.files[0]!, textSample: text }] };
+    const pack = buildContextPack({ report: { ...report, impact: undefined }, repo: sourceRepo, task: "resetPassword", budgetTokens: 48 });
+    expect(pack.snippets[0]).toMatchObject({ startLine: 2, endLine: 2 });
+    expect(pack.estimatedSourceTokens).toBeLessThanOrEqual(48);
+  });
+
   it("selects primary and supporting source under a stable budget", () => {
     const pack = buildContextPack({ report, repo, task: "resetPassword emails fail", budgetTokens: 256 });
     expect(pack.snippets.map((snippet) => snippet.role)).toEqual(["primary", "supporting"]);
@@ -42,7 +63,7 @@ describe("context packs", () => {
   it("renders fenced ranges and uses the documented byte estimate", () => {
     expect(estimateContextTokens("12345678")).toBe(2);
     const markdown = renderContextPackMarkdown(buildContextPack({ report, repo, task: "resetPassword", budgetTokens: 256 }));
-    expect(markdown).toContain("`src/reset.ts`:1-6");
+    expect(markdown).toContain("`src/reset.ts`:1-5");
     expect(markdown).toContain("```typescript");
     expect(markdown).toContain("UTF-8 bytes divided by four");
   });

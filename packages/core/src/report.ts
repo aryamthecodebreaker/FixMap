@@ -115,7 +115,7 @@ function assembleReport(
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
-  const impact = buildImpactMap(repo, contextPaths, testRoutes);
+  const impact = buildImpactMap(repo, contextPaths, testRoutes, undefined, contextPaths);
   const annotations = input.annotationAsOf
     ? buildReportAnnotations(repo, [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles], input.issueText ?? "", input.annotationAsOf)
     : undefined;

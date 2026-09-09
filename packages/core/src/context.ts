@@ -184,8 +184,10 @@ function selectRange(
   identifiers: string[],
   allowance: number
 ): { startLine: number; endLine: number; content: string; estimatedTokens: number } | undefined {
-  const lines = file.textSample.replace(/\r\n?/g, "\n").split("\n");
-  const whole = lines.join("\n");
+  const whole = file.textSample.replace(/\r\n?/g, "\n");
+  // A terminator ends its line; it does not create another source line. Preserve
+  // the whole snippet's bytes and genuine blank lines, removing only the sentinel.
+  const lines = (whole.endsWith("\n") ? whole.slice(0, -1) : whole).split("\n");
   const wholeTokens = estimateContextTokens(whole);
   if (wholeTokens <= allowance) {
     return { startLine: 1, endLine: lines.length, content: whole, estimatedTokens: wholeTokens };

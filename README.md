@@ -293,7 +293,9 @@ contract, decision, test-association, reviewer, and architecture evidence.
 - `fixmap context` selects deterministic line ranges from primary and impact files, labels each snippet as primary or impact, and records its reason, confidence, line range, estimated token cost, source truncation, and omitted-file reason.
 - The budget counts source using the stable estimate `ceil(UTF-8 bytes / 4)`; metadata is excluded. This is a reproducible planning estimate, not a tokenizer-specific exact count.
 - Context may use FixMap's bounded scanner sample rather than an entire large file. `sourceTruncated` makes that boundary explicit in JSON and Markdown.
+- Snippet ranges are 1-based and inclusive. A terminating newline ends its source line; it does not add a phantom line. Genuine trailing blank lines are retained.
 - `fixmap graph` exports the same Impact Graph as Mermaid or versioned JSON, preserving imports, imported-by, test-route, and co-change direction and evidence.
+- Direct imports between primary-ranked files are retained in the additive report field `impact.primaryImports` and exported even when there are no tests or additional impact files. These edges use observed import resolution, independently of the three-seed impact expansion limit. Older reports remain readable; regenerate an older plan to obtain relationships it did not store.
 
 ### Exclusion pattern syntax
 

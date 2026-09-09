@@ -156,6 +156,20 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     if (invalidImpact !== -1) {
       return { success: false, message: `${label} has an invalid impact.files entry at index ${invalidImpact}.` };
     }
+    if (impact.primaryImports !== undefined) {
+      const primaryPaths = new Set(contextFiles.map((file) => file.path));
+      const seenEdges = new Set<string>();
+      if (!Array.isArray(impact.primaryImports) || impact.primaryImports.some((edge) => {
+        if (!isRecord(edge) || !isRepositoryRelativePath(edge.from) || !isRepositoryRelativePath(edge.to) ||
+          edge.from === edge.to || !primaryPaths.has(edge.from) || !primaryPaths.has(edge.to)) return true;
+        const key = JSON.stringify([edge.from, edge.to]);
+        if (seenEdges.has(key)) return true;
+        seenEdges.add(key);
+        return false;
+      })) {
+        return { success: false, message: `${label} has invalid impact.primaryImports; each unique edge must join two distinct primary context paths.` };
+      }
+    }
   }
 
   if (!isRepositoryRelativePathArray(record.changedFiles)) {
