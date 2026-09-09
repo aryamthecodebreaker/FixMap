@@ -752,6 +752,30 @@ h3 { margin-bottom: 10px; font-size: 21px; line-height: 1.25; letter-spacing: -.
 .pro-hero-lede { max-width: 650px; margin-bottom: 0; color: var(--ink-soft); font-size: 19px; line-height: 1.55; }
 .pro-hero-copy .copy-command { max-width: 610px; border-radius: 7px; box-shadow: none; }
 .pro-hero-copy .button-row { margin-top: 30px; }
+.ai-explainer-trigger { border-color: var(--line); background: transparent; color: var(--ink-soft); cursor: pointer; font-weight: 560; }
+.ai-explainer-trigger:hover { border-color: var(--line-strong); background: var(--paper-light); color: var(--ink); }
+.ai-explainer-dialog { width: min(520px, calc(100% - 32px)); max-height: min(720px, calc(100dvh - 32px)); padding: 0; overflow: auto; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--paper-light); color: var(--ink); box-shadow: 0 24px 80px rgba(7, 29, 53, .28); }
+.ai-explainer-dialog::backdrop { background: rgba(7, 21, 35, .62); backdrop-filter: blur(3px); }
+.ai-explainer-heading { padding: 24px 24px 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.ai-explainer-heading span { color: var(--green-dark); font: 700 10px/1.2 var(--font-mono), monospace; letter-spacing: .1em; text-transform: uppercase; }
+.ai-explainer-heading h2 { margin: 7px 0 0; font-size: 30px; letter-spacing: -.03em; }
+.ai-explainer-close { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--ink); cursor: pointer; }
+.ai-explainer-dialog > p { margin: 14px 24px 20px; color: var(--ink-soft); font-size: 14px; }
+.ai-provider-list { margin-inline: 24px; border-top: 1px solid var(--line-strong); }
+.ai-provider-list > button { width: 100%; min-height: 66px; padding: 12px 8px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.ai-provider-list > button:hover { background: var(--mint-soft); }
+.ai-provider-list span { display: grid; gap: 2px; }
+.ai-provider-list strong { font-size: 15px; }
+.ai-provider-list small { color: var(--ink-faint); font-size: 11px; }
+.ai-provider-list svg { color: var(--green-dark); }
+.ai-explainer-fallback { min-height: 60px; margin: 18px 24px 0; display: flex; align-items: center; gap: 14px; }
+.ai-explainer-fallback > button, .ai-explainer-done { min-height: 38px; padding: 8px 11px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--ink); cursor: pointer; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.ai-explainer-status { margin: 0; color: var(--ink-soft); font-size: 11px; line-height: 1.45; }
+.ai-explainer-prompt { margin: 14px 24px 0; border-top: 1px solid var(--line); }
+.ai-explainer-prompt summary { min-height: 44px; display: flex; align-items: center; color: var(--green-dark); cursor: pointer; font-size: 12px; font-weight: 650; }
+.ai-explainer-prompt pre { max-height: 180px; margin: 0 0 14px; padding: 12px; overflow: auto; white-space: pre-wrap; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink-soft); font: 10.5px/1.55 var(--font-mono), monospace; }
+.ai-explainer-dialog form { padding: 18px 24px 24px; display: flex; justify-content: flex-end; }
+.ai-explainer-done { border-color: var(--green-dark); background: var(--green-dark); color: var(--paper-light); }
 .pro-trust-line { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 10px 22px; color: var(--ink-faint); font-size: 12px; }
 .pro-trust-line span { display: inline-flex; align-items: center; gap: 6px; }
 .pro-trust-line svg { color: var(--green); }
@@ -921,6 +945,13 @@ h3 { margin-bottom: 10px; font-size: 21px; line-height: 1.25; letter-spacing: -.
   .pro-hero { padding-block: 54px 70px; gap: 48px; }
   .pro-hero-copy h1 { font-size: 50px; }
   .pro-hero-lede { font-size: 17px; }
+  .ai-explainer-dialog { width: calc(100% - 20px); max-height: calc(100dvh - 20px); }
+  .ai-explainer-heading { padding: 20px 18px 0; }
+  .ai-explainer-dialog > p, .ai-provider-list, .ai-explainer-fallback, .ai-explainer-prompt { margin-inline: 18px; }
+  .ai-explainer-fallback { align-items: stretch; flex-direction: column; }
+  .ai-explainer-fallback > button { width: 100%; }
+  .ai-explainer-dialog form { padding: 16px 18px 20px; }
+  .ai-explainer-done { width: 100%; }
   .pro-workflow, .pro-surfaces { padding-block: 72px; }
   .pro-workflow-list > a { min-height: 128px; grid-template-columns: 34px 1fr 22px; gap: 8px 12px; }
   .pro-workflow-list p { grid-column: 2 / -1; }

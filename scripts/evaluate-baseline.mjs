@@ -34,6 +34,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { materializePinnedRepository } from "./lib/external-cache.mjs";
+import { normalizePinnedAliases } from "./lib/benchmark-corpus.mjs";
 import { classifyExpectedPathMention, splitCohorts } from "./lib/expected-path-mention.mjs";
 import { wilsonInterval } from "./lib/wilson.mjs";
 
@@ -61,13 +62,15 @@ const loadedDataset = JSON.parse(loadedDatasetText);
 const datasetSha256 = createHash("sha256").update(loadedDatasetText).digest("hex");
 const caseIndex = process.argv.indexOf("--case");
 const caseSlug = caseIndex === -1 ? undefined : process.argv[caseIndex + 1];
+if (caseIndex !== -1 && (!caseSlug || !loadedDataset.cases.some((entry) => entry.slug === caseSlug))) {
+  throw new Error("--case must name a case in the selected suite.");
+}
+if (caseSlug && (process.argv.includes("--record") || process.argv.includes("--check-recorded"))) {
+  throw new Error("Filtered runs cannot record or check the full suite snapshot.");
+}
 const dataset = caseSlug
   ? { ...loadedDataset, cases: loadedDataset.cases.filter((entry) => entry.slug === caseSlug) }
   : loadedDataset;
-if (caseSlug && dataset.cases.length === 0) {
-  process.stderr.write(`Unknown benchmark case "${caseSlug}" in the ${suite} suite.\n`);
-  process.exit(1);
-}
 const recordedResultsPath = join(suiteDir, "baseline-results.json");
 const recordedAblationPath = join(suiteDir, "reranker-ablation-results.json");
 const includeRerankerAblations = process.argv.includes("--reranker-ablations");
@@ -317,7 +320,7 @@ for (const [caseNumber, benchmark] of dataset.cases.entries()) {
   // rather than what was read off disk.
   // Retrieval ranking does not read Git history. Disabling it avoids spending minutes per
   // large repository collecting co-change evidence that no arm consumes.
-  const repo = await scanRepo({ repoRoot: dir, includeHistory: false });
+  const repo = normalizePinnedAliases(await scanRepo({ repoRoot: dir, includeHistory: false }));
   const scannedAt = performance.now();
   if (repo.files.length === 0) {
     throw new Error(`Baseline evaluation could not scan any files for ${benchmark.slug} at ${benchmark.sha}.`);

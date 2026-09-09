@@ -44,6 +44,16 @@ npm run evaluate:external:record            # deliberately refresh results.json
 node scripts/evaluate-baseline.mjs --suite external --check-recorded
 ```
 
+Baseline arms share one scanned corpus. Committed symlink aliases whose canonical
+target is already scanned are removed consistently, including when Windows Git
+checks out a link as a target-name text file. This avoids a host-dependent duplicate
+document changing BM25 corpus statistics. No ranking weights or expected paths are
+changed by this normalization.
+
+Use `--case colinhacks/zod` for a focused diagnostic run. Filtered runs cannot record
+or validate a full-suite snapshot. Benchmark changes also run the external and
+held-out snapshot gates in pull requests, before the weekly scheduled check.
+
 The first run shallow-clones each repository at its pinned SHA into the OS temp directory (network required); later runs reuse the clones. Because of the network dependency this is not part of `npm run ci`; the [`external-eval` workflow](../../.github/workflows/external-eval.yml) runs it on a weekly schedule and on manual dispatch. Scheduled and release runs use `--check-recorded`, so a ranking change must deliberately refresh and review [`results.json`](results.json).
 
 Baseline runs print scan, ranking, and end-to-end timings for live performance diagnosis. Those machine-dependent values and checkout-specific candidate counts are intentionally omitted from committed `baseline-results.json`; `--check-recorded` compares deterministic rankings, hit outcomes, and evidence only.

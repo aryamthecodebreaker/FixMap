@@ -1,6 +1,12 @@
 name: external-eval
 
 on:
+  pull_request:
+    paths:
+      - "benchmarks/**"
+      - "scripts/evaluate-baseline.mjs"
+      - "scripts/lib/**"
+      - ".github/workflows/external-eval.yml"
   workflow_dispatch:
   schedule:
     - cron: "17 5 * * 1"
@@ -21,6 +27,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build:core
+      - run: node --test scripts/lib/benchmark-corpus.test.mjs
       - run: node scripts/evaluate-external.mjs --gate --check-recorded
       - run: node scripts/evaluate-external.mjs --suite heldout --gate --check-recorded
       - run: node scripts/evaluate-baseline.mjs --suite external --check-recorded
