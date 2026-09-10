@@ -19,6 +19,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { materializePinnedRepository } from "./lib/external-cache.mjs";
+import { normalizePinnedAliases } from "./lib/benchmark-corpus.mjs";
 import { classifyExpectedPathMention, splitCohorts } from "./lib/expected-path-mention.mjs";
 import { wilsonInterval } from "./lib/wilson.mjs";
 
@@ -54,7 +55,7 @@ const results = [];
 for (const [caseNumber, benchmark] of dataset.cases.entries()) {
   process.stderr.write(`[${caseNumber + 1}/${dataset.cases.length}] Evaluating ${benchmark.slug} at its frozen revision...\n`);
   const dir = await materializePinnedRepository(benchmark);
-  const repo = await scanRepo({ repoRoot: dir, includeHistory: false });
+  const repo = normalizePinnedAliases(await scanRepo({ repoRoot: dir, includeHistory: false }));
   if (repo.files.length === 0) {
     throw new Error(`${suiteLabel} could not scan any files for ${benchmark.slug} at ${benchmark.sha}.`);
   }

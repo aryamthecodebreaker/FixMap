@@ -7,12 +7,14 @@ export async function materializePinnedRepository(
   benchmark,
   options = {}
 ) {
-  const cacheRoot = options.cacheRoot ?? join(tmpdir(), "fixmap-external");
+  // A new namespace preserves older caches while fixing the checkout-byte contract.
+  const cacheRoot = options.cacheRoot ?? join(tmpdir(), "fixmap-external", "git-bytes-v1");
   const git = options.git ?? runGit;
   const cacheName = `${benchmark.slug.replace("/", "__")}-${benchmark.sha.slice(0, 12)}`;
   const target = join(cacheRoot, cacheName);
 
   if (await isPinnedCheckout(target, benchmark.sha, git)) {
+    assertCleanCheckout(target, git);
     return target;
   }
 
@@ -25,14 +27,18 @@ export async function materializePinnedRepository(
     // Repository-local long-path support is harmless on POSIX and required for real .NET
     // trees on Windows. Keeping it local avoids mutating the developer's global Git config.
     git(["config", "core.longpaths", "true"], staging);
+    // Distributed byte-window samples must not depend on the user's Windows EOL setting.
+    git(["config", "core.autocrlf", "false"], staging);
     git(["remote", "add", "origin", benchmark.repo], staging);
     git(["fetch", "--quiet", "--depth", "1", "origin", benchmark.sha], staging);
     git(["checkout", "--quiet", "--detach", "FETCH_HEAD"], staging);
     await assertPinnedCheckout(staging, benchmark.sha, git);
+    assertCleanCheckout(staging, git);
     try {
       await rename(staging, target);
     } catch (error) {
       if (await isPinnedCheckout(target, benchmark.sha, git)) {
+        assertCleanCheckout(target, git);
         return target;
       }
       throw error;
@@ -68,6 +74,12 @@ async function assertPinnedCheckout(directory, sha, git) {
   const head = git(["rev-parse", "HEAD"], directory).trim();
   if (head.toLowerCase() !== sha.toLowerCase()) {
     throw new Error(`cached checkout HEAD ${head} does not match pinned commit ${sha}`);
+  }
+}
+
+function assertCleanCheckout(directory, git) {
+  if (git(["status", "--porcelain=v1", "--untracked-files=all"], directory).trim()) {
+    throw new Error(`Benchmark checkout has modified, missing, or untracked files: ${directory}. Preserve and inspect it before rerunning; HEAD alone does not prove the pinned corpus.`);
   }
 }
 
