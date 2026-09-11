@@ -889,19 +889,9 @@
             "structuralRank": 6,
             "structuralScore": 34,
             "lexicalRank": 9,
-            "symbolRank": 18,
-            "symbol": "express",
-            "fusionScore": 38.84
-          },
-          {
-            "path": "examples/route-middleware/index.js",
-            "tier": "corroborated",
-            "structuralRank": 5,
-            "structuralScore": 34,
-            "lexicalRank": 13,
-            "symbolRank": 20,
-            "symbol": "express",
-            "fusionScore": 38.52
+            "symbolRank": 17,
+            "symbol": "apiKeys",
+            "fusionScore": 38.88
           },
           {
             "path": "examples/error-pages/index.js",
@@ -919,9 +909,9 @@
             "structuralRank": 7,
             "structuralScore": 32,
             "lexicalRank": 11,
-            "symbolRank": 8,
+            "symbolRank": 7,
             "symbol": "express",
-            "fusionScore": 37.12
+            "fusionScore": 37.16
           },
           {
             "path": "examples/search/index.js",
@@ -940,8 +930,18 @@
             "structuralScore": 32,
             "lexicalRank": 10,
             "symbolRank": 16,
-            "symbol": "users",
+            "symbol": "id",
             "fusionScore": 36.86
+          },
+          {
+            "path": "examples/route-middleware/index.js",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 34,
+            "lexicalRank": 13,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 36.78
           }
         ],
         "expectedEvidenceProfiles": [
@@ -955,7 +955,7 @@
             "lexicalRank": 1,
             "lexicalScore": 39.207777,
             "symbolRank": 1,
-            "symbolScore": 37.347993,
+            "symbolScore": 36.807445,
             "symbol": "host",
             "queryExpansions": [
               {
@@ -1010,7 +1010,7 @@
         "sourceBestRanks": {
           "structural": 1,
           "lexical": 6,
-          "symbol": 3
+          "symbol": 5
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -1047,9 +1047,9 @@
             "structuralRank": 1,
             "structuralScore": 28,
             "lexicalRank": 6,
-            "symbolRank": 3,
-            "symbol": "redactKeys",
-            "fusionScore": 33.62
+            "symbolRank": 5,
+            "symbol": "config",
+            "fusionScore": 33.54
           },
           {
             "path": "lib/adapters/http.js",
@@ -1057,9 +1057,9 @@
             "structuralRank": 2,
             "structuralScore": 25,
             "lexicalRank": 4,
-            "symbolRank": 7,
-            "symbol": "maxDownloadRate",
-            "fusionScore": 30.58
+            "symbolRank": 2,
+            "symbol": "knownLength",
+            "fusionScore": 30.78
           },
           {
             "path": "lib/adapters/xhr.js",
@@ -1068,7 +1068,7 @@
             "structuralScore": 22,
             "lexicalRank": 5,
             "symbolRank": 1,
-            "symbol": "handleTimeout",
+            "symbol": "timeoutErrorMessage",
             "fusionScore": 27.76
           },
           {
@@ -1087,9 +1087,9 @@
             "structuralRank": 8,
             "structuralScore": 22,
             "lexicalRank": 7,
-            "symbolRank": 11,
-            "symbol": "redactedURL",
-            "fusionScore": 27.24
+            "symbolRank": 12,
+            "symbol": "redactSensitiveURLParts",
+            "fusionScore": 27.2
           },
           {
             "path": "lib/helpers/HttpStatusCode.js",
@@ -1108,7 +1108,7 @@
             "structuralScore": 22,
             "lexicalRank": 12,
             "symbolRank": 24,
-            "symbol": "kindOf",
+            "symbol": "str",
             "fusionScore": 26.42
           },
           {
@@ -1137,9 +1137,9 @@
             "structuralRank": 11,
             "structuralScore": 20,
             "lexicalRank": 8,
-            "symbolRank": 18,
+            "symbolRank": 19,
             "symbol": "knownAdapters",
-            "fusionScore": 24.9
+            "fusionScore": 24.86
           }
         ],
         "expectedEvidenceProfiles": [
@@ -1152,9 +1152,9 @@
             "structuralScore": 28,
             "lexicalRank": 6,
             "lexicalScore": 13.542455,
-            "symbolRank": 3,
-            "symbolScore": 13.538776,
-            "symbol": "redactKeys",
+            "symbolRank": 5,
+            "symbolScore": 13.43085,
+            "symbol": "config",
             "queryExpansions": [
               {
                 "term": "http",
@@ -1182,7 +1182,7 @@
                 "rule": "inflection"
               }
             ],
-            "fusionScore": 33.62
+            "fusionScore": 33.54
           }
         ]
       },
@@ -1336,7 +1336,7 @@
             "lexicalRank": 1,
             "lexicalScore": 13.552436,
             "symbolRank": 1,
-            "symbolScore": 20.929713,
+            "symbolScore": 20.683019,
             "symbol": "val",
             "queryExpansions": [
               {
@@ -1666,6 +1666,16 @@
             "fusionScore": 98.4
           },
           {
+            "path": "packages/zod/src/v4/mini/schemas.ts",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 93,
+            "lexicalRank": 15,
+            "symbolRank": 45,
+            "symbol": "_ZodMiniType",
+            "fusionScore": 96.4
+          },
+          {
             "path": "packages/zod/src/v4/classic/from-json-schema.ts",
             "tier": "direct",
             "structuralRank": 4,
@@ -1676,24 +1686,14 @@
             "fusionScore": 96.34
           },
           {
-            "path": "packages/zod/src/v4/mini/schemas.ts",
-            "tier": "direct",
-            "structuralRank": 3,
-            "structuralScore": 93,
-            "lexicalRank": 15,
-            "symbolRank": null,
-            "symbol": null,
-            "fusionScore": 95.66
-          },
-          {
             "path": "packages/zod/src/v4/classic/schemas.ts",
             "tier": "direct",
             "structuralRank": 5,
             "structuralScore": 77,
-            "lexicalRank": 3,
+            "lexicalRank": 4,
             "symbolRank": 3,
-            "symbol": "schema",
-            "fusionScore": 82.8
+            "symbol": "ZodType",
+            "fusionScore": 82.74
           },
           {
             "path": "packages/zod/src/v4/classic/parse.ts",
@@ -1711,9 +1711,9 @@
             "structuralRank": 8,
             "structuralScore": 61,
             "lexicalRank": 14,
-            "symbolRank": 8,
+            "symbolRank": 9,
             "symbol": "safeParse",
-            "fusionScore": 65.94
+            "fusionScore": 65.9
           },
           {
             "path": "packages/zod/src/v4/core/checks.ts",
@@ -1721,9 +1721,9 @@
             "structuralRank": 7,
             "structuralScore": 61,
             "lexicalRank": 31,
-            "symbolRank": 34,
+            "symbolRank": 32,
             "symbol": "$ZodStringFormats",
-            "fusionScore": 63.88
+            "fusionScore": 63.96
           },
           {
             "path": "packages/zod/src/v4/core/schemas.ts",
@@ -1731,9 +1731,9 @@
             "structuralRank": 9,
             "structuralScore": 53,
             "lexicalRank": 11,
-            "symbolRank": 7,
-            "symbol": "result",
-            "fusionScore": 58.16
+            "symbolRank": 5,
+            "symbol": "r",
+            "fusionScore": 58.24
           },
           {
             "path": "packages/zod/src/v4/core/to-json-schema.ts",
@@ -1741,9 +1741,9 @@
             "structuralRank": 11,
             "structuralScore": 51,
             "lexicalRank": 1,
-            "symbolRank": 38,
+            "symbolRank": 35,
             "symbol": "meta",
-            "fusionScore": 55.52
+            "fusionScore": 55.64
           }
         ],
         "expectedEvidenceProfiles": [
@@ -1755,7 +1755,7 @@
             "structuralRank": 2,
             "structuralScore": 97,
             "lexicalRank": 36,
-            "lexicalScore": 14.421478,
+            "lexicalScore": 14.460955,
             "queryExpansions": [
               {
                 "term": "emit",
@@ -1838,7 +1838,7 @@
             "structuralScore": 82,
             "lexicalRank": 10,
             "symbolRank": 11,
-            "symbol": "pino",
+            "symbol": "bench",
             "fusionScore": 87.06
           },
           {
@@ -1908,7 +1908,7 @@
             "structuralScore": 62,
             "lexicalRank": 12,
             "symbolRank": 15,
-            "symbol": "pinomsFour",
+            "symbol": "pinomsOne",
             "fusionScore": 66.78
           },
           {
@@ -1933,7 +1933,7 @@
             "lexicalRank": 7,
             "lexicalScore": 19.32698,
             "symbolRank": 6,
-            "symbolScore": 18.437502,
+            "symbolScore": 18.340747,
             "symbol": "level",
             "queryExpansions": [
               {
@@ -1954,7 +1954,7 @@
             "lexicalRank": 3,
             "lexicalScore": 23.462919,
             "symbolRank": 3,
-            "symbolScore": 22.403294,
+            "symbolScore": 22.226879,
             "symbol": "bundlerOverrides",
             "queryExpansions": [
               {
@@ -2896,9 +2896,9 @@
             "structuralRank": 4,
             "structuralScore": 57,
             "lexicalRank": 5,
-            "symbolRank": 8,
+            "symbolRank": 6,
             "symbol": "finished",
-            "fusionScore": 62.48
+            "fusionScore": 62.56
           },
           {
             "path": "lib/core/request.js",
@@ -2906,9 +2906,9 @@
             "structuralRank": 3,
             "structuralScore": 57,
             "lexicalRank": 18,
-            "symbolRank": 15,
+            "symbolRank": 17,
             "symbol": "autoDestroy",
-            "fusionScore": 61.42
+            "fusionScore": 61.34
           },
           {
             "path": "lib/dispatcher/client.js",
@@ -2927,7 +2927,7 @@
             "structuralScore": 45,
             "lexicalRank": 14,
             "symbolRank": 14,
-            "symbol": "cloneResponse",
+            "symbol": "newResponse",
             "fusionScore": 49.7
           },
           {
@@ -2936,9 +2936,9 @@
             "structuralRank": 6,
             "structuralScore": 45,
             "lexicalRank": 20,
-            "symbolRank": 20,
-            "symbol": "iterator",
-            "fusionScore": 49.1
+            "symbolRank": 15,
+            "symbol": "bodyMixinMethods",
+            "fusionScore": 49.3
           },
           {
             "path": "lib/dispatcher/client-h2.js",
@@ -2956,9 +2956,9 @@
             "structuralRank": 8,
             "structuralScore": 41,
             "lexicalRank": 46,
-            "symbolRank": 24,
+            "symbolRank": 25,
             "symbol": "BodyMixin",
-            "fusionScore": 43.38
+            "fusionScore": 43.34
           },
           {
             "path": "lib/web/fetch/util.js",
@@ -2980,9 +2980,9 @@
             "structuralRank": 9,
             "structuralScore": 40,
             "lexicalRank": 2,
-            "lexicalScore": 64.111506,
+            "lexicalScore": 64.1352,
             "symbolRank": 1,
-            "symbolScore": 69.89281,
+            "symbolScore": 69.695105,
             "symbol": "abort",
             "queryExpansions": [
               {
@@ -3485,9 +3485,9 @@
             "structuralRank": 5,
             "structuralScore": 33,
             "lexicalRank": 11,
-            "symbolRank": 8,
+            "symbolRank": 9,
             "symbol": "bearerAuth",
-            "fusionScore": 38.12
+            "fusionScore": 38.08
           },
           {
             "path": "runtime-tests/lambda/stream-mock.ts",
@@ -3496,7 +3496,7 @@
             "structuralScore": 32,
             "lexicalRank": 4,
             "symbolRank": 3,
-            "symbol": "mockStreamifyResponse",
+            "symbol": "chunks",
             "fusionScore": 37.74
           },
           {
@@ -3506,7 +3506,7 @@
             "structuralScore": 33,
             "lexicalRank": 17,
             "symbolRank": 14,
-            "symbol": "BasicAuthOptions",
+            "symbol": "MessageFunction",
             "fusionScore": 37.52
           },
           {
@@ -3525,9 +3525,9 @@
             "structuralRank": 11,
             "structuralScore": 31,
             "lexicalRank": 7,
-            "symbolRank": 7,
+            "symbolRank": 8,
             "symbol": "counter",
-            "fusionScore": 36.4
+            "fusionScore": 36.36
           },
           {
             "path": "src/hono-base.ts",
@@ -3535,9 +3535,9 @@
             "structuralRank": 12,
             "structuralScore": 31,
             "lexicalRank": 13,
-            "symbolRank": 19,
+            "symbolRank": 17,
             "symbol": "errorHandler",
-            "fusionScore": 35.56
+            "fusionScore": 35.64
           },
           {
             "path": "src/adapter/aws-lambda/index.ts",
@@ -3559,9 +3559,9 @@
             "structuralRank": 1,
             "structuralScore": 72,
             "lexicalRank": 1,
-            "lexicalScore": 53.875599,
+            "lexicalScore": 53.906161,
             "symbolRank": 2,
-            "symbolScore": 39.504877,
+            "symbolScore": 39.863064,
             "symbol": "Identity",
             "queryExpansions": [
               {
@@ -3830,7 +3830,7 @@
             "lib/request.js",
             "test/req.fresh.js",
             "test/res.send.js",
-            "test/req.stale.js"
+            "lib/response.js"
           ],
           "top1Hit": false,
           "top3Hit": true,
@@ -4280,9 +4280,9 @@
           "top5Paths": [
             "packages/zod/src/v4/classic/tests/to-json-schema.test.ts",
             "packages/zod/src/v4/classic/tests/string.test.ts",
+            "packages/zod/src/v3/tests/string.test.ts",
             "packages/zod/src/v4/mini/tests/string.test.ts",
-            "packages/docs-v3/README.md",
-            "packages/zod/src/v3/tests/string.test.ts"
+            "packages/docs-v3/README.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -4306,7 +4306,7 @@
             "packages/zod/src/v4/core/schemas.ts",
             "packages/resolution/src/index.mts",
             "packages/resolution/src/index.cts",
-            "packages/zod/src/v4/classic/schemas.ts"
+            "packages/resolution/src/index.ts"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -4316,8 +4316,8 @@
           "top5Paths": [
             "packages/zod/src/v4/core/json-schema-processors.ts",
             "packages/zod/src/v4/core/regexes.ts",
-            "packages/zod/src/v4/classic/from-json-schema.ts",
             "packages/zod/src/v4/mini/schemas.ts",
+            "packages/zod/src/v4/classic/from-json-schema.ts",
             "packages/zod/src/v4/classic/schemas.ts"
           ],
           "top1Hit": false,

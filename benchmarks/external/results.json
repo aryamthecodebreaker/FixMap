@@ -2,7 +2,7 @@
   "cases": 16,
   "top1HitRate": 0.75,
   "top3HitRate": 0.938,
-  "top5HitRate": 0.938,
+  "top5HitRate": 1,
   "intervals95": {
     "top1": [
       0.505,
@@ -13,18 +13,19 @@
       0.989
     ],
     "top5": [
-      0.717,
-      0.989
+      0.806,
+      1
     ]
   },
   "misleadingTopResult": {
-    "cases": 3,
+    "cases": 4,
     "of": 16,
-    "rate": 0.188,
+    "rate": 0.25,
     "slugs": [
       "debug-js/debug",
       "colinhacks/zod",
-      "vitest-dev/vitest"
+      "vitest-dev/vitest",
+      "nodejs/undici"
     ]
   },
   "calibration": [
@@ -64,7 +65,7 @@
       "cases": 16,
       "top1HitRate": 0.75,
       "top3HitRate": 0.938,
-      "top5HitRate": 0.938,
+      "top5HitRate": 1,
       "intervals95": {
         "top1": [
           0.505,
@@ -75,8 +76,8 @@
           0.989
         ],
         "top5": [
-          0.717,
-          0.989
+          0.806,
+          1
         ]
       },
       "slugs": [
@@ -102,7 +103,7 @@
       "cases": 13,
       "top1HitRate": 0.692,
       "top3HitRate": 0.923,
-      "top5HitRate": 0.923,
+      "top5HitRate": 1,
       "intervals95": {
         "top1": [
           0.424,
@@ -113,8 +114,8 @@
           0.986
         ],
         "top5": [
-          0.667,
-          0.986
+          0.772,
+          1
         ]
       },
       "slugs": [
@@ -183,7 +184,7 @@
         "lib/response.js",
         "History.md",
         "examples/auth/index.js",
-        "examples/error-pages/index.js"
+        "lib/application.js"
       ],
       "topConfidence": "high",
       "top1Hit": true,
@@ -272,8 +273,8 @@
       "top5Paths": [
         "packages/zod/src/v4/core/json-schema-processors.ts",
         "packages/zod/src/v4/core/regexes.ts",
-        "packages/zod/src/v4/classic/from-json-schema.ts",
         "packages/zod/src/v4/mini/schemas.ts",
+        "packages/zod/src/v4/classic/from-json-schema.ts",
         "packages/zod/src/v4/classic/schemas.ts"
       ],
       "topConfidence": "medium",
@@ -296,7 +297,7 @@
         "benchmarks/basic.bench.js",
         "examples/transport.js",
         "pino.d.ts",
-        "browser.js"
+        "lib/transport.js"
       ],
       "topConfidence": "high",
       "top1Hit": true,
@@ -422,12 +423,12 @@
         "lib/web/fetch/request.js",
         "lib/dispatcher/client-h1.js",
         "lib/core/request.js",
-        "lib/dispatcher/client.js"
+        "lib/dispatcher/client-h2.js"
       ],
       "topConfidence": "medium",
       "top1Hit": false,
       "top3Hit": false,
-      "top5Hit": false,
+      "top5Hit": true,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
       "mentionEvidence": []
@@ -443,7 +444,7 @@
         "packages/toolkit/src/query/core/apiState.ts",
         "packages/toolkit/src/query/core/buildThunks.ts",
         "packages/toolkit/src/query/core/buildMiddleware/types.ts",
-        "packages/toolkit/src/createAsyncThunk.ts"
+        "packages/toolkit/src/query/core/buildSlice.ts"
       ],
       "topConfidence": "high",
       "top1Hit": true,
@@ -471,7 +472,7 @@
         "website/playground/Playground.jsx",
         "scripts/build/builders/javascript-module.js",
         "src/language-css/parser-postcss.js",
-        "website/src/pages/index.jsx"
+        "website/playground/utilities.js"
       ],
       "topConfidence": "medium",
       "top1Hit": true,
