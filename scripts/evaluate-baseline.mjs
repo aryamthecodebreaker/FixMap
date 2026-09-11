@@ -632,7 +632,8 @@ const renderedSummary = compactOutput
     }
   : summary;
 const rendered = `${JSON.stringify(renderedSummary, null, 2)}\n`;
-process.stdout.write(rendered);
+// Flush before a failing snapshot check exits; large pipe writes are asynchronous.
+await new Promise((resolve, reject) => process.stdout.write(rendered, (error) => error ? reject(error) : resolve()));
 
 // Performance telemetry is useful while a run is happening, but it is not a reproducible
 // release artifact: filesystem cache state, antivirus, operating system, and CI load all
@@ -685,6 +686,23 @@ if (process.argv.includes("--check-recorded")) {
     // The mismatch message below also covers a missing or unreadable artifact.
   }
   if (recorded !== recordedRendered) {
+    try {
+      const previous = JSON.parse(recorded);
+      const current = JSON.parse(recordedRendered);
+      const differences = [];
+      const visit = (before, after, path) => {
+        if (differences.length >= 10 || JSON.stringify(before) === JSON.stringify(after)) return;
+        if (before && after && typeof before === "object" && typeof after === "object") {
+          for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+            visit(before[key], after[key], `${path}/${key}`);
+          }
+        } else differences.push(`${path}: recorded=${JSON.stringify(before)} computed=${JSON.stringify(after)}`);
+      };
+      visit(previous, current, "");
+      process.stderr.write(`First snapshot differences (up to 10):\n${differences.join("\n")}\n`);
+    } catch {
+      process.stderr.write("Recorded snapshot is missing or cannot be compared as JSON.\n");
+    }
     process.stderr.write(
       `Baseline evaluation differs from benchmarks/${suite}/baseline-results.json; rerun with --record and review the change.\n`
     );
