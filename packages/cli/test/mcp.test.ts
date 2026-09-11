@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -28,12 +29,26 @@ it("round-trips explicitly requested annotation mutations over MCP", async () =>
     const store = payload(listed);
     expect(store.annotations).toHaveLength(1);
     expect(store.annotations[0].note).toBe("Keep the customer contract");
+    const planned = await client.callTool({ name: "fixmap_plan", arguments: {
+      issue: "sendResetEmail fails", repo: root, format: "json"
+    } });
+    expect(planned.isError).toBeFalsy();
+    const plan = payload(planned);
+    expect(plan.annotations.sourcePath).toBe(".fixmap/annotations.json");
+    expect(plan.annotations.sourceFingerprint).toMatch(/^(git|worktree):[a-f0-9]{40,64}$/);
+    expect(plan.annotations.sourceFingerprint).toBe(`worktree:${createHash("sha256").update(await readFile(join(root, ".fixmap", "annotations.json"))).digest("hex")}`);
+    expect(plan.annotations.entries.some((entry: { annotation: { id: string; note: string } }) =>
+      entry.annotation.id === store.annotations[0].id && entry.annotation.note === "Keep the customer contract")).toBe(true);
     const invalid = await client.callTool({ name: "fixmap_annotate", arguments: { action: "remove", repo: root } });
     expect(invalid.isError).toBe(true);
     expect(payload(await client.callTool({ name: "fixmap_annotate", arguments: { action: "list", repo: root } }))).toEqual(store);
     const removed = await client.callTool({ name: "fixmap_annotate", arguments: { action: "remove", repo: root, id: store.annotations[0].id } });
     expect(removed.isError).toBeFalsy();
     expect(payload(await client.callTool({ name: "fixmap_annotate", arguments: { action: "list", repo: root } })).annotations).toEqual([]);
+    const afterRemoval = payload(await client.callTool({ name: "fixmap_plan", arguments: {
+      issue: "sendResetEmail fails", repo: root, format: "json"
+    } }));
+    expect(afterRemoval.annotations?.entries ?? []).toEqual([]);
   } finally {
     await client.close();
     await rm(root, { recursive: true, force: true });
