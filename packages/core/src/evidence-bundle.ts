@@ -1,8 +1,39 @@
 import { createHash } from "node:crypto";
+import { lstat, open } from "node:fs/promises";
+import { constants } from "node:fs";
 import { validateProviderResult, type EvidenceProvider } from "./evidence.js";
 
 /** Fixed input bounds apply before parsing and before validating/cloning item arrays. */
 export const EVIDENCE_BUNDLE_MAX_BYTES = 1_048_576;
+
+/** Explicit local-file transport. Never executes a producer or reads beyond the byte cap. */
+export async function readEvidenceProviderBundle(path: string): Promise<ReturnType<typeof parseEvidenceProviderBundle>> {
+  let handle;
+  try {
+    if (!(await lstat(path)).isFile()) throw new Error("unsupported evidence path");
+    handle = await open(path, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (constants.O_NOFOLLOW ?? 0));
+    const info = await handle.stat();
+    if (!info.isFile() || info.size > EVIDENCE_BUNDLE_MAX_BYTES) {
+      throw new Error("unsupported evidence file");
+    }
+    // The extra byte detects growth after stat; bounded reads also handle short reads.
+    const bytes = Buffer.alloc(EVIDENCE_BUNDLE_MAX_BYTES + 1);
+    let length = 0;
+    while (length < bytes.length) {
+      const read = await handle.read(bytes, length, bytes.length - length, length);
+      if (read.bytesRead === 0) break;
+      length += read.bytesRead;
+    }
+    if (length > EVIDENCE_BUNDLE_MAX_BYTES) throw new Error("oversized evidence file");
+    const json = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, length));
+    return parseEvidenceProviderBundle(json);
+  } catch {
+    // Do not echo contents, filesystem internals, or private paths.
+    throw new Error("Cannot import evidence bundle: provide a regular UTF-8 JSON file of at most 1 MiB with a valid version-1 envelope.");
+  } finally {
+    await handle?.close();
+  }
+}
 
 /**
  * Imports data only. Provider identity is an unverified producer claim, not an

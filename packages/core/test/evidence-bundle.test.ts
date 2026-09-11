@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
-import { parseEvidenceProviderBundle, EVIDENCE_BUNDLE_MAX_BYTES } from "../src/evidence-bundle.js";
+import { mkdtemp, writeFile, rm, symlink } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { parseEvidenceProviderBundle, readEvidenceProviderBundle, EVIDENCE_BUNDLE_MAX_BYTES } from "../src/evidence-bundle.js";
 import { collectEvidence } from "../src/evidence.js";
 import type { RepoMap } from "../src/types.js";
 
@@ -10,6 +14,38 @@ const bundle = () => ({ bundleVersion: 1, provider: { id: "local-tool", version:
 } });
 
 describe("serialized evidence boundary", () => {
+  it.skipIf(process.platform === "win32")("rejects links and FIFOs without waiting for a writer", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-evidence-special-"));
+    try {
+      const target = join(root, "target.json");
+      await writeFile(target, JSON.stringify(bundle()));
+      const link = join(root, "link.json");
+      await symlink(target, link);
+      await expect(readEvidenceProviderBundle(link)).rejects.toThrow("regular UTF-8 JSON file");
+      const fifo = join(root, "pipe");
+      execFileSync("mkfifo", [fifo], { timeout: 2_000 });
+      await expect(readEvidenceProviderBundle(fifo)).rejects.toThrow("regular UTF-8 JSON file");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  it("imports explicit local UTF-8 files and fails closed on directories, oversized and invalid bytes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-evidence-file-"));
+    try {
+      const path = join(root, "evidence.json");
+      const json = JSON.stringify(bundle());
+      await writeFile(path, json);
+      expect((await readEvidenceProviderBundle(path)).documentSha256).toBe(parseEvidenceProviderBundle(json).documentSha256);
+      await expect(readEvidenceProviderBundle(root)).rejects.toThrow("regular UTF-8 JSON file");
+      await writeFile(path, Buffer.from([0xff, 0xfe, 0x7b, 0]));
+      await expect(readEvidenceProviderBundle(path)).rejects.toThrow("regular UTF-8 JSON file");
+      await writeFile(path, Buffer.alloc(EVIDENCE_BUNDLE_MAX_BYTES + 1));
+      await expect(readEvidenceProviderBundle(path)).rejects.toThrow("at most 1 MiB");
+      await expect(readEvidenceProviderBundle(join(root, "missing-private-file"))).rejects.toThrow("Cannot import evidence bundle");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it("collects data with exact document provenance and no execution grants", async () => {
     const json = JSON.stringify(bundle());
     const loaded = parseEvidenceProviderBundle(json);

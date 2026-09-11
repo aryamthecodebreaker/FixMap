@@ -92,9 +92,14 @@ Top-level and provider fields are allowlisted. Returned provider capabilities
 are always `network: 'never'` and `executesCode: false`; collection only copies
 validated data. Parser errors do not echo input contents.
 
-This API does not read files, launch producers, upload data, or authenticate
-evidence. A caller reading files or subprocess output must enforce byte limits
-while reading, before passing a string here. Process/container orchestration,
+The parser does not read files, launch producers, upload data, or authenticate
+evidence. Node callers can explicitly use `await readEvidenceProviderBundle(path)`
+for bounded local-file import. It rejects non-regular paths, checks the opened
+descriptor, reads at most the byte cap plus one growth-detection byte, and rejects
+invalid UTF-8. Errors do not echo private paths. It does not promise atomic
+snapshots of concurrently rewritten files; the digest identifies the bytes read.
+Callers reading subprocess output must enforce byte limits while reading.
+Process/container orchestration,
 report attachment, and broader workflow acceptance remain unfinished.
 
 ## Failure handling
