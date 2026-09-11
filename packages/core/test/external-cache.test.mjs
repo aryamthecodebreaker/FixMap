@@ -15,7 +15,8 @@ describe("external evaluation cache", () => {
       runGit(["config", "user.email", "test@example.com"], upstream);
       runGit(["config", "user.name", "FixMap Test"], upstream);
       await writeFile(join(upstream, "README.md"), "first\n");
-      runGit(["add", "README.md"], upstream);
+      await writeFile(join(upstream, ".gitattributes"), "* text=auto\n");
+      runGit(["add", "README.md", ".gitattributes"], upstream);
       runGit(["commit", "--quiet", "-m", "fixture"], upstream);
       const sha = runGit(["rev-parse", "HEAD"], upstream);
 
@@ -32,6 +33,7 @@ describe("external evaluation cache", () => {
       expect(runGit(["rev-parse", "HEAD"], materialized)).toBe(sha);
       expect(runGit(["config", "--local", "--get", "core.longpaths"], materialized)).toBe("true");
       expect(runGit(["config", "--local", "--get", "core.autocrlf"], materialized)).toBe("false");
+      expect(runGit(["config", "--local", "--get", "core.eol"], materialized)).toBe("lf");
       expect(await readFile(join(materialized, "README.md"), "utf8")).toBe("first\n");
       expect(await readdir(materialized)).toContain("README.md");
       expect(await readdir(materialized)).not.toContain("partial.txt");

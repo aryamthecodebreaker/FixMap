@@ -8,7 +8,7 @@ export async function materializePinnedRepository(
   options = {}
 ) {
   // A new namespace preserves older caches while fixing the checkout-byte contract.
-  const cacheRoot = options.cacheRoot ?? join(tmpdir(), "fixmap-external", "git-bytes-v1");
+  const cacheRoot = options.cacheRoot ?? join(tmpdir(), "fixmap-external", "git-bytes-v2");
   const git = options.git ?? runGit;
   const cacheName = `${benchmark.slug.replace("/", "__")}-${benchmark.sha.slice(0, 12)}`;
   const target = join(cacheRoot, cacheName);
@@ -29,6 +29,8 @@ export async function materializePinnedRepository(
     git(["config", "core.longpaths", "true"], staging);
     // Distributed byte-window samples must not depend on the user's Windows EOL setting.
     git(["config", "core.autocrlf", "false"], staging);
+    // text=auto attributes otherwise use native CRLF on Windows even with autocrlf off.
+    git(["config", "core.eol", "lf"], staging);
     git(["remote", "add", "origin", benchmark.repo], staging);
     git(["fetch", "--quiet", "--depth", "1", "origin", benchmark.sha], staging);
     git(["checkout", "--quiet", "--detach", "FETCH_HEAD"], staging);

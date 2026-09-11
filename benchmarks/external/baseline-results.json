@@ -2680,8 +2680,8 @@
         },
         "sourceBestRanks": {
           "structural": 1,
-          "lexical": 39,
-          "symbol": 17
+          "lexical": 38,
+          "symbol": 19
         },
         "intent": "implementation",
         "queryExpansions": [
@@ -2707,10 +2707,10 @@
             "tier": "direct",
             "structuralRank": 1,
             "structuralScore": 58,
-            "lexicalRank": 39,
-            "symbolRank": 17,
+            "lexicalRank": 38,
+            "symbolRank": 19,
             "symbol": "logger",
-            "fusionScore": 61.08
+            "fusionScore": 61.06
           },
           {
             "path": "lib/WebpackOptionsApply.js",
@@ -2738,9 +2738,9 @@
             "structuralRank": 4,
             "structuralScore": 49,
             "lexicalRank": 41,
-            "symbolRank": 33,
+            "symbolRank": 34,
             "symbol": "error",
-            "fusionScore": 51.32
+            "fusionScore": 51.28
           },
           {
             "path": "lib/url/URLParserPlugin.js",
@@ -2767,10 +2767,10 @@
             "tier": "corroborated",
             "structuralRank": 8,
             "structuralScore": 31,
-            "lexicalRank": 44,
-            "symbolRank": 24,
+            "lexicalRank": 43,
+            "symbolRank": 26,
             "symbol": "used",
-            "fusionScore": 33.5
+            "fusionScore": 33.48
           },
           {
             "path": "lib/schemes/VirtualUrlPlugin.js",
@@ -2785,12 +2785,12 @@
           {
             "path": "lib/stats/DefaultStatsPrinterPlugin.js",
             "tier": "corroborated",
-            "structuralRank": 17,
+            "structuralRank": 18,
             "structuralScore": 29,
             "lexicalRank": 42,
-            "symbolRank": 36,
+            "symbolRank": 39,
             "symbol": "highlights",
-            "fusionScore": 31.14
+            "fusionScore": 31.02
           },
           {
             "path": "lib/DotenvPlugin.js",
@@ -2799,7 +2799,7 @@
             "structuralScore": 25,
             "lexicalRank": 1,
             "symbolRank": 2,
-            "symbol": "parse",
+            "symbol": "obj",
             "fusionScore": 30.96
           }
         ],
@@ -2811,10 +2811,10 @@
             "direct": true,
             "structuralRank": 1,
             "structuralScore": 58,
-            "lexicalRank": 39,
-            "lexicalScore": 24.220376,
-            "symbolRank": 17,
-            "symbolScore": 23.501893,
+            "lexicalRank": 38,
+            "lexicalScore": 24.254353,
+            "symbolRank": 19,
+            "symbolScore": 23.390057,
             "symbol": "logger",
             "queryExpansions": [
               {
@@ -2833,7 +2833,7 @@
                 "rule": "inflection"
               }
             ],
-            "fusionScore": 61.08
+            "fusionScore": 61.06
           }
         ]
       },
