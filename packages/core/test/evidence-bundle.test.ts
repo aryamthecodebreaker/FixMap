@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as fsPromises from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { mkdtemp, writeFile, rm, symlink } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
@@ -8,12 +9,50 @@ import { parseEvidenceProviderBundle, readEvidenceProviderBundle, EVIDENCE_BUNDL
 import { collectEvidence } from "../src/evidence.js";
 import type { RepoMap } from "../src/types.js";
 
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...actual, lstat: vi.fn(actual.lstat), open: vi.fn(actual.open) };
+});
+
 const bundle = () => ({ bundleVersion: 1, provider: { id: "local-tool", version: "1" }, result: {
   items: [{ id: "one", kind: "structure", summary: "Observed file", confidence: "low",
     subjects: [{ kind: "file", path: "src/a.ts" }] }]
 } });
 
 describe("serialized evidence boundary", () => {
+  it("rejects detected file changes during the bounded read", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-evidence-read-race-"));
+    try {
+      const path = join(root, "evidence.json");
+      await writeFile(path, JSON.stringify(bundle()));
+      const handle = await fsPromises.open(path, "r");
+      const before = await handle.stat();
+      const after = await handle.stat();
+      after.mtimeMs += 1;
+      const statSpy = vi.spyOn(handle, "stat").mockResolvedValueOnce(before).mockResolvedValueOnce(after);
+      const openSpy = vi.spyOn(fsPromises, "open").mockResolvedValueOnce(handle);
+      try {
+        await expect(readEvidenceProviderBundle(path)).rejects.toThrow("Cannot import evidence bundle");
+      } finally {
+        openSpy.mockRestore();
+        statSpy.mockRestore();
+        await handle.close();
+      }
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+  it("rejects a changed file identity between inspection and open", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-evidence-race-"));
+    try {
+      const path = join(root, "evidence.json");
+      await writeFile(path, JSON.stringify(bundle()));
+      const inspected = await fsPromises.lstat(path);
+      inspected.ino = -1;
+      const spy = vi.spyOn(fsPromises, "lstat").mockResolvedValueOnce(inspected);
+      try {
+        await expect(readEvidenceProviderBundle(path)).rejects.toThrow("Cannot import evidence bundle");
+      } finally { spy.mockRestore(); }
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
   it.skipIf(process.platform === "win32")("rejects links and FIFOs without waiting for a writer", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-evidence-special-"));
     try {

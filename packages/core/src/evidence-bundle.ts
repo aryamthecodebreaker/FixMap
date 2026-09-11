@@ -10,10 +10,12 @@ export const EVIDENCE_BUNDLE_MAX_BYTES = 1_048_576;
 export async function readEvidenceProviderBundle(path: string): Promise<ReturnType<typeof parseEvidenceProviderBundle>> {
   let handle;
   try {
-    if (!(await lstat(path)).isFile()) throw new Error("unsupported evidence path");
+    const before = await lstat(path);
+    if (!before.isFile()) throw new Error("unsupported evidence path");
     handle = await open(path, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (constants.O_NOFOLLOW ?? 0));
     const info = await handle.stat();
-    if (!info.isFile() || info.size > EVIDENCE_BUNDLE_MAX_BYTES) {
+    if (!info.isFile() || info.size > EVIDENCE_BUNDLE_MAX_BYTES ||
+      before.dev !== info.dev || before.ino !== info.ino) {
       throw new Error("unsupported evidence file");
     }
     // The extra byte detects growth after stat; bounded reads also handle short reads.
@@ -25,6 +27,10 @@ export async function readEvidenceProviderBundle(path: string): Promise<ReturnTy
       length += read.bytesRead;
     }
     if (length > EVIDENCE_BUNDLE_MAX_BYTES) throw new Error("oversized evidence file");
+    const after = await handle.stat();
+    if (after.size !== info.size || after.mtimeMs !== info.mtimeMs || after.ctimeMs !== info.ctimeMs || length !== after.size) {
+      throw new Error("evidence file changed during import");
+    }
     const json = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, length));
     return parseEvidenceProviderBundle(json);
   } catch {
