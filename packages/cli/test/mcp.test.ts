@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -13,6 +13,32 @@ import { createFixMapMcpServer, InitializationGuardTransport, parseExplainArgume
 import type { RepositorySourceDependencies } from "../src/repository-source.js";
 
 const exec = promisify(execFile);
+
+it("round-trips explicitly requested annotation mutations over MCP", async () => {
+  const root = await createAuthFixture();
+  const client = await connectClient();
+  const payload = (result: { content?: unknown }) => JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
+  try {
+    const added = await client.callTool({ name: "fixmap_annotate", arguments: {
+      action: "add", repo: root, target: "src/auth/reset-password.ts", note: "Keep the customer contract", owner: "auth-team"
+    } });
+    expect(added.isError).toBeFalsy();
+    const listed = await client.callTool({ name: "fixmap_annotate", arguments: { action: "list", repo: root } });
+    expect(listed.isError).toBeFalsy();
+    const store = payload(listed);
+    expect(store.annotations).toHaveLength(1);
+    expect(store.annotations[0].note).toBe("Keep the customer contract");
+    const invalid = await client.callTool({ name: "fixmap_annotate", arguments: { action: "remove", repo: root } });
+    expect(invalid.isError).toBe(true);
+    expect(payload(await client.callTool({ name: "fixmap_annotate", arguments: { action: "list", repo: root } }))).toEqual(store);
+    const removed = await client.callTool({ name: "fixmap_annotate", arguments: { action: "remove", repo: root, id: store.annotations[0].id } });
+    expect(removed.isError).toBeFalsy();
+    expect(payload(await client.callTool({ name: "fixmap_annotate", arguments: { action: "list", repo: root } })).annotations).toEqual([]);
+  } finally {
+    await client.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 async function createAuthFixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "fixmap-mcp-"));
@@ -314,10 +340,12 @@ describe("fixmap mcp server", () => {
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_change_scope", "fixmap_capability", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_change_scope", "fixmap_capability", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor", "fixmap_annotate"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
+    const annotate = tools.tools.find((tool) => tool.name === "fixmap_annotate");
+    expect(annotate?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true, openWorldHint: false });
     expect(plan).toBeDefined();
     expect(plan?.description).toContain("test commands");
     expect(Object.keys(plan?.inputSchema.properties ?? {}).sort()).toEqual(

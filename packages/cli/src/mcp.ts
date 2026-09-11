@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { ANNOTATION_TOOL, runAnnotationTool } from "./annotation-tool.js";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -508,10 +509,11 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL, ANNOTATION_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (request.params.name === ANNOTATION_TOOL.name) return runAnnotationTool(request.params.arguments, defaultRepo);
     if (request.params.name === CONTEXT_TOOL.name || request.params.name === GRAPH_TOOL.name) {
       const kind = request.params.name === CONTEXT_TOOL.name ? "context" : "graph";
       const parsed = parseAnalysisToolArguments(request.params.arguments ?? {}, kind);
