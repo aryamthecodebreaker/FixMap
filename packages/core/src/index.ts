@@ -32,6 +32,7 @@ export type {
 } from "./language-adapters.js";
 export { buildImpactMap } from "./impact.js";
 export { collectEvidence } from "./evidence.js";
+export { parseEvidenceProviderBundle, EVIDENCE_BUNDLE_MAX_BYTES } from "./evidence-bundle.js";
 export { detectChangeConflicts } from "./change-conflicts.js";
 export type { ChangeConflict, ChangeConflictAnalysis, ChangeIntent, ChangeZone } from "./change-conflicts.js";
 export { buildMigrationPlan } from "./migration.js";

@@ -74,7 +74,28 @@ asynchronous task can ignore cancellation. Timeout requests cancellation through
 Only load code you trust. Do not import arbitrary repository plugins to inspect
 a repository. Running untrusted providers requires a separately enforced process
 or container boundary and a bounded serialized evidence protocol. That transport
-is still unfinished; this document does not claim it exists.
+is not supplied by the in-process collector.
+
+## Serialized data import
+
+The Node Core export `parseEvidenceProviderBundle(json)` accepts a versioned
+JSON envelope: `{ "bundleVersion": 1, "provider": { "id": "tool", "version": "1" },
+"result": { "items": [], "relationships": [] } }`. Pass actual serialized JSON,
+not executable provider code. It returns `{ provider, documentSha256 }`; retain
+the digest with the collected evidence to identify the exact supplied document.
+The producer ID/version are claims, not authenticated signatures.
+
+Input is capped at 1 MiB of UTF-8 before JSON parsing, with at most 5,000 items
+and 10,000 relationships before validation/cloning. Invalid envelopes, unsafe
+subject paths, duplicate identities and dangling relationships fail closed.
+Top-level and provider fields are allowlisted. Returned provider capabilities
+are always `network: 'never'` and `executesCode: false`; collection only copies
+validated data. Parser errors do not echo input contents.
+
+This API does not read files, launch producers, upload data, or authenticate
+evidence. A caller reading files or subprocess output must enforce byte limits
+while reading, before passing a string here. Process/container orchestration,
+report attachment, and broader workflow acceptance remain unfinished.
 
 ## Failure handling
 
@@ -86,4 +107,4 @@ sharing collected output externally.
 
 Focused contract coverage lives in `packages/core/test/evidence.test.ts`.
 This documentation alone does not complete the roadmap's Evidence-provider SDK
-row: serialized transport and end-to-end acceptance remain required.
+row: bounded producer transport orchestration and end-to-end acceptance remain required.

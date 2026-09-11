@@ -249,7 +249,7 @@ type ValidatedResult =
   | { success: true; items: EvidenceItem[]; relationships: EvidenceRelationship[] }
   | { success: false; message: string };
 
-function validateProviderResult(result: unknown): ValidatedResult {
+export function validateProviderResult(result: unknown): ValidatedResult {
   if (!isRecord(result) || !Array.isArray(result.items) ||
     !(result.relationships === undefined || Array.isArray(result.relationships))) {
     return { success: false, message: "expected { items, relationships? } arrays" };
