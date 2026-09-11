@@ -43,5 +43,39 @@ describe("serialized evidence boundary", () => {
     expect(() => parseEvidenceProviderBundle("😀".repeat(300_000))).toThrow("1 MiB");
     const source = bundle();
     expect(() => parseEvidenceProviderBundle(JSON.stringify({ ...source, result: { items: Array(5_001).fill(null) } }))).toThrow("Invalid evidence provider bundle.");
+    expect(() => parseEvidenceProviderBundle(JSON.stringify({ ...source, result: { items: [], relationships: Array(10_001).fill(null) } }))).toThrow("Invalid evidence provider bundle.");
+  });
+
+  it("rejects duplicate IDs and preserves relationship provenance through collection", async () => {
+    const source = bundle();
+    const item = source.result.items[0]!;
+    expect(() => parseEvidenceProviderBundle(JSON.stringify({ ...source, result: { items: [item, item] } }))).toThrow("Invalid evidence provider bundle.");
+    const edge = { id: "edge", from: "one", to: "two", relation: "imports", reason: "External observation", confidence: "low" };
+    const result = { items: [item, { ...item, id: "two" }], relationships: [edge] };
+    expect(() => parseEvidenceProviderBundle(JSON.stringify({ ...source, result: { ...result, relationships: [edge, edge] } }))).toThrow("Invalid evidence provider bundle.");
+    const loaded = parseEvidenceProviderBundle(JSON.stringify({ ...source, result }));
+    const repo: RepoMap = { root: "/repo", files: [], packageScripts: [], changedFiles: [], diffText: "", packageManager: "npm", diagnostics: [] };
+    const context = { repo, issueText: "", diffText: "" };
+    const collected = await collectEvidence([loaded.provider], context, { now: "2026-09-11T00:00:00Z" });
+    expect(collected.relationships).toEqual([{ ...edge, id: "local-tool:edge", from: "local-tool:one", to: "local-tool:two", provider: { id: "local-tool", version: "1" } }]);
+    const bounded = await collectEvidence([loaded.provider], context, { maxItemsPerProvider: 1 });
+    expect(bounded.relationships).toEqual([]);
+    expect(bounded.diagnostics[0]?.code).toBe("provider-truncated");
+  });
+
+  it("fingerprints exact bytes rather than claiming semantic identity or authentication", () => {
+    const source = bundle();
+    const compact = parseEvidenceProviderBundle(JSON.stringify(source));
+    const formatted = parseEvidenceProviderBundle(JSON.stringify(source, null, 2));
+    expect(compact.documentSha256).not.toBe(formatted.documentSha256);
+    expect(compact.provider.id).toBe(formatted.provider.id);
+  });
+
+  it("rejects deeply nested extras before recursive cloning", () => {
+    const source = bundle();
+    const item = source.result.items[0]!;
+    const prefix = JSON.stringify({ ...source, result: { items: [{ ...item, extra: "PLACEHOLDER" }] } });
+    const json = prefix.replace('"PLACEHOLDER"', '['.repeat(2_000) + '0' + ']'.repeat(2_000));
+    expect(() => parseEvidenceProviderBundle(json)).toThrow("Invalid evidence provider bundle.");
   });
 });

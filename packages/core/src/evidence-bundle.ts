@@ -19,6 +19,15 @@ export function parseEvidenceProviderBundle(json: string): {
   }
   let parsed: unknown;
   try { parsed = JSON.parse(json); } catch { return fail(); }
+  // Unknown nested metadata must not drive recursive cloning beyond a safe depth.
+  const pending: Array<{ value: unknown; depth: number }> = [{ value: parsed, depth: 0 }];
+  while (pending.length) {
+    const { value, depth } = pending.pop()!;
+    if (depth > 32) return fail();
+    if (value !== null && typeof value === "object") {
+      for (const child of Object.values(value)) pending.push({ value: child, depth: depth + 1 });
+    }
+  }
   if (!record(parsed) || !keys(parsed, ["bundleVersion", "provider", "result"]) ||
     parsed.bundleVersion !== 1 || !record(parsed.provider) ||
     !keys(parsed.provider, ["id", "version"]) ||
