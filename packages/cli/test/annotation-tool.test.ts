@@ -1,8 +1,39 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile, mkdir, symlink, link } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { expect, it } from "vitest";
 import { runAnnotationTool } from "../src/annotation-tool.js";
+
+it("refuses hard-linked annotation stores without changing the external file", async () => {
+  const root = await mkdtemp(join(tmpdir(), "fixmap-annotation-hardlink-"));
+  try {
+    const repo = join(root, "repo");
+    await mkdir(join(repo, ".fixmap"), { recursive: true });
+    const outside = join(root, "external.json");
+    const original = '{"annotationStoreVersion":1,"annotations":[]}\n';
+    await writeFile(outside, original);
+    await link(outside, join(repo, ".fixmap", "annotations.json"));
+    expect((await runAnnotationTool({ action: "list" }, repo)).isError).toBe(true);
+    expect((await runAnnotationTool({ action: "add", service: "auth", note: "no external writes" }, repo)).isError).toBe(true);
+    expect(await readFile(outside, "utf8")).toBe(original);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("refuses an annotation store redirected outside the repository", async () => {
+  const root = await mkdtemp(join(tmpdir(), "fixmap-annotation-link-"));
+  const repo = join(root, "repo");
+  const outside = join(root, "outside");
+  try {
+    await mkdir(repo); await mkdir(outside);
+    const path = join(outside, "annotations.json");
+    const original = '{"annotationStoreVersion":1,"annotations":[]}\n';
+    await writeFile(path, original);
+    await symlink(outside, join(repo, ".fixmap"), process.platform === "win32" ? "junction" : "dir");
+    expect((await runAnnotationTool({ action: "list" }, repo)).isError).toBe(true);
+    expect((await runAnnotationTool({ action: "add", service: "auth", note: "do not write outside" }, repo)).isError).toBe(true);
+    expect(await readFile(path, "utf8")).toBe(original);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 
 it("adds, lists and removes annotations through the shared local store", async () => {
   const root = await mkdtemp(join(tmpdir(), "fixmap-annotation-tool-"));

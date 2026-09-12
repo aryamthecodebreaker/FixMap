@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access, mkdir, open, readFile, realpath, rename, rm, stat } from "node:fs/promises";
+import { access, lstat, mkdir, open, readFile, realpath, rename, rm, stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { isAbsolute, relative, resolve } from "node:path";
 import {
@@ -179,6 +179,7 @@ async function containedFile(repoRoot: string, target: string): Promise<string> 
 }
 
 async function readStore(repoRoot: string): Promise<AnnotationStore> {
+  await assertStoreBoundary(repoRoot);
   const path = resolve(repoRoot, ".fixmap", "annotations.json");
   try {
     return validateAnnotationStore(JSON.parse(await readFile(path, "utf8")) as unknown);
@@ -192,6 +193,7 @@ async function readStore(repoRoot: string): Promise<AnnotationStore> {
 async function writeStore(repoRoot: string, store: AnnotationStore): Promise<void> {
   const directory = resolve(repoRoot, ".fixmap");
   await mkdir(directory, { recursive: true });
+  await assertStoreBoundary(repoRoot);
   const target = resolve(directory, "annotations.json");
   const temporary = resolve(directory, `.annotations.${process.pid}.${randomUUID()}.tmp`);
   const handle = await open(temporary, "wx", 0o600);
@@ -210,8 +212,10 @@ async function writeStore(repoRoot: string, store: AnnotationStore): Promise<voi
 }
 
 async function withStoreLock<T>(repoRoot: string, operation: () => Promise<T>): Promise<T> {
+  await assertStoreBoundary(repoRoot);
   const directory = resolve(repoRoot, ".fixmap");
   await mkdir(directory, { recursive: true });
+  await assertStoreBoundary(repoRoot);
   const lockPath = resolve(directory, "annotations.lock");
   let handle;
   try {
@@ -234,6 +238,27 @@ async function withStoreLock<T>(repoRoot: string, operation: () => Promise<T>): 
       await handle.close();
     } finally {
       await rm(lockPath, { force: true });
+    }
+  }
+}
+
+async function assertStoreBoundary(repoRoot: string): Promise<void> {
+  const directory = resolve(repoRoot, ".fixmap");
+  const directoryInfo = await lstat(directory).catch((error: unknown) => {
+    if (isNodeError(error, "ENOENT")) return undefined;
+    throw error;
+  });
+  if (!directoryInfo) return;
+  if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || await realpath(directory) !== directory) {
+    throw new Error("Annotation store directory must be a real repository-local .fixmap directory, not a link or junction.");
+  }
+  for (const name of ["annotations.json", "annotations.lock"]) {
+    const info = await lstat(resolve(directory, name)).catch((error: unknown) => {
+      if (isNodeError(error, "ENOENT")) return undefined;
+      throw error;
+    });
+    if (info && (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1)) {
+      throw new Error("Annotation store and lock must be regular, unlinked repository-local files.");
     }
   }
 }
