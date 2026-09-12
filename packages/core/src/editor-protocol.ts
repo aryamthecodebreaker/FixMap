@@ -72,7 +72,7 @@ export function handleEditorProtocolRequest(
   if (request.method === "fixmap/change-scope") {
     if (!snapshot.repository) return response(snapshot, request.id, { error: { code: "method-not-found", message: "Change scope requires a repository-backed snapshot; a saved plan is insufficient." } });
     const params = request.params;
-    if (!params || Object.keys(params).some((key) => !["workspace", "repository", "anchors", "direction", "maxDepth", "maxNodes", "asOf"].includes(key))) {
+    if (!params || !validChangeScopeParams(params)) {
       return invalidParams(snapshot, request.id, "Change scope requires explicit anchors, identities, assessment time, and optional traversal bounds.");
     }
     try {
@@ -184,6 +184,16 @@ function invalidParams(snapshot: EditorProtocolSnapshot, id: string, message: st
   return response(snapshot, id, { error: { code: "invalid-params", message } });
 }
 function emptyParams(value: Record<string, unknown> | undefined): boolean { return value === undefined || Object.keys(value).length === 0; }
+function validChangeScopeParams(params: Record<string, unknown>): boolean {
+  if (Object.keys(params).some((key) => !["workspace", "repository", "anchors", "direction", "maxDepth", "maxNodes", "asOf"].includes(key))) return false;
+  if (typeof params.workspace !== "string" || typeof params.repository !== "string" || typeof params.asOf !== "string") return false;
+  if (!Array.isArray(params.anchors) || params.anchors.length < 1 || params.anchors.length > 64) return false;
+  if (!params.anchors.every((anchor: unknown) => isRecord(anchor) &&
+    Object.keys(anchor).every((key) => key === "operation" || key === "path") &&
+    (anchor.operation === "touch" || anchor.operation === "add") && typeof anchor.path === "string" && safePath(anchor.path))) return false;
+  if (params.direction !== undefined && (typeof params.direction !== "string" || !["dependencies", "dependents", "both"].includes(params.direction))) return false;
+  return ["maxDepth", "maxNodes"].every((key) => params[key] === undefined || (typeof params[key] === "number" && Number.isInteger(params[key])));
+}
 function requestPath(params: Record<string, unknown> | undefined): string | undefined {
   if (!params || Object.keys(params).some((key) => key !== "path") || typeof params.path !== "string" || !safePath(params.path)) return undefined;
   return params.path.replace(/\\/g, "/");

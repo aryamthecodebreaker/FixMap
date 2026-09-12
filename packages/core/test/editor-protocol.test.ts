@@ -45,6 +45,15 @@ describe("editor protocol", () => {
     expect(handleEditorProtocolRequest(reportOnly, request("fixmap/change-scope", params)).error?.code).toBe("method-not-found");
     expect(handleEditorProtocolRequest(snapshot, request("fixmap/change-scope", { ...params, command: "run" })).error?.code).toBe("invalid-params");
     expect(handleEditorProtocolRequest(snapshot, request("fixmap/change-scope", { ...params, anchors: [{ operation: "touch", path: "../secret" }] })).error?.code).toBe("invalid-params");
+    for (const invalid of [
+      { anchors: null }, { anchors: "src/auth.ts" }, { anchors: [null] },
+      { anchors: [{ operation: "touch", path: "src/auth.ts", execute: true }] },
+      { asOf: 0 }, { workspace: [] }, { maxNodes: "10" }, { direction: ["both"] }
+    ]) {
+      const rejected = handleEditorProtocolRequest(snapshot, request("fixmap/change-scope", { ...params, ...invalid }));
+      expect(rejected.error?.code).toBe("invalid-params");
+      expect(rejected.error?.message).not.toMatch(/Cannot read|is not a function/);
+    }
     expect(() => handleEditorProtocolRequest({ ...snapshot, repository: repo }, request("fixmap/plan"))).toThrow("mutated");
   });
   it("creates an immutable versioned local-only snapshot", () => {
