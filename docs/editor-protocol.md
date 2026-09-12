@@ -23,6 +23,7 @@ Request IDs use letters, digits, `.`, `_`, `:`, `/`, or `-`. Paths must be safe 
 - `fixmap/plan` returns the report summary, ranked context, impact, routed tests, risks, diagnostics, analysis, retrieval provenance, and policy result from the same snapshot.
 - `fixmap/file` requires `params.path` and joins that path’s ranked context, impact, routed tests, annotation assessments (including stale/expired status), authored decisions, policy findings, and clearly labeled repository-wide risks.
 - `fixmap/annotations` accepts an optional `params.path` and returns annotation source provenance plus assessments. It returns `mutationSupported: false`; adapters must use a separately reviewed repository annotation workflow for writes.
+- `fixmap/change-scope` is advertised only when the host supplies its local scanner's `RepoMap` as the second argument to `createEditorProtocolSnapshot(report, repo)`. The repository is cloned, frozen, and included in the snapshot identity; it is not accepted from protocol request data. Params are `workspace`, `repository`, explicit `anchors`, `asOf`, and optional `direction`, `maxDepth`, and `maxNodes`, using the same Core change-scope engine and bounds as the CLI. Report-only snapshots return `method-not-found`: a ranked plan cannot substitute for the repository graph. No filesystem reads, execution, or network calls occur in this request handler. Concrete editor host wiring remains separate work.
 
 ## Response and errors
 

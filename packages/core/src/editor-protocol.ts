@@ -1,8 +1,9 @@
 import { annotationsForPath } from "./annotations.js";
-import type { FixMapReport } from "./types.js";
+import type { FixMapReport, RepoMap } from "./types.js";
+import { buildChangeScope, type ChangeScopeInput } from "./change-scope.js";
 import { validateFixMapReport } from "./validate.js";
 
-export type EditorProtocolMethod = "fixmap/capabilities" | "fixmap/plan" | "fixmap/file" | "fixmap/annotations";
+export type EditorProtocolMethod = "fixmap/capabilities" | "fixmap/plan" | "fixmap/file" | "fixmap/annotations" | "fixmap/change-scope";
 
 export type EditorProtocolRequest = {
   editorProtocolVersion: 1;
@@ -34,26 +35,29 @@ export type EditorProtocolSnapshot = {
   };
   methods: EditorProtocolMethod[];
   report: FixMapReport;
+  repository?: RepoMap;
 };
 
 const REQUEST_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/;
 const METHODS: EditorProtocolMethod[] = ["fixmap/capabilities", "fixmap/plan", "fixmap/file", "fixmap/annotations"];
 
 /** Creates one immutable, versioned view shared by editor adapters and the CLI report contract. */
-export function createEditorProtocolSnapshot(candidate: unknown): EditorProtocolSnapshot {
+export function createEditorProtocolSnapshot(candidate: unknown, repository?: RepoMap): EditorProtocolSnapshot {
   const validated = validateFixMapReport(candidate, "editor protocol report");
   if (!validated.success) throw new Error(validated.message);
   if (validated.report.reportVersion !== 1) {
     throw new Error("Editor protocol requires an explicit reportVersion 1 report.");
   }
   const report = structuredClone(validated.report);
+  const repo = repository ? structuredClone(repository) : undefined;
   return deepFreeze({
     editorProtocolVersion: 1,
     sourceReportVersion: 1,
-    snapshotFingerprint: `editor-snapshot:${stableHash(canonicalize(report))}`,
+    snapshotFingerprint: snapshotIdentity(report, repo),
     privacy: { transport: "local-process", networkRequired: false, sourceUpload: false, mutationSupported: false },
-    methods: [...METHODS],
-    report
+    methods: repo ? [...METHODS, "fixmap/change-scope"] : [...METHODS],
+    report,
+    ...(repo ? { repository: repo } : {})
   });
 }
 
@@ -65,6 +69,18 @@ export function handleEditorProtocolRequest(
   const envelope = validateRequest(candidate);
   if ("error" in envelope) return response(snapshot, envelope.id, { error: envelope.error });
   const request = envelope.request;
+  if (request.method === "fixmap/change-scope") {
+    if (!snapshot.repository) return response(snapshot, request.id, { error: { code: "method-not-found", message: "Change scope requires a repository-backed snapshot; a saved plan is insufficient." } });
+    const params = request.params;
+    if (!params || Object.keys(params).some((key) => !["workspace", "repository", "anchors", "direction", "maxDepth", "maxNodes", "asOf"].includes(key))) {
+      return invalidParams(snapshot, request.id, "Change scope requires explicit anchors, identities, assessment time, and optional traversal bounds.");
+    }
+    try {
+      return response(snapshot, request.id, { result: buildChangeScope(snapshot.repository, params as ChangeScopeInput) });
+    } catch (error) {
+      return invalidParams(snapshot, request.id, error instanceof Error ? error.message : "Invalid change scope parameters.");
+    }
+  }
   if (request.method === "fixmap/capabilities") {
     if (!emptyParams(request.params)) return invalidParams(snapshot, request.id, "fixmap/capabilities accepts no parameters.");
     return response(snapshot, request.id, { result: {
@@ -127,7 +143,7 @@ export function handleEditorProtocolRequest(
 
 function validateSnapshot(snapshot: EditorProtocolSnapshot): void {
   if (!snapshot || snapshot.editorProtocolVersion !== 1 || snapshot.sourceReportVersion !== 1 ||
-    snapshot.report?.reportVersion !== 1 || snapshot.snapshotFingerprint !== `editor-snapshot:${stableHash(canonicalize(snapshot.report))}` ||
+    snapshot.report?.reportVersion !== 1 || snapshot.snapshotFingerprint !== snapshotIdentity(snapshot.report, snapshot.repository) ||
     snapshot.privacy?.transport !== "local-process" || snapshot.privacy.networkRequired !== false ||
     snapshot.privacy.sourceUpload !== false || snapshot.privacy.mutationSupported !== false) {
     throw new Error("Invalid or mutated editor protocol snapshot.");
@@ -145,7 +161,7 @@ function validateRequest(candidate: unknown):
   if (!id || typeof candidate.method !== "string") {
     return { id, error: { code: "invalid-request", message: "Editor protocol request needs a valid id and method." } };
   }
-  if (!METHODS.includes(candidate.method as EditorProtocolMethod)) {
+  if (!METHODS.includes(candidate.method as EditorProtocolMethod) && candidate.method !== "fixmap/change-scope") {
     return { id, error: { code: "method-not-found", message: `Unsupported editor protocol method: ${candidate.method}` } };
   }
   if (candidate.params !== undefined && !isRecord(candidate.params)) {
@@ -193,6 +209,9 @@ function canonicalize(value: unknown): string {
     .filter(([, entry]) => entry !== undefined).sort(([a], [b]) => a.localeCompare(b))
     .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalize(entry)}`).join(",")}}`;
   return JSON.stringify(value);
+}
+function snapshotIdentity(report: FixMapReport, repository?: RepoMap): string {
+  return `editor-snapshot:${stableHash(canonicalize(repository ? { report, repository } : report))}`;
 }
 /** FNV-1a is a deterministic snapshot identity, not a security digest. */
 function stableHash(value: string): string {

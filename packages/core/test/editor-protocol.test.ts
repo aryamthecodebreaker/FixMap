@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createEditorProtocolSnapshot, handleEditorProtocolRequest } from "../src/editor-protocol.js";
-import type { FixMapReport } from "../src/types.js";
+import type { FixMapReport, RepoMap } from "../src/types.js";
+import { buildChangeScope } from "../src/change-scope.js";
 
 function report(): FixMapReport {
   return {
@@ -26,6 +27,26 @@ function report(): FixMapReport {
 const request = (method: string, params?: Record<string, unknown>) => ({ editorProtocolVersion: 1, id: "req-1", method, ...(params ? { params } : {}) });
 
 describe("editor protocol", () => {
+  it("calculates change scope only from an immutable repository-backed snapshot", () => {
+    const repo: RepoMap = { root: "/repo", files: [{
+      path: "src/auth.ts", extension: ".ts", sizeBytes: 25, isTest: false, isSource: true,
+      kind: "code", textSample: "export const auth = true;", textSampleComplete: true,
+      contentFingerprint: `worktree:${"a".repeat(64)}`
+    }], packageScripts: [], changedFiles: [], diffText: "", packageManager: "npm", diagnostics: [] };
+    const params = { workspace: "workspace", repository: "auth", anchors: [{ operation: "touch" as const, path: "src/auth.ts" }], asOf: "2026-01-01T00:00:00Z" };
+    const snapshot = createEditorProtocolSnapshot(report(), repo);
+    expect(snapshot.methods).toContain("fixmap/change-scope");
+    expect(handleEditorProtocolRequest(snapshot, request("fixmap/change-scope", params)).result).toEqual(buildChangeScope(repo, params));
+    repo.files.length = 0;
+    expect(snapshot.repository?.files).toHaveLength(1);
+    expect(Object.isFrozen(snapshot.repository?.files)).toBe(true);
+    const reportOnly = createEditorProtocolSnapshot(report());
+    expect(reportOnly.methods).not.toContain("fixmap/change-scope");
+    expect(handleEditorProtocolRequest(reportOnly, request("fixmap/change-scope", params)).error?.code).toBe("method-not-found");
+    expect(handleEditorProtocolRequest(snapshot, request("fixmap/change-scope", { ...params, command: "run" })).error?.code).toBe("invalid-params");
+    expect(handleEditorProtocolRequest(snapshot, request("fixmap/change-scope", { ...params, anchors: [{ operation: "touch", path: "../secret" }] })).error?.code).toBe("invalid-params");
+    expect(() => handleEditorProtocolRequest({ ...snapshot, repository: repo }, request("fixmap/plan"))).toThrow("mutated");
+  });
   it("creates an immutable versioned local-only snapshot", () => {
     const source = report();
     const snapshot = createEditorProtocolSnapshot(source);
