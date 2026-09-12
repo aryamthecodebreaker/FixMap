@@ -1,9 +1,11 @@
 import { createRequire as __fixmapCreateRequire } from 'module'; const require = __fixmapCreateRequire(import.meta.url);
 
 // packages/action/src/runner.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
-import { appendFileSync, readFileSync, statSync } from "node:fs";
-import { resolve as resolve3 } from "node:path";
+import { randomUUID as randomUUID3 } from "node:crypto";
+
+// packages/action/src/annotations.ts
+import { realpath as realpath3, stat as stat3 } from "node:fs/promises";
+import { isAbsolute as isAbsolute2, relative as relative2, resolve as resolve4 } from "node:path";
 
 // packages/core/dist/plan.js
 import { readFile as readFile2 } from "node:fs/promises";
@@ -1275,11 +1277,11 @@ function resolveComposerSymbol(project, symbol, repoPaths, suffixPaths) {
   for (const mapping of project.psr4) {
     if (!symbol.startsWith(mapping.prefix))
       continue;
-    const relative2 = symbol.slice(mapping.prefix.length).replace(/\\/g, "/");
-    if (!relative2)
+    const relative3 = symbol.slice(mapping.prefix.length).replace(/\\/g, "/");
+    if (!relative3)
       continue;
     for (const root of mapping.roots) {
-      const candidate = [root, `${relative2}.php`].filter(Boolean).join("/");
+      const candidate = [root, `${relative3}.php`].filter(Boolean).join("/");
       if (repoPaths.has(candidate))
         targets.add(candidate);
     }
@@ -1579,23 +1581,23 @@ function buildRubyProjects(files) {
     if (/^\s*gem\s*(?:\(|\s)\s*["']rails["']/im.test(manifest.textSample))
       railsEvidence.add(manifest.path);
     for (const file of scoped) {
-      const relative2 = root ? file.path.slice(root.length + 1) : file.path;
-      if (relative2.toLowerCase() === ".rspec" || /(?:^|\/)spec\/(?:spec_helper|rails_helper)\.rb$/i.test(relative2) || /_spec\.rb$/i.test(relative2)) {
+      const relative3 = root ? file.path.slice(root.length + 1) : file.path;
+      if (relative3.toLowerCase() === ".rspec" || /(?:^|\/)spec\/(?:spec_helper|rails_helper)\.rb$/i.test(relative3) || /_spec\.rb$/i.test(relative3)) {
         rspecEvidence.add(file.path);
       }
-      if (/(?:^|\/)test\/test_helper\.rb$/i.test(relative2) || /_test\.rb$/i.test(relative2) || /^(?:\s*require\s*\(?\s*["']minitest|\s*class\s+[^\n<]+<\s*(?:Minitest::Test|MiniTest::Unit)\b)/m.test(file.textSample)) {
+      if (/(?:^|\/)test\/test_helper\.rb$/i.test(relative3) || /_test\.rb$/i.test(relative3) || /^(?:\s*require\s*\(?\s*["']minitest|\s*class\s+[^\n<]+<\s*(?:Minitest::Test|MiniTest::Unit)\b)/m.test(file.textSample)) {
         minitestEvidence.add(file.path);
       }
     }
     const application = scoped.find((file) => {
-      const relative2 = root ? file.path.slice(root.length + 1) : file.path;
-      return relative2.toLowerCase() === "config/application.rb" && /\bclass\s+Application\s*<\s*Rails::Application\b/.test(file.textSample);
+      const relative3 = root ? file.path.slice(root.length + 1) : file.path;
+      return relative3.toLowerCase() === "config/application.rb" && /\bclass\s+Application\s*<\s*Rails::Application\b/.test(file.textSample);
     });
     if (application)
       railsEvidence.add(application.path);
     const autoloadFiles = railsEvidence.size === 2 ? scoped.filter((file) => {
-      const relative2 = root ? file.path.slice(root.length + 1) : file.path;
-      return /^app\/(?!assets(?:\/|$)|javascript(?:\/|$)|views(?:\/|$))[^/]+\/.+\.rb$/i.test(relative2);
+      const relative3 = root ? file.path.slice(root.length + 1) : file.path;
+      return /^app\/(?!assets(?:\/|$)|javascript(?:\/|$)|views(?:\/|$))[^/]+\/.+\.rb$/i.test(relative3);
     }).map((file) => file.path).sort((left, right) => left.localeCompare(right)) : [];
     const rakefile = scoped.find((file) => file.path.split("/").pop()?.toLowerCase() === "rakefile");
     const rakeTestPath = rakefile && /\b(?:Rake::TestTask|task\s*(?:\(|\s)\s*:test\b)/.test(rakefile.textSample) ? rakefile.path : void 0;
@@ -1643,9 +1645,9 @@ function rubyTestCommandForProject(project, relatedTests = []) {
     const testPath = relatedMinitest[0] ?? project.minitestEvidence.find((path) => /_test\.rb$/i.test(path));
     if (!testPath)
       return void 0;
-    const relative2 = project.root ? testPath.slice(project.root.length + 1) : testPath;
+    const relative3 = project.root ? testPath.slice(project.root.length + 1) : testPath;
     return {
-      command: scopedBundleCommand(project.root, `ruby -Itest ${relative2}`),
+      command: scopedBundleCommand(project.root, `ruby -Itest ${relative3}`),
       reason: `${testPath} provides executable Minitest evidence for ${project.path}`,
       scopeDir: project.root
     };
@@ -3271,7 +3273,7 @@ function compareBm25(left, right) {
 function bm25DocumentStatistics(text, queryTerms) {
   const counts = /* @__PURE__ */ new Map();
   let length = 0;
-  const record = (token) => {
+  const record2 = (token) => {
     length += 1;
     if (queryTerms.has(token))
       counts.set(token, (counts.get(token) ?? 0) + 1);
@@ -3280,11 +3282,11 @@ function bm25DocumentStatistics(text, queryTerms) {
     const raw = match[0];
     const lower = raw.toLowerCase();
     if (lower.length >= 3)
-      record(lower);
+      record2(lower);
     const parts = raw.split(/(?<=[a-z0-9])(?=[A-Z])|_/).filter((part) => part.length >= 3);
     if (parts.length > 1)
       for (const part of parts)
-        record(part.toLowerCase());
+        record2(part.toLowerCase());
   }
   return { counts, length };
 }
@@ -4320,6 +4322,39 @@ function round(value, digits) {
 // packages/core/dist/annotations.js
 var ID = /^annotation:[a-f0-9]{16}$/;
 var REVISION = /^[A-Za-z0-9][A-Za-z0-9._/@:+-]{0,255}$/;
+function emptyAnnotationStore() {
+  return { annotationStoreVersion: 1, annotations: [] };
+}
+function createAnnotation(input) {
+  const normalized = normalizeAnnotationInput(input);
+  return {
+    id: `annotation:${stableHash(canonicalize(normalized))}`,
+    ...normalized
+  };
+}
+function addAnnotation(store, annotation) {
+  const validated = validateAnnotationStore(store);
+  validateAnnotation(annotation);
+  if (validated.annotations.some((entry) => entry.id === annotation.id)) {
+    throw new Error(`Annotation ${annotation.id} already exists.`);
+  }
+  const semanticDuplicate = validated.annotations.find((entry) => canonicalize(entry.scope) === canonicalize(annotation.scope) && entry.note === annotation.note && entry.expiresAt === annotation.expiresAt);
+  if (semanticDuplicate)
+    throw new Error(`An equivalent annotation already exists as ${semanticDuplicate.id}.`);
+  return validateAnnotationStore({
+    annotationStoreVersion: 1,
+    annotations: [...validated.annotations, copyAnnotation(annotation)]
+  });
+}
+function removeAnnotation(store, id) {
+  const validated = validateAnnotationStore(store);
+  if (!ID.test(id))
+    throw new Error(`Invalid annotation ID: ${id}`);
+  const annotations = validated.annotations.filter((annotation) => annotation.id !== id);
+  if (annotations.length === validated.annotations.length)
+    throw new Error(`Annotation ${id} does not exist.`);
+  return { annotationStoreVersion: 1, annotations };
+}
 function validateAnnotationStore(candidate) {
   if (!isRecord3(candidate) || candidate.annotationStoreVersion !== 1 || !Array.isArray(candidate.annotations)) {
     throw new Error("Unsupported or invalid FixMap annotation store. Expected annotationStoreVersion 1.");
@@ -4338,9 +4373,9 @@ function assessAnnotations(store, repo, options) {
   const validated = validateAnnotationStore(store);
   const now = parseTimestamp(options.now, "assessment time");
   const paths = new Set(repo.files.map((file) => normalizePath(file.path)));
-  const renames = new Map((options.renames ?? []).map((rename2) => {
-    const from = validateRelativePath(rename2.from, "rename source");
-    const to = validateRelativePath(rename2.to, "rename target");
+  const renames = new Map((options.renames ?? []).map((rename3) => {
+    const from = validateRelativePath(rename3.from, "rename source");
+    const to = validateRelativePath(rename3.to, "rename target");
     return [from, to];
   }));
   return validated.annotations.map((annotation) => {
@@ -4535,7 +4570,7 @@ function selectDecisionRecords(inventory, input) {
     throw new Error("Unsupported decision inventory version.");
   const paths = new Set(input.paths.map(normalizePath2));
   const task = input.task.toLowerCase();
-  return inventory.records.filter((record) => record.targets.some((target) => target.kind === "file" && paths.has(target.path) || target.kind === "symbol" && Boolean(target.path && paths.has(target.path)) || (target.kind === "service" || target.kind === "contract") && task.includes(target.name.toLowerCase())) || titleTerms(record.title).some((term) => task.includes(term)));
+  return inventory.records.filter((record2) => record2.targets.some((target) => target.kind === "file" && paths.has(target.path) || target.kind === "symbol" && Boolean(target.path && paths.has(target.path)) || (target.kind === "service" || target.kind === "contract") && task.includes(target.name.toLowerCase())) || titleTerms(record2.title).some((term) => task.includes(term)));
 }
 function parseDecisionRecord(input) {
   const path = validatePath(input.path);
@@ -6578,10 +6613,10 @@ function parseHistoryLog(logText, repositoryPaths) {
   const commits = [];
   let inspectedCommits = 0;
   let skippedLargeCommits = 0;
-  for (const record of logText.split("")) {
-    if (!record)
+  for (const record2 of logText.split("")) {
+    if (!record2)
       continue;
-    const fields = record.split("\0");
+    const fields = record2.split("\0");
     const header = fields.shift()?.replace(/^\r?\n/, "") ?? "";
     const separator = header.indexOf("");
     if (separator === -1)
@@ -7139,6 +7174,120 @@ function renderVerifyMarkdown(result) {
 `;
 }
 
+// packages/core/dist/annotation-store.js
+import { mkdir as mkdir2, open as open2, readFile as readFile3, realpath as realpath2, rename as rename2, rm, stat as stat2, lstat } from "node:fs/promises";
+import { resolve as resolve3 } from "node:path";
+import { randomUUID as randomUUID2 } from "node:crypto";
+async function readAnnotationStore(repoRoot) {
+  return readStore(await annotationRoot(repoRoot));
+}
+async function updateAnnotationStore(repoRoot, update) {
+  const root = await annotationRoot(repoRoot);
+  return withStoreLock(root, async () => {
+    const updated = validateAnnotationStore(await update(await readStore(root)));
+    await writeStore(root, updated);
+    return updated;
+  });
+}
+async function annotationRoot(path) {
+  const root = await realpath2(path);
+  if (!(await stat2(root)).isDirectory())
+    throw new Error("Annotation repository must be a directory.");
+  return root;
+}
+async function readStore(repoRoot) {
+  await assertStoreBoundary(repoRoot);
+  const path = resolve3(repoRoot, ".fixmap", "annotations.json");
+  try {
+    return validateAnnotationStore(JSON.parse(await readFile3(path, "utf8")));
+  } catch (error) {
+    if (isNodeError(error, "ENOENT"))
+      return emptyAnnotationStore();
+    if (error instanceof SyntaxError)
+      throw new Error(`${path} is not valid JSON; repair it before adding annotations.`);
+    throw error;
+  }
+}
+async function writeStore(repoRoot, store) {
+  const directory = resolve3(repoRoot, ".fixmap");
+  await mkdir2(directory, { recursive: true });
+  await assertStoreBoundary(repoRoot);
+  const target = resolve3(directory, "annotations.json");
+  const temporary = resolve3(directory, `.annotations.${process.pid}.${randomUUID2()}.tmp`);
+  const handle = await open2(temporary, "wx", 384);
+  try {
+    await handle.writeFile(`${JSON.stringify(validateAnnotationStore(store), null, 2)}
+`, "utf8");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  try {
+    await rename2(temporary, target);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
+}
+async function withStoreLock(repoRoot, operation) {
+  await assertStoreBoundary(repoRoot);
+  const directory = resolve3(repoRoot, ".fixmap");
+  await mkdir2(directory, { recursive: true });
+  await assertStoreBoundary(repoRoot);
+  const lockPath = resolve3(directory, "annotations.lock");
+  let handle;
+  try {
+    handle = await open2(lockPath, "wx", 384);
+  } catch (error) {
+    if (!isNodeError(error, "EEXIST"))
+      throw error;
+    const lockStat = await stat2(lockPath).catch(() => void 0);
+    if (!lockStat || Date.now() - lockStat.mtimeMs <= 10 * 60 * 1e3) {
+      throw new Error("Another FixMap annotation update is in progress. Try again after it finishes.");
+    }
+    await rm(lockPath, { force: true });
+    handle = await open2(lockPath, "wx", 384);
+  }
+  try {
+    await handle.writeFile(`${JSON.stringify({ pid: process.pid, createdAt: (/* @__PURE__ */ new Date()).toISOString() })}
+`, "utf8");
+    await handle.sync();
+    return await operation();
+  } finally {
+    try {
+      await handle.close();
+    } finally {
+      await rm(lockPath, { force: true });
+    }
+  }
+}
+async function assertStoreBoundary(repoRoot) {
+  const directory = resolve3(repoRoot, ".fixmap");
+  const directoryInfo = await lstat(directory).catch((error) => {
+    if (isNodeError(error, "ENOENT"))
+      return void 0;
+    throw error;
+  });
+  if (!directoryInfo)
+    return;
+  if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || await realpath2(directory) !== directory) {
+    throw new Error("Annotation store directory must be a real repository-local .fixmap directory, not a link or junction.");
+  }
+  for (const name of ["annotations.json", "annotations.lock"]) {
+    const info = await lstat(resolve3(directory, name)).catch((error) => {
+      if (isNodeError(error, "ENOENT"))
+        return void 0;
+      throw error;
+    });
+    if (info && (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1)) {
+      throw new Error("Annotation store and lock must be regular, unlinked repository-local files.");
+    }
+  }
+}
+function isNodeError(error, code) {
+  return error instanceof Error && "code" in error && error.code === code;
+}
+
 // packages/core/dist/sandbox.js
 import { execFile as execFile2, spawn } from "node:child_process";
 import { promisify as promisify2 } from "node:util";
@@ -7164,19 +7313,19 @@ function validateFixMapReport(candidate, label) {
       message: `${label} is not a FixMap JSON report: no contextFiles array.`
     };
   }
-  const record = candidate;
-  if (record.reportVersion !== void 0 && record.reportVersion !== 1) {
+  const record2 = candidate;
+  if (record2.reportVersion !== void 0 && record2.reportVersion !== 1) {
     return {
       success: false,
-      message: `${label} uses unsupported reportVersion ${JSON.stringify(record.reportVersion)}; this FixMap release supports reportVersion 1.`
+      message: `${label} uses unsupported reportVersion ${JSON.stringify(record2.reportVersion)}; this FixMap release supports reportVersion 1.`
     };
   }
   const invalidEnvelopeFields = [
-    typeof record.summary === "string" ? void 0 : "summary (string)",
-    Array.isArray(record.testRoutes) ? void 0 : "testRoutes (array)",
-    Array.isArray(record.risks) ? void 0 : "risks (array)",
-    Array.isArray(record.changedFiles) ? void 0 : "changedFiles (array)",
-    Array.isArray(record.diagnostics) ? void 0 : "diagnostics (array)"
+    typeof record2.summary === "string" ? void 0 : "summary (string)",
+    Array.isArray(record2.testRoutes) ? void 0 : "testRoutes (array)",
+    Array.isArray(record2.risks) ? void 0 : "risks (array)",
+    Array.isArray(record2.changedFiles) ? void 0 : "changedFiles (array)",
+    Array.isArray(record2.diagnostics) ? void 0 : "diagnostics (array)"
   ].filter((field) => field !== void 0);
   if (invalidEnvelopeFields.length > 0) {
     return {
@@ -7184,7 +7333,7 @@ function validateFixMapReport(candidate, label) {
       message: `${label} is missing or has invalid fields in the complete FixMap report envelope: ${invalidEnvelopeFields.join(", ")}.`
     };
   }
-  const versioned = record.reportVersion === 1;
+  const versioned = record2.reportVersion === 1;
   const contextFiles = candidate.contextFiles;
   const unsafeContextPath = contextFiles.findIndex((file) => isRecord6(file) && typeof file.path === "string" && file.path.trim().length > 0 && !isRepositoryRelativePath(file.path));
   if (unsafeContextPath !== -1) {
@@ -7236,7 +7385,7 @@ function validateFixMapReport(candidate, label) {
       };
     }
   }
-  const testRoutes = record.testRoutes;
+  const testRoutes = record2.testRoutes;
   const invalidRoute = testRoutes.findIndex((route) => {
     if (!isRecord6(route))
       return true;
@@ -7248,7 +7397,7 @@ function validateFixMapReport(candidate, label) {
       message: `${label} has an invalid testRoutes entry at index ${invalidRoute}; each route needs a string "command" and an array of non-empty string paths named relatedFiles; optional kind and reason fields must use their documented types.`
     };
   }
-  const risks = record.risks;
+  const risks = record2.risks;
   const invalidRisk = risks.findIndex((risk) => {
     if (!isRecord6(risk))
       return true;
@@ -7260,8 +7409,8 @@ function validateFixMapReport(candidate, label) {
       message: `${label} has an invalid risks entry at index ${invalidRisk}; each risk needs a non-empty string "area", and optional reason and severity fields must use their documented types.`
     };
   }
-  if (record.impact !== void 0) {
-    const impact = record.impact;
+  if (record2.impact !== void 0) {
+    const impact = record2.impact;
     const history = isRecord6(impact) ? impact.history : void 0;
     if (!isRecord6(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord6(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
       return { success: false, message: `${label} has an invalid impact graph envelope.` };
@@ -7290,11 +7439,11 @@ function validateFixMapReport(candidate, label) {
       }
     }
   }
-  if (!isRepositoryRelativePathArray(record.changedFiles)) {
+  if (!isRepositoryRelativePathArray(record2.changedFiles)) {
     return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
   }
-  if (record.annotations !== void 0) {
-    const annotations = record.annotations;
+  if (record2.annotations !== void 0) {
+    const annotations = record2.annotations;
     if (!isRecord6(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) || !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) || !Array.isArray(annotations.entries)) {
       return { success: false, message: `${label} has an invalid annotations envelope.` };
     }
@@ -7312,10 +7461,10 @@ function validateFixMapReport(candidate, label) {
       return { success: false, message: `${label} has an invalid annotations entry at index ${invalidAnnotation}.` };
     }
   }
-  if (record.decisions !== void 0) {
-    if (!Array.isArray(record.decisions))
+  if (record2.decisions !== void 0) {
+    if (!Array.isArray(record2.decisions))
       return { success: false, message: `${label} has invalid decisions; expected an array.` };
-    const invalidDecision = record.decisions.findIndex((decision) => {
+    const invalidDecision = record2.decisions.findIndex((decision) => {
       if (!isRecord6(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.consequences !== void 0 && typeof decision.consequences !== "string")
         return true;
       return decision.targets.some((target) => {
@@ -7331,8 +7480,8 @@ function validateFixMapReport(candidate, label) {
     if (invalidDecision !== -1)
       return { success: false, message: `${label} has an invalid decisions entry at index ${invalidDecision}.` };
   }
-  if (record.policy !== void 0) {
-    const policy = record.policy;
+  if (record2.policy !== void 0) {
+    const policy = record2.policy;
     if (!isRecord6(policy) || typeof policy.policyFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
       return { success: false, message: `${label} has an invalid architecture policy envelope.` };
     }
@@ -7345,7 +7494,7 @@ function validateFixMapReport(candidate, label) {
       return { success: false, message: `${label} has an invalid architecture policy finding at index ${invalidPolicyFinding}.` };
     }
   }
-  const diagnostics = record.diagnostics;
+  const diagnostics = record2.diagnostics;
   const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
     if (!isRecord6(diagnostic))
       return true;
@@ -7357,8 +7506,8 @@ function validateFixMapReport(candidate, label) {
       message: `${label} has an invalid diagnostics entry at index ${invalidDiagnostic}; each diagnostic needs string code and message fields, an info, warning, or error severity, and optional non-empty string paths.`
     };
   }
-  if (record.analysis !== void 0) {
-    const analysis = record.analysis;
+  if (record2.analysis !== void 0) {
+    const analysis = record2.analysis;
     const grounding = isRecord6(analysis) ? analysis.grounding : void 0;
     const specificity = isRecord6(grounding) ? grounding.specificity : void 0;
     if (specificity !== "anchored" && specificity !== "descriptive" && specificity !== "vague") {
@@ -7387,8 +7536,8 @@ function validateFixMapReport(candidate, label) {
       }
     }
   }
-  if (record.retrieval !== void 0) {
-    const retrieval = record.retrieval;
+  if (record2.retrieval !== void 0) {
+    const retrieval = record2.retrieval;
     const weights = isRecord6(retrieval) ? retrieval.weights : void 0;
     if (!isRecord6(retrieval) || retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic" || !isRecord6(weights) || !isPositiveFiniteNumber(weights.structural) || !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) || !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
       return { success: false, message: `${label} has an invalid retrieval envelope.` };
@@ -7452,6 +7601,56 @@ var exec3 = promisify3(execFile3);
 var MAX_TREE_BYTES = 32 * 1024 * 1024;
 var MAX_BATCH_BYTES = 64 * 1024 * 1024;
 var MAX_BATCH_OUTPUT_BYTES = MAX_BATCH_BYTES + 2 * 1024 * 1024;
+
+// packages/action/src/annotations.ts
+async function runAnnotationAction(input, repoRoot, allowWrite) {
+  if (Buffer.byteLength(input, "utf8") > 32768) throw new Error("annotation-request exceeds 32 KiB.");
+  let request;
+  try {
+    request = JSON.parse(input);
+  } catch {
+    throw new Error("annotation-request must be valid JSON.");
+  }
+  if (!record(request) || !["list", "add", "remove"].includes(String(request.action))) throw new Error("annotation-request requires action: list, add, or remove.");
+  const allowed = request.action === "list" ? ["action"] : request.action === "remove" ? ["action", "id"] : ["action", "scope", "note", "owner", "expiresAt"];
+  if (Object.keys(request).some((key) => !allowed.includes(key))) throw new Error("annotation-request contains fields not allowed for this action.");
+  if (request.action === "list") return `${JSON.stringify(await readAnnotationStore(repoRoot), null, 2)}
+`;
+  if (!allowWrite) throw new Error("Annotation mutation requires allow-annotation-write: true.");
+  if (request.action === "remove") {
+    if (typeof request.id !== "string") throw new Error("Annotation removal requires an exact id.");
+    const id = request.id;
+    await updateAnnotationStore(repoRoot, (store) => removeAnnotation(store, id));
+    return `${JSON.stringify({ action: "remove", id, path: ".fixmap/annotations.json" })}
+`;
+  }
+  if (!record(request.scope) || typeof request.note !== "string" || request.owner !== void 0 && typeof request.owner !== "string" || request.expiresAt !== void 0 && typeof request.expiresAt !== "string") throw new Error("Invalid annotation scope, note, owner, or expiry.");
+  const annotation = createAnnotation({
+    scope: request.scope,
+    note: request.note,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+    ...request.owner !== void 0 ? { owner: request.owner } : {},
+    ...request.expiresAt !== void 0 ? { expiresAt: request.expiresAt } : {}
+  });
+  if ("path" in annotation.scope && annotation.scope.path) {
+    const root = await realpath3(repoRoot);
+    const target = await realpath3(resolve4(root, annotation.scope.path));
+    const inside = relative2(root, target);
+    if (!inside || isAbsolute2(inside) || inside === ".." || inside.startsWith("../") || inside.startsWith("..\\") || !(await stat3(target)).isFile()) {
+      throw new Error("Annotation target must be an existing file inside the checkout.");
+    }
+  }
+  await updateAnnotationStore(repoRoot, (store) => addAnnotation(store, annotation));
+  return `${JSON.stringify({ action: "add", id: annotation.id, path: ".fixmap/annotations.json" })}
+`;
+}
+function record(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// packages/action/src/runner.ts
+import { appendFileSync, readFileSync, statSync } from "node:fs";
+import { resolve as resolve5 } from "node:path";
 
 // packages/action/src/github.ts
 var FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
@@ -7691,9 +7890,33 @@ var ACTION_OUTPUT_REPORT_LIMIT_BYTES = 900 * 1024;
 var OUTPUT_TRUNCATION_FOOTER = "\n\n[FixMap report truncated to fit the GitHub Actions output limit. Run FixMap locally with --output for a complete report.]\n";
 async function runAction(env = process.env, dependencies = {}) {
   const appendFile = dependencies.appendFile ?? ((path, contents) => appendFileSync(path, contents));
-  const readFile3 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
+  const readFile4 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
   const stdout = dependencies.stdout ?? ((text) => process.stdout.write(text));
-  const event = readEvent(env.GITHUB_EVENT_PATH, readFile3);
+  if (readInput("mode", env)?.toLowerCase() === "annotate") {
+    const incompatible = ["issue", "diff", "base", "head", "limit", "exclude", "report-path", "comment-author"].filter((name) => readInput(name, env));
+    for (const name of ["working-tree", "include-untracked", "no-cache"]) {
+      if (parseBooleanInput(name, readInput(name, env))) incompatible.push(name);
+    }
+    if (parseFailOn(readInput("fail-on", env)) !== "error") incompatible.push("fail-on");
+    if (incompatible.length) throw new Error(`annotate mode does not accept analysis inputs: ${incompatible.join(", ")}.`);
+    const request = readInput("annotation-request", env);
+    if (!request) throw new Error("annotate mode requires annotation-request.");
+    const allowWrite = parseBooleanInput("allow-annotation-write", readInput("allow-annotation-write", env));
+    const output2 = await runAnnotationAction(request, (dependencies.cwd ?? process.cwd)(), allowWrite);
+    if (Buffer.byteLength(output2, "utf8") > ACTION_OUTPUT_REPORT_LIMIT_BYTES) throw new Error("Annotation listing exceeds the Action output limit; read the local store directly.");
+    stdout(output2);
+    if (env.GITHUB_STEP_SUMMARY) appendBoundedStepSummary(env.GITHUB_STEP_SUMMARY, withJsonDetails("# FixMap annotations\n\nLocal checkout operation only; no commit, push, or GitHub comment was made.", output2), dependencies, appendFile, stdout);
+    if (env.GITHUB_OUTPUT) {
+      const delimiter = `fixmap_${(dependencies.uuid ?? randomUUID3)().replace(/-/g, "")}`;
+      appendFile(env.GITHUB_OUTPUT, `report<<${delimiter}
+${output2}
+${delimiter}
+`);
+    }
+    return;
+  }
+  if (readInput("annotation-request", env) || readInput("allow-annotation-write", env) === "true") throw new Error("Annotation inputs require mode: annotate.");
+  const event = readEvent(env.GITHUB_EVENT_PATH, readFile4);
   const rawIssue = readInput("issue", env) || buildPullRequestIssueText(event);
   const diffSpec = readInput("diff", env);
   const workingTree = parseBooleanInput("working-tree", readInput("working-tree", env));
@@ -7720,7 +7943,7 @@ async function runAction(env = process.env, dependencies = {}) {
         `FixMap verify mode does not use plan-only input${planOnly.length === 1 ? "" : "s"}: ${planOnly.join(", ")}. Remove them, or set mode: plan.`
       );
     }
-    return runVerifyMode({ env, dependencies, readFile: readFile3, appendFile, stdout, format, failOn, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache });
+    return runVerifyMode({ env, dependencies, readFile: readFile4, appendFile, stdout, format, failOn, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache });
   }
   if (failOn === "warning") throw new Error("fail-on: warning is a verify-mode input; remove it or set mode: verify.");
   const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : void 0;
@@ -7760,7 +7983,7 @@ async function runAction(env = process.env, dependencies = {}) {
     appendBoundedStepSummary(env.GITHUB_STEP_SUMMARY, format === "json" ? withJsonDetails(markdown, output) : markdown, dependencies, appendFile, stdout);
   }
   if (env.GITHUB_OUTPUT) {
-    appendFile(env.GITHUB_OUTPUT, renderActionOutputs(output, report, dependencies.uuid ?? randomUUID2));
+    appendFile(env.GITHUB_OUTPUT, renderActionOutputs(output, report, dependencies.uuid ?? randomUUID3));
   }
   const token = readInput("github-token", env) || env.GITHUB_TOKEN;
   const commentAuthor = readInput("comment-author", env);
@@ -7824,7 +8047,7 @@ async function runVerifyMode(context) {
     includeUntracked: context.includeUntracked,
     useCache: !context.noCache,
     includeHistory: true,
-    internalExclude: [resolve3(repoRoot, reportPath)]
+    internalExclude: [resolve5(repoRoot, reportPath)]
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
   if (diffFailure) {
@@ -7841,7 +8064,7 @@ async function runVerifyMode(context) {
   if (context.env.GITHUB_OUTPUT) {
     context.appendFile(
       context.env.GITHUB_OUTPUT,
-      renderVerifyOutputs(output, result, context.dependencies.uuid ?? randomUUID2)
+      renderVerifyOutputs(output, result, context.dependencies.uuid ?? randomUUID3)
     );
   }
   if (result.findings.some(
@@ -7852,7 +8075,7 @@ async function runVerifyMode(context) {
     );
   }
 }
-function renderVerifyOutputs(reportText, result, uuid = randomUUID2) {
+function renderVerifyOutputs(reportText, result, uuid = randomUUID3) {
   const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;
   const fittedReport = fitOutputReport(reportText);
   const terminated = fittedReport.endsWith("\n") ? fittedReport : `${fittedReport}
@@ -7897,7 +8120,7 @@ function parseBooleanInput(name, value) {
   if (/^(?:false|0|no)$/i.test(value)) return false;
   throw new Error(`${name} must be true or false.`);
 }
-function renderActionOutputs(reportText, report, uuid = randomUUID2) {
+function renderActionOutputs(reportText, report, uuid = randomUUID3) {
   const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;
   const fittedReport = fitOutputReport(reportText);
   const terminatedReport = fittedReport.endsWith("\n") ? fittedReport : `${fittedReport}
@@ -7995,12 +8218,12 @@ function readInput(name, env) {
   const value = env[githubName] || env[shellSafeName];
   return value?.trim() || void 0;
 }
-function readEvent(eventPath, readFile3) {
+function readEvent(eventPath, readFile4) {
   if (!eventPath) {
     return void 0;
   }
   try {
-    return JSON.parse(readFile3(eventPath));
+    return JSON.parse(readFile4(eventPath));
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`FixMap could not read the GitHub event payload: ${detail}`);

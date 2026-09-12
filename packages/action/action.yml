@@ -5,10 +5,18 @@ inputs:
     description: >-
       plan (default) maps the change to context files, likely impact, test routes, and review risks.
       verify compares a saved plan against the diff that followed it and needs report-path.
+      annotate manages local annotation notes using annotation-request and emits JSON without GitHub comments.
       Explain and compare are available through the CLI's plan --explain/--compare flags and MCP tools;
       they are intentionally not Action modes because Action comments operate on complete reports.
     required: false
     default: plan
+  annotation-request:
+    description: 'Annotate mode only. JSON with action list, add (scope, note, optional owner/expiresAt), or remove (id). Maximum 32 KiB. Never interpolate untrusted PR text into write requests.'
+    required: false
+  allow-annotation-write:
+    description: 'Explicit opt-in for annotate add/remove. Only changes the local checkout; does not commit or push.'
+    required: false
+    default: "false"
   report-path:
     description: >-
       Verify mode only. Path to the JSON plan this change was made from, usually restored
