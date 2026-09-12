@@ -29,6 +29,8 @@ is true or that the caller owns the service.
   Scope is a file (`kind`, `path`), symbol (`kind`, `path`, `symbol`), service
   (`kind`, `name`), or contract (`kind`, `name`, optional `path`). File targets
   must already exist within the checkout. Creation time is the operation time.
+  Unknown scope fields and fields belonging to another scope kind are rejected,
+  not silently discarded (for example, a service scope cannot include a path).
 - `remove`: `action` and exact annotation `id`. Unknown IDs fail; no broad deletion
   operation exists.
 

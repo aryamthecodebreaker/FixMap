@@ -7625,6 +7625,16 @@ async function runAnnotationAction(input, repoRoot, allowWrite) {
 `;
   }
   if (!record(request.scope) || typeof request.note !== "string" || request.owner !== void 0 && typeof request.owner !== "string" || request.expiresAt !== void 0 && typeof request.expiresAt !== "string") throw new Error("Invalid annotation scope, note, owner, or expiry.");
+  const scopeFields = {
+    file: ["kind", "path"],
+    symbol: ["kind", "path", "symbol"],
+    service: ["kind", "name"],
+    contract: ["kind", "name", "path"]
+  };
+  const fields = typeof request.scope.kind === "string" && Object.hasOwn(scopeFields, request.scope.kind) ? scopeFields[request.scope.kind] : void 0;
+  if (!fields || Object.keys(request.scope).some((key) => !fields.includes(key))) {
+    throw new Error("Annotation scope contains an unsupported kind or fields.");
+  }
   const annotation = createAnnotation({
     scope: request.scope,
     note: request.note,

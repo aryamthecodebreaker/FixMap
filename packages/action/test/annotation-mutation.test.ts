@@ -1,8 +1,24 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { runAction } from "../src/runner.js";
+import { runAnnotationAction } from "../src/annotations.js";
+
+it.each([
+  { kind: "service", name: "auth", path: "src/auth.ts" },
+  { kind: "file", path: "src/auth.ts", symbol: "login" },
+  { kind: "symbol", path: "src/auth.ts", symbol: "login", name: "auth" },
+  { kind: "contract", name: "auth", typo: true },
+  { kind: "toString", name: "auth" }
+])("rejects ambiguous or unsupported scopes without creating a store: %j", async (scope) => {
+  const root = await mkdtemp(join(tmpdir(), "fixmap-action-invalid-scope-"));
+  try {
+    await expect(runAnnotationAction(JSON.stringify({ action: "add", scope, note: "Keep scope exact" }), root, true))
+      .rejects.toThrow("unsupported kind or fields");
+    await expect(stat(join(root, ".fixmap"))).rejects.toMatchObject({ code: "ENOENT" });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 
 it.each([
   { INPUT_DIFF: "main...HEAD" }, { INPUT_ISSUE: "untrusted task" },
