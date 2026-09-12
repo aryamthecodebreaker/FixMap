@@ -7241,12 +7241,7 @@ async function withStoreLock(repoRoot, operation) {
   } catch (error) {
     if (!isNodeError(error, "EEXIST"))
       throw error;
-    const lockStat = await stat2(lockPath).catch(() => void 0);
-    if (!lockStat || Date.now() - lockStat.mtimeMs <= 10 * 60 * 1e3) {
-      throw new Error("Another FixMap annotation update is in progress. Try again after it finishes.");
-    }
-    await rm(lockPath, { force: true });
-    handle = await open2(lockPath, "wx", 384);
+    throw new Error("Another FixMap annotation update is in progress or left a lock. Retry after it finishes; if interrupted, confirm no annotation writer is running before manually removing .fixmap/annotations.lock.");
   }
   try {
     await handle.writeFile(`${JSON.stringify({ pid: process.pid, createdAt: (/* @__PURE__ */ new Date()).toISOString() })}

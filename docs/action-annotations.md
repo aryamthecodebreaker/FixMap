@@ -37,6 +37,9 @@ is true or that the caller owns the service.
 Add/remove require `allow-annotation-write: true`. The shared Core store validates
 records, locks updates, rejects redirected stores, and atomically replaces
 `.fixmap/annotations.json`. Rejected updates preserve existing store contents.
+Locks are never stolen based on age: a suspended writer may still be active.
+After an interrupted update, confirm that no annotation writer is running before
+manually removing `.fixmap/annotations.lock` and retrying. Do not remove the store.
 
 Output is JSON regardless of the plan-mode `format` setting. The `report` output
 contains the list or a mutation receipt; the step summary includes the same JSON.

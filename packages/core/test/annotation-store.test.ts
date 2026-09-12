@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, utimes } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { expect, it } from "vitest";
@@ -30,7 +30,12 @@ it("rejects a concurrent writer while a mutation owns the lock", async () => {
   const first = updateAnnotationStore(root, async (store) => { entered(); await gate; return store; });
   try {
     await ready;
+    const lockPath = join(root, ".fixmap", "annotations.lock");
+    const lockBytes = await readFile(lockPath, "utf8");
+    // A suspended or slow writer still owns its lock, regardless of age.
+    await utimes(lockPath, new Date(0), new Date(0));
     await expect(updateAnnotationStore(root, (store) => store)).rejects.toThrow("update is in progress");
+    expect(await readFile(lockPath, "utf8")).toBe(lockBytes);
   } finally {
     release();
     await first;

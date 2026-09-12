@@ -71,12 +71,9 @@ async function withStoreLock<T>(repoRoot: string, operation: () => Promise<T>): 
     handle = await open(lockPath, "wx", 0o600);
   } catch (error) {
     if (!isNodeError(error, "EEXIST")) throw error;
-    const lockStat = await stat(lockPath).catch(() => undefined);
-    if (!lockStat || Date.now() - lockStat.mtimeMs <= 10 * 60 * 1000) {
-      throw new Error("Another FixMap annotation update is in progress. Try again after it finishes.");
-    }
-    await rm(lockPath, { force: true });
-    handle = await open(lockPath, "wx", 0o600);
+    // Age cannot prove that a writer has stopped (for example after suspension).
+    // Never steal a lock: doing so permits overlapping read-modify-write cycles.
+    throw new Error("Another FixMap annotation update is in progress or left a lock. Retry after it finishes; if interrupted, confirm no annotation writer is running before manually removing .fixmap/annotations.lock.");
   }
   try {
     await handle.writeFile(`${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`, "utf8");
