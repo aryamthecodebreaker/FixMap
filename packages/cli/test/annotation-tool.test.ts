@@ -4,6 +4,40 @@ import { tmpdir } from "node:os";
 import { expect, it } from "vitest";
 import { runAnnotationTool } from "../src/annotation-tool.js";
 
+it("preserves explicit symbol, service and contract scopes with owner and expiry", async () => {
+  const root = await mkdtemp(join(tmpdir(), "fixmap-annotation-scopes-"));
+  try {
+    await writeFile(join(root, "auth.ts"), "export function authenticate() {}\n");
+    const cases = [
+      { fields: { target: "auth.ts", symbol: "authenticate" }, scope: { kind: "symbol", path: "auth.ts", symbol: "authenticate" } },
+      { fields: { service: "auth" }, scope: { kind: "service", name: "auth" } },
+      { fields: { contract: "AuthAPI" }, scope: { kind: "contract", name: "AuthAPI" } },
+      { fields: { target: "auth.ts", contract: "AuthAPI" }, scope: { kind: "contract", name: "AuthAPI", path: "auth.ts" } }
+    ];
+    for (const entry of cases) {
+      const result = await runAnnotationTool({ action: "add", ...entry.fields, note: "Reviewed constraint", owner: "platform", expires: "2099-01-01T00:00:00Z" }, root);
+      expect(result.isError).toBeUndefined();
+    }
+    const path = join(root, ".fixmap", "annotations.json");
+    const before = await readFile(path, "utf8");
+    const store = JSON.parse(before);
+    expect(store.annotations).toHaveLength(4);
+    for (const entry of cases) expect(store.annotations).toEqual(expect.arrayContaining([expect.objectContaining({
+      scope: entry.scope, owner: "platform", expiresAt: "2099-01-01T00:00:00.000Z"
+    })]));
+    for (const fields of [
+      { symbol: "authenticate" },
+      { target: "auth.ts", service: "auth" },
+      { service: "auth", contract: "AuthAPI" },
+      { target: "../outside.ts" },
+      { service: "auth", expires: "2000-01-01T00:00:00Z" }
+    ]) {
+      expect((await runAnnotationTool({ action: "add", note: "must not persist", ...fields }, root)).isError).toBe(true);
+      expect(await readFile(path, "utf8")).toBe(before);
+    }
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 it("refuses hard-linked annotation stores without changing the external file", async () => {
   const root = await mkdtemp(join(tmpdir(), "fixmap-annotation-hardlink-"));
   try {
