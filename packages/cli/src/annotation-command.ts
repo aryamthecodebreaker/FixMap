@@ -1,13 +1,12 @@
 import { constants } from "node:fs";
-import { access, lstat, mkdir, open, readFile, realpath, rename, rm, stat } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { access, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import {
   addAnnotation,
   createAnnotation,
-  emptyAnnotationStore,
+  readAnnotationStore,
+  updateAnnotationStore,
   removeAnnotation,
-  validateAnnotationStore,
   type AnnotationScope,
   type AnnotationStore
 } from "@aryam/fixmap-core";
@@ -52,17 +51,16 @@ export async function runAnnotateCommand(args: string[], io: AnnotationCommandIo
     const rootStat = await stat(repoRoot);
     if (!rootStat.isDirectory()) throw new Error(`Annotation repository is not a directory: ${parsed.repoRoot}`);
     if (parsed.action === "list") {
-      const store = await readStore(repoRoot);
+      const store = await readAnnotationStore(repoRoot);
       io.stdout(renderAnnotations(store, parsed.format));
       return 0;
     }
-    return await withStoreLock(repoRoot, async () => {
-      const store = await readStore(repoRoot);
+    let message = "";
+    await updateAnnotationStore(repoRoot, async (store) => {
       if (parsed.action === "remove") {
         const updated = removeAnnotation(store, parsed.removeId!);
-        await writeStore(repoRoot, updated);
-        io.stdout(`Removed ${parsed.removeId} from .fixmap/annotations.json.\n`);
-        return 0;
+        message = `Removed ${parsed.removeId} from .fixmap/annotations.json.\n`;
+        return updated;
       }
       const scope = await buildScope(repoRoot, parsed);
       const annotation = createAnnotation({
@@ -73,10 +71,11 @@ export async function runAnnotateCommand(args: string[], io: AnnotationCommandIo
         ...(parsed.expiresAt ? { expiresAt: parsed.expiresAt } : {})
       });
       const updated = addAnnotation(store, annotation);
-      await writeStore(repoRoot, updated);
-      io.stdout(`Added ${annotation.id} to .fixmap/annotations.json (${describeScope(annotation.scope)}).\n`);
-      return 0;
+      message = `Added ${annotation.id} to .fixmap/annotations.json (${describeScope(annotation.scope)}).\n`;
+      return updated;
     });
+    io.stdout(message);
+    return 0;
   } catch (error) {
     io.stderr(`${error instanceof Error ? error.message : String(error)}\n`);
     return 1;
@@ -178,90 +177,6 @@ async function containedFile(repoRoot: string, target: string): Promise<string> 
   return lexical.replace(/\\/g, "/");
 }
 
-async function readStore(repoRoot: string): Promise<AnnotationStore> {
-  await assertStoreBoundary(repoRoot);
-  const path = resolve(repoRoot, ".fixmap", "annotations.json");
-  try {
-    return validateAnnotationStore(JSON.parse(await readFile(path, "utf8")) as unknown);
-  } catch (error) {
-    if (isNodeError(error, "ENOENT")) return emptyAnnotationStore();
-    if (error instanceof SyntaxError) throw new Error(`${path} is not valid JSON; repair it before adding annotations.`);
-    throw error;
-  }
-}
-
-async function writeStore(repoRoot: string, store: AnnotationStore): Promise<void> {
-  const directory = resolve(repoRoot, ".fixmap");
-  await mkdir(directory, { recursive: true });
-  await assertStoreBoundary(repoRoot);
-  const target = resolve(directory, "annotations.json");
-  const temporary = resolve(directory, `.annotations.${process.pid}.${randomUUID()}.tmp`);
-  const handle = await open(temporary, "wx", 0o600);
-  try {
-    await handle.writeFile(`${JSON.stringify(validateAnnotationStore(store), null, 2)}\n`, "utf8");
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-  try {
-    await rename(temporary, target);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    throw error;
-  }
-}
-
-async function withStoreLock<T>(repoRoot: string, operation: () => Promise<T>): Promise<T> {
-  await assertStoreBoundary(repoRoot);
-  const directory = resolve(repoRoot, ".fixmap");
-  await mkdir(directory, { recursive: true });
-  await assertStoreBoundary(repoRoot);
-  const lockPath = resolve(directory, "annotations.lock");
-  let handle;
-  try {
-    handle = await open(lockPath, "wx", 0o600);
-  } catch (error) {
-    if (!isNodeError(error, "EEXIST")) throw error;
-    const lockStat = await stat(lockPath).catch(() => undefined);
-    if (!lockStat || Date.now() - lockStat.mtimeMs <= 10 * 60 * 1000) {
-      throw new Error("Another FixMap annotation update is in progress. Try again after it finishes.");
-    }
-    await rm(lockPath, { force: true });
-    handle = await open(lockPath, "wx", 0o600);
-  }
-  try {
-    await handle.writeFile(`${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`, "utf8");
-    await handle.sync();
-    return await operation();
-  } finally {
-    try {
-      await handle.close();
-    } finally {
-      await rm(lockPath, { force: true });
-    }
-  }
-}
-
-async function assertStoreBoundary(repoRoot: string): Promise<void> {
-  const directory = resolve(repoRoot, ".fixmap");
-  const directoryInfo = await lstat(directory).catch((error: unknown) => {
-    if (isNodeError(error, "ENOENT")) return undefined;
-    throw error;
-  });
-  if (!directoryInfo) return;
-  if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || await realpath(directory) !== directory) {
-    throw new Error("Annotation store directory must be a real repository-local .fixmap directory, not a link or junction.");
-  }
-  for (const name of ["annotations.json", "annotations.lock"]) {
-    const info = await lstat(resolve(directory, name)).catch((error: unknown) => {
-      if (isNodeError(error, "ENOENT")) return undefined;
-      throw error;
-    });
-    if (info && (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1)) {
-      throw new Error("Annotation store and lock must be regular, unlinked repository-local files.");
-    }
-  }
-}
 
 function renderAnnotations(store: AnnotationStore, format: "markdown" | "json"): string {
   if (format === "json") return `${JSON.stringify(store, null, 2)}\n`;
@@ -278,8 +193,4 @@ function describeScope(scope: AnnotationScope): string {
   if (scope.kind === "symbol") return `symbol ${scope.symbol} in ${scope.path}`;
   if (scope.kind === "service") return `service ${scope.name}`;
   return `contract ${scope.name}${scope.path ? ` in ${scope.path}` : ""}`;
-}
-
-function isNodeError(error: unknown, code: string): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === code;
 }
