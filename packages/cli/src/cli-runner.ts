@@ -101,6 +101,7 @@ Usage:
   fixmap validate plan.json
   fixmap benchmark --repo . --last 50
   fixmap change-scope --touch src/auth --touch packages/api --add db/migrations
+  fixmap editor --issue "Investigate authentication" --repo .
   fixmap capability create checkout --touch src/routes/checkout.ts --touch packages/payments
   fixmap capability checkout
   fixmap capabilities
@@ -127,6 +128,7 @@ Commands:
   validate            Validate a saved FixMap JSON report
   benchmark           Backtest BM25, FixMap, and Impact Graph on pre-change snapshots
   change-scope        Expand explicit planned paths into bounded structural consequences
+  editor              Serve a local read-only NDJSON editor session
   capability          Create, update, remove, or show a persistent product capability
   capabilities        List persistent product capabilities declared by the repository
   context             Package the highest-value source ranges within a token budget
@@ -465,6 +467,11 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       stderr,
       ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
     });
+  }
+
+  if (args[0] === "editor") {
+    const { runEditorCommand } = await import("./editor-command.js");
+    return runEditorCommand(args.slice(1), { stdout, stderr });
   }
 
   if (args[0] === "capability") {
