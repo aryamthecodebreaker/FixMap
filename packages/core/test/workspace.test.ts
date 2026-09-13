@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildWorkspaceImpact, buildWorkspaceMap } from "../src/workspace.js";
-import { buildGraphDependencyIndex, graphSourceFingerprint, invalidateIdentityGraph } from "../src/identity-graph.js";
+import { buildGraphDependencyIndex, createGraphIdentity, graphSourceFingerprint, invalidateIdentityGraph } from "../src/identity-graph.js";
 import type { RepoFile, RepoMap } from "../src/types.js";
 
 const workspaceOptions = { workspace: "acme-platform" } as const;
@@ -31,6 +31,42 @@ function repo(root: string, files: RepoFile[]): RepoMap {
 }
 
 describe("buildWorkspaceMap", () => {
+  it("resolves ADR service scope only to a unique repository-local declared key", () => {
+    const service = (repository: string, key: string, label: string) => ({
+      id: createGraphIdentity({ ...workspaceOptions, repository, kind: "service", key }),
+      parent: createGraphIdentity({ ...workspaceOptions, kind: "repository", key: repository }),
+      kind: "service" as const, repository, key, label, derivedFrom: []
+    });
+    const local = service("auth", "identity", "Authentication");
+    const remote = service("other", "identity", "Authentication");
+    const labelOnly = service("auth", "different-key", "billing");
+    const workspace = buildWorkspaceMap([
+      { id: "auth", repo: repo("/auth", [file("docs/adr/service.md", "---\nfixmap-applies-to: service:identity, service:billing\n---\n# Service boundary\n## Decision\nKeep the boundary.")]) },
+      { id: "other", repo: repo("/other", []) }
+    ], { ...workspaceOptions, identityNodes: [local, remote, labelOnly] });
+    expect(workspace.identityGraph.edges).toHaveLength(1);
+    expect(workspace.identityGraph.edges[0]).toMatchObject({ kind: "rationale-for", to: local.id });
+    expect(workspace.identityGraph.edges[0]?.derivedFrom).toContainEqual({ kind: "node", id: local.id });
+  });
+  it("links authored file scope separately from mentions and invalidates rationale on source edits", () => {
+    const content = "---\nstatus: proposed\nfixmap-applies-to: file:src/token.ts, file:src/missing.ts\n---\n# Token boundary\n## Decision\nKeep `src/helper.ts` unchanged.\n";
+    const workspace = buildWorkspaceMap([
+      { id: "auth", repo: repo("/auth", [file("docs/adr/1.md", content, "documentation"), file("src/token.ts", "token"), file("src/helper.ts", "helper")]) },
+      { id: "other", repo: repo("/other", [file("src/token.ts", "unrelated")]) }
+    ], workspaceOptions);
+    const graph = workspace.identityGraph;
+    expect(graph.edges.map((edge) => edge.kind).sort()).toEqual(["mentions", "rationale-for"]);
+    const rationale = graph.edges.find((edge) => edge.kind === "rationale-for")!;
+    expect(rationale.reason).toContain("proposed");
+    expect(rationale.derivedFrom).toContainEqual({ kind: "source", repository: "auth", path: "docs/adr/1.md", fingerprint: graphSourceFingerprint(content) });
+    expect(graph.nodes.find((node) => node.id === rationale.to)).toMatchObject({ repository: "auth", key: "src/token.ts" });
+    expect(graph.nodes.some((node) => node.key === "src/missing.ts")).toBe(false);
+    const invalidation = invalidateIdentityGraph(graph, buildGraphDependencyIndex(graph), [{
+      repository: "auth", path: "docs/adr/1.md", beforeFingerprint: graphSourceFingerprint(content), afterFingerprint: graphSourceFingerprint("changed decision")
+    }]);
+    expect(invalidation.staleEdges.sort()).toEqual(graph.edges.map((edge) => edge.id).sort());
+    expect(buildWorkspaceImpact(workspace, ["auth"]).repositories.some((entry) => entry.repository === "other")).toBe(false);
+  });
   it("links Node packages across repositories with version and import evidence", () => {
     const auth = repo("/auth", [
       file("package.json", JSON.stringify({ name: "@internal/auth", version: "2.1.0" }), "config"),

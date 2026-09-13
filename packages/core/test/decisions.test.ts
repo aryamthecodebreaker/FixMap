@@ -22,6 +22,18 @@ function repo(files: RepoFile[]): RepoMap {
 }
 
 describe("decision records", () => {
+  it("isolates malformed records without losing valid decisions or echoing invalid content", () => {
+    const inventory = inventoryDecisionRecords(repo([
+      file("docs/adr/traversal.md", "---\nfixmap-applies-to: file:../private-secret\n---\n# Invalid target\n## Decision\nKeep it."),
+      file("docs/adr/oversized.md", `# Too long\n## Decision\n${"x".repeat(8_001)}`),
+      file("docs/adr/nul.md", "# Invalid prose\n## Decision\nprivate-secret\0"),
+      file("docs/adr/valid.md", "# Valid record\n## Decision\nKeep the boundary.")
+    ]));
+    expect(inventory.records.map((record) => record.path)).toEqual(["docs/adr/valid.md"]);
+    expect(inventory.diagnostics).toHaveLength(3);
+    expect(inventory.diagnostics.every((diagnostic) => diagnostic.code === "decision-parse-failed")).toBe(true);
+    expect(JSON.stringify(inventory.diagnostics)).not.toContain("private-secret");
+  });
   it("preserves decision subsections and ignores fenced example headings", () => {
     const content = "# Real ADR\n\n## Decision\nKeep the interface.\n### Compatibility\nKeep old clients working.\n```md\n## Consequences\nThis is an example, not a section.\n```\n## Consequences\nExtra maintenance.\n";
     const result = parseDecisionRecord({ path: "docs/adr/1.md", content, fingerprint: "git:abc" });

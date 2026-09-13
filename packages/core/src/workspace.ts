@@ -1,10 +1,11 @@
 import { extractLanguageImports } from "./language-adapters.js";
+import { inventoryDecisionRecords } from "./decisions.js";
 import {
   buildIdentityGraph,
   createGraphEdgeIdentity,
   createGraphIdentity
 } from "./identity-graph.js";
-import type { GraphSourceDerivation, IdentityGraph, IdentityGraphEdge, IdentityGraphNode } from "./identity-graph.js";
+import type { GraphDerivation, GraphSourceDerivation, IdentityGraph, IdentityGraphEdge, IdentityGraphNode } from "./identity-graph.js";
 import type { RepoFile, RepoMap } from "./types.js";
 
 export type WorkspaceRepositoryInput = {
@@ -466,6 +467,49 @@ function buildWorkspaceIdentityGraph(
     ...entry,
     derivedFrom: entry.derivedFrom.map((derivation) => ({ ...derivation }))
   })));
+  // Authored scope is not a code dependency; literal mentions are weaker still.
+  for (const input of inputs) {
+    const files = new Map(input.repo.files.map((file) => [file.path, file]));
+    const ensureFile = (path: string): string => {
+      const id = createGraphIdentity({ workspace: options.workspace, repository: input.id, kind: "file", key: path });
+      if (!nodes.some((node) => node.id === id)) nodes.push({
+        id, kind: "file", key: path, repository: input.id,
+        parent: repositoryById.get(input.id)!.identity,
+        derivedFrom: [workspaceSource(input, path)]
+      });
+      return id;
+    };
+    for (const record of inventoryDecisionRecords(input.repo).records) {
+      for (const target of record.targets) {
+        let to: string;
+        let description: string;
+        let targetDerivation: GraphDerivation;
+        if (target.kind === "file") {
+          if (!files.get(target.path)?.contentFingerprint || target.path === record.path) continue;
+          to = ensureFile(target.path);
+          description = target.path;
+          targetDerivation = workspaceSource(input, target.path);
+        } else if (target.kind === "service" || target.kind === "contract") {
+          // Keys are caller-declared identities, not display labels or global names.
+          const candidates = nodes.filter((node) => node.repository === input.id && node.kind === target.kind && node.key === target.name);
+          if (candidates.length !== 1) continue;
+          to = candidates[0]!.id;
+          description = `${target.kind}:${target.name}`;
+          targetDerivation = { kind: "node", id: to };
+        } else continue;
+        const from = ensureFile(record.path);
+        const kind = target.evidence === "explicit" ? "rationale-for" : "mentions";
+        graphEdges.push({
+          id: createGraphEdgeIdentity(kind, from, to), kind, from, to,
+          confidence: "high",
+          reason: target.evidence === "explicit"
+            ? `${record.path} explicitly declares authored scope for ${description}; decision status: ${record.status}. This is not a code dependency or proof that the decision is enforced.`
+            : `${record.path} literally mentions ${description}; this does not establish authored scope or a code dependency.`,
+          derivedFrom: [workspaceSource(input, record.path), targetDerivation]
+        });
+      }
+    }
+  }
   return buildIdentityGraph({ workspace: options.workspace, nodes, edges: graphEdges });
 }
 

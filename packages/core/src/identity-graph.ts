@@ -12,6 +12,8 @@ export type GraphEntityKind =
 export type GraphRelationshipKind =
   | "contains"
   | "depends-on"
+  | "rationale-for"
+  | "mentions"
   | "imports"
   | "implements"
   | "publishes"
@@ -106,7 +108,7 @@ const ENTITY_KINDS = new Set<GraphEntityKind>([
   "repository", "service", "package", "module", "file", "symbol", "contract", "runtime-component", "deployment"
 ]);
 const RELATIONSHIP_KINDS = new Set<GraphRelationshipKind>([
-  "contains", "depends-on", "imports", "implements", "publishes", "observed-as", "deployed-as", "aliases", "equivalent-to"
+  "contains", "depends-on", "rationale-for", "mentions", "imports", "implements", "publishes", "observed-as", "deployed-as", "aliases", "equivalent-to"
 ]);
 
 /** Creates a stable hierarchical identity without inferring equivalence from names. */

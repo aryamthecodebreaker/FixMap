@@ -4536,12 +4536,23 @@ function inventoryDecisionRecords(repo) {
       });
       continue;
     }
-    const result = parseDecisionRecord({
-      path: file.path,
-      content: file.textSample,
-      fingerprint: file.contentFingerprint,
-      knownPaths
-    });
+    let result;
+    try {
+      result = parseDecisionRecord({
+        path: file.path,
+        content: file.textSample,
+        fingerprint: file.contentFingerprint,
+        knownPaths
+      });
+    } catch {
+      diagnostics.push({
+        code: "decision-parse-failed",
+        severity: "warning",
+        path: file.path,
+        message: `${file.path} was not treated as human intent because its metadata, targets, or prose failed decision-record validation.`
+      });
+      continue;
+    }
     if (result.record) {
       records.push(result.record);
       const missing = result.record.targets.flatMap((target) => {
