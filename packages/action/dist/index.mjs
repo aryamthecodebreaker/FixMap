@@ -4640,13 +4640,13 @@ function splitFrontmatter(content) {
 }
 function markdownSections(body) {
   const sections = /* @__PURE__ */ new Map();
-  const matches = [...body.matchAll(/^#{2,6}\s+(.+?)\s*#*\s*$/gm)];
+  const matches = documentHeadings(body);
   for (const [index, match] of matches.entries()) {
-    const title = match[1]?.trim().toLowerCase();
-    if (!title || match.index === void 0)
+    if (match.level < 2)
       continue;
-    const start = match.index + match[0].length;
-    const end = matches[index + 1]?.index ?? body.length;
+    const title = match.title.toLowerCase();
+    const start = match.end;
+    const end = matches.slice(index + 1).find((next) => next.level <= match.level)?.start ?? body.length;
     sections.set(title, body.slice(start, end).trim());
   }
   return sections;
@@ -4663,7 +4663,27 @@ function section(sections, names) {
   return void 0;
 }
 function firstHeading(body) {
-  return body.match(/^#\s+(.+?)\s*#*\s*$/m)?.[1]?.trim();
+  return documentHeadings(body).find((heading) => heading.level === 1)?.title;
+}
+function documentHeadings(body) {
+  const headings = [];
+  let fence;
+  let offset = 0;
+  for (const line of body.split(/(?<=\n)/)) {
+    const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line.replace(/\r?\n$/, ""));
+    if (fence) {
+      if (delimiter && delimiter[1][0] === fence.marker && delimiter[1].length >= fence.length && !delimiter[2].trim())
+        fence = void 0;
+    } else if (delimiter) {
+      fence = { marker: delimiter[1][0], length: delimiter[1].length };
+    } else {
+      const heading = /^ {0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*(?:\r?\n)?$/.exec(line);
+      if (heading)
+        headings.push({ level: heading[1].length, title: heading[2].trim(), start: offset, end: offset + line.length });
+    }
+    offset += line.length;
+  }
+  return headings;
 }
 function parseExplicitTargets(text) {
   const targets = [];

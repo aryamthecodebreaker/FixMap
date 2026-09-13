@@ -22,6 +22,14 @@ function repo(files: RepoFile[]): RepoMap {
 }
 
 describe("decision records", () => {
+  it("preserves decision subsections and ignores fenced example headings", () => {
+    const content = "# Real ADR\n\n## Decision\nKeep the interface.\n### Compatibility\nKeep old clients working.\n```md\n## Consequences\nThis is an example, not a section.\n```\n## Consequences\nExtra maintenance.\n";
+    const result = parseDecisionRecord({ path: "docs/adr/1.md", content, fingerprint: "git:abc" });
+    expect(result.record?.decision).toContain("### Compatibility\nKeep old clients working.");
+    expect(result.record?.decision).toContain("This is an example, not a section.");
+    expect(result.record?.consequences).toBe("Extra maintenance.");
+    expect(parseDecisionRecord({ path: "docs/adr/2.md", content: "# Example only\n```md\n## Decision\nNot an authored decision.\n```", fingerprint: "git:abc" }).record).toBeUndefined();
+  });
   it("preserves authored context, decision, consequences, status, and explicit targets", () => {
     const content = `---
 status: accepted
