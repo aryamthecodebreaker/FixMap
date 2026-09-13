@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { validateFixMapReport } from "../src/validate.js";
 import { createAnnotation } from "../src/annotations.js";
+import { parseDecisionRecord } from "../src/decisions.js";
 
 const envelope = {
   reportVersion: 1,
@@ -21,6 +22,11 @@ const rankedContext = {
 } as const;
 
 describe("validateFixMapReport", () => {
+  it("round trips local PR attribution but rejects invented verification", () => {
+    const decision = parseDecisionRecord({ path: "docs/adr/42.md", fingerprint: `git:${"a".repeat(40)}`, content: "---\nfixmap-source-pr: https://github.com/acme/auth/pull/42\n---\n# Boundary\n## Decision\nKeep it." }).record!;
+    expect(validateFixMapReport(JSON.parse(JSON.stringify({ ...envelope, decisions: [decision] })), "report").success).toBe(true);
+    expect(validateFixMapReport({ ...envelope, decisions: [{ ...decision, source: { ...decision.source, verification: "verified" } }] }, "report").success).toBe(false);
+  });
   it("accepts a complete empty report and legacy reports without a marker", () => {
     expect(validateFixMapReport(envelope, "report").success).toBe(true);
     const legacy = {

@@ -19,6 +19,8 @@ export type DecisionRecord = {
   targets: DecisionTarget[];
   supersedes: string[];
   sourceFingerprint: string;
+  /** Repository-authored attribution, not proof of remote contents or authorship. */
+  source?: { kind: "pull-request"; url: string; verification: "unverified-local-attribution" };
 };
 
 export type DecisionDiagnostic = {
@@ -114,6 +116,24 @@ export function parseDecisionRecord(input: {
 }): { record?: DecisionRecord; diagnostic?: DecisionDiagnostic } {
   const path = validatePath(input.path);
   if (!input.fingerprint.trim() || /[\0-\x20]/.test(input.fingerprint)) throw new Error(`Invalid decision fingerprint for ${path}.`);
+  if (path.toLowerCase().endsWith(".json")) {
+    const document: unknown = JSON.parse(input.content);
+    if (!document || typeof document !== "object" || Array.isArray(document)) throw new Error("Invalid local PR description export.");
+    const exported = document as Record<string, unknown>;
+    if (typeof exported.title !== "string" || typeof exported.body !== "string" || !isDecisionPullRequestUrl(exported.url) ||
+      (exported.fixmapAppliesTo !== undefined && typeof exported.fixmapAppliesTo !== "string")) throw new Error("Invalid local PR description export.");
+    normalizeProse(exported.body, 8_000);
+    return { record: {
+      id: `decision:${stableHash(path)}`, path, title: normalizeProse(exported.title, 300),
+      status: "unknown", decision: exported.body,
+      targets: normalizeTargets([
+        ...parseExplicitTargets(exported.fixmapAppliesTo as string | undefined ?? ""),
+        ...literalPathTargets(exported.body, input.knownPaths ?? new Set<string>())
+      ]),
+      supersedes: [], sourceFingerprint: input.fingerprint,
+      source: { kind: "pull-request", url: exported.url, verification: "unverified-local-attribution" }
+    } };
+  }
   const { frontmatter, body } = splitFrontmatter(input.content);
   const sections = markdownSections(body);
   const title = firstHeading(body) ?? frontmatter.title;
@@ -140,6 +160,8 @@ export function parseDecisionRecord(input: {
     ...literalPathTargets(body, input.knownPaths ?? new Set<string>())
   ]);
   const date = normalizeDate(frontmatter.date ?? section(sections, ["date"]));
+  const sourceUrl = frontmatter["fixmap-source-pr"];
+  if (sourceUrl !== undefined && !isDecisionPullRequestUrl(sourceUrl)) throw new Error("Invalid decision pull-request source.");
   return {
     record: {
       id: `decision:${stableHash(path)}`,
@@ -152,9 +174,17 @@ export function parseDecisionRecord(input: {
       ...(consequences ? { consequences: normalizeProse(consequences, 8_000) } : {}),
       targets,
       supersedes: parseReferences(supersedesText),
-      sourceFingerprint: input.fingerprint
+      sourceFingerprint: input.fingerprint,
+      ...(sourceUrl ? { source: { kind: "pull-request" as const, url: sourceUrl, verification: "unverified-local-attribution" as const } } : {})
     }
   };
+}
+
+/** Only canonical public GitHub PR references; this never fetches the URL. */
+export function isDecisionPullRequestUrl(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 500 &&
+    /^https:\/\/github\.com\/[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*$/.test(value) &&
+    !value.split("/").some((part) => part === "." || part === "..");
 }
 
 function splitFrontmatter(content: string): { frontmatter: Record<string, string>; body: string } {
@@ -273,12 +303,23 @@ function parseReferences(text: string): string[] {
 
 function normalizeStatus(value: string | undefined): DecisionStatus {
   const normalized = value?.toLowerCase().replace(/[*_`]/g, " ").trim() ?? "";
-  if (/\baccepted|approved|active\b/.test(normalized)) return "accepted";
-  if (/\bproposed|draft|pending\b/.test(normalized)) return "proposed";
-  if (/\brejected|declined\b/.test(normalized)) return "rejected";
-  if (/\bdeprecated|obsolete\b/.test(normalized)) return "deprecated";
-  if (/\bsuperseded|replaced\b/.test(normalized)) return "superseded";
-  return "unknown";
+  const labels: Record<string, DecisionStatus> = {
+    accepted: "accepted", approved: "accepted", active: "accepted",
+    proposed: "proposed", draft: "proposed", pending: "proposed",
+    rejected: "rejected", declined: "rejected", deprecated: "deprecated",
+    obsolete: "deprecated", superseded: "superseded", replaced: "superseded"
+  };
+  // A status label is not free-text sentiment: negations and history must not
+  // turn an unaccepted or superseded proposal into an accepted decision.
+  const match = /^([a-z]+)(?=$|[\s:,(])/.exec(normalized);
+  const status = match?.[1] ? labels[match[1]] : undefined;
+  if (!status) return "unknown";
+  const remainder = normalized.slice(match![0].length);
+  if (/\b(?:not|never|no longer)\b/.test(remainder)) return "unknown";
+  for (const word of remainder.match(/[a-z]+/g) ?? []) {
+    if (labels[word] && labels[word] !== status) return "unknown";
+  }
+  return status;
 }
 
 function normalizeDate(value: string | undefined): string | undefined {

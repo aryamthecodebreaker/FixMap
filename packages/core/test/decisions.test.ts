@@ -22,6 +22,38 @@ function repo(files: RepoFile[]): RepoMap {
 }
 
 describe("decision records", () => {
+  it.each([
+    ["not accepted", "unknown"], ["unapproved", "unknown"], ["inactive", "unknown"],
+    ["Accepted, later superseded", "unknown"], ["Superseded (previously accepted)", "unknown"],
+    ["**Accepted**", "accepted"], ["Proposed", "proposed"],
+    ["Superseded by ADR-004", "superseded"], ["Rejected", "rejected"]
+  ])("reads status %s conservatively as %s", (status, expected) => {
+    const record = parseDecisionRecord({ path: "docs/adr/1.md", fingerprint: "git:abc", content: `# Boundary\n## Status\n${status}\n## Decision\nKeep the boundary.` }).record;
+    expect(record?.status).toBe(expected);
+  });
+  it("ingests local PR exports verbatim without inferring approval from merge metadata", () => {
+    const body = "We should keep `src/token.ts` opaque.\n\nThis is a proposal.\n";
+    const inventory = inventoryDecisionRecords(repo([
+      file("src/token.ts", "token"),
+      file("docs/decisions/pr-42.json", JSON.stringify({ title: "Token boundary", body, url: "https://github.com/acme/auth/pull/42", state: "MERGED", fixmapAppliesTo: "service:identity" })),
+      file("docs/decisions/bad.json", JSON.stringify({ title: "Empty", body: "", url: "https://github.com/acme/auth/pull/43" }))
+    ]));
+    expect(inventory.records).toHaveLength(1);
+    expect(inventory.records[0]).toMatchObject({ decision: body, status: "unknown", source: { verification: "unverified-local-attribution" } });
+    expect(inventory.records[0]?.targets).toEqual(expect.arrayContaining([
+      { kind: "file", path: "src/token.ts", evidence: "literal-mention" },
+      { kind: "service", name: "identity", evidence: "explicit" }
+    ]));
+    expect(inventory.diagnostics).toContainEqual(expect.objectContaining({ code: "decision-parse-failed", path: "docs/decisions/bad.json" }));
+  });
+  it("preserves explicit local PR attribution without claiming remote verification", () => {
+    const content = "---\nfixmap-source-pr: https://github.com/acme/auth/pull/42\n---\n# Boundary\n## Decision\nKeep the boundary.";
+    const record = parseDecisionRecord({ path: "docs/adr/42.md", content, fingerprint: "git:abc" }).record;
+    expect(record?.source).toEqual({ kind: "pull-request", url: "https://github.com/acme/auth/pull/42", verification: "unverified-local-attribution" });
+    for (const url of ["ftp://github.com/acme/auth/pull/42", "https://github.com/acme/auth/issues/42", "https://github.com/acme/auth/pull/42?token=secret", "https://github.com/../auth/pull/42"]) {
+      expect(() => parseDecisionRecord({ path: "docs/adr/42.md", content: content.replace("https://github.com/acme/auth/pull/42", url), fingerprint: "git:abc" })).toThrow("Invalid decision pull-request source");
+    }
+  });
   it("isolates malformed records without losing valid decisions or echoing invalid content", () => {
     const inventory = inventoryDecisionRecords(repo([
       file("docs/adr/traversal.md", "---\nfixmap-applies-to: file:../private-secret\n---\n# Invalid target\n## Decision\nKeep it."),

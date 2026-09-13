@@ -1,5 +1,6 @@
 import type { FixMapReport } from "./types.js";
 import { validateAnnotationStore } from "./annotations.js";
+import { isDecisionPullRequestUrl } from "./decisions.js";
 
 export type ValidatedFixMapReport =
   | { success: true; report: FixMapReport }
@@ -213,6 +214,8 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
         (decision.date !== undefined && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date))) ||
         (decision.context !== undefined && typeof decision.context !== "string") ||
         (decision.consequences !== undefined && typeof decision.consequences !== "string")) return true;
+      if (decision.source !== undefined && (!isRecord(decision.source) || decision.source.kind !== "pull-request" ||
+        decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url))) return true;
       return decision.targets.some((target) => {
         if (!isRecord(target) || !["explicit", "literal-mention"].includes(String(target.evidence))) return true;
         if (target.kind === "file") return !isRepositoryRelativePath(target.path);

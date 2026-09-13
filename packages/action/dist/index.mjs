@@ -4587,6 +4587,29 @@ function parseDecisionRecord(input) {
   const path = validatePath(input.path);
   if (!input.fingerprint.trim() || /[\0-\x20]/.test(input.fingerprint))
     throw new Error(`Invalid decision fingerprint for ${path}.`);
+  if (path.toLowerCase().endsWith(".json")) {
+    const document = JSON.parse(input.content);
+    if (!document || typeof document !== "object" || Array.isArray(document))
+      throw new Error("Invalid local PR description export.");
+    const exported = document;
+    if (typeof exported.title !== "string" || typeof exported.body !== "string" || !isDecisionPullRequestUrl(exported.url) || exported.fixmapAppliesTo !== void 0 && typeof exported.fixmapAppliesTo !== "string")
+      throw new Error("Invalid local PR description export.");
+    normalizeProse(exported.body, 8e3);
+    return { record: {
+      id: `decision:${stableHash2(path)}`,
+      path,
+      title: normalizeProse(exported.title, 300),
+      status: "unknown",
+      decision: exported.body,
+      targets: normalizeTargets([
+        ...parseExplicitTargets(exported.fixmapAppliesTo ?? ""),
+        ...literalPathTargets(exported.body, input.knownPaths ?? /* @__PURE__ */ new Set())
+      ]),
+      supersedes: [],
+      sourceFingerprint: input.fingerprint,
+      source: { kind: "pull-request", url: exported.url, verification: "unverified-local-attribution" }
+    } };
+  }
   const { frontmatter, body } = splitFrontmatter(input.content);
   const sections = markdownSections(body);
   const title = firstHeading(body) ?? frontmatter.title;
@@ -4611,6 +4634,9 @@ function parseDecisionRecord(input) {
     ...literalPathTargets(body, input.knownPaths ?? /* @__PURE__ */ new Set())
   ]);
   const date = normalizeDate(frontmatter.date ?? section(sections, ["date"]));
+  const sourceUrl = frontmatter["fixmap-source-pr"];
+  if (sourceUrl !== void 0 && !isDecisionPullRequestUrl(sourceUrl))
+    throw new Error("Invalid decision pull-request source.");
   return {
     record: {
       id: `decision:${stableHash2(path)}`,
@@ -4623,9 +4649,13 @@ function parseDecisionRecord(input) {
       ...consequences ? { consequences: normalizeProse(consequences, 8e3) } : {},
       targets,
       supersedes: parseReferences(supersedesText),
-      sourceFingerprint: input.fingerprint
+      sourceFingerprint: input.fingerprint,
+      ...sourceUrl ? { source: { kind: "pull-request", url: sourceUrl, verification: "unverified-local-attribution" } } : {}
     }
   };
+}
+function isDecisionPullRequestUrl(value) {
+  return typeof value === "string" && value.length <= 500 && /^https:\/\/github\.com\/[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*$/.test(value) && !value.split("/").some((part) => part === "." || part === "..");
 }
 function splitFrontmatter(content) {
   if (!content.startsWith("---\n") && !content.startsWith("---\r\n"))
@@ -4744,17 +4774,32 @@ function parseReferences(text) {
 }
 function normalizeStatus(value) {
   const normalized = value?.toLowerCase().replace(/[*_`]/g, " ").trim() ?? "";
-  if (/\baccepted|approved|active\b/.test(normalized))
-    return "accepted";
-  if (/\bproposed|draft|pending\b/.test(normalized))
-    return "proposed";
-  if (/\brejected|declined\b/.test(normalized))
-    return "rejected";
-  if (/\bdeprecated|obsolete\b/.test(normalized))
-    return "deprecated";
-  if (/\bsuperseded|replaced\b/.test(normalized))
-    return "superseded";
-  return "unknown";
+  const labels = {
+    accepted: "accepted",
+    approved: "accepted",
+    active: "accepted",
+    proposed: "proposed",
+    draft: "proposed",
+    pending: "proposed",
+    rejected: "rejected",
+    declined: "rejected",
+    deprecated: "deprecated",
+    obsolete: "deprecated",
+    superseded: "superseded",
+    replaced: "superseded"
+  };
+  const match = /^([a-z]+)(?=$|[\s:,(])/.exec(normalized);
+  const status = match?.[1] ? labels[match[1]] : void 0;
+  if (!status)
+    return "unknown";
+  const remainder = normalized.slice(match[0].length);
+  if (/\b(?:not|never|no longer)\b/.test(remainder))
+    return "unknown";
+  for (const word of remainder.match(/[a-z]+/g) ?? []) {
+    if (labels[word] && labels[word] !== status)
+      return "unknown";
+  }
+  return status;
 }
 function normalizeDate(value) {
   if (!value)
@@ -5582,7 +5627,7 @@ function renderMarkdownReport(report) {
       "## Human Intent",
       "",
       ...listOrEmpty([
-        ...(report.decisions ?? []).map((decision) => `- **ADR ${decision.status}** ${markdownCode(decision.path)} \u2014 ${decision.title}: ${inlineProse(decision.decision)}`),
+        ...(report.decisions ?? []).map((decision) => `- **ADR ${decision.status}** ${markdownCode(decision.path)} \u2014 ${decision.title}: ${inlineProse(decision.decision)}${decision.source ? ` (locally attributed to ${markdownCode(decision.source.url)}; remote source unverified)` : ""}`),
         ...(report.annotations?.entries ?? []).map((assessment) => `- **annotation ${assessment.status}** ${describeAnnotationScope(assessment)}: ${assessment.annotation.note}`)
       ])
     ] : [],
@@ -7497,6 +7542,8 @@ function validateFixMapReport(candidate, label) {
       return { success: false, message: `${label} has invalid decisions; expected an array.` };
     const invalidDecision = record2.decisions.findIndex((decision) => {
       if (!isRecord6(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.consequences !== void 0 && typeof decision.consequences !== "string")
+        return true;
+      if (decision.source !== void 0 && (!isRecord6(decision.source) || decision.source.kind !== "pull-request" || decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url)))
         return true;
       return decision.targets.some((target) => {
         if (!isRecord6(target) || !["explicit", "literal-mention"].includes(String(target.evidence)))
