@@ -134,6 +134,7 @@ export function assessAnnotations(
 export function annotationsForPath(assessments: readonly AnnotationAssessment[], path: string): AnnotationAssessment[] {
   const normalized = validateRelativePath(path, "query path");
   return assessments.filter((assessment) => {
+    if (assessment.status === "renamed-target" && assessment.suggestedPath === normalized) return true;
     const scope = assessment.annotation.scope;
     return (scope.kind === "file" || scope.kind === "symbol") && scope.path === normalized ||
       scope.kind === "contract" && scope.path === normalized;

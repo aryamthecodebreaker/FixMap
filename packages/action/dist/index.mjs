@@ -5142,6 +5142,8 @@ function buildReportAnnotations(repo, relevantPaths, issueText, asOf) {
   const lowerIssue = issueText.toLowerCase();
   const entries = assessments.filter((assessment) => {
     const scope = assessment.annotation.scope;
+    if (assessment.status === "renamed-target" && assessment.suggestedPath && paths.has(assessment.suggestedPath))
+      return true;
     if (scope.kind === "file" || scope.kind === "symbol")
       return paths.has(scope.path);
     if (scope.kind === "contract")

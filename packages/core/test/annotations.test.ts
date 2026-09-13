@@ -9,6 +9,7 @@ import {
   validateAnnotationStore
 } from "../src/annotations.js";
 import type { RepoFile } from "../src/types.js";
+import { buildReportFromRepo } from "../src/report.js";
 
 const createdAt = "2026-08-21T10:00:00.000Z";
 
@@ -25,6 +26,21 @@ function file(path: string): RepoFile {
 }
 
 describe("FixMap annotations", () => {
+  it("surfaces a renamed annotation at its new relevant path without rewriting its scope", () => {
+    const annotation = createAnnotation({ scope: { kind: "file", path: "src/old.ts" }, note: "Preserve customer contract", owner: "platform", createdAt });
+    const store = JSON.stringify(addAnnotation(emptyAnnotationStore(), annotation));
+    const report = buildReportFromRepo({ root: "/repo", files: [
+      { ...file("src/new.ts"), textSample: "export function authenticate() { return true; }" },
+      { ...file(".fixmap/annotations.json"), textSample: store, textSampleComplete: true, contentFingerprint: `worktree:${"a".repeat(64)}` }
+    ], packageScripts: [], changedFiles: ["src/new.ts"], packageManager: "npm", diagnostics: [],
+    diffText: "diff --git a/src/old.ts b/src/new.ts\nsimilarity index 100%\nrename from src/old.ts\nrename to src/new.ts\n"
+    }, { issueText: "authenticate src/new.ts", annotationAsOf: createdAt });
+    const entries = report.annotations?.entries ?? [];
+    expect(entries).toEqual([expect.objectContaining({ status: "renamed-target", suggestedPath: "src/new.ts", annotation })]);
+    expect(annotationsForPath(entries, "src/new.ts")).toHaveLength(1);
+    expect(report.diagnostics.some((entry) => entry.code === "annotation-target-stale")).toBe(true);
+    expect(annotation.scope).toEqual({ kind: "file", path: "src/old.ts" });
+  });
   it("creates stable canonical annotations and reviewable stores", () => {
     const annotation = createAnnotation({
       scope: { kind: "file", path: "src\\auth\\token.ts" },
