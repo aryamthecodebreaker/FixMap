@@ -7589,6 +7589,9 @@ function isPositiveFiniteNumber(candidate) {
   return typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0;
 }
 
+// packages/core/dist/editor-transport.js
+var EDITOR_RESPONSE_MAX_BYTES = 4 * 1024 * 1024;
+
 // packages/core/dist/architecture-history.js
 import { execFile as execFile3, spawn as spawn2 } from "node:child_process";
 import { promisify as promisify3 } from "node:util";
