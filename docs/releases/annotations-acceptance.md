@@ -15,7 +15,7 @@ This checklist closes the existing capability; it does not add a new roadmap ite
 | Relevant notes and provenance | MCP/Action-to-plan exact saved-byte fingerprints, Markdown/JSON output | Frozen external workflow acceptance across interfaces |
 | Renames and missing targets | Core assessments and real staged Git rename regression preserve store bytes while surfacing destination warning | External workflow acceptance |
 | Service/contract names | Explicit named scopes; case-insensitive bounded literal mentions; regressions reject `api` in `rapid` and `api-client` | External workflow relevance; no invented service ownership mapping |
-| Documentation | CLI help, README and Action guide | Consolidated user workflow and limitation review |
+| Documentation | CLI help, README, Action guide, and consolidated `docs/annotations.md` workflow/limitations | Final candidate documentation review |
 
 Do not mark complete based on this checklist's existence or synthetic tests alone.
 Record exact package/repository revisions, commands, results, and failures for the
@@ -64,3 +64,8 @@ non-hyphen characters. Explicit contract file paths still independently establis
 relevance. Service/contract regression tests cover unrelated substrings, distinct
 hyphenated names, and a valid uppercase mention. This does not infer logical service
 identity from names or grant authenticated ownership.
+
+CI run 34749037719: the named `Verify packed annotation consumer` step was inspected
+directly and passed on Linux Node 22 (job 103702081486) and macOS Node 24
+(job 103702081513). Windows and the remaining job must be verified separately;
+these results cover the packed concurrency/removal checker, not external relevance.
