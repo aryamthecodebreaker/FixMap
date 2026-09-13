@@ -85,3 +85,12 @@ contract's omitted section, then was corrected without changing product or cases
 This is external workflow proof on previously used repositories, not an untouched
 held-out cohort or cross-interface external campaign. Owner expiry and CLI/MCP/Action
 behavior have separate regressions; broader frozen workflow acceptance remains.
+
+The unchanged three external cases also passed actual CLI and bundled Action child
+processes for positive-note parity, exact store fingerprints, and post-removal
+absence. Children receive only a minimal host environment plus explicit Action
+inputs, no GitHub token or inherited event. Each child has a 60-second timeout.
+Fresh JS/Python workflow cases were separately frozen in `59a429c` before execution;
+both passed the same frozen scenarios on Core/CLI/Action without changes or retries.
+See `benchmarks/annotations/heldout-results.json`. These two cases establish workflow
+transfer only, not general ranking quality, and cannot substitute for MCP acceptance.
