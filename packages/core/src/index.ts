@@ -60,6 +60,7 @@ export { rankIncidentSuspects } from "./incident.js";
 export type { IncidentRegressionInput, IncidentRegressionResult } from "./incident.js";
 export { createEditorProtocolSnapshot, handleEditorProtocolRequest } from "./editor-protocol.js";
 export { serveEditorProtocol, runEditorStreams, EDITOR_REQUEST_MAX_BYTES, EDITOR_RESPONSE_MAX_BYTES } from "./editor-transport.js";
+export type { EditorSnapshotSource } from "./editor-transport.js";
 export type { EditorProtocolMethod, EditorProtocolRequest, EditorProtocolResponse, EditorProtocolSnapshot } from "./editor-protocol.js";
 export { answerFixMapQuestion, buildAskEvidence } from "./ask.js";
 export type { AskEvidence, AskModelProvider, FixMapAnswer } from "./ask.js";

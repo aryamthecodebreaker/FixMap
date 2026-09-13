@@ -4,10 +4,12 @@ import { pipeline } from "node:stream/promises";
 
 export const EDITOR_REQUEST_MAX_BYTES = 65_536;
 export const EDITOR_RESPONSE_MAX_BYTES = 4 * 1024 * 1024;
+/** A synchronous host getter publishes only fully constructed immutable snapshots. */
+export type EditorSnapshotSource = EditorProtocolSnapshot | (() => EditorProtocolSnapshot);
 
 /** Owns these session streams: completion ends output; failure/abort destroys both. */
 export async function runEditorStreams(
-  snapshot: EditorProtocolSnapshot,
+  snapshot: EditorSnapshotSource,
   input: Readable,
   output: Writable,
   signal?: AbortSignal
@@ -31,17 +33,18 @@ export async function runEditorStreams(
 
 /** Local NDJSON framing. The host owns streams/lifecycle; yielding supplies backpressure. */
 export async function* serveEditorProtocol(
-  snapshot: EditorProtocolSnapshot,
+  source: EditorSnapshotSource,
   input: AsyncIterable<Uint8Array>
 ): AsyncGenerator<string> {
   const frame = new Uint8Array(EDITOR_REQUEST_MAX_BYTES);
   let length = 0;
   let oversized = false;
-  const failure = (message: string): EditorProtocolResponse => ({
-    editorProtocolVersion: 1, id: null, snapshotFingerprint: snapshot.snapshotFingerprint,
-    error: { code: "invalid-request", message }
-  });
   const render = (): string => {
+    const snapshot = typeof source === "function" ? source() : source;
+    const failure = (message: string): EditorProtocolResponse => ({
+      editorProtocolVersion: 1, id: null, snapshotFingerprint: snapshot.snapshotFingerprint,
+      error: { code: "invalid-request", message }
+    });
     let result: EditorProtocolResponse;
     if (oversized) result = failure("Editor request exceeds 64 KiB.");
     else {

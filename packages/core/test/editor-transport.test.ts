@@ -97,3 +97,18 @@ it("terminates when output closes without an error while input is idle", async (
   finally { input.destroy(); output.destroy(); }
   expect(input.destroyed).toBe(true);
 }, 2_000);
+
+it("captures the host snapshot once per frame, including frames in the same input chunk", async () => {
+  const before = snapshot();
+  const after = createEditorProtocolSnapshot({ ...before.report, summary: "Refreshed" });
+  let current = before;
+  let reads = 0;
+  const stream = serveEditorProtocol(() => { reads++; return current; }, chunks([Buffer.concat([request, Buffer.from("\n"), request])]));
+  const first = JSON.parse((await stream.next()).value!);
+  current = after;
+  const second = JSON.parse((await stream.next()).value!);
+  expect(first).toMatchObject({ snapshotFingerprint: before.snapshotFingerprint, result: { summary: "Local" } });
+  expect(second).toMatchObject({ snapshotFingerprint: after.snapshotFingerprint, result: { summary: "Refreshed" } });
+  expect(reads).toBe(2);
+  expect((await stream.next()).done).toBe(true);
+});
