@@ -69,3 +69,19 @@ CI run 34749037719: the named `Verify packed annotation consumer` step was inspe
 directly and passed on Linux Node 22 (job 103702081486) and macOS Node 24
 (job 103702081513). Windows and the remaining job must be verified separately;
 these results cover the packed concurrency/removal checker, not external relevance.
+
+## External workflow campaign
+
+`benchmarks/annotations/cases.json` was committed as `b9354ba` before execution.
+The first three existing external-dataset repositories (Express, Axios, Debug) were
+copied from exact pinned checkouts; no upstream scripts were executed. All three
+passed file-note inclusion, exact store fingerprint, named-service inclusion and
+unrelated-task exclusion, persisted removal, fresh-plan omission, and unchanged
+target-source bytes. Run with `node scripts/evaluate-annotations.mjs` after building
+Core. `benchmarks/annotations/results.json` preserves outcomes and the initial
+evaluator failure: it incorrectly required an empty report section instead of the
+contract's omitted section, then was corrected without changing product or cases.
+
+This is external workflow proof on previously used repositories, not an untouched
+held-out cohort or cross-interface external campaign. Owner expiry and CLI/MCP/Action
+behavior have separate regressions; broader frozen workflow acceptance remains.
