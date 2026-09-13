@@ -54,7 +54,7 @@ export type WorkspaceDependency = {
 };
 
 export type WorkspaceDiagnostic = {
-  code: "duplicate-package" | "unresolved-dependency" | "invalid-submodule-parent";
+  code: "duplicate-package" | "unresolved-dependency" | "invalid-submodule-parent" | "decision-unresolved-target" | "decision-source-invalid";
   severity: "info" | "warning";
   message: string;
   repositories: string[];
@@ -173,7 +173,7 @@ export function buildWorkspaceMap(
     a.providerRepository.localeCompare(b.providerRepository) ||
     a.package.localeCompare(b.package)
   );
-  const identityGraph = buildWorkspaceIdentityGraph(options, ordered, repositories, packages, dependencies);
+  const identityGraph = buildWorkspaceIdentityGraph(options, ordered, repositories, packages, dependencies, diagnostics);
   return {
     workspaceVersion: 1,
     workspace: options.workspace,
@@ -386,7 +386,8 @@ function buildWorkspaceIdentityGraph(
   inputs: readonly WorkspaceRepositoryInput[],
   repositories: readonly WorkspaceRepository[],
   packages: readonly WorkspacePackage[],
-  dependencies: readonly WorkspaceDependency[]
+  dependencies: readonly WorkspaceDependency[],
+  diagnostics: WorkspaceDiagnostic[]
 ): IdentityGraph {
   const repositoryById = new Map(repositories.map((repository) => [repository.id, repository]));
   const inputById = new Map(inputs.map((input) => [input.id, input]));
@@ -479,24 +480,39 @@ function buildWorkspaceIdentityGraph(
       });
       return id;
     };
-    for (const record of inventoryDecisionRecords(input.repo).records) {
+    const inventory = inventoryDecisionRecords(input.repo);
+    for (const diagnostic of inventory.diagnostics) {
+      diagnostics.push({ code: "decision-source-invalid", severity: diagnostic.severity, message: diagnostic.message, repositories: [input.id] });
+    }
+    for (const record of inventory.records) {
       for (const target of record.targets) {
+        const unresolved = (reason: string): void => {
+          diagnostics.push({ code: "decision-unresolved-target", severity: "warning",
+            message: `${record.path}: ${target.kind}:${target.kind === "file" ? target.path : target.name} has no rationale edge: ${reason}.`, repositories: [input.id] });
+        };
         let to: string;
         let description: string;
         let targetDerivation: GraphDerivation;
         if (target.kind === "file") {
-          if (!files.get(target.path)?.contentFingerprint || target.path === record.path) continue;
+          if (!files.get(target.path)?.contentFingerprint || target.path === record.path) {
+            unresolved(target.path === record.path ? "self-reference" : "missing file or exact source fingerprint");
+            continue;
+          }
           to = ensureFile(target.path);
           description = target.path;
           targetDerivation = workspaceSource(input, target.path);
-        } else if (target.kind === "service" || target.kind === "contract") {
+        } else {
           // Keys are caller-declared identities, not display labels or global names.
-          const candidates = nodes.filter((node) => node.repository === input.id && node.kind === target.kind && node.key === target.name);
-          if (candidates.length !== 1) continue;
+          const candidates = nodes.filter((node) => node.repository === input.id && node.kind === target.kind && node.key === target.name &&
+            (target.kind !== "symbol" || !target.path || node.derivedFrom.some((source) => source.kind === "source" && source.repository === input.id && source.path === target.path && files.get(target.path)?.contentFingerprint === source.fingerprint)));
+          if (candidates.length !== 1) {
+            unresolved(candidates.length === 0 ? "no exact repository-local identity with matching provenance" : "ambiguous repository-local identities");
+            continue;
+          }
           to = candidates[0]!.id;
           description = `${target.kind}:${target.name}`;
           targetDerivation = { kind: "node", id: to };
-        } else continue;
+        }
         const from = ensureFile(record.path);
         const kind = target.evidence === "explicit" ? "rationale-for" : "mentions";
         graphEdges.push({

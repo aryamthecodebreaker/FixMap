@@ -31,6 +31,23 @@ function repo(root: string, files: RepoFile[]): RepoMap {
 }
 
 describe("buildWorkspaceMap", () => {
+  it("requires exact source provenance for path-qualified symbol rationale", () => {
+    const parent = createGraphIdentity({ ...workspaceOptions, kind: "repository", key: "auth" });
+    const symbol = {
+      id: createGraphIdentity({ ...workspaceOptions, parent, kind: "symbol", key: "validateToken" }),
+      parent, repository: "auth", kind: "symbol" as const, key: "validateToken",
+      derivedFrom: [{ kind: "source" as const, repository: "auth", path: "src/token.ts", fingerprint: graphSourceFingerprint("token") }]
+    };
+    const inputs = [{ id: "auth", repo: repo("/auth", [
+      file("src/token.ts", "token"),
+      file("docs/adr/1.md", "---\nfixmap-applies-to: symbol:validateToken@src/token.ts\n---\n# Boundary\n## Decision\nKeep it.")
+    ]) }];
+    const resolved = buildWorkspaceMap(inputs, { ...workspaceOptions, identityNodes: [symbol] });
+    expect(resolved.identityGraph.edges[0]).toMatchObject({ kind: "rationale-for", to: symbol.id });
+    const stale = buildWorkspaceMap(inputs, { ...workspaceOptions, identityNodes: [{ ...symbol, derivedFrom: [{ ...symbol.derivedFrom[0]!, fingerprint: graphSourceFingerprint("old token") }] }] });
+    expect(stale.identityGraph.edges).toHaveLength(0);
+    expect(stale.diagnostics).toContainEqual(expect.objectContaining({ code: "decision-unresolved-target" }));
+  });
   it("resolves ADR service scope only to a unique repository-local declared key", () => {
     const service = (repository: string, key: string, label: string) => ({
       id: createGraphIdentity({ ...workspaceOptions, repository, kind: "service", key }),
@@ -47,6 +64,7 @@ describe("buildWorkspaceMap", () => {
     expect(workspace.identityGraph.edges).toHaveLength(1);
     expect(workspace.identityGraph.edges[0]).toMatchObject({ kind: "rationale-for", to: local.id });
     expect(workspace.identityGraph.edges[0]?.derivedFrom).toContainEqual({ kind: "node", id: local.id });
+    expect(workspace.diagnostics).toContainEqual(expect.objectContaining({ code: "decision-unresolved-target", message: expect.stringContaining("service:billing") }));
   });
   it("links authored file scope separately from mentions and invalidates rationale on source edits", () => {
     const content = "---\nstatus: proposed\nfixmap-applies-to: file:src/token.ts, file:src/missing.ts\n---\n# Token boundary\n## Decision\nKeep `src/helper.ts` unchanged.\n";
