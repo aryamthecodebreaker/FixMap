@@ -49,3 +49,11 @@ without modifying either lock or store bytes. After release the retry exited 0 a
 the installed CLI listed both exact notes. Child processes have a 30-second timeout;
 the script removes only its own temporary fixture. This is Windows proof, not yet
 cross-platform consumer evidence.
+
+The compatibility workflow now builds and packs CLI/Core, installs those tarballs
+into a fresh runner-temporary npm prefix with install scripts disabled, then runs
+the consumer checker on Linux Node 20.11/22, Windows Node 24, and macOS Node 24.
+The checker additionally proves an unknown-ID removal preserves the store and
+exact-ID removals persist an empty list. The identical pack/install sequence and
+expanded checker pass locally; cross-platform acceptance requires green runs of
+this new step, not older compatibility results.

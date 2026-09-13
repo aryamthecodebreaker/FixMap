@@ -54,3 +54,20 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - name: Verify packed annotation consumer
+        shell: pwsh
+        run: |
+          npm run build --workspace @aryam/fixmap
+          if ($LASTEXITCODE -ne 0) { throw 'CLI build failed' }
+          $consumerRoot = Join-Path $env:RUNNER_TEMP ('fixmap-consumer-' + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $consumerRoot | Out-Null
+          $corePack = npm pack --workspace @aryam/fixmap-core --pack-destination $consumerRoot --json | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Core pack failed' }
+          $cliPack = npm pack --workspace @aryam/fixmap --pack-destination $consumerRoot --json | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'CLI pack failed' }
+          $coreTarball = Join-Path $consumerRoot $corePack[0].filename
+          $cliTarball = Join-Path $consumerRoot $cliPack[0].filename
+          npm install --prefix $consumerRoot --ignore-scripts --no-audit --no-fund $coreTarball $cliTarball
+          if ($LASTEXITCODE -ne 0) { throw 'Consumer install failed' }
+          node scripts/check-annotation-consumer.mjs $consumerRoot
+          if ($LASTEXITCODE -ne 0) { throw 'Packed annotation consumer failed' }

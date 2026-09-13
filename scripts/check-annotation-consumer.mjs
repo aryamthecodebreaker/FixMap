@@ -38,7 +38,18 @@ try {
   const listed = run("--list", "--format", "json");
   assert.equal(listed.status, 0, listed.stderr);
   assert.deepEqual(JSON.parse(listed.stdout).annotations.map((entry) => entry.note).sort(), ["first process", "second process"]);
-  process.stdout.write("PASS: packed cross-process aged-lock rejection, unchanged store, release, retry, and both notes retained.\n");
+  const saved = await readFile(path, "utf8");
+  const invalid = run("--remove", "annotation:0000000000000000");
+  assert.equal(invalid.status, 1);
+  assert.equal(await readFile(path, "utf8"), saved);
+  for (const entry of JSON.parse(listed.stdout).annotations) {
+    const removed = run("--remove", entry.id);
+    assert.equal(removed.status, 0, removed.stderr);
+  }
+  const empty = run("--list", "--format", "json");
+  assert.equal(empty.status, 0, empty.stderr);
+  assert.deepEqual(JSON.parse(empty.stdout).annotations, []);
+  process.stdout.write("PASS: packed cross-process aged-lock rejection, unchanged store, release/retry, retained notes, rejected removal, and exact-ID cleanup.\n");
 } finally {
   await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
