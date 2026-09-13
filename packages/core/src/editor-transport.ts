@@ -1,7 +1,31 @@
 import { handleEditorProtocolRequest, type EditorProtocolSnapshot, type EditorProtocolResponse } from "./editor-protocol.js";
+import { Readable, type Writable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 export const EDITOR_REQUEST_MAX_BYTES = 65_536;
 export const EDITOR_RESPONSE_MAX_BYTES = 4 * 1024 * 1024;
+
+/** Owns these session streams: completion ends output; failure/abort destroys both. */
+export async function runEditorStreams(
+  snapshot: EditorProtocolSnapshot,
+  input: Readable,
+  output: Writable,
+  signal?: AbortSignal
+): Promise<void> {
+  // Keep stdin byte-oriented: string decoding would conceal malformed UTF-8.
+  if (input.readableEncoding !== null) throw new Error("Editor input must be a byte stream without a text encoding.");
+  signal?.throwIfAborted();
+  const stopInput = () => { input.destroy(); };
+  signal?.addEventListener("abort", stopInput, { once: true });
+  output.once("error", stopInput);
+  try {
+    await pipeline(Readable.from(serveEditorProtocol(snapshot, input)), output, { signal });
+  } finally {
+    signal?.removeEventListener("abort", stopInput);
+    output.removeListener("error", stopInput);
+    input.destroy();
+  }
+}
 
 /** Local NDJSON framing. The host owns streams/lifecycle; yielding supplies backpressure. */
 export async function* serveEditorProtocol(
