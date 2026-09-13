@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "selection": "First three repositories in the existing external dataset, in its stored order. No replacements after execution. These repositories are previously used: this is external workflow acceptance, not an unseen ranking cohort.",
+  "scenarios": [
+    "Add a file note and owner, then plan with an explicit target path; retain exact note ID and source fingerprint",
+    "Add a named service note; include for an exact task mention, exclude for unrelated task text",
+    "Remove each annotation by exact ID; a fresh plan must not retain removed annotations",
+    "Never edit upstream source or run upstream install/build/test scripts"
+  ],
+  "cases": [
+    { "slug": "expressjs/express", "repo": "https://github.com/expressjs/express.git", "sha": "ba006766fb964571723138708eacaba0f55759cd", "path": "lib/request.js" },
+    { "slug": "axios/axios", "repo": "https://github.com/axios/axios.git", "sha": "ff60b43277c32a5b2f7589c917db16d8e043c0d4", "path": "lib/core/AxiosError.js" },
+    { "slug": "debug-js/debug", "repo": "https://github.com/debug-js/debug.git", "sha": "d1616622e4d404863c5a98443f755b4006e971dc", "path": "src/node.js" }
+  ]
+}
