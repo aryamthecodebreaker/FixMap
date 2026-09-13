@@ -26,6 +26,15 @@ function file(path: string): RepoFile {
 }
 
 describe("FixMap annotations", () => {
+  it.each(["service", "contract"] as const)("matches explicit %s names without substring collisions", (kind) => {
+    const annotation = createAnnotation({ scope: { kind, name: "api" }, note: "API contract", createdAt });
+    const store = JSON.stringify(addAnnotation(emptyAnnotationStore(), annotation));
+    const repo = { root: "/repo", files: [{ ...file(".fixmap/annotations.json"), textSample: store, textSampleComplete: true, contentFingerprint: `worktree:${"a".repeat(64)}` }], packageScripts: [], changedFiles: [], diffText: "", packageManager: "npm" as const, diagnostics: [] };
+    const entries = (issueText: string) => buildReportFromRepo(repo, { issueText, annotationAsOf: createdAt }).annotations?.entries ?? [];
+    expect(entries("Fix rapid rendering")).toEqual([]);
+    expect(entries("Fix api-client behavior")).toEqual([]);
+    expect(entries("Fix the API, please")).toHaveLength(1);
+  });
   it("surfaces a renamed annotation at its new relevant path without rewriting its scope", () => {
     const annotation = createAnnotation({ scope: { kind: "file", path: "src/old.ts" }, note: "Preserve customer contract", owner: "platform", createdAt });
     const store = JSON.stringify(addAnnotation(emptyAnnotationStore(), annotation));

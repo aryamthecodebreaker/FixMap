@@ -14,7 +14,7 @@ This checklist closes the existing capability; it does not add a new roadmap ite
 | Owner and expiry | Persisted metadata; scanner-to-change-scope exact expiry boundary and CODEOWNERS preservation | Frozen external workflow acceptance |
 | Relevant notes and provenance | MCP/Action-to-plan exact saved-byte fingerprints, Markdown/JSON output | Frozen external workflow acceptance across interfaces |
 | Renames and missing targets | Core assessments and real staged Git rename regression preserve store bytes while surfacing destination warning | External workflow acceptance |
-| Service/contract names | Explicit named scopes and task-name relevance | Verify relevance and unrelated-name negatives; no invented service ownership mapping |
+| Service/contract names | Explicit named scopes; case-insensitive bounded literal mentions; regressions reject `api` in `rapid` and `api-client` | External workflow relevance; no invented service ownership mapping |
 | Documentation | CLI help, README and Action guide | Consolidated user workflow and limitation review |
 
 Do not mark complete based on this checklist's existence or synthetic tests alone.
@@ -57,3 +57,10 @@ The checker additionally proves an unknown-ID removal preserves the store and
 exact-ID removals persist an empty list. The identical pack/install sequence and
 expanded checker pass locally; cross-platform acceptance requires green runs of
 this new step, not older compatibility results.
+
+Named-scope acceptance reproduced substring pollution: `api` matched `rapid`.
+Selection now requires literal mentions bounded by non-letter/non-number/non-underscore/
+non-hyphen characters. Explicit contract file paths still independently establish
+relevance. Service/contract regression tests cover unrelated substrings, distinct
+hyphenated names, and a valid uppercase mention. This does not infer logical service
+identity from names or grant authenticated ownership.

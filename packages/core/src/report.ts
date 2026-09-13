@@ -237,13 +237,16 @@ function buildReportAnnotations(
     }] };
   }
   const paths = new Set(relevantPaths);
-  const lowerIssue = issueText.toLowerCase();
+  const namesScope = (name: string): boolean => {
+    const literal = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?<![\\p{L}\\p{N}_-])${literal}(?![\\p{L}\\p{N}_-])`, "iu").test(issueText);
+  };
   const entries = assessments.filter((assessment) => {
     const scope = assessment.annotation.scope;
     if (assessment.status === "renamed-target" && assessment.suggestedPath && paths.has(assessment.suggestedPath)) return true;
     if (scope.kind === "file" || scope.kind === "symbol") return paths.has(scope.path);
-    if (scope.kind === "contract") return Boolean(scope.path && paths.has(scope.path)) || lowerIssue.includes(scope.name.toLowerCase());
-    return lowerIssue.includes(scope.name.toLowerCase());
+    if (scope.kind === "contract") return Boolean(scope.path && paths.has(scope.path)) || namesScope(scope.name);
+    return namesScope(scope.name);
   });
   const diagnostics: ScanDiagnostic[] = entries.flatMap((assessment): ScanDiagnostic[] => {
     const paths = annotationPaths(assessment);
