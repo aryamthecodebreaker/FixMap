@@ -1,5 +1,22 @@
 # Annotation capability acceptance
 
+## Capability review outcome
+
+Status: implemented, not release-authorized. The original durable-note, ownership,
+expiry, scope, and report requirements have implementation and acceptance evidence
+below. Final sweep: all 36 tests in eight Core/CLI/Action annotation files passed.
+The same two frozen held-out workflows now also pass an actual MCP stdio child:
+add/list/plan with exact saved-byte fingerprint, remove/list, and fresh-plan absence.
+No repository or expected outcome was replaced. Scope labels and owner labels remain
+explicit declarations, not inferred or authenticated identities, as documented.
+
+The checklist below preserves earlier campaign checkpoints; its former pending
+external-interface items are covered by the later recorded campaign results. The
+remaining final-candidate documentation/consumer reruns are release gates, not missing
+annotation implementation. Broader ownership routing, graph identity integration,
+editor extension mutation, and enterprise authorization remain their own roadmap
+capabilities; this does not mark those complete.
+
 Scope: durable `fixmap annotate`, ownership and expiry, file/symbol/service/contract
 notes, and relevant evidence in plans. Local owner labels are declared metadata,
 not authenticated identity or permission to modify a store. No account is required.

@@ -5,6 +5,8 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { materializePinnedRepository } from "./lib/external-cache.mjs";
 import { createAnnotation, updateAnnotationStore, addAnnotation, removeAnnotation, buildFixMapReport } from "../packages/core/dist/index.js";
 
@@ -25,6 +27,29 @@ function interfacePlan(surface, root, issue) {
   if (result.error) throw result.error;
   assert.equal(result.status, 0, `${surface}: ${result.stderr}`);
   return JSON.parse(result.stdout);
+}
+async function mcpWorkflow(root, path) {
+  const transport = new StdioClientTransport({ command: process.execPath, args: [cli, "mcp", "--repo", root], env: environment, stderr: "pipe" });
+  const client = new Client({ name: "annotation-acceptance", version: "1.0.0" });
+  transport.stderr?.on("data", () => {});
+  try {
+    await client.connect(transport);
+    const call = async (name, args) => {
+      const result = await client.callTool({ name, arguments: { repo: root, ...args } }, undefined, { timeout: 60_000 });
+      assert(!result.isError, JSON.stringify(result.content));
+      return result;
+    };
+    const json = (result) => JSON.parse(result.content.find((entry) => entry.type === "text").text);
+    await call("fixmap_annotate", { action: "add", target: path, note: "MCP external acceptance", owner: "mcp-owner" });
+    const store = json(await call("fixmap_annotate", { action: "list" }));
+    assert.equal(store.annotations.length, 1);
+    const plan = json(await call("fixmap_plan", { issue: `Review ${path}`, format: "json" }));
+    assert.equal(plan.annotations.sourceFingerprint, `worktree:${createHash("sha256").update(await readFile(join(root, ".fixmap/annotations.json"))).digest("hex")}`);
+    assert.deepEqual(plan.annotations.entries[0].annotation, store.annotations[0]);
+    await call("fixmap_annotate", { action: "remove", id: store.annotations[0].id });
+    assert.deepEqual(json(await call("fixmap_annotate", { action: "list" })).annotations, []);
+    assert.equal(json(await call("fixmap_plan", { issue: `Review ${path}`, format: "json" })).annotations?.entries.length ?? 0, 0);
+  } finally { await client.close(); await transport.close(); }
 }
 for (const entry of manifest.cases) {
   const root = await mkdtemp(join(tmpdir(), "fixmap-annotation-external-"));
@@ -52,8 +77,9 @@ for (const entry of manifest.cases) {
     assert.deepEqual(JSON.parse(await readFile(join(root, ".fixmap/annotations.json"), "utf8")).annotations, []);
     assert.equal((await plan(`Review ${entry.path} acceptance-service`)).annotations?.entries.length ?? 0, 0);
     for (const surface of ["cli", "action"]) assert.equal(interfacePlan(surface, root, `Review ${entry.path} acceptance-service`).annotations?.entries.length ?? 0, 0, surface);
+    await mcpWorkflow(root, entry.path);
     assert.deepEqual(await readFile(join(root, entry.path)), source);
-    results.push({ slug: entry.slug, sha: entry.sha, passed: true, surfaces: ["core", "cli", "action"] });
+    results.push({ slug: entry.slug, sha: entry.sha, passed: true, surfaces: ["core", "cli", "action", "mcp"] });
   } catch (error) {
     results.push({ slug: entry.slug, sha: entry.sha, passed: false, error: error.message });
   } finally { await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
