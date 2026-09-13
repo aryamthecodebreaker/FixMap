@@ -103,8 +103,8 @@ export function selectDecisionRecords(
   return inventory.records.filter((record) =>
     record.targets.some((target) => target.kind === "file" && paths.has(target.path) ||
       target.kind === "symbol" && Boolean(target.path && paths.has(target.path)) ||
-      (target.kind === "service" || target.kind === "contract") && task.includes(target.name.toLowerCase())) ||
-    titleTerms(record.title).some((term) => task.includes(term))
+      (target.kind === "service" || target.kind === "contract") && containsLiteralTerm(task, target.name)) ||
+    titleTerms(record.title).some((term) => containsLiteralTerm(task, term))
   );
 }
 
@@ -339,6 +339,11 @@ function normalizeProse(value: string, maximum: number): string {
 
 function titleTerms(title: string): string[] {
   return title.toLowerCase().match(/[a-z0-9][a-z0-9_-]{3,}/g)?.filter((term) => !["decision", "record", "architecture", "using", "with"].includes(term)) ?? [];
+}
+
+function containsLiteralTerm(text: string, term: string): boolean {
+  const literal = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^\\p{L}\\p{N}_-])${literal}(?=$|[^\\p{L}\\p{N}_-])`, "iu").test(text);
 }
 
 function validatePath(value: string): string {

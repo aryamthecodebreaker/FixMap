@@ -4581,7 +4581,7 @@ function selectDecisionRecords(inventory, input) {
     throw new Error("Unsupported decision inventory version.");
   const paths = new Set(input.paths.map(normalizePath2));
   const task = input.task.toLowerCase();
-  return inventory.records.filter((record2) => record2.targets.some((target) => target.kind === "file" && paths.has(target.path) || target.kind === "symbol" && Boolean(target.path && paths.has(target.path)) || (target.kind === "service" || target.kind === "contract") && task.includes(target.name.toLowerCase())) || titleTerms(record2.title).some((term) => task.includes(term)));
+  return inventory.records.filter((record2) => record2.targets.some((target) => target.kind === "file" && paths.has(target.path) || target.kind === "symbol" && Boolean(target.path && paths.has(target.path)) || (target.kind === "service" || target.kind === "contract") && containsLiteralTerm(task, target.name)) || titleTerms(record2.title).some((term) => containsLiteralTerm(task, term)));
 }
 function parseDecisionRecord(input) {
   const path = validatePath(input.path);
@@ -4820,6 +4820,10 @@ function normalizeProse(value, maximum) {
 }
 function titleTerms(title) {
   return title.toLowerCase().match(/[a-z0-9][a-z0-9_-]{3,}/g)?.filter((term) => !["decision", "record", "architecture", "using", "with"].includes(term)) ?? [];
+}
+function containsLiteralTerm(text, term) {
+  const literal = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^\\p{L}\\p{N}_-])${literal}(?=$|[^\\p{L}\\p{N}_-])`, "iu").test(text);
 }
 function validatePath(value) {
   const normalized = normalizePath2(value.trim());
@@ -5107,7 +5111,7 @@ function assembleReport(repo, input, grounding, contextFiles, ranking, rankingDi
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
   const impact = buildImpactMap(repo, contextPaths, testRoutes, void 0, contextPaths);
   const annotations = input.annotationAsOf ? buildReportAnnotations(repo, [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles], input.issueText ?? "", input.annotationAsOf) : void 0;
-  const decisionInventory = inventoryDecisionRecords(repo);
+  const decisionInventory = inventoryDecisionRecords(input.exclude ? { ...repo, files: repo.files.filter((file) => !input.exclude.excludes(file.path)) } : repo);
   const decisions = selectDecisionRecords(decisionInventory, {
     paths: [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles],
     task: input.issueText ?? ""

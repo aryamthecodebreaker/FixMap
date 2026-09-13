@@ -119,7 +119,9 @@ function assembleReport(
   const annotations = input.annotationAsOf
     ? buildReportAnnotations(repo, [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles], input.issueText ?? "", input.annotationAsOf)
     : undefined;
-  const decisionInventory = inventoryDecisionRecords(repo);
+  const decisionInventory = inventoryDecisionRecords(input.exclude
+    ? { ...repo, files: repo.files.filter((file) => !input.exclude!.excludes(file.path)) }
+    : repo);
   const decisions = selectDecisionRecords(decisionInventory, {
     paths: [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles],
     task: input.issueText ?? ""

@@ -22,6 +22,17 @@ function repo(files: RepoFile[]): RepoMap {
 }
 
 describe("decision records", () => {
+  it("does not select rationale through substrings, identifier suffixes, or regex metacharacters", () => {
+    const inventory = inventoryDecisionRecords(repo([
+      file("docs/adr/1.md", "---\nfixmap-applies-to: service:api, contract:v1.token\n---\n# Cache boundary\n## Decision\nKeep it.")
+    ]));
+    for (const task of ["rapid response", "api-client", "api_client", "缓存api", "cacheable values", "v1Xtoken"]) {
+      expect(selectDecisionRecords(inventory, { paths: [], task }), task).toHaveLength(0);
+    }
+    for (const task of ["fix API", "update (v1.token)", "cache boundary"]) {
+      expect(selectDecisionRecords(inventory, { paths: [], task }), task).toHaveLength(1);
+    }
+  });
   it.each([
     ["not accepted", "unknown"], ["unapproved", "unknown"], ["inactive", "unknown"],
     ["Accepted, later superseded", "unknown"], ["Superseded (previously accepted)", "unknown"],

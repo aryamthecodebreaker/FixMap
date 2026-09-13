@@ -23,5 +23,16 @@ it("carries a local PR description through a real scan and report without rewrit
     expect(renderMarkdownReport(report)).toContain("remote source unverified");
     expect(validateFixMapReport(JSON.parse(JSON.stringify(report)), "report").success).toBe(true);
     expect(await readFile(path, "utf8")).toBe(source);
+    const editedBody = "Replace the old proposal with this authored correction.\n";
+    await writeFile(path, JSON.stringify({ title: "Token validation", body: editedBody, url: "https://github.com/acme/auth/pull/42", fixmapAppliesTo: "file:token.ts" }));
+    const options = { repoRoot: root, issueText: "validateToken in token.ts", useCache: false, includeHistory: false };
+    const edited = (await buildFixMapAnalysis(options)).report;
+    expect(edited.decisions?.[0]?.decision).toBe(editedBody);
+    expect(edited.decisions?.[0]?.sourceFingerprint).not.toBe(report.decisions?.[0]?.sourceFingerprint);
+    const excluded = (await buildFixMapAnalysis({ ...options, exclude: ["docs/decisions/**"] })).report;
+    expect(excluded.decisions ?? []).toHaveLength(0);
+    await rm(path);
+    const removed = (await buildFixMapAnalysis(options)).report;
+    expect(removed.decisions ?? []).toHaveLength(0);
   } finally { await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
 }, 30_000);
