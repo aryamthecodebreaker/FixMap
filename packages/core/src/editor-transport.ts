@@ -18,11 +18,13 @@ export async function runEditorStreams(
   const stopInput = () => { input.destroy(); };
   signal?.addEventListener("abort", stopInput, { once: true });
   output.once("error", stopInput);
+  output.once("close", stopInput);
   try {
     await pipeline(Readable.from(serveEditorProtocol(snapshot, input)), output, { signal });
   } finally {
     signal?.removeEventListener("abort", stopInput);
     output.removeListener("error", stopInput);
+    output.removeListener("close", stopInput);
     input.destroy();
   }
 }

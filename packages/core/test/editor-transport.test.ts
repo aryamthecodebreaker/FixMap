@@ -86,3 +86,14 @@ it("aborts a session waiting for input and destroys its streams", async () => {
   expect(input.destroyed).toBe(true);
   expect(output.destroyed).toBe(true);
 });
+
+it("terminates when output closes without an error while input is idle", async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const session = runEditorStreams(snapshot(), input, output);
+  const rejected = expect(session).rejects.toMatchObject({ code: "ERR_STREAM_PREMATURE_CLOSE" });
+  output.destroy();
+  try { await rejected; }
+  finally { input.destroy(); output.destroy(); }
+  expect(input.destroyed).toBe(true);
+}, 2_000);
