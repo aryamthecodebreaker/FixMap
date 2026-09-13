@@ -6838,7 +6838,7 @@ async function buildFixMapAnalysis(input) {
       });
     }
   }
-  return { report, repo };
+  return { report, repo, exclusions: exclude };
 }
 function combineExclusions(primary, internal) {
   if (internal.patterns.length === 0)

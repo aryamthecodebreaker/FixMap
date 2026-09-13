@@ -39,7 +39,7 @@ export async function buildFixMapAnalysis(
     internalExclude?: string[] | undefined;
     embeddingProvider?: EmbeddingProvider | undefined;
   }
-): Promise<{ report: FixMapReport; repo: Awaited<ReturnType<typeof scanRepo>> }> {
+): Promise<{ report: FixMapReport; repo: Awaited<ReturnType<typeof scanRepo>>; exclusions: PathExcluder }> {
   const scannedRepo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
   const generatedArtifacts = scannedRepo.files.filter(isFixMapArtifact);
   const generatedPaths = new Set(generatedArtifacts.map((file) => file.path));
@@ -114,7 +114,7 @@ export async function buildFixMapAnalysis(
     }
   }
 
-  return { report, repo };
+  return { report, repo, exclusions: exclude };
 }
 
 function combineExclusions(primary: PathExcluder, internal: PathExcluder): PathExcluder {

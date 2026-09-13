@@ -62,6 +62,7 @@ export { createEditorProtocolSnapshot, handleEditorProtocolRequest } from "./edi
 export { serveEditorProtocol, runEditorStreams, EDITOR_REQUEST_MAX_BYTES, EDITOR_RESPONSE_MAX_BYTES } from "./editor-transport.js";
 export type { EditorSnapshotSource } from "./editor-transport.js";
 export { createEditorSession } from "./editor-session.js";
+export { loadEditorSnapshot } from "./editor-loader.js";
 export type { EditorSnapshotInput } from "./editor-session.js";
 export type { EditorProtocolMethod, EditorProtocolRequest, EditorProtocolResponse, EditorProtocolSnapshot } from "./editor-protocol.js";
 export { answerFixMapQuestion, buildAskEvidence } from "./ask.js";
