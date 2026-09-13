@@ -27,7 +27,7 @@ with easier repositories. Existing regression fixtures are not held-out evidence
 Candidate source checkpoint: `61205c7` (new rename integration test was uncommitted;
 it does not affect package source). Versions remain 0.9.0 internally; no publication.
 Packed CLI SHA-256: `9170cace6053454026c878f0bdbc4fe9b74458755d990a6a7c255deed18a184f`.
-Packed Core SHA-256: `5ff9adf890e89af75add559fdfdd b10e62e96cf410b1dbc64fa0ec0db1b4dd32` (remove the display space).
+Packed Core SHA-256: `5ff9adf890e89af75add559fdfddb10e62e96cf410b1dbc64fa0ec0db1b4dd32`.
 
 Both local tarballs were installed together into a new temporary npm project using
 `npm install --ignore-scripts --no-audit --no-fund`; dependency inspection confirmed
