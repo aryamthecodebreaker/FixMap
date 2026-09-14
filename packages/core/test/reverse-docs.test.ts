@@ -16,6 +16,18 @@ const architecture: ArchitectureSnapshot = {
 };
 
 describe("reverse documentation drafts", () => {
+  it("accepts authored supersession references but rejects malformed PR provenance", () => {
+    const decision = {
+      id: `decision:${"a".repeat(16)}`, path: "docs/adr/auth.md", title: "Boundary", status: "unknown" as const,
+      decision: "Keep the boundary.", targets: [{ kind: "file" as const, path: "src/auth.ts", evidence: "explicit" as const }],
+      supersedes: ["ADR-001", "docs/adr/previous.md"], sourceFingerprint: "git:decision"
+    };
+    const targets = [{ id: "auth", title: "Auth", kind: "module" as const, paths: ["src/auth.ts"], requestedPath: "docs/generated.md" }];
+    expect(draftReverseDocumentation(repo(), architecture, [decision], targets)).toHaveLength(1);
+    for (const source of [null, { kind: "pull-request", verification: "verified", url: "https://github.com/acme/auth/pull/42" }, { kind: "pull-request", verification: "unverified-local-attribution", url: "ftp://github.com/acme/auth/pull/42" }]) {
+      expect(() => draftReverseDocumentation(repo(), architecture, [{ ...decision, source } as never], targets)).toThrow("Invalid reverse-documentation decision");
+    }
+  });
   it("separates observations, inferences, unknowns, and provenance", () => {
     const draft = draftReverseDocumentation(repo(), architecture, [], [{
       id: "auth-module", title: "Authentication module", kind: "module", paths: ["src/auth.ts", "src/session.ts"],

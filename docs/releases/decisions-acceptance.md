@@ -49,8 +49,10 @@ including an explicit Ask attribution regression. Context packs now select
 relevant rationale within the existing source-token budget, retain attribution
 in snippet metadata, and omit mismatched source fingerprints with an explicit
 `stale-decision-source` reason. The focused Context/Ask/editor group passes 27 tests.
-Broader
-consumer-specific provenance regressions remain before this audit is complete.
+Consumer-specific provenance regressions now cover the remaining text outputs
+and editor objects. A final boundary check also aligned reverse-documentation
+supersession references with authored ADR references and rejects malformed PR
+source metadata rather than accepting an unvalidated attribution.
 
 1. Verify clean cross-platform CI for the final checkpoint, including the new
    real CLI/Action/MCP job step; retain any failures rather than assuming parity.
@@ -63,7 +65,10 @@ the compatibility matrix. The fresh full Core run passed 812 tests with one
 skipped. Subsequently added consumer assertions pass in 37 tests across Verify,
 change-scope, reverse-docs, and editor protocol; these specifically check original
 status text and the unverified source URL/caveat. Cross-platform results remain
-pending, so the capability is not yet promoted.
+pending for the final follow-up, so the capability is not yet promoted. The
+implementation checkpoint `8dece92` passed CI run `34805572476`, including the
+named rationale process step on Node 20/22 Linux and Node 24 Windows/macOS;
+external evaluation run `34805572497` also passed.
 
 ## Honest boundaries
 

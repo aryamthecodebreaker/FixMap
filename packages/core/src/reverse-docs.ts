@@ -1,5 +1,6 @@
 import type { ArchitectureSnapshot } from "./architecture.js";
 import type { DecisionRecord } from "./decisions.js";
+import { isDecisionPullRequestUrl } from "./decisions.js";
 import type { RepoMap } from "./types.js";
 
 export type ReverseDocumentationTarget = {
@@ -156,7 +157,10 @@ function validateInputs(
     if (!decision || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !safePath(decision.path) ||
       !bounded(decision.title, 2_000) || !bounded(decision.decision, 20_000) || !exactFingerprint(decision.sourceFingerprint) ||
       !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(decision.status) ||
-      !Array.isArray(decision.supersedes) || !decision.supersedes.every((id: string) => /^decision:[a-f0-9]{16}$/.test(id)) ||
+      (decision.authoredStatus !== undefined && !bounded(decision.authoredStatus, 500)) ||
+      (decision.source !== undefined && (!decision.source || decision.source.kind !== "pull-request" ||
+        decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url))) ||
+      !Array.isArray(decision.supersedes) || !decision.supersedes.every((reference: string) => bounded(reference, 500)) ||
       !Array.isArray(decision.targets) || decision.targets.some((target: DecisionRecord["targets"][number]) =>
         (target.kind === "file" && !safePath(target.path)) ||
         (target.kind === "symbol" && (!bounded(target.name, 500) || (target.path !== undefined && !safePath(target.path)))) ||
