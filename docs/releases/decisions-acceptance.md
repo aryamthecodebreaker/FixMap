@@ -52,16 +52,18 @@ in snippet metadata, and omit mismatched source fingerprints with an explicit
 Broader
 consumer-specific provenance regressions remain before this audit is complete.
 
-1. Complete consumer-specific regression coverage for preservation of authored rationale and
-   explicit unverified attribution; document any consumer-specific bounds.
-2. Run full relevant suites and the clean cross-platform CI for the final checkpoint.
+1. Verify clean cross-platform CI for the final checkpoint, including the new
+   real CLI/Action/MCP job step; retain any failures rather than assuming parity.
 
 Latest checkpoint: authored status now reaches Ask, Context metadata, report/agent
 text, Verify narration, reverse-documentation drafts, and change-scope Markdown.
 The real CLI/Action/MCP fixture also asserts that `on hold` remains authored text
 alongside normalized `unknown`. That fixture passes locally and is wired into
-the compatibility matrix. The fresh full Core run is still pending at this update;
-the earlier 810-test result does not cover every subsequent edit.
+the compatibility matrix. The fresh full Core run passed 812 tests with one
+skipped. Subsequently added consumer assertions pass in 37 tests across Verify,
+change-scope, reverse-docs, and editor protocol; these specifically check original
+status text and the unverified source URL/caveat. Cross-platform results remain
+pending, so the capability is not yet promoted.
 
 ## Honest boundaries
 

@@ -58,7 +58,7 @@ describe("deterministic change scope", () => {
       file(".fixmap/policy.json", policy),
       file(
         "docs/adr/checkout.md",
-        "# Keep payment boundaries\n\n## Decision\nKeep `src/services/payments.ts` behind checkout.\n"
+        "---\nstatus: on hold\nfixmap-source-pr: https://github.com/acme/auth/pull/42\n---\n# Keep payment boundaries\n\n## Decision\nKeep `src/services/payments.ts` behind checkout.\n"
       ),
       file("docs/adr/unrelated.md", "# Unrelated overview without a decision\n")
     ]);
@@ -101,7 +101,10 @@ describe("deterministic change scope", () => {
     const markdown = renderChangeScopeMarkdown(scope);
     expect(markdown).toContain("# FixMap Change Scope");
     expect(markdown).toContain("Observed repository items");
-    expect(markdown).toContain("did not interpret the product meaning");
+      expect(markdown).toContain("did not interpret the product meaning");
+      expect(markdown).toContain("on hold");
+      expect(markdown).toContain("remote source unverified");
+      expect(markdown).toContain("https://github.com/acme/auth/pull/42");
   });
 
   it("keeps future add anchors unresolved instead of inferring product semantics", () => {

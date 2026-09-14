@@ -260,7 +260,9 @@ describe("verifyPlan", () => {
       id: "decision:0123456789abcdef",
       path: "docs/adr/auth.md",
       title: "Keep auth boundary",
-      status: "accepted",
+      status: "unknown",
+      authoredStatus: "on hold",
+      source: { kind: "pull-request", url: "https://github.com/acme/auth/pull/42", verification: "unverified-local-attribution" },
       decision: "Preserve the provider boundary.",
       targets: [{ kind: "file", path: "src/auth/reset-password.ts", evidence: "explicit" }],
       supersedes: [],
@@ -276,6 +278,9 @@ describe("verifyPlan", () => {
       expect.objectContaining({ evidence: expect.arrayContaining([expect.objectContaining({ kind: "decision-record", sourceFingerprint: `git:${"b".repeat(40)}` })]) })
     ]));
     expect(result.narrative?.every((statement) => statement.evidence.length > 0)).toBe(true);
+    expect(JSON.stringify(result.narrative)).toContain("on hold");
+    expect(JSON.stringify(result.narrative)).toContain("remote source unverified");
+    expect(JSON.stringify(result.narrative)).toContain("https://github.com/acme/auth/pull/42");
   });
 
   it("enforces current architecture policy and narrates exact policy evidence", () => {

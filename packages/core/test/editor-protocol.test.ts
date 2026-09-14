@@ -27,6 +27,17 @@ function report(): FixMapReport {
 const request = (method: string, params?: Record<string, unknown>) => ({ editorProtocolVersion: 1, id: "req-1", method, ...(params ? { params } : {}) });
 
 describe("editor protocol", () => {
+  it("preserves full authored decision provenance in file responses", () => {
+    const input = report();
+    input.decisions![0] = { ...input.decisions![0]!, status: "unknown", authoredStatus: "on hold", source: {
+      kind: "pull-request", url: "https://github.com/acme/auth/pull/42", verification: "unverified-local-attribution"
+    } };
+    const snapshot = createEditorProtocolSnapshot(input);
+    const response = handleEditorProtocolRequest(snapshot, request("fixmap/file", { path: "src/auth.ts" }));
+    expect(response.result).toMatchObject({ decisions: input.decisions });
+    expect(JSON.stringify(response.result)).toContain("unverified-local-attribution");
+    expect(JSON.stringify(response.result)).toContain("on hold");
+  });
   it("calculates change scope only from an immutable repository-backed snapshot", () => {
     const repo: RepoMap = { root: "/repo", files: [{
       path: "src/auth.ts", extension: ".ts", sizeBytes: 25, isTest: false, isSource: true,

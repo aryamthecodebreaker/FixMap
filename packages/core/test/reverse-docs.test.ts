@@ -44,11 +44,15 @@ describe("reverse documentation drafts", () => {
 
   it("includes authored decision text as observation rather than generated rationale", () => {
     const draft = draftReverseDocumentation(repo(), architecture, [{
-      id: `decision:${"a".repeat(16)}`, path: "docs/adr/auth.md", title: "Local tokens", status: "accepted",
+      id: `decision:${"a".repeat(16)}`, path: "docs/adr/auth.md", title: "Local tokens", status: "unknown", authoredStatus: "on hold",
+      source: { kind: "pull-request", url: "https://github.com/acme/auth/pull/42", verification: "unverified-local-attribution" },
       decision: "Keep token parsing local.", targets: [{ kind: "file", path: "src/auth.ts", evidence: "explicit" }],
       supersedes: [], sourceFingerprint: "git:decision"
     }], [{ id: "auth", title: "Auth", kind: "module", paths: ["src/auth.ts"], requestedPath: "docs/generated.md" }])[0];
     expect(draft.observed.some((entry) => entry.includes("Authored decision"))).toBe(true);
+    expect(draft.markdown).toContain("on hold");
+    expect(draft.markdown).toContain("remote source unverified");
+    expect(draft.markdown).toContain("https://github.com/acme/auth/pull/42");
     expect(draft.sources.decisions[0]).toMatchObject({ path: "docs/adr/auth.md", sourceFingerprint: "git:decision" });
     expect(draft.unknown).not.toContain(expect.stringContaining("rationale is unknown"));
   });
