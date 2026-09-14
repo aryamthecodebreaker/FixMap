@@ -1,6 +1,14 @@
 # ADR/rationale ingestion acceptance
 
-Status: in progress. This is a completion checklist, not a new feature roadmap.
+Status: implemented for the documented local ingestion contract. Not a release authorization.
+
+Final acceptance: implementation `0a9d6ab` passed CI `34805930550`, including all
+four named rationale process checks, and external evaluation `34805930587`.
+Two additional documents frozen in `181bfed` pass full reviewed field comparisons
+without parser changes. They are new documents in the same repository/convention,
+not broad independent-repository validation. See `validation-results.json`.
+The checkpoints below retain the development history, including prior failures;
+their pending wording describes those historical checkpoints, not current status.
 
 Broad local checkpoint: full Core suite passes 810 tests with one skipped across
 72 files. Frozen `adr/madr` cohort (`benchmarks/decisions/cases.json`, selected in

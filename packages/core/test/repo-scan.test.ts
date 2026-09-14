@@ -785,6 +785,16 @@ describe("scanRepo", () => {
         .toContain("Reused 2 unchanged file records");
       expect(changed.files.find((file) => file.path === "untracked.ts")?.textSample).toContain("two");
       expect(changed.files.find((file) => file.path === "untracked.ts")?.contentFingerprint).not.toBe(originalFingerprint);
+      await exec("git", ["mv", "a.ts", "renamed.ts"], { cwd: root });
+      await rm(join(root, "untracked.ts"));
+      const renamed = await scanRepo({ repoRoot: root, useCache: true });
+      const fresh = await scanRepo({ repoRoot: root, useCache: false });
+      expect(renamed.files).toEqual(fresh.files);
+      expect(renamed.changedFiles).toEqual(fresh.changedFiles);
+      expect(renamed.diffText).toBe(fresh.diffText);
+      expect(renamed.files.map((file) => file.path)).toEqual(["b.ts", "renamed.ts"]);
+      expect(renamed.diagnostics.find((entry) => entry.code === "incremental-index-hit")?.message)
+        .toContain("Reused 1 unchanged file record");
     } finally {
       if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
       else process.env.FIXMAP_CACHE_DIR = previousCache;
