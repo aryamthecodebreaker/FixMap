@@ -20,6 +20,9 @@ const summary = {
   concurrentAnalyses: 0,
   coldConcurrentMs: 0,
   warmMs: 0,
+  incrementalMs: 0,
+  freshScanMs: 0,
+  incrementalMatchesFresh: false,
   cacheRecovery: false,
   artifactIsolation: false,
   linkContainment: false,
@@ -78,6 +81,18 @@ try {
   summary.warmMs = Math.round(performance.now() - warmStarted);
   assert(warm.report.diagnostics.some((entry) => entry.code === "cache-hit"), "exact-state warm scan did not hit cache");
   assert(summary.warmMs < summary.coldConcurrentMs, "exact-state warm scan was not faster than the concurrent cold population");
+
+  await writeFile(join(root, "src", "module-123.ts"), "export function targetStressIdentifier() { return 122; }\n");
+  const incrementalStarted = performance.now();
+  const incremental = await scanRepo({ repoRoot: root, useCache: true, includeHistory: false });
+  summary.incrementalMs = Math.round(performance.now() - incrementalStarted);
+  assert(incremental.diagnostics.some((entry) => entry.code === "incremental-index-hit" && entry.message.includes("Reused 301 unchanged file records")), "one-file edit did not reuse the other 301 records");
+  const freshStarted = performance.now();
+  const fresh = await scanRepo({ repoRoot: root, useCache: false, includeHistory: false });
+  summary.freshScanMs = Math.round(performance.now() - freshStarted);
+  assert(JSON.stringify(incremental.files) === JSON.stringify(fresh.files), "incremental file records differ from fresh scan");
+  assert(incremental.diffText === fresh.diffText, "incremental diff differs from fresh scan");
+  summary.incrementalMatchesFresh = true;
 
   const indexName = (await readdir(cacheRoot)).find((entry) => entry.endsWith("-index-v2.json"));
   assert(indexName, "persistent incremental index was not created");

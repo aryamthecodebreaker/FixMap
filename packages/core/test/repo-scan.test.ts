@@ -938,6 +938,18 @@ describe("scanRepo", () => {
       await exec("git", ["reset", "HEAD", "--", "index.ts"], { cwd: root });
       const unstaged = await scanRepo({ repoRoot: root, useCache: true });
       expect(unstaged.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
+      const freshUnstaged = await scanRepo({ repoRoot: root, useCache: false });
+      expect(unstaged.files).toEqual(freshUnstaged.files);
+      expect(unstaged.diffText).toBe(freshUnstaged.diffText);
+      await exec("git", ["add", "index.ts"], { cwd: root });
+      await writeFile(join(root, "index.ts"), "export const value = 'working';\n");
+      const mixed = await scanRepo({ repoRoot: root, useCache: true });
+      const freshMixed = await scanRepo({ repoRoot: root, useCache: false });
+      expect(mixed.files).toEqual(freshMixed.files);
+      expect(mixed.changedFiles).toEqual(freshMixed.changedFiles);
+      expect(mixed.diffText).toBe(freshMixed.diffText);
+      expect(mixed.files[0]?.textSample).toContain("working");
+      expect(mixed.files[0]?.contentFingerprint).not.toBe(unstaged.files[0]?.contentFingerprint);
     } finally {
       if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
       else process.env.FIXMAP_CACHE_DIR = previousCache;
