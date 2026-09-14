@@ -213,6 +213,7 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
         !decision.supersedes.every((value) => typeof value === "string" && value.trim()) ||
         (decision.date !== undefined && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date))) ||
         (decision.context !== undefined && typeof decision.context !== "string") ||
+        (decision.authoredStatus !== undefined && (typeof decision.authoredStatus !== "string" || !decision.authoredStatus.trim() || decision.authoredStatus.length > 500 || decision.authoredStatus.includes("\0"))) ||
         (decision.consequences !== undefined && typeof decision.consequences !== "string")) return true;
       if (decision.source !== undefined && (!isRecord(decision.source) || decision.source.kind !== "pull-request" ||
         decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url))) return true;

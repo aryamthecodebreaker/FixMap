@@ -24,7 +24,7 @@ try {
   run("git", ["init", "--quiet"]);
   await mkdir(join(root, "docs", "decisions"), { recursive: true });
   await writeFile(join(root, "index.ts"), "export const value = 1;\n");
-  const adr = "---\nfixmap-applies-to: service:checkout-intent\nstatus: proposed\n---\n# Decision record\n## Decision\nPreserve the authored boundary.\n";
+  const adr = "---\nfixmap-applies-to: service:checkout-intent\nstatus: on hold\n---\n# Decision record\n## Decision\nPreserve the authored boundary.\n";
   const pr = JSON.stringify({ title: "Decision record", body: "Keep the partner contract.\n", url: "https://github.com/acme/shop/pull/42", fixmapAppliesTo: "service:checkout-intent" });
   await writeFile(join(root, "docs/decisions/1.md"), adr);
   await writeFile(join(root, "docs/decisions/2.json"), pr);
@@ -45,6 +45,8 @@ try {
   for (const [surface, plan] of Object.entries(plans)) {
     const positive = await plan("Review checkout-intent");
     assert.equal(positive.decisions?.length, 2, surface);
+    assert.equal(positive.decisions.find((entry) => entry.path.endsWith("1.md"))?.authoredStatus, "on hold", surface);
+    assert.equal(positive.decisions.find((entry) => entry.path.endsWith("1.md"))?.status, "unknown", surface);
     assert(positive.diagnostics.some((entry) => entry.code === "decision-parse-failed"), surface);
     assert.equal(positive.decisions.find((entry) => entry.source)?.source.verification, "unverified-local-attribution", surface);
     if (expected) assert.deepEqual(positive.decisions, expected, surface);

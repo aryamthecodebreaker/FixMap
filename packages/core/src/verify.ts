@@ -335,7 +335,7 @@ function buildVerifyNarrative(
     if (targetPaths.length > 0 && !targetPaths.some((path) => changed.includes(path))) continue;
     narrative.push({
       classification: "observation",
-      text: `${decision.path} records an ${decision.status} decision relevant to this diff: ${decision.decision.replace(/\s+/g, " ").trim()}`,
+      text: `${decision.source ? `Local PR attribution (remote source unverified): ${decision.source.url}. ` : ""}${decision.path} records an ${decision.status} decision${decision.authoredStatus ? ` (authored status: ${JSON.stringify(decision.authoredStatus)})` : ""} relevant to this diff: ${decision.decision.replace(/\s+/g, " ").trim()}`,
       evidence: [{
         kind: "decision-record",
         path: decision.path,

@@ -4633,7 +4633,9 @@ function parseDecisionRecord(input) {
     ...parseExplicitTargets(appliesTo),
     ...literalPathTargets(body, input.knownPaths ?? /* @__PURE__ */ new Set())
   ]);
-  const date = normalizeDate(frontmatter.date ?? section(sections, ["date"]));
+  const heading = documentHeadings(body).find((entry) => entry.level === 1);
+  const titleDate = heading ? /^\s*Date:[ \t]*(\d{4}-\d{2}-\d{2})[ \t]*(?:\r?\n|$)/i.exec(body.slice(heading.end))?.[1] : void 0;
+  const date = normalizeDate(frontmatter.date ?? section(sections, ["date"]) ?? titleDate);
   const sourceUrl = frontmatter["fixmap-source-pr"];
   if (sourceUrl !== void 0 && !isDecisionPullRequestUrl(sourceUrl))
     throw new Error("Invalid decision pull-request source.");
@@ -4643,6 +4645,7 @@ function parseDecisionRecord(input) {
       path,
       title: normalizeProse(title, 300),
       status: normalizeStatus(statusText),
+      ...statusText ? { authoredStatus: normalizeProse(statusText, 500) } : {},
       ...date ? { date } : {},
       ...context ? { context: normalizeProse(context, 8e3) } : {},
       decision: normalizeProse(decision, 8e3),
@@ -5631,7 +5634,7 @@ function renderMarkdownReport(report) {
       "## Human Intent",
       "",
       ...listOrEmpty([
-        ...(report.decisions ?? []).map((decision) => `- **ADR ${decision.status}** ${markdownCode(decision.path)} \u2014 ${decision.title}: ${inlineProse(decision.decision)}${decision.source ? ` (locally attributed to ${markdownCode(decision.source.url)}; remote source unverified)` : ""}`),
+        ...(report.decisions ?? []).map((decision) => `- **ADR ${decision.status}**${decision.authoredStatus ? ` (authored status: ${markdownCode(inlineProse(decision.authoredStatus))})` : ""} ${markdownCode(decision.path)} \u2014 ${decision.title}: ${inlineProse(decision.decision)}${decision.source ? ` (locally attributed to ${markdownCode(decision.source.url)}; remote source unverified)` : ""}`),
         ...(report.annotations?.entries ?? []).map((assessment) => `- **annotation ${assessment.status}** ${describeAnnotationScope(assessment)}: ${assessment.annotation.note}`)
       ])
     ] : [],
@@ -7196,7 +7199,7 @@ function buildVerifyNarrative(report, changed, changedSource, changedTests, impa
       continue;
     narrative.push({
       classification: "observation",
-      text: `${decision.path} records an ${decision.status} decision relevant to this diff: ${decision.decision.replace(/\s+/g, " ").trim()}`,
+      text: `${decision.source ? `Local PR attribution (remote source unverified): ${decision.source.url}. ` : ""}${decision.path} records an ${decision.status} decision${decision.authoredStatus ? ` (authored status: ${JSON.stringify(decision.authoredStatus)})` : ""} relevant to this diff: ${decision.decision.replace(/\s+/g, " ").trim()}`,
       evidence: [{
         kind: "decision-record",
         path: decision.path,
@@ -7545,7 +7548,7 @@ function validateFixMapReport(candidate, label) {
     if (!Array.isArray(record2.decisions))
       return { success: false, message: `${label} has invalid decisions; expected an array.` };
     const invalidDecision = record2.decisions.findIndex((decision) => {
-      if (!isRecord6(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.consequences !== void 0 && typeof decision.consequences !== "string")
+      if (!isRecord6(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.authoredStatus !== void 0 && (typeof decision.authoredStatus !== "string" || !decision.authoredStatus.trim() || decision.authoredStatus.length > 500 || decision.authoredStatus.includes("\0")) || decision.consequences !== void 0 && typeof decision.consequences !== "string")
         return true;
       if (decision.source !== void 0 && (!isRecord6(decision.source) || decision.source.kind !== "pull-request" || decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url)))
         return true;

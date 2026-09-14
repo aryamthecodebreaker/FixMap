@@ -12,6 +12,7 @@ export type DecisionRecord = {
   path: string;
   title: string;
   status: DecisionStatus;
+  authoredStatus?: string;
   date?: string;
   context?: string;
   decision: string;
@@ -159,7 +160,9 @@ export function parseDecisionRecord(input: {
     ...parseExplicitTargets(appliesTo),
     ...literalPathTargets(body, input.knownPaths ?? new Set<string>())
   ]);
-  const date = normalizeDate(frontmatter.date ?? section(sections, ["date"]));
+  const heading = documentHeadings(body).find((entry) => entry.level === 1);
+  const titleDate = heading ? /^\s*Date:[ \t]*(\d{4}-\d{2}-\d{2})[ \t]*(?:\r?\n|$)/i.exec(body.slice(heading.end))?.[1] : undefined;
+  const date = normalizeDate(frontmatter.date ?? section(sections, ["date"]) ?? titleDate);
   const sourceUrl = frontmatter["fixmap-source-pr"];
   if (sourceUrl !== undefined && !isDecisionPullRequestUrl(sourceUrl)) throw new Error("Invalid decision pull-request source.");
   return {
@@ -168,6 +171,7 @@ export function parseDecisionRecord(input: {
       path,
       title: normalizeProse(title, 300),
       status: normalizeStatus(statusText),
+      ...(statusText ? { authoredStatus: normalizeProse(statusText, 500) } : {}),
       ...(date ? { date } : {}),
       ...(context ? { context: normalizeProse(context, 8_000) } : {}),
       decision: normalizeProse(decision, 8_000),

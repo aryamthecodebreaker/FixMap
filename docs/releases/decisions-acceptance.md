@@ -2,6 +2,17 @@
 
 Status: in progress. This is a completion checklist, not a new feature roadmap.
 
+Broad local checkpoint: full Core suite passes 810 tests with one skipped across
+72 files. Frozen `adr/madr` cohort (`benchmarks/decisions/cases.json`, selected in
+commit `e4d9d3d` before source reads) initially parsed 4/4 documents unchanged.
+Field checks now compare title, context, decision, status, and absent date/consequences
+against all four authored sources. Review exposed discarded `on hold` wording;
+the parser now preserves it in `authoredStatus` separately from normalized status.
+All four field comparisons pass after that repair, making this development evidence,
+not untouched validation. The second convention is recorded below.
+Reproduce with `node scripts/evaluate-decisions.mjs` after a Core
+build; this development evaluator explicitly reads GitHub through `gh`.
+
 ## Implemented and locally exercised
 
 - Repository-owned ADR/decision/RFC/design discovery with complete-source fingerprints.
@@ -24,11 +35,33 @@ Status: in progress. This is a completion checklist, not a new feature roadmap.
 
 ## Remaining acceptance work
 
-1. Exercise documented ADR conventions against frozen real repository documents;
-   retain unsupported cases and diagnostics instead of silently replacing fixtures.
-2. Check report/context/editor consumers for preservation of authored rationale and
+Second convention checkpoint: three frozen `npryce/adr-tools` documents initially
+parsed but failed all field checks because title-adjacent dates were omitted.
+After adding that specific convention, all three field checks pass. The original
+failure is retained in `benchmarks/decisions/nygard-results.json`; reproduce with
+`node scripts/evaluate-decisions.mjs --nygard`. Both cohorts are now development
+evidence and must not be described as untouched validation.
+
+Consumer audit checkpoint: editor file responses retain complete decision objects.
+Ask evidence, Verify narration, reverse-documentation prose, and change-scope
+Markdown now retain unverified PR attribution; 43 focused consumer tests pass,
+including an explicit Ask attribution regression. Context packs now select
+relevant rationale within the existing source-token budget, retain attribution
+in snippet metadata, and omit mismatched source fingerprints with an explicit
+`stale-decision-source` reason. The focused Context/Ask/editor group passes 27 tests.
+Broader
+consumer-specific provenance regressions remain before this audit is complete.
+
+1. Complete consumer-specific regression coverage for preservation of authored rationale and
    explicit unverified attribution; document any consumer-specific bounds.
-3. Run full relevant suites and the clean cross-platform CI for the final checkpoint.
+2. Run full relevant suites and the clean cross-platform CI for the final checkpoint.
+
+Latest checkpoint: authored status now reaches Ask, Context metadata, report/agent
+text, Verify narration, reverse-documentation drafts, and change-scope Markdown.
+The real CLI/Action/MCP fixture also asserts that `on hold` remains authored text
+alongside normalized `unknown`. That fixture passes locally and is wired into
+the compatibility matrix. The fresh full Core run is still pending at this update;
+the earlier 810-test result does not cover every subsequent edit.
 
 ## Honest boundaries
 

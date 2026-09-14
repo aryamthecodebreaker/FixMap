@@ -849,7 +849,7 @@ export function renderMarkdownReport(report: FixMapReport): string {
       "",
       ...listOrEmpty([
         ...(report.decisions ?? []).map((decision) =>
-          `- **ADR ${decision.status}** ${markdownCode(decision.path)} — ${decision.title}: ${inlineProse(decision.decision)}${decision.source ? ` (locally attributed to ${markdownCode(decision.source.url)}; remote source unverified)` : ""}`
+          `- **ADR ${decision.status}**${decision.authoredStatus ? ` (authored status: ${markdownCode(inlineProse(decision.authoredStatus))})` : ""} ${markdownCode(decision.path)} — ${decision.title}: ${inlineProse(decision.decision)}${decision.source ? ` (locally attributed to ${markdownCode(decision.source.url)}; remote source unverified)` : ""}`
         ),
         ...(report.annotations?.entries ?? []).map((assessment) =>
           `- **annotation ${assessment.status}** ${describeAnnotationScope(assessment)}: ${assessment.annotation.note}`
@@ -928,7 +928,7 @@ export function renderAgentReport(report: FixMapReport): string {
     "INTENT:",
     ...listOrEmpty([
       ...(report.decisions ?? []).map((decision) =>
-        `ADR ${decision.status} ${decision.path}  # ${decision.title}: ${inlineProse(decision.decision)}${decision.source ? ` (locally attributed to ${decision.source.url}; remote source unverified)` : ""}`
+        `ADR ${decision.status}${decision.authoredStatus ? ` (authored status: ${inlineProse(decision.authoredStatus)})` : ""} ${decision.path}  # ${decision.title}: ${inlineProse(decision.decision)}${decision.source ? ` (locally attributed to ${decision.source.url}; remote source unverified)` : ""}`
       ),
       ...(report.annotations?.entries ?? []).map((assessment) =>
         `annotation ${assessment.status} ${describeAnnotationScope(assessment)}  # ${assessment.annotation.note}`

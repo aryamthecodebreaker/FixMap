@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { inventoryDecisionRecords, parseDecisionRecord, selectDecisionRecords } from "../src/decisions.js";
 import type { RepoFile, RepoMap } from "../src/types.js";
+import { buildAskEvidence } from "../src/ask.js";
 
 function file(path: string, textSample: string, complete = true): RepoFile {
   return {
@@ -22,6 +23,19 @@ function repo(files: RepoFile[]): RepoMap {
 }
 
 describe("decision records", () => {
+  it("reads a title-adjacent Nygard date without taking dates from examples or prose", () => {
+    const parse = (preamble: string) => parseDecisionRecord({ path: "doc/adr/1.md", fingerprint: "git:abc", content: `# 1. Boundary\n\n${preamble}\n\n## Decision\nKeep it.` }).record;
+    expect(parse("Date: 2016-02-12")?.date).toBe("2016-02-12");
+    expect(parse("Date: 2016-02-30")?.date).toBeUndefined();
+    expect(parse("```\nDate: 2016-02-12\n```")?.date).toBeUndefined();
+    expect(parse("Example:\nDate: 2016-02-12")?.date).toBeUndefined();
+  });
+  it("preserves an unsupported authored status without inventing an equivalent", () => {
+    const record = parseDecisionRecord({ path: "docs/adr/1.md", fingerprint: "git:abc", content: "---\nstatus: on hold\n---\n# Boundary\n## Decision\nKeep it." }).record;
+    expect(record).toMatchObject({ status: "unknown", authoredStatus: "on hold" });
+    const evidence = buildAskEvidence({ reportVersion: 1, summary: "", contextFiles: [], testRoutes: [], risks: [], changedFiles: [], diagnostics: [], decisions: [record!] });
+    expect(JSON.stringify(evidence)).toContain("on hold");
+  });
   it("does not select rationale through substrings, identifier suffixes, or regex metacharacters", () => {
     const inventory = inventoryDecisionRecords(repo([
       file("docs/adr/1.md", "---\nfixmap-applies-to: service:api, contract:v1.token\n---\n# Cache boundary\n## Decision\nKeep it.")

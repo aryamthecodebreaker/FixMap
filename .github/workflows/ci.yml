@@ -71,3 +71,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Consumer install failed' }
           node scripts/check-annotation-consumer.mjs $consumerRoot
           if ($LASTEXITCODE -ne 0) { throw 'Packed annotation consumer failed' }
+      - name: Verify local rationale across CLI Action and MCP
+        shell: pwsh
+        run: |
+          npm run build:action
+          if ($LASTEXITCODE -ne 0) { throw 'Action build failed' }
+          node scripts/check-decision-surfaces.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Rationale process acceptance failed' }

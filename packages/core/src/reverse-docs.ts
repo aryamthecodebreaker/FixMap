@@ -53,7 +53,7 @@ export function draftReverseDocumentation(
       `${relevantEdges.length} architecture edge${relevantEdges.length === 1 ? " touches" : "s touch"} the declared scope.`,
       ...relevantEdges.slice(0, 1_000).map((edge) => `Observed import edge: ${edge.from} -> ${edge.to}.`),
       ...relevantDecisions.slice(0, 100).map((decision) =>
-        `Authored decision ${decision.id} (${decision.status}), "${inlineText(decision.title, 300)}": ${inlineText(decision.decision, 1_500)}`)
+        `${decision.source ? `Local PR attribution (remote source unverified): ${inlineText(decision.source.url, 500)}. ` : ""}Authored decision ${decision.id} (${decision.status}${decision.authoredStatus ? `; authored status: ${inlineText(decision.authoredStatus, 500)}` : ""}), "${inlineText(decision.title, 300)}": ${inlineText(decision.decision, 1_500)}`)
     ];
     const inferred = target.paths.flatMap((path) => {
       const coupling = architecture.coupling.find((entry) => entry.path === path);

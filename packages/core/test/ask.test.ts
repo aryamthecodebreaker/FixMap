@@ -21,6 +21,13 @@ const localProvider = (response: Awaited<ReturnType<AskModelProvider["answer"]>>
 const contextCitation = buildAskEvidence(report()).find((entry) => entry.kind === "context")!.id;
 
 describe("FixMap ask", () => {
+  it("retains the unverified PR source before authored rationale in evidence", () => {
+    const input = report();
+    input.decisions = [{ id: "decision:aaaaaaaaaaaaaaaa", path: "docs/decisions/1.json", title: "Boundary", status: "unknown", decision: "Keep the contract.", targets: [], supersedes: [], sourceFingerprint: `git:${"a".repeat(40)}`, source: { kind: "pull-request", url: "https://github.com/acme/auth/pull/42", verification: "unverified-local-attribution" } }];
+    const evidence = buildAskEvidence(input).find((entry) => entry.kind === "decision");
+    expect(JSON.stringify(evidence)).toContain("remote source unverified");
+    expect(JSON.stringify(evidence)).toContain("https://github.com/acme/auth/pull/42");
+  });
   it("answers structural test, impact, risk, and plan questions deterministically with citations", async () => {
     const tests = await answerFixMapQuestion(report(), "Which tests should I run?");
     const impact = await answerFixMapQuestion(report(), "What could this impact?");

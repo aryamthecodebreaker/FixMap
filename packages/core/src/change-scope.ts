@@ -323,7 +323,7 @@ export function renderChangeScopeMarkdown(result: ChangeScopeResult): string {
     "",
     ...listOrNone([
       ...result.contracts.map((contract) => `- contract ${markdownCode(contract.name)} (${contract.kind}) from ${markdownCode(contract.path)}`),
-      ...result.decisions.map((decision) => `- decision ${markdownCode(decision.title)} (${decision.status}) from ${markdownCode(decision.path)}`)
+      ...result.decisions.map((decision) => `- decision ${markdownCode(decision.title)} (${decision.status}${decision.authoredStatus ? `; authored status: ${markdownCode(decision.authoredStatus.replace(/\s+/g, " "))}` : ""}) from ${markdownCode(decision.path)}${decision.source ? `; locally attributed to ${markdownCode(decision.source.url)} (remote source unverified)` : ""}`)
     ]),
     "",
     "## Review and architecture",

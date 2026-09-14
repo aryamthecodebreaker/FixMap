@@ -25,6 +25,19 @@ const repo: RepoMap = {
 };
 
 describe("context packs", () => {
+  it("includes current rationale under the source budget and refuses stale rationale", () => {
+    const path = "docs/decisions/42.json";
+    const fingerprint = `worktree:${"a".repeat(64)}`;
+    const inputReport: FixMapReport = { ...report, decisions: [{ id: "decision:aaaaaaaaaaaaaaaa", path, title: "Boundary", decision: "Keep stable", status: "unknown", targets: [], supersedes: [], sourceFingerprint: fingerprint, source: { kind: "pull-request", url: "https://github.com/acme/auth/pull/42", verification: "unverified-local-attribution" } }] };
+    const source = { ...repo.files[0]!, path, textSample: "Keep stable", contentFingerprint: fingerprint };
+    const input = { report: inputReport, repo: { ...repo, files: [...repo.files, source] }, task: "resetPassword", budgetTokens: 256 };
+    const pack = buildContextPack(input);
+    expect(pack.snippets.find((snippet) => snippet.path === path)).toMatchObject({ role: "supporting", reason: expect.stringContaining("remote source unverified") });
+    expect(pack.estimatedSourceTokens).toBeLessThanOrEqual(256);
+    const stale = buildContextPack({ ...input, repo: { ...repo, files: [...repo.files, { ...source, contentFingerprint: `worktree:${"b".repeat(64)}` }] } });
+    expect(stale.omitted).toContainEqual({ path, reason: "stale-decision-source" });
+    expect(stale.snippets.some((snippet) => snippet.path === path)).toBe(false);
+  });
   it.each([
     ["export const resetPassword = 1;", 1],
     ["export const resetPassword = 1;\n", 1],

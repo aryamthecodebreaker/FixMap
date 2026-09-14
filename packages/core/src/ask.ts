@@ -125,7 +125,7 @@ export function buildAskEvidence(report: FixMapReport): AskEvidence[] {
       report.annotations?.sourceFingerprint));
   }
   for (const decision of report.decisions ?? []) evidence.push(item(`decision:${decision.id}`, "decision",
-    `${decision.title} (${decision.status}): ${decision.decision}${decision.consequences ? ` Consequences: ${decision.consequences}` : ""}`,
+    `${decision.source ? `Local PR attribution (remote source unverified): ${decision.source.url}. ` : ""}${decision.title} (${decision.status}${decision.authoredStatus ? `; authored status: ${JSON.stringify(decision.authoredStatus)}` : ""}): ${decision.decision}${decision.consequences ? ` Consequences: ${decision.consequences}` : ""}`,
     decision.path, decision.sourceFingerprint));
   for (const finding of report.policy?.findings ?? []) evidence.push(item(`policy:${finding.ruleId}:${finding.code}`, "policy",
     `${finding.severity} ${finding.code}: ${finding.message}.`, finding.paths[0], report.policy?.policyFingerprint));
