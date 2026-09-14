@@ -1,0 +1,24 @@
+{
+  "repositories": [
+    "pydantic/pydantic",
+    "pallets/flask",
+    "fastapi/fastapi",
+    "encode/httpx",
+    "psf/requests",
+    "django/django",
+    "python-poetry/poetry",
+    "pytest-dev/pytest",
+    "scrapy/scrapy",
+    "boto/botocore",
+    "google/guava",
+    "spring-projects/spring-framework",
+    "mockito/mockito",
+    "junit-team/junit5",
+    "FasterXML/jackson-databind",
+    "apache/commons-lang",
+    "brettwooldridge/HikariCP",
+    "apache/kafka",
+    "google/gson",
+    "netty/netty"
+  ]
+}

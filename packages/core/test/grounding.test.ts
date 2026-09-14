@@ -48,6 +48,61 @@ describe("task grounding", () => {
     expect(grounding.specificity).toBe("anchored");
   });
 
+  it("batches multiple identifiers without collapsing definition, text, and missing states", () => {
+    const repo = createRepo();
+    repo.files.push({
+      path: "src/cache/caller.ts",
+      extension: ".ts",
+      sizeBytes: 100,
+      isSource: true,
+      isTest: false,
+      kind: "code",
+      textSample: "invokeCacheHook();"
+    });
+
+    const grounding = analyzeTaskGrounding(repo, {
+      issueText: "transitionCacheState invokeCacheHook MissingCacheHook"
+    });
+
+    expect(grounding.identifiers).toEqual([
+      { identifier: "transitionCacheState", status: "exact-definition", matchedFiles: ["src/cache/state.ts"] },
+      { identifier: "invokeCacheHook", status: "exact-text", matchedFiles: ["src/cache/caller.ts"] },
+      { identifier: "MissingCacheHook", status: "not-found", matchedFiles: [] }
+    ]);
+  });
+
+  it("grounds a Java method through the language adapter instead of treating its call sites as definitions", () => {
+    const repo = createRepo();
+    repo.files = [
+      {
+        path: "src/main/java/com/acme/auth/PasswordResetService.java",
+        extension: ".java",
+        sizeBytes: 100,
+        isSource: true,
+        isTest: false,
+        kind: "code",
+        textSample: "public final class PasswordResetService { public User resetPassword(User user) { return user; } }"
+      },
+      {
+        path: "src/main/java/com/acme/api/ResetController.java",
+        extension: ".java",
+        sizeBytes: 100,
+        isSource: true,
+        isTest: false,
+        kind: "code",
+        textSample: "return service.resetPassword(user);"
+      }
+    ];
+
+    const grounding = analyzeTaskGrounding(repo, { issueText: "resetPassword rejects a valid recovery token" });
+
+    expect(grounding.identifiers).toContainEqual({
+      identifier: "resetPassword",
+      status: "exact-definition",
+      matchedFiles: ["src/main/java/com/acme/auth/PasswordResetService.java"]
+    });
+  });
+
   it("removes component words that occur only inside unresolved identifiers", () => {
     const repo = createRepo();
     const issueText =

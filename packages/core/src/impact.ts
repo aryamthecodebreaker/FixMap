@@ -1,4 +1,5 @@
 import { buildImportGraph } from "./import-graph.js";
+import { isFixMapArtifact } from "./artifacts.js";
 import { isBackupPath, isGeneratedPath } from "./paths.js";
 import type {
   ImpactEvidence,
@@ -28,9 +29,10 @@ export function buildImpactMap(
   repo: RepoMap,
   requestedSeeds: string[],
   testRoutes: TestRoute[] = [],
-  limit = DEFAULT_IMPACT_LIMIT
+  limit = DEFAULT_IMPACT_LIMIT,
+  primaryPaths: readonly string[] = []
 ): ImpactMap {
-  const repositoryPaths = new Set(repo.files.map((file) => file.path));
+  const repositoryPaths = new Set(repo.files.filter((file) => !isFixMapArtifact(file)).map((file) => file.path));
   const seeds = [...new Set(requestedSeeds)]
     .filter((path) => repositoryPaths.has(path))
     .slice(0, MAX_IMPACT_SEEDS);
@@ -48,6 +50,13 @@ export function buildImpactMap(
   };
 
   const graph = buildImportGraph(repo.files);
+  const primarySet = new Set(primaryPaths.filter((path) => repositoryPaths.has(path)));
+  const primaryImports = [...primarySet].sort((a, b) => a.localeCompare(b)).flatMap((from) =>
+    [...(graph.imports.get(from) ?? [])]
+      .filter((to) => to !== from && primarySet.has(to))
+      .sort((a, b) => a.localeCompare(b))
+      .map((to) => ({ from, to }))
+  );
   for (const seed of seeds) {
     for (const imported of [...(graph.imports.get(seed) ?? [])].sort((a, b) => a.localeCompare(b))) {
       addEvidence(imported, 4, {
@@ -67,7 +76,8 @@ export function buildImpactMap(
 
   for (const route of testRoutes.filter((entry) => entry.kind === "test")) {
     for (const path of route.relatedFiles) {
-      const seed = nearestSeed(path, seeds) ?? seeds[0];
+      const importedSeeds = [...(graph.imports.get(path) ?? [])].filter((imported) => seedSet.has(imported));
+      const seed = nearestSeed(path, importedSeeds) ?? nearestSeed(path, seeds) ?? seeds[0];
       if (!seed) continue;
       addEvidence(path, 7, {
         kind: "test-route",
@@ -114,6 +124,7 @@ export function buildImpactMap(
   return {
     seeds,
     files,
+    ...(primaryImports.length > 0 ? { primaryImports } : {}),
     inspectionOrder: [...seeds, ...files.map((file) => file.path)],
     history: {
       available: Boolean(history),

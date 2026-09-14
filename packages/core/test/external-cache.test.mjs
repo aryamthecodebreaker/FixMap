@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { materializePinnedRepository, runGit } from "../../../scripts/lib/external-cache.mjs";
@@ -15,7 +15,8 @@ describe("external evaluation cache", () => {
       runGit(["config", "user.email", "test@example.com"], upstream);
       runGit(["config", "user.name", "FixMap Test"], upstream);
       await writeFile(join(upstream, "README.md"), "first\n");
-      runGit(["add", "README.md"], upstream);
+      await writeFile(join(upstream, ".gitattributes"), "* text=auto\n");
+      runGit(["add", "README.md", ".gitattributes"], upstream);
       runGit(["commit", "--quiet", "-m", "fixture"], upstream);
       const sha = runGit(["rev-parse", "HEAD"], upstream);
 
@@ -30,8 +31,23 @@ describe("external evaluation cache", () => {
       }, { cacheRoot });
 
       expect(runGit(["rev-parse", "HEAD"], materialized)).toBe(sha);
+      expect(runGit(["config", "--local", "--get", "core.longpaths"], materialized)).toBe("true");
+      expect(runGit(["config", "--local", "--get", "core.autocrlf"], materialized)).toBe("false");
+      expect(runGit(["config", "--local", "--get", "core.eol"], materialized)).toBe("lf");
+      expect(await readFile(join(materialized, "README.md"), "utf8")).toBe("first\n");
       expect(await readdir(materialized)).toContain("README.md");
       expect(await readdir(materialized)).not.toContain("partial.txt");
+
+      const benchmark = { slug: "owner/repo", repo: upstream, sha };
+      await writeFile(join(materialized, "README.md"), "modified\n");
+      await expect(materializePinnedRepository(benchmark, { cacheRoot })).rejects.toThrow("HEAD alone does not prove");
+      expect(await readFile(join(materialized, "README.md"), "utf8")).toBe("modified\n");
+      await rm(join(materialized, "README.md"));
+      await expect(materializePinnedRepository(benchmark, { cacheRoot })).rejects.toThrow("modified, missing, or untracked");
+      await writeFile(join(materialized, "README.md"), "first\n");
+      await writeFile(join(materialized, "untracked.txt"), "preserve me\n");
+      await expect(materializePinnedRepository(benchmark, { cacheRoot })).rejects.toThrow("modified, missing, or untracked");
+      expect(await readFile(join(materialized, "untracked.txt"), "utf8")).toBe("preserve me\n");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

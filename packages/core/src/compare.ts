@@ -92,8 +92,8 @@ export function compareReports(previous: FixMapReport, current: FixMapReport): R
   confidenceChanged.sort((a, b) => (a.currentRank ?? 0) - (b.currentRank ?? 0));
   unchanged.sort((a, b) => (a.currentRank ?? 0) - (b.currentRank ?? 0));
 
-  const previousGrounding = previous.analysis?.grounding.specificity;
-  const currentGrounding = current.analysis?.grounding.specificity;
+  const previousGrounding = previous.analysis?.grounding?.specificity;
+  const currentGrounding = current.analysis?.grounding?.specificity;
   const groundingComparable = previousGrounding !== undefined && currentGrounding !== undefined;
   const groundingChanged = groundingComparable && previousGrounding !== currentGrounding;
 

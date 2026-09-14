@@ -1,7 +1,9 @@
 import { NO_EXCLUSIONS } from "./exclude.js";
 import type { PathExcluder } from "./exclude.js";
+import { isFixMapArtifact } from "./artifacts.js";
 import { buildImportGraph, findImportProximity } from "./import-graph.js";
 import type { ImportProximity } from "./import-graph.js";
+import { extractLanguageDefinitions } from "./language-adapters.js";
 import {
   analyzeTaskGrounding,
   buildRankingShape,
@@ -12,7 +14,12 @@ import {
 import type { TaskGrounding } from "./grounding.js";
 import { isBackupPath, isGeneratedPath, isRecordedEvaluationOutput, LOCKFILE_NAMES, moduleStem, pathMatchesMention } from "./paths.js";
 import { extractTaskSignals, tokenizePath, tokenizeText } from "./signals.js";
-import type { RankedFile, RepoMap } from "./types.js";
+import {
+  buildRetrievalQuery,
+  rankByBm25Detailed,
+  rankSymbolsByBm25Detailed
+} from "./retrieval.js";
+import type { RankedFile, RepoFile, RepoMap, ScanDiagnostic } from "./types.js";
 
 const DEPLOYMENT_TERMS = [
   "deploy", "deployment", "vercel", "netlify", "docker", "kubernetes", "hosting", "serverless", "production"
@@ -85,6 +92,45 @@ export const REPORT_SCORE_CUTOFF = 4;
 
 export const DEFAULT_CONTEXT_FILE_LIMIT = 8;
 
+const RETRIEVAL_CANDIDATES_PER_SOURCE = 50;
+
+export type RetrievalIntent =
+  | "configuration"
+  | "documentation"
+  | "implementation"
+  | "presentation"
+  | "tests"
+  | "types";
+
+export type RetrievalEvidenceTier = "direct" | "corroborated" | "single-source";
+
+export type RetrievalEvidenceProfile = {
+  path: string;
+  intent: RetrievalIntent;
+  tier: RetrievalEvidenceTier;
+  direct: boolean;
+  structuralRank?: number;
+  structuralScore?: number;
+  lexicalRank?: number;
+  lexicalScore?: number;
+  symbolRank?: number;
+  symbolScore?: number;
+  symbol?: string;
+  queryExpansions: ReturnType<typeof buildRetrievalQuery>["expansions"];
+  fusionScore: number;
+};
+
+export type EvidenceRankingResult = {
+  contextFiles: RankedFile[];
+  /** Complete structural ranking from the single shared pass; used by semantic union. */
+  structuralFiles: RankedFile[];
+  profiles: RetrievalEvidenceProfile[];
+  ranking: import("./grounding.js").RankingShape;
+  candidateCounts: { structural: number; lexical: number; symbol: number; union: number };
+  timingsMs: { structural: number; lexical: number; symbol: number; rerank: number; total: number };
+  diagnostics: ScanDiagnostic[];
+};
+
 export function rankContextFiles(
   repo: RepoMap,
   input: {
@@ -95,7 +141,151 @@ export function rankContextFiles(
   limit = DEFAULT_CONTEXT_FILE_LIMIT,
   minScore = REPORT_SCORE_CUTOFF
 ): RankedFile[] {
-  return rankContextFilesDetailed(repo, input, limit, minScore).contextFiles;
+  if (minScore !== REPORT_SCORE_CUTOFF) {
+    return rankContextFilesDetailed(repo, input, limit, minScore).contextFiles;
+  }
+  return rankContextFilesEvidenceDetailed(repo, input, limit, minScore).contextFiles;
+}
+
+/**
+ * Two-stage retrieval: independent structural, whole-file lexical, and symbol-unit
+ * generators create a high-recall union; a deterministic evidence reranker orders it.
+ * BM25 scores remain provenance only; bounded rank evidence adjusts the structural score.
+ */
+export function rankContextFilesEvidenceDetailed(
+  repo: RepoMap,
+  input: {
+    issueText?: string | undefined;
+    diffText?: string | undefined;
+    exclude?: PathExcluder | undefined;
+  },
+  limit = DEFAULT_CONTEXT_FILE_LIMIT,
+  minScore = REPORT_SCORE_CUTOFF
+): EvidenceRankingResult {
+  const startedAt = performance.now();
+  const structuralResult = rankContextFilesDetailed(
+    repo,
+    input,
+    Number.MAX_SAFE_INTEGER,
+    Number.NEGATIVE_INFINITY
+  );
+  const structuralFinishedAt = performance.now();
+  const structural = structuralResult.contextFiles;
+  const structuralByPath = new Map(structural.map((file) => [file.path, file]));
+  const eligibleFiles = repo.files.filter((file) => structuralByPath.has(file.path));
+  const task = [input.issueText ?? "", input.diffText ?? ""].filter(Boolean).join("\n");
+  const query = buildRetrievalQuery(task);
+  const intent = classifyRetrievalIntent(task);
+  const lexicalKinds = intent === "documentation"
+    ? new Set<RepoFile["kind"]>(["code", "documentation"])
+    : intent === "configuration"
+      ? new Set<RepoFile["kind"]>(["code", "config"])
+      : new Set<RepoFile["kind"]>(["code"]);
+  const sourceLimit = Math.min(eligibleFiles.length, RETRIEVAL_CANDIDATES_PER_SOURCE);
+  const structuralCandidates = structural.slice(0, sourceLimit);
+  const lexicalCandidates = rankByBm25Detailed(eligibleFiles, task, sourceLimit, lexicalKinds);
+  const lexicalFinishedAt = performance.now();
+  const symbolCandidates = rankSymbolsByBm25Detailed(eligibleFiles, task, sourceLimit);
+  const symbolFinishedAt = performance.now();
+  const structuralRank = new Map(structuralCandidates.map((file, index) => [file.path, index + 1]));
+  const lexicalByPath = new Map(lexicalCandidates.map((entry) => [entry.id, entry]));
+  const symbolByPath = new Map(symbolCandidates.map((entry) => [entry.path, entry]));
+  const union = new Set([
+    ...structuralCandidates.map((file) => file.path),
+    ...lexicalCandidates.map((entry) => entry.id),
+    ...symbolCandidates.map((entry) => entry.path)
+  ]);
+
+  const profiles = [...union].flatMap((path): RetrievalEvidenceProfile[] => {
+    const structuralFile = structuralByPath.get(path);
+    if (!structuralFile) return [];
+    const lexical = lexicalByPath.get(path);
+    const symbol = symbolByPath.get(path);
+    const structuralPosition = structuralRank.get(path);
+    const direct = hasDirectRetrievalEvidence(structuralFile);
+    const sources = [structuralPosition, lexical?.rank, symbol?.rank].filter((rank) => rank !== undefined).length;
+    // Structural score carries evidence strength, intent, and safety penalties that a
+    // rank-only fusion erases. Independent retrievers can move close candidates through
+    // bounded bonuses and the reserved coverage slot below, without letting a vocabulary-
+    // dense generated or wrong-intent file jump a strongly grounded implementation.
+    const fusionScore = structuralFile.score +
+      boundedRankBonus(lexical?.rank, 3) +
+      boundedRankBonus(symbol?.rank, 2) +
+      Math.max(0, sources - 1) * 0.5;
+    return [{
+      path,
+      intent,
+      tier: direct ? "direct" : sources >= 2 ? "corroborated" : "single-source",
+      direct,
+      ...(structuralPosition === undefined ? {} : {
+        structuralRank: structuralPosition,
+        structuralScore: structuralFile.score
+      }),
+      ...(lexical ? { lexicalRank: lexical.rank, lexicalScore: roundRetrieval(lexical.score) } : {}),
+      ...(symbol ? {
+        symbolRank: symbol.rank,
+        symbolScore: roundRetrieval(symbol.score),
+        symbol: symbol.symbol
+      } : {}),
+      queryExpansions: query.expansions,
+      fusionScore: roundRetrieval(fusionScore)
+    }];
+  }).sort((left, right) =>
+    right.fusionScore - left.fusionScore ||
+    (left.structuralRank ?? Number.MAX_SAFE_INTEGER) - (right.structuralRank ?? Number.MAX_SAFE_INTEGER) ||
+    left.path.localeCompare(right.path)
+  );
+
+  const eligibleProfiles = profiles.filter((profile) => {
+    const file = structuralByPath.get(profile.path);
+    return profile.direct || (file?.score ?? Number.NEGATIVE_INFINITY) >= minScore;
+  });
+  const selectedProfiles = selectEvidenceProfiles(eligibleProfiles, Math.max(0, limit));
+  const contextFiles = selectedProfiles.map((profile, index) => {
+    const file = structuralByPath.get(profile.path)!;
+    const reasons = [...file.reasons];
+    if (profile.lexicalRank !== undefined) reasons.push(`BM25 whole-file candidate #${profile.lexicalRank}`);
+    if (profile.symbolRank !== undefined && profile.symbol) {
+      reasons.push(`BM25 symbol candidate #${profile.symbolRank}: ${profile.symbol}`);
+    }
+    if (profile.tier === "corroborated") reasons.push("corroborated by independent retrieval sources");
+    return {
+      ...file,
+      rank: index + 1,
+      fusionScore: profile.fusionScore,
+      retrieval: {
+        ...(profile.structuralRank === undefined ? {} : {
+          structuralRank: profile.structuralRank,
+          structuralScore: profile.structuralScore
+        }),
+        ...(profile.lexicalRank === undefined ? {} : { lexicalRank: profile.lexicalRank }),
+        ...(profile.symbolRank === undefined ? {} : { symbolRank: profile.symbolRank })
+      },
+      reasons
+    } satisfies RankedFile;
+  });
+
+  const finishedAt = performance.now();
+  return {
+    contextFiles,
+    structuralFiles: structural,
+    profiles,
+    ranking: structuralResult.ranking,
+    candidateCounts: {
+      structural: structuralCandidates.length,
+      lexical: lexicalCandidates.length,
+      symbol: symbolCandidates.length,
+      union: union.size
+    },
+    timingsMs: {
+      structural: roundRetrieval(structuralFinishedAt - startedAt),
+      lexical: roundRetrieval(lexicalFinishedAt - structuralFinishedAt),
+      symbol: roundRetrieval(symbolFinishedAt - lexicalFinishedAt),
+      rerank: roundRetrieval(finishedAt - symbolFinishedAt),
+      total: roundRetrieval(finishedAt - startedAt)
+    },
+    diagnostics: structuralResult.diagnostics
+  };
 }
 
 export function rankContextFilesDetailed(
@@ -109,7 +299,7 @@ export function rankContextFilesDetailed(
   // `explainFile` lowers this to see what a file scored below the reporting cutoff.
   // Ranking never calls it with anything but the default.
   minScore = REPORT_SCORE_CUTOFF
-): { contextFiles: RankedFile[]; ranking: import("./grounding.js").RankingShape } {
+): { contextFiles: RankedFile[]; ranking: import("./grounding.js").RankingShape; diagnostics: ScanDiagnostic[] } {
   const exclude = input.exclude ?? NO_EXCLUSIONS;
   const signals = extractTaskSignals({
     issueText: input.issueText ?? "",
@@ -144,17 +334,21 @@ export function rankContextFilesDetailed(
       .map((file) => moduleStem(file.path))
   );
   const candidateFiles = scannable.filter((file) =>
-    !isRecordedEvaluationOutput(file.path) && (
+    !isRecordedEvaluationOutput(file.path) && !isFixMapArtifact(file) && (
       mentionedPaths.has(file.path) ||
       signals.changedFiles.has(file.path) ||
       !isGeneratedPath(file.path) ||
       !maintainedStems.has(moduleStem(file.path))
     )
   );
-  const regexTokensByPath = new Map(candidateFiles.map((file) => [file.path, extractRegexTokens(file.textSample)]));
+  const regexTokensByPath = new Map(candidateFiles.map((file) => [file.path, extractRegexTokens(rankingText(file))]));
   const contentTokensByPath = new Map(candidateFiles.map((file) => [
     file.path,
-    tokenizeFileContent(file.textSample, regexTokensByPath.get(file.path) ?? new Set<string>())
+    taskTokensInFile(
+      rankingText(file),
+      taskTokens,
+      regexTokensByPath.get(file.path) ?? new Set<string>()
+    )
   ]));
   const commonTokens = findCommonTokens(contentTokensByPath);
   const allTaskTermsAreWidespread = taskTokens.size > 0 &&
@@ -235,7 +429,7 @@ export function rankContextFilesDetailed(
       }
 
       const matchedMembers = memberSignals
-        .filter((signal) => signal.pattern.test(file.textSample))
+        .filter((signal) => signal.pattern.test(rankingText(file)))
         .map((signal) => signal.member)
         .slice(0, 3);
       if (matchedMembers.length > 0) {
@@ -244,7 +438,7 @@ export function rankContextFilesDetailed(
       }
 
       const exactLiteral = signals.exactFragments
-        .filter((fragment) => file.textSample.includes(fragment))
+        .filter((fragment) => rankingText(file).includes(fragment))
         .sort((a, b) =>
           (exactFragmentOccurrences.get(b) ?? 0) - (exactFragmentOccurrences.get(a) ?? 0) ||
           b.length - a.length
@@ -254,7 +448,7 @@ export function rankContextFilesDetailed(
         reasons.push(`contains exact task literal: ${previewFragment(exactLiteral)}`);
       }
 
-      const definedIdentifiers = (file.kind === "documentation" ? [] : findDefinedIdentifiers(file.textSample, definitionSignals))
+      const definedIdentifiers = (file.kind === "documentation" ? [] : findDefinedIdentifiers(file, definitionSignals))
         .slice(0, MAX_DEFINITION_IDENTIFIERS);
       if (definedIdentifiers.length > 0) {
         score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
@@ -273,7 +467,7 @@ export function rankContextFilesDetailed(
 
       const taskMatchedDefinitions = signals.exactFragments.length === 0 &&
         !taskTargetsDocumentation
-        ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file.textSample, taskTokens))
+        ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file, taskTokens))
           .filter((identifier) => !definedIdentifiers.includes(identifier))
           .slice(0, MAX_DEFINITION_IDENTIFIERS)
         : [];
@@ -283,7 +477,7 @@ export function rankContextFilesDetailed(
       }
 
       const definitionFragment = file.kind === "documentation" ? undefined : signals.exactFragments.find((fragment) =>
-        hasExactFragmentAtDefinition(file.textSample, fragment, definedIdentifiers)
+        hasExactFragmentAtDefinition(rankingText(file), fragment, definedIdentifiers)
       );
       if (definitionFragment) {
         score += DEFINITION_LITERAL_BOOST;
@@ -390,7 +584,7 @@ export function rankContextFilesDetailed(
       return { path: file.path, score, isChanged, reasons };
     });
 
-  applyImportProximity(scored, repo);
+  const diagnostics = applyImportProximity(scored, repo);
 
   const candidates = scored
     .filter((file) => file.score >= minScore)
@@ -413,7 +607,7 @@ export function rankContextFilesDetailed(
       }),
       reasons: entry.reasons.length > 0 ? entry.reasons : ["source file baseline"]
     }));
-  return { contextFiles, ranking };
+  return { contextFiles, ranking, diagnostics };
 }
 
 /**
@@ -445,7 +639,7 @@ function hasDefinitionEvidence(entry: ScoredFile): boolean {
   );
 }
 
-function applyImportProximity(scored: ScoredFile[], repo: RepoMap): void {
+function applyImportProximity(scored: ScoredFile[], repo: RepoMap): ScanDiagnostic[] {
   const directSeeds = scored
     .filter((entry) => entry.score >= 8 && hasDirectEvidence(entry))
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
@@ -457,14 +651,15 @@ function applyImportProximity(scored: ScoredFile[], repo: RepoMap): void {
       .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
       .slice(0, 2);
   if (seedEntries.length === 0) {
-    return;
+    return [];
   }
 
   const seeds = seedEntries.map((entry) => entry.path);
   const seedScores = new Map(seedEntries.map((entry) => [entry.path, entry.score]));
   const graph = buildImportGraph(repo.files);
+  const diagnostics: ScanDiagnostic[] = [];
   if ((graph.truncatedFiles > 0 || graph.truncatedEdges > 0) && !repo.diagnostics.some((entry) => entry.code === "import-graph-truncated")) {
-    repo.diagnostics.push({
+    diagnostics.push({
       code: "import-graph-truncated",
       severity: "info",
       message:
@@ -486,6 +681,7 @@ function applyImportProximity(scored: ScoredFile[], repo: RepoMap): void {
       entry.reasons.push(proximityReason(hit));
     }
   }
+  return diagnostics;
 }
 
 function proximityReason(hit: ImportProximity): string {
@@ -674,6 +870,29 @@ function tokenizeFileContent(text: string, regexTokens: Set<string>): Set<string
   return tokens;
 }
 
+function taskTokensInFile(text: string, taskTokens: ReadonlySet<string>, regexTokens: Set<string>): Set<string> {
+  const regexOverlap = [...regexTokens].some((token) => taskTokens.has(token));
+  if (!regexOverlap && !mightContainTaskToken(text, taskTokens)) return new Set<string>();
+  const tokens = tokenizeFileContent(text, regexTokens);
+  return new Set([...tokens].filter((token) => taskTokens.has(token)));
+}
+
+/** Cheap conservative gate before the full Unicode/stemming tokenizer. Normal stemming
+ * preserves the leading characters. The two tokenizer rewrites that do not—CSS
+ * preprocessor aliases and HTTP version shorthands—are checked explicitly. */
+function mightContainTaskToken(text: string, taskTokens: ReadonlySet<string>): boolean {
+  const lower = text.toLowerCase();
+  for (const token of taskTokens) {
+    if (token === "css" && /\b(?:css|scss|sass|less)\b/.test(lower)) return true;
+    if (/^h[123]$/.test(token) && new RegExp(`(?:\\b${token}\\b|\\bhttp\\s*\\/\\s*${token[1]}\\b)`).test(lower)) {
+      return true;
+    }
+    const prefix = token.length <= 4 ? token : token.slice(0, 4);
+    if (lower.includes(prefix)) return true;
+  }
+  return false;
+}
+
 function extractRegexTokens(text: string): Set<string> {
   const tokens = new Set<string>();
   for (const match of text.matchAll(/\b([A-Za-z])\{(\d+),(\d+)\}/g)) {
@@ -742,8 +961,11 @@ function buildDefinitionSignals(identifiers: Set<string>): DefinitionSignal[] {
     }));
 }
 
-function findDefinedIdentifiers(text: string, signals: DefinitionSignal[]): string[] {
-  return signals.filter((signal) => signal.pattern.test(text)).map((signal) => signal.identifier);
+function findDefinedIdentifiers(file: RepoFile, signals: DefinitionSignal[]): string[] {
+  const adapterDefinitions = new Set(extractLanguageDefinitions(file).map((entry) => entry.name));
+  return signals
+    .filter((signal) => adapterDefinitions.has(signal.identifier) || signal.pattern.test(rankingText(file)))
+    .map((signal) => signal.identifier);
 }
 
 function exactIdentifierPattern(identifier: string): RegExp {
@@ -753,22 +975,23 @@ function exactIdentifierPattern(identifier: string): RegExp {
   );
 }
 
-function findTaskMatchedDefinitions(text: string, taskTokens: Set<string>): string[] {
-  const definitions = new Set<string>();
+function findTaskMatchedDefinitions(file: RepoFile, taskTokens: Set<string>): string[] {
+  const definitions = new Set(extractLanguageDefinitions(file).map((entry) => entry.name));
   const pattern =
     /(?<![\p{L}\p{N}_$])(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\s+)([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
 
-  for (const match of text.matchAll(pattern)) {
+  for (const match of rankingText(file).matchAll(pattern)) {
     const identifier = match[1];
-    if (!identifier) {
-      continue;
-    }
+    if (identifier) definitions.add(identifier);
+  }
+  const matched: string[] = [];
+  for (const identifier of definitions) {
     const overlap = [...tokenizeText(identifier)].filter((token) => taskTokens.has(token));
     if (overlap.length >= 2 || (overlap.length === 1 && identifier.length >= 6)) {
-      definitions.add(identifier);
+      matched.push(identifier);
     }
   }
-  return [...definitions];
+  return matched;
 }
 
 function hasExactFragmentAtDefinition(text: string, fragment: string, definedIdentifiers: string[]): boolean {
@@ -828,4 +1051,97 @@ function isNearbyChangedFile(path: string, changedFiles: string[]): boolean {
   }
 
   return changedFiles.some((changedPath) => changedPath !== path && changedPath.startsWith(`${folder}/`));
+}
+
+function rankingText(file: Pick<RepoFile, "textSample" | "searchTextSample">): string {
+  return file.searchTextSample ?? file.textSample;
+}
+
+function hasDirectRetrievalEvidence(file: Pick<RankedFile, "reasons">): boolean {
+  return file.reasons.some((reason) =>
+    reason === "changed file" ||
+    reason === "explicitly named in the task" ||
+    reason.startsWith("defines task identifiers:") ||
+    reason.startsWith("exact task literal at definition:")
+  );
+}
+
+function classifyRetrievalIntent(task: string): RetrievalIntent {
+  if (/\b(?:docs?|documentation|readme|guide|wording|typos?)\b/i.test(task)) return "documentation";
+  if (/\b(?:test|tests|testing|spec|coverage|fixture)\b/i.test(task)) return "tests";
+  if (/\b(?:typescript|types?|typings?|declarations?|\.d\.(?:ts|mts|cts))\b/i.test(task)) return "types";
+  if (/\b(?:config|configuration|workflow|ci|yaml|docker|deploy(?:ment)?)\b/i.test(task)) return "configuration";
+  if (/\b(?:browser|button|client|form|frontend|layout|page|screen|ui|website)\b/i.test(task)) return "presentation";
+  return "implementation";
+}
+
+function boundedRankBonus(rank: number | undefined, maximum: number): number {
+  if (rank === undefined || rank > RETRIEVAL_CANDIDATES_PER_SOURCE) return 0;
+  return maximum * ((RETRIEVAL_CANDIDATES_PER_SOURCE + 1 - rank) / RETRIEVAL_CANDIDATES_PER_SOURCE);
+}
+
+/**
+ * Keep the strongest evidence-led prefix, then reserve one tail slot for
+ * independent retrieval coverage. This preserves the ranker's Top-3 decisions while
+ * preventing a high-recall lexical/symbol generator from finding the right file and then
+ * having the reranker bury it outside the context window.
+ */
+export function selectEvidenceProfiles(profiles: RetrievalEvidenceProfile[], limit: number): RetrievalEvidenceProfile[] {
+  if (profiles.length <= limit || limit < 3) return profiles.slice(0, limit);
+  const primaryCount = Math.max(1, limit - 1);
+  const selected = profiles.slice(0, primaryCount);
+  const selectedPaths = new Set(selected.map((profile) => profile.path));
+  const byCoverage = [...profiles]
+    .filter((profile) =>
+      (profile.direct && (profile.structuralRank ?? Number.MAX_SAFE_INTEGER) <= limit) ||
+      consensusRank(profile) !== Number.MAX_SAFE_INTEGER
+    )
+    .sort((left, right) =>
+      Number(isStrongConsensus(right)) - Number(isStrongConsensus(left)) ||
+      right.fusionScore - left.fusionScore ||
+      consensusRank(left) - consensusRank(right) ||
+      (left.structuralRank ?? Number.MAX_SAFE_INTEGER) - (right.structuralRank ?? Number.MAX_SAFE_INTEGER) ||
+      left.path.localeCompare(right.path)
+    );
+  const byConsensus = [...profiles].sort((left, right) =>
+    consensusRank(left) - consensusRank(right) ||
+    right.fusionScore - left.fusionScore ||
+    left.path.localeCompare(right.path)
+  );
+  const byLexical = [...profiles].sort((left, right) =>
+    (left.lexicalRank ?? Number.MAX_SAFE_INTEGER) - (right.lexicalRank ?? Number.MAX_SAFE_INTEGER) ||
+    right.fusionScore - left.fusionScore ||
+    left.path.localeCompare(right.path)
+  );
+  const bySymbol = [...profiles].sort((left, right) =>
+    (left.symbolRank ?? Number.MAX_SAFE_INTEGER) - (right.symbolRank ?? Number.MAX_SAFE_INTEGER) ||
+    right.fusionScore - left.fusionScore ||
+    left.path.localeCompare(right.path)
+  );
+  for (const candidate of [...byCoverage, ...byConsensus, ...byLexical, ...bySymbol, ...profiles]) {
+    if (selected.length >= limit) break;
+    if (selectedPaths.has(candidate.path)) continue;
+    selected.push(candidate);
+    selectedPaths.add(candidate.path);
+  }
+  for (const candidate of profiles) {
+    if (selected.length >= limit) break;
+    if (!selectedPaths.has(candidate.path)) selected.push(candidate);
+  }
+  return selected;
+}
+
+function isStrongConsensus(profile: RetrievalEvidenceProfile): boolean {
+  return consensusRank(profile) <= 6;
+}
+
+function consensusRank(profile: RetrievalEvidenceProfile): number {
+  return profile.lexicalRank !== undefined && profile.lexicalRank <= 10 &&
+    profile.symbolRank !== undefined && profile.symbolRank <= 10
+    ? profile.lexicalRank + profile.symbolRank
+    : Number.MAX_SAFE_INTEGER;
+}
+
+function roundRetrieval(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
 }
