@@ -21,6 +21,18 @@ and diff text asserted each round. Median incremental/fresh times were 766/420 m
 at 100 files and 781/923 ms at 1,000 files. This supports a workload-dependent
 benefit, not a blanket speedup; small-repository overhead remains unresolved.
 
+Follow-up calibration measured the same Git commands used to establish the exact
+cache key, separately from scan timing. Median incremental/fresh/probe times were
+612/335/251 ms at 100 files and 1104/1074/355 ms at 1,000 files. Every paired scan
+remained identical. The fixed Git-state work is a substantial candidate contributor
+to small-repository overhead; this is a separate probe, not an internal profile,
+and its duration must not be subtracted to manufacture an adjusted speedup.
+
+Pre-commit repeat: all ten paired comparisons passed again. Median
+incremental/fresh/probe times were 431/249/191 ms at 100 files and 734/738/232 ms
+at 1,000 files, reinforcing the small-repository overhead and near tie at the
+larger tier rather than establishing a stable performance improvement.
+
 Remaining: investigate incremental overhead with repeated size-tier measurements,
 verify meaningful performance on the supported workloads, and run updated
 regressions/stress through cross-platform CI. Preserve exact content validation;
