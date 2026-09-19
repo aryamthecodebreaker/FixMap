@@ -1,0 +1,45 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { scanRepo } from "../packages/core/dist/index.js";
+
+const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+const previousCache = process.env.FIXMAP_CACHE_DIR;
+const results = [];
+for (const count of [100, 1000]) {
+  const root = await mkdtemp(join(tmpdir(), "fixmap-incremental-benchmark-"));
+  const cache = await mkdtemp(join(tmpdir(), "fixmap-incremental-cache-"));
+  try {
+    process.env.FIXMAP_CACHE_DIR = cache;
+    await mkdir(join(root, "src"));
+    for (let index = 0; index < count; index++) {
+      await writeFile(join(root, "src", `${index}.ts`), `export const item${index} = ${index};\n${"// representative source text\n".repeat(100)}`);
+    }
+    const git = (...args) => execFileSync("git", args, { cwd: root, timeout: 30_000, stdio: "pipe" });
+    git("init", "--quiet"); git("add", ".");
+    git("-c", "user.name=Benchmark", "-c", "user.email=benchmark@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "fixture");
+    await scanRepo({ repoRoot: root, useCache: true, includeHistory: false });
+    const timings = { incremental: [], fresh: [] };
+    for (let round = 0; round < 5; round++) {
+      await writeFile(join(root, "src", "0.ts"), `export const changed = ${round};\n`);
+      const scans = {};
+      for (const mode of round % 2 === 0 ? ["incremental", "fresh"] : ["fresh", "incremental"]) {
+        const start = performance.now();
+        scans[mode] = await scanRepo({ repoRoot: root, useCache: mode === "incremental", includeHistory: false });
+        timings[mode].push(Math.round(performance.now() - start));
+      }
+      assert.deepEqual(scans.incremental.files, scans.fresh.files);
+      assert.equal(scans.incremental.diffText, scans.fresh.diffText);
+      assert(scans.incremental.diagnostics.some((entry) => entry.code === "incremental-index-hit"), "Expected real incremental reuse, not exact-state reuse");
+    }
+    results.push({ count, rounds: 5, timings, medianIncrementalMs: median(timings.incremental), medianFreshMs: median(timings.fresh), exact: true });
+  } finally {
+    if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+    else process.env.FIXMAP_CACHE_DIR = previousCache;
+    await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    await rm(cache, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+}
+console.log(JSON.stringify({ kind: "local-alternating-order-incremental-measurement", results }, null, 2));
