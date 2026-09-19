@@ -5769,12 +5769,12 @@ var GIT_HISTORY_MAX_BUFFER = 24 * 1024 * 1024;
 var MAX_HISTORY_COMMITS = 1e3;
 var MAX_HISTORY_FILES_PER_COMMIT = 30;
 var exec = promisify(execFile);
-var SCAN_CACHE_VERSION = 7;
+var SCAN_CACHE_VERSION = 8;
 var SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
 var SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1e3;
 var SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
 var SCAN_CACHE_TEMP_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i;
-var INCREMENTAL_INDEX_VERSION = 2;
+var INCREMENTAL_INDEX_VERSION = 3;
 var INCREMENTAL_INDEX_TEMP_FILE = /^[a-f0-9]{24}-index-v2\.json\.\d+-[0-9a-f-]+\.tmp$/i;
 async function scanRepo(input) {
   const repoRoot = resolve(input.repoRoot);
@@ -6139,7 +6139,10 @@ async function listGitPaths(root) {
         maxBuffer: GIT_MAX_BUFFER
       }),
       exec("git", ["ls-files", "--stage", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["diff", "--name-only", "-z", "HEAD", "--"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }).catch(() => exec("git", ["diff", "--name-only", "-z", "--"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }))
+      // Fingerprints come from the index, so only index/worktree equality permits
+      // reuse. Comparing with HEAD misses unstaged edits that undo a staged edit.
+      // This also works before the first commit, without a failing HEAD probe.
+      exec("git", ["diff", "--name-only", "-z", "--"], { cwd: root, maxBuffer: GIT_MAX_BUFFER })
     ]);
     const gitLinks = /* @__PURE__ */ new Set();
     const fingerprints = /* @__PURE__ */ new Map();
