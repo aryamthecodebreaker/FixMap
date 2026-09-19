@@ -803,6 +803,40 @@ describe("scanRepo", () => {
     }
   });
 
+  it("does not reuse worktree text under a different staged blob identity", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-index-identity-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-index-identity-cache-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    const original = "export const value = 'one';\n";
+    const staged = "export const value = 'two';\n";
+    try {
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await writeFile(join(root, "index.ts"), original);
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "original"], { cwd: root });
+      await writeFile(join(root, "index.ts"), staged);
+      await exec("git", ["add", "."], { cwd: root });
+      // HEAD and worktree agree, but the index contains different bytes.
+      await writeFile(join(root, "index.ts"), original);
+      const before = await scanRepo({ repoRoot: root, useCache: true });
+      expect(before.files[0]?.textSample).toBe(original);
+      await exec("git", ["commit", "-m", "commit staged contents"], { cwd: root });
+      await writeFile(join(root, "index.ts"), staged);
+      const cached = await scanRepo({ repoRoot: root, useCache: true });
+      const fresh = await scanRepo({ repoRoot: root, useCache: false });
+      expect(cached.files).toEqual(fresh.files);
+      expect(cached.files[0]?.textSample).toBe(staged);
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("heals a corrupt persistent file index before reusing records", { timeout: 30_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-incremental-corrupt-repo-"));
     const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-incremental-corrupt-store-"));

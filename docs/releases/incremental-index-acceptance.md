@@ -2,6 +2,16 @@
 
 Status: in progress.
 
+Staged/worktree identity regression: staging different content and then restoring
+the HEAD text in the worktree poisoned an incremental record with the staged blob
+ID. After committing the index and updating the worktree, a cached scan returned
+old text while a fresh scan returned current text. A new real-Git regression
+reproduced this failure. Dirty detection now compares worktree to index (the source
+of blob fingerprints), not HEAD. Exact-scan and incremental record versions are
+bumped to reject previously poisoned records; the index filename is unchanged.
+After the fix, all 59 scanner tests, the Core TypeScript build, and Core lint pass
+locally. Cross-platform CI and performance acceptance remain outstanding.
+
 Evidence: scanner suite passed all 58 tests after rename/deletion differential
 coverage was added. The later mixed staged/unstaged regression also passes,
 comparing cached and uncached files, changed paths, and diff text.

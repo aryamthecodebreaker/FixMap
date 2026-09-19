@@ -59,12 +59,14 @@ const MAX_HISTORY_COMMITS = 1_000;
 const MAX_HISTORY_FILES_PER_COMMIT = 30;
 const exec = promisify(execFile);
 type ScanState = { count: number; limitReported: boolean; linkedPaths: string[] };
-const SCAN_CACHE_VERSION = 7;
+const SCAN_CACHE_VERSION = 8;
 const SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 const SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
 const SCAN_CACHE_TEMP_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json\.\d+-[0-9a-f-]+\.tmp$/i;
-const INCREMENTAL_INDEX_VERSION = 2;
+// Reject records generated with HEAD-relative dirty detection: their staged blob
+// fingerprints can describe different bytes from the cached worktree sample.
+const INCREMENTAL_INDEX_VERSION = 3;
 const INCREMENTAL_INDEX_TEMP_FILE = /^[a-f0-9]{24}-index-v2\.json\.\d+-[0-9a-f-]+\.tmp$/i;
 
 type CachedScan = {
@@ -622,10 +624,10 @@ async function listGitPaths(root: string): Promise<{
         maxBuffer: GIT_MAX_BUFFER
       }),
       exec("git", ["ls-files", "--stage", "-z"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["diff", "--name-only", "-z", "HEAD", "--"], { cwd: root, maxBuffer: GIT_MAX_BUFFER })
-        // An unborn repository has an index but no HEAD. Its staged blob IDs are still
-        // reusable; the no-HEAD diff identifies any further unstaged edits to those files.
-        .catch(() => exec("git", ["diff", "--name-only", "-z", "--"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }))
+      // Fingerprints come from the index, so only index/worktree equality permits
+      // reuse. Comparing with HEAD misses unstaged edits that undo a staged edit.
+      // This also works before the first commit, without a failing HEAD probe.
+      exec("git", ["diff", "--name-only", "-z", "--"], { cwd: root, maxBuffer: GIT_MAX_BUFFER })
     ]);
     const gitLinks = new Set<string>();
     const fingerprints = new Map<string, string>();
