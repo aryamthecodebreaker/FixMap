@@ -2,6 +2,36 @@
 
 Status: in progress.
 
+Real-corpus local validation: `scripts/benchmark-incremental-real.mjs` clones an
+existing local Git checkout into a disposable directory without hardlinks, edits
+only that clone, and never runs its code. Axios commit
+`ff60b43277c32a5b2f7589c917db16d8e043c0d4`, editing `lib/core/Axios.js`, yielded
+454 scanned files and five exact incremental/fresh comparisons (including changed
+paths and diff text), with successful cleanup. Incremental times were
+[1510, 1469, 1134, 929, 970] ms and fresh times [1222, 1388, 651, 695, 442] ms;
+medians 1134/695 ms. Real small-corpus evidence confirms overhead, not a speedup.
+The cached webpack directory lacked Git metadata and was rejected before any
+fixture was created; it was not repaired, fetched, or counted as a result.
+
+Cross-platform measurements for `adbfa93`, CI run 35521854019 (2026-09-20):
+the Linux Node 20.11/22 and Windows/macOS Node 24 jobs pass the expanded stress and
+three-tier benchmark. Each tier performs five alternating-order paired scans
+and asserts identical files and diff text plus actual incremental reuse.
+
+| Runner | 100 files incremental/fresh ms | 1,000 files | 10,000 files |
+| --- | ---: | ---: | ---: |
+| Linux Node 20.11 | 31/22 | 110/132 | 894/1201 |
+| Linux Node 22 | 28/20 | 89/127 | 707/1142 |
+| macOS Node 24 | 51/26 | 114/112 | 987/1193 |
+| Windows Node 24 | 138/65 | 253/202 | 1424/1660 |
+
+These synthetic workloads show a large-tier benefit and small-tier overhead;
+they do not establish a universal speedup. All five CI jobs completed successfully;
+external evaluation 35521853962 also passed at this checkpoint.
+The subsequent local rerun passed the two smaller tiers but timed out in the
+10,000-file fixture's `git add` setup (120 seconds), before scan measurements;
+that attempt is not counted as a successful large-tier run.
+
 Tracked-path enumeration optimization: a real-Git trace regression first failed
 because scanning launched a redundant `git ls-files --cached -z` after reading
 the index. The scanner now reuses paths from its existing staged-index output,
