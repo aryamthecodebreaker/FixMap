@@ -2,6 +2,18 @@
 
 Status: in progress.
 
+Commit identity/status consolidation: a real-Git trace regression reproduced
+separate `rev-parse HEAD` calls during exact-state cache validation. Validation now
+uses the documented porcelain-v2 branch OID from the same status command, with
+ahead/behind counting disabled, while retaining untracked detection and the full
+binary diff for changed content. Exact-scan cache version is 9. All 60 scanner
+tests, Core lint/build, and generated Action freshness pass locally; new remote
+acceptance is pending. The benchmark's separate Git probe uses the same commands.
+Axios revalidation remains exact for all five rounds: incremental times
+[1063, 972, 825, 830, 756] ms, fresh [556, 546, 511, 451, 665] ms; medians
+830/546 ms. This still shows overhead and is not a controlled before/after speed
+claim against the earlier run under different host load.
+
 Real-corpus local validation: `scripts/benchmark-incremental-real.mjs` clones an
 existing local Git checkout into a disposable directory without hardlinks, edits
 only that clone, and never runs its code. Axios commit

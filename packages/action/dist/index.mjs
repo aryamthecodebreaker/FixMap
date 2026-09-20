@@ -5769,7 +5769,7 @@ var GIT_HISTORY_MAX_BUFFER = 24 * 1024 * 1024;
 var MAX_HISTORY_COMMITS = 1e3;
 var MAX_HISTORY_FILES_PER_COMMIT = 30;
 var exec = promisify(execFile);
-var SCAN_CACHE_VERSION = 8;
+var SCAN_CACHE_VERSION = 9;
 var SCAN_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
 var SCAN_CACHE_MAX_FUTURE_SKEW_MS = 5 * 60 * 1e3;
 var SCAN_CACHE_FILE = /^[a-f0-9]{24}-[a-f0-9]{24}\.json$/;
@@ -5908,19 +5908,20 @@ async function buildScanCacheLocation(root, cacheRoot, internalPaths, includeHis
     };
   }
   try {
-    const [{ stdout: head }, { stdout: status }] = await Promise.all([
-      exec("git", ["rev-parse", "HEAD"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all", ...gitPathspec(internalPaths)], {
-        cwd: root,
-        maxBuffer: GIT_MAX_BUFFER
-      })
-    ]);
-    if (status.split("\0").some((entry) => entry.startsWith("?? "))) {
+    const { stdout: status } = await exec("git", ["status", "--porcelain=v2", "--branch", "--no-ahead-behind", "-z", "--untracked-files=all", ...gitPathspec(internalPaths)], {
+      cwd: root,
+      maxBuffer: GIT_MAX_BUFFER
+    });
+    const entries = status.split("\0");
+    const head = entries.find((entry) => /^# branch\.oid [a-f0-9]{40,64}$/i.test(entry))?.slice(13);
+    if (!head)
+      throw new Error("No committed Git identity in status");
+    if (entries.some((entry) => entry.startsWith("? "))) {
       return {
         skipReason: "Repository scan caching was skipped because untracked files are scanner inputs and can change without a stable git diff."
       };
     }
-    const dirtyDiff = status.length > 0 ? (await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", ...gitPathspec(internalPaths)], {
+    const dirtyDiff = entries.some((entry) => /^[12u] /.test(entry)) ? (await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", ...gitPathspec(internalPaths)], {
       cwd: root,
       maxBuffer: GIT_MAX_BUFFER
     })).stdout : "";

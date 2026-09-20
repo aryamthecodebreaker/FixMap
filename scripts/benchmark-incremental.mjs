@@ -42,10 +42,7 @@ for (const count of [100, 1000, 10_000]) {
       // Separate calibration of the same Git calls used by buildScanCacheLocation.
       // Not an internal span and not subtracted from measured scan times.
       const probeStart = performance.now();
-      await Promise.all([
-        exec("git", ["rev-parse", "HEAD"], { cwd: root }),
-        exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "."], { cwd: root })
-      ]);
+      await exec("git", ["status", "--porcelain=v2", "--branch", "--no-ahead-behind", "-z", "--untracked-files=all", "--", "."], { cwd: root });
       await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", "--", "."], { cwd: root });
       timings.cacheKeyGitProbe.push(Math.round(performance.now() - probeStart));
     }

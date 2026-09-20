@@ -744,6 +744,7 @@ describe("scanRepo", () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-cache-repo-"));
     const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-cache-store-"));
     const previousCache = process.env.FIXMAP_CACHE_DIR;
+    const previousTrace = process.env.GIT_TRACE;
     process.env.FIXMAP_CACHE_DIR = cacheRoot;
     try {
       await writeFile(join(root, "index.ts"), "export const value = 'one';\n");
@@ -753,9 +754,12 @@ describe("scanRepo", () => {
       await exec("git", ["add", "."], { cwd: root });
       await exec("git", ["commit", "-m", "initial"], { cwd: root });
 
+      const tracePath = join(cacheRoot, "git-trace.log");
+      process.env.GIT_TRACE = tracePath.replaceAll("\\", "/");
       await scanRepo({ repoRoot: root, useCache: true });
       const cleanHit = await scanRepo({ repoRoot: root, useCache: true });
       expect(cleanHit.diagnostics.map((entry) => entry.code)).toContain("cache-hit");
+      expect(await readFile(tracePath, "utf8")).not.toContain("rev-parse HEAD");
       expect(cleanHit.diagnostics.find((entry) => entry.code === "cache-hit")?.message)
         .toContain("scanned just now");
 
@@ -775,6 +779,8 @@ describe("scanRepo", () => {
       expect(secondDirty.diagnostics.map((entry) => entry.code)).not.toContain("cache-hit");
       expect(secondDirty.files[0]?.textSample).toContain("three");
     } finally {
+      if (previousTrace === undefined) delete process.env.GIT_TRACE;
+      else process.env.GIT_TRACE = previousTrace;
       if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
       else process.env.FIXMAP_CACHE_DIR = previousCache;
       await rm(cacheRoot, { recursive: true, force: true });
