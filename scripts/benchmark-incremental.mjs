@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -10,7 +10,7 @@ const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.l
 const previousCache = process.env.FIXMAP_CACHE_DIR;
 const results = [];
 const exec = promisify(execFile);
-for (const count of [100, 1000]) {
+for (const count of [100, 1000, 10_000]) {
   const root = await mkdtemp(join(tmpdir(), "fixmap-incremental-benchmark-"));
   const cache = await mkdtemp(join(tmpdir(), "fixmap-incremental-cache-"));
   try {
@@ -19,9 +19,13 @@ for (const count of [100, 1000]) {
     for (let index = 0; index < count; index++) {
       await writeFile(join(root, "src", `${index}.ts`), `export const item${index} = ${index};\n${"// representative source text\n".repeat(100)}`);
     }
-    const git = (...args) => execFileSync("git", args, { cwd: root, timeout: 30_000, stdio: "pipe" });
-    git("init", "--quiet"); git("add", ".");
-    git("-c", "user.name=Benchmark", "-c", "user.email=benchmark@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "fixture");
+    // Fixture population is outside measured scan time. Large Windows indexes
+    // need more setup time; keep local line endings independent of user config.
+    const git = (...args) => exec("git", args, { cwd: root, timeout: 120_000, maxBuffer: 10 * 1024 * 1024 });
+    await git("init", "--quiet");
+    await git("config", "core.autocrlf", "false");
+    await git("add", ".");
+    await git("-c", "user.name=Benchmark", "-c", "user.email=benchmark@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "fixture");
     await scanRepo({ repoRoot: root, useCache: true, includeHistory: false });
     const timings = { incremental: [], fresh: [], cacheKeyGitProbe: [] };
     for (let round = 0; round < 5; round++) {
@@ -45,7 +49,14 @@ for (const count of [100, 1000]) {
       await exec("git", ["diff", "--binary", "--no-ext-diff", "HEAD", "--", "."], { cwd: root });
       timings.cacheKeyGitProbe.push(Math.round(performance.now() - probeStart));
     }
-    results.push({ count, rounds: 5, timings, medianIncrementalMs: median(timings.incremental), medianFreshMs: median(timings.fresh), medianCacheKeyGitProbeMs: median(timings.cacheKeyGitProbe), exact: true });
+    const result = { count, rounds: 5, timings, medianIncrementalMs: median(timings.incremental), medianFreshMs: median(timings.fresh), medianCacheKeyGitProbeMs: median(timings.cacheKeyGitProbe), exact: true };
+    results.push(result);
+    // Preserve completed measurements even if Windows temporarily locks cleanup.
+    console.log(JSON.stringify({ kind: "completed-incremental-tier", ...result }));
+  } catch (error) {
+    // Cleanup failure must not conceal the actual benchmark/setup failure.
+    console.error("Incremental benchmark failed before cleanup:", error);
+    throw error;
   } finally {
     if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
     else process.env.FIXMAP_CACHE_DIR = previousCache;

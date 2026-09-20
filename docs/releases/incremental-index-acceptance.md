@@ -10,7 +10,14 @@ reproduced this failure. Dirty detection now compares worktree to index (the sou
 of blob fingerprints), not HEAD. Exact-scan and incremental record versions are
 bumped to reject previously poisoned records; the index filename is unchanged.
 After the fix, all 59 scanner tests, the Core TypeScript build, and Core lint pass
-locally. Cross-platform CI and performance acceptance remain outstanding.
+locally. After regenerating the checked-in Action bundle, checkpoint `def6d3a`
+passes full CI run 35454698679 (including Linux, Windows, and macOS compatibility)
+and external evaluation 35454698713. Performance acceptance remains outstanding.
+
+The post-fix 302-file stress run passes four concurrent analyses, exact one-file
+incremental/fresh equality, corrupt-cache recovery, artifact isolation, link
+containment, and MCP protocol checks. Incremental/fresh times were 646/402 ms on
+this small fixture; correctness does not establish a speedup.
 
 Evidence: scanner suite passed all 58 tests after rename/deletion differential
 coverage was added. The later mixed staged/unstaged regression also passes,
@@ -43,7 +50,22 @@ incremental/fresh/probe times were 431/249/191 ms at 100 files and 734/738/232 m
 at 1,000 files, reinforcing the small-repository overhead and near tie at the
 larger tier rather than establishing a stable performance improvement.
 
-Remaining: investigate incremental overhead with repeated size-tier measurements,
-verify meaningful performance on the supported workloads, and run updated
-regressions/stress through cross-platform CI. Preserve exact content validation;
-do not substitute size/mtime-only reuse to make the benchmark faster.
+Expanded three-tier run completed with exit code 0 and all 15 paired comparisons
+equal. Median incremental/fresh times were 719/487 ms at 100 files, 1115/1027 ms
+at 1,000 files, and 3358/6204 ms at 10,000 files. At 10,000 files the incremental
+rounds were [3989, 3369, 2935, 3358, 3217] ms; fresh rounds were
+[7164, 6204, 5450, 5790, 6488] ms. The approximately 46% median reduction is local
+synthetic-fixture evidence, not a universal or cross-platform speed claim.
+
+The initial large-fixture attempts timed out in `git add` before scanning, then
+cleanup reported a Windows directory lock. The harness now exposes the original
+failure, emits completed tiers before cleanup, gives asynchronous fixture Git
+setup 120 seconds, and sets fixture-local `core.autocrlf=false`. Setup remains
+outside scan timings; no user Git configuration changes. The successful run
+completed cleanup too.
+
+Remaining: reduce fixed overhead on small repositories, verify the large-tier
+benefit on independent realistic workloads, and run the expanded performance/stress
+checks across platforms. Scanner correctness already passes cross-platform CI at
+the checkpoint above. Preserve exact content validation; do not substitute
+size/mtime-only reuse to make the benchmark faster.
