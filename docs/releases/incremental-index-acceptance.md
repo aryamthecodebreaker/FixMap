@@ -2,6 +2,14 @@
 
 Status: in progress.
 
+Tracked-path enumeration optimization: a real-Git trace regression first failed
+because scanning launched a redundant `git ls-files --cached -z` after reading
+the index. The scanner now reuses paths from its existing staged-index output,
+including worktree-deleted tracked files, and preserves internal exclusions and
+non-Git fallback. All 60 scanner tests, Core lint, and the Action/Core build pass
+locally. This proves removal of one subprocess, not a measured end-to-end speedup;
+the following timing results predate this optimization.
+
 Staged/worktree identity regression: staging different content and then restoring
 the HEAD text in the worktree poisoned an incremental record with the staged blob
 ID. After committing the index and updating the worktree, a cached scan returned

@@ -162,8 +162,9 @@ export async function scanRepo(
       message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files, ${describeCacheAge(cached.createdAt)}). Pass --no-cache to rescan.`
     });
   } else {
-    files = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths, incrementalIndexLocation);
-    trackedFiles = await listTrackedPaths(repoRoot, internalPaths);
+    const listed = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths, incrementalIndexLocation);
+    files = listed.files;
+    trackedFiles = listed.trackedFiles;
     packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
     packageManager = detectPackageManager(files, diagnostics);
     history = input.includeHistory === true
@@ -541,7 +542,7 @@ async function listFiles(
   internalCacheRoot: string | undefined,
   internalPaths: ReadonlySet<string>,
   incrementalIndexLocation?: IncrementalIndexLocation
-): Promise<RepoFile[]> {
+): Promise<{ files: RepoFile[]; trackedFiles: string[] }> {
   const gitPaths = await listGitPaths(root);
   const visiblePaths = gitPaths?.paths.filter((path) =>
     !hasInternalPath(internalPaths, normalizePath(path)) && !isInternalCachePath(root, path, internalCacheRoot)
@@ -593,7 +594,12 @@ async function listFiles(
   // extracted archive and a checkout report the same content limitations.
   reportUnreadContent(diagnostics, files);
   reportGeneratedDominance(diagnostics, files);
-  return files;
+  // The staged index already enumerates every tracked path, including deleted
+  // worktree files and gitlinks. Retain the fallback if Git discovery failed.
+  const trackedFiles = gitPaths
+    ? gitPaths.trackedPaths.filter((path) => !hasInternalPath(internalPaths, path))
+    : await listTrackedPaths(root, internalPaths);
+  return { files, trackedFiles };
 }
 
 function isInternalCachePath(root: string, path: string, internalCacheRoot?: string): boolean {
@@ -614,6 +620,7 @@ function isInternalCachePath(root: string, path: string, internalCacheRoot?: str
 
 async function listGitPaths(root: string): Promise<{
   paths: string[];
+  trackedPaths: string[];
   gitLinks: Set<string>;
   fingerprints: Map<string, string>;
 } | undefined> {
@@ -631,10 +638,12 @@ async function listGitPaths(root: string): Promise<{
     ]);
     const gitLinks = new Set<string>();
     const fingerprints = new Map<string, string>();
+    const trackedPaths: string[] = [];
     for (const entry of staged.split("\0")) {
-      const match = /^(\d+)\s+([0-9a-f]+)\s+\d+\t(.+)$/i.exec(entry);
+      const match = /^(\d+)\s+([0-9a-f]+)\s+\d+\t(.+)$/is.exec(entry);
       if (!match?.[1] || !match[2] || !match[3]) continue;
       const path = normalizePath(match[3]);
+      trackedPaths.push(path);
       if (match[1] === "160000") {
         gitLinks.add(path);
       } else if (!/^0+$/.test(match[2])) {
@@ -644,7 +653,7 @@ async function listGitPaths(root: string): Promise<{
     for (const path of dirty.split("\0").filter(Boolean).map(normalizePath)) {
       fingerprints.delete(path);
     }
-    return { paths: [...new Set(stdout.split("\0").filter(Boolean))], gitLinks, fingerprints };
+    return { paths: [...new Set(stdout.split("\0").filter(Boolean))], trackedPaths, gitLinks, fingerprints };
   } catch {
     return undefined;
   }

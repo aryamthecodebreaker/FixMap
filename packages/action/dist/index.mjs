@@ -5831,8 +5831,9 @@ async function scanRepo(input) {
       message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files, ${describeCacheAge(cached.createdAt)}). Pass --no-cache to rescan.`
     });
   } else {
-    files = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths, incrementalIndexLocation);
-    trackedFiles = await listTrackedPaths(repoRoot, internalPaths);
+    const listed = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths, incrementalIndexLocation);
+    files = listed.files;
+    trackedFiles = listed.trackedFiles;
     packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
     packageManager = detectPackageManager(files, diagnostics);
     history = input.includeHistory === true ? await readRepositoryHistory(repoRoot, new Set(files.map((file) => file.path)), diagnostics) : void 0;
@@ -6118,7 +6119,8 @@ async function listFiles(root, diagnostics, internalCacheRoot, internalPaths, in
   }
   reportUnreadContent(diagnostics, files);
   reportGeneratedDominance(diagnostics, files);
-  return files;
+  const trackedFiles = gitPaths ? gitPaths.trackedPaths.filter((path) => !hasInternalPath(internalPaths, path)) : await listTrackedPaths(root, internalPaths);
+  return { files, trackedFiles };
 }
 function isInternalCachePath(root, path, internalCacheRoot) {
   if (!internalCacheRoot)
@@ -6146,11 +6148,13 @@ async function listGitPaths(root) {
     ]);
     const gitLinks = /* @__PURE__ */ new Set();
     const fingerprints = /* @__PURE__ */ new Map();
+    const trackedPaths = [];
     for (const entry of staged.split("\0")) {
-      const match = /^(\d+)\s+([0-9a-f]+)\s+\d+\t(.+)$/i.exec(entry);
+      const match = /^(\d+)\s+([0-9a-f]+)\s+\d+\t(.+)$/is.exec(entry);
       if (!match?.[1] || !match[2] || !match[3])
         continue;
       const path = normalizePath3(match[3]);
+      trackedPaths.push(path);
       if (match[1] === "160000") {
         gitLinks.add(path);
       } else if (!/^0+$/.test(match[2])) {
@@ -6160,7 +6164,7 @@ async function listGitPaths(root) {
     for (const path of dirty.split("\0").filter(Boolean).map(normalizePath3)) {
       fingerprints.delete(path);
     }
-    return { paths: [...new Set(stdout.split("\0").filter(Boolean))], gitLinks, fingerprints };
+    return { paths: [...new Set(stdout.split("\0").filter(Boolean))], trackedPaths, gitLinks, fingerprints };
   } catch {
     return void 0;
   }

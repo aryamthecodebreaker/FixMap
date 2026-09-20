@@ -49,6 +49,34 @@ describe("summarizeSkippedScope", () => {
 });
 
 describe("scanRepo", () => {
+  it("gets tracked paths from the existing index read without a second enumeration", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-tracked-enumeration-"));
+    const traceRoot = await mkdtemp(join(tmpdir(), "fixmap-git-trace-"));
+    const tracePath = join(traceRoot, "git.log");
+    const previousTrace = process.env.GIT_TRACE;
+    try {
+      await exec("git", ["init", "--quiet"], { cwd: root });
+      for (const path of ["index.ts", "deleted.ts", "report.json"]) {
+        await writeFile(join(root, path), "export const value = 1;\n");
+      }
+      await exec("git", ["add", "."], { cwd: root });
+      await rm(join(root, "deleted.ts"));
+      await writeFile(join(root, "untracked.ts"), "export const untracked = true;\n");
+      process.env.GIT_TRACE = tracePath.replaceAll("\\", "/");
+      const repo = await scanRepo({ repoRoot: root, useCache: false, internalExclude: [join(root, "report.json")] });
+      expect(repo.trackedFiles).toEqual(["deleted.ts", "index.ts"]);
+      expect(repo.files.map((file) => file.path)).toEqual(["index.ts", "untracked.ts"]);
+      const trace = await readFile(tracePath, "utf8");
+      expect(trace).toContain("ls-files --stage -z");
+      expect(trace).not.toContain("ls-files --cached -z");
+    } finally {
+      if (previousTrace === undefined) delete process.env.GIT_TRACE;
+      else process.env.GIT_TRACE = previousTrace;
+      await rm(root, { recursive: true, force: true });
+      await rm(traceRoot, { recursive: true, force: true });
+    }
+  });
+
   it("records an absolute repository root so absolute explain paths can be contained safely", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-root-"));
     const repo = await scanRepo({ repoRoot: root });
