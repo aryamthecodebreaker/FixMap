@@ -40,17 +40,19 @@ try {
     const scans = {};
     for (const mode of round % 2 ? ["fresh", "incremental"] : ["incremental", "fresh"]) {
       const start = performance.now();
-      scans[mode] = await scanRepo({ repoRoot: root, useCache: mode === "incremental", includeHistory: false });
+      scans[mode] = await scanRepo({ repoRoot: root, useCache: mode === "incremental", includeHistory: false, workingTree: true });
       timings[mode].push(Math.round(performance.now() - start));
     }
     assert.deepEqual(scans.incremental.files, scans.fresh.files);
     assert.deepEqual(scans.incremental.changedFiles, scans.fresh.changedFiles);
+    assert.deepEqual(scans.incremental.changedFiles, [editPath.replaceAll("\\", "/")]);
     assert.equal(scans.incremental.diffText, scans.fresh.diffText);
+    assert(scans.incremental.diffText.includes(`incremental benchmark edit ${round}`));
     assert(scans.incremental.diagnostics.some((entry) => entry.code === "incremental-index-hit"));
     files = scans.fresh.files.length;
   }
   const median = (values) => [...values].sort((a, b) => a - b)[2];
-  console.log(JSON.stringify({ source, sha, editPath, files, rounds: 5, timings,
+  console.log(JSON.stringify({ source, sha, editPath, scanMode: "working-tree", files, rounds: 5, timings,
     medianIncrementalMs: median(timings.incremental), medianFreshMs: median(timings.fresh), exact: true }, null, 2));
 } catch (error) {
   console.error("Real-corpus benchmark failed before cleanup:", error);

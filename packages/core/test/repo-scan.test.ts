@@ -1011,11 +1011,13 @@ describe("scanRepo", () => {
       expect(unstaged.diffText).toBe(freshUnstaged.diffText);
       await exec("git", ["add", "index.ts"], { cwd: root });
       await writeFile(join(root, "index.ts"), "export const value = 'working';\n");
-      const mixed = await scanRepo({ repoRoot: root, useCache: true });
-      const freshMixed = await scanRepo({ repoRoot: root, useCache: false });
+      const mixed = await scanRepo({ repoRoot: root, useCache: true, workingTree: true });
+      const freshMixed = await scanRepo({ repoRoot: root, useCache: false, workingTree: true });
       expect(mixed.files).toEqual(freshMixed.files);
       expect(mixed.changedFiles).toEqual(freshMixed.changedFiles);
+      expect(mixed.changedFiles).toEqual(["index.ts"]);
       expect(mixed.diffText).toBe(freshMixed.diffText);
+      expect(mixed.diffText).toContain("working");
       expect(mixed.files[0]?.textSample).toContain("working");
       expect(mixed.files[0]?.contentFingerprint).not.toBe(unstaged.files[0]?.contentFingerprint);
     } finally {

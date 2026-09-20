@@ -2,6 +2,22 @@
 
 Status: in progress.
 
+Working-tree coverage correction: earlier scan-only comparisons requested no diff,
+so their equal changed-file lists/diff text were empty, not proof of diff parity.
+The mixed staged/unstaged regression now requests `workingTree: true`, asserts the
+actual changed path and replacement text, and passes alongside the staged-blob
+identity regression (two focused tests). The real-corpus harness now likewise
+requires the edited path and round-specific marker in a nonempty diff. Axios
+passes five rounds with this stronger contract: incremental
+[1151, 1951, 2205, 1692, 1640] ms, fresh [657, 706, 983, 1661, 2038] ms; medians
+1692/983 ms. These working-tree timings are not directly comparable to prior
+scan-only timings.
+
+A separate scan-only run against an isolated FixMap clone at
+`66f008bcc1e549b88ce734e09fa3a97e817689ad` passed five file-record comparisons
+across 422 scanned files. Medians were 843/539 ms incremental/fresh, reinforcing
+small-corpus overhead on a second real repository rather than a speedup.
+
 Commit identity/status consolidation: a real-Git trace regression reproduced
 separate `rev-parse HEAD` calls during exact-state cache validation. Validation now
 uses the documented porcelain-v2 branch OID from the same status command, with
