@@ -78,3 +78,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Action build failed' }
           node scripts/check-decision-surfaces.mjs
           if ($LASTEXITCODE -ne 0) { throw 'Rationale process acceptance failed' }
+      - name: Verify concurrent scans and incremental cache recovery
+        run: node scripts/stress-v0100.mjs
+      - name: Measure incremental indexing across repository sizes
+        run: node scripts/benchmark-incremental.mjs
