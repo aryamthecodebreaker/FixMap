@@ -8,6 +8,16 @@ function codeFile(path: string, textSample: string): RepoFile {
 }
 
 describe("buildImportGraph", () => {
+  it("does not connect Python docstring imports to existing repository modules", () => {
+    const graph = buildImportGraph([
+      codeFile("app/service.py", '"""\nfrom . import decoy\n"""\nfrom . import actual\n'),
+      codeFile("app/decoy.py", "def example(): pass\n"),
+      codeFile("app/actual.py", "def run(): pass\n")
+    ]);
+    expect([...(graph.imports.get("app/service.py") ?? [])]).toEqual(["app/actual.py"]);
+    expect(graph.importedBy.get("app/decoy.py")).toBeUndefined();
+  });
+
   it("resolves relative imports including compiled .js specifiers and index files", () => {
     const files = [
       codeFile("src/plan.ts", "import { rank } from \"./rank.js\";\nimport helpers from \"./helpers\";\n"),

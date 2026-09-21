@@ -142,12 +142,53 @@ var javascriptAdapter = {
     return /(?:\.test(?:\.|-d\.)|\.spec\.|(?:^|\/)__tests__\/|(?:^|\/)tests?\/)/i.test(path);
   }
 };
+function maskPythonNonCode(text) {
+  const output = text.split("");
+  const hide = (index2) => {
+    if (text[index2] !== "\r" && text[index2] !== "\n")
+      output[index2] = " ";
+  };
+  let index = 0;
+  while (index < text.length) {
+    if (text[index] === "#") {
+      while (index < text.length && text[index] !== "\r" && text[index] !== "\n")
+        hide(index++);
+      continue;
+    }
+    const quote = text[index];
+    if (quote !== "'" && quote !== '"') {
+      index++;
+      continue;
+    }
+    const delimiter = text.startsWith(quote.repeat(3), index) ? quote.repeat(3) : quote;
+    for (let count = 0; count < delimiter.length; count++)
+      hide(index++);
+    while (index < text.length) {
+      if (text[index] === "\\") {
+        hide(index++);
+        if (index < text.length) {
+          const crlf = text[index] === "\r" && text[index + 1] === "\n";
+          hide(index++);
+          if (crlf)
+            hide(index++);
+        }
+      } else if (text.startsWith(delimiter, index)) {
+        for (let count = 0; count < delimiter.length; count++)
+          hide(index++);
+        break;
+      } else {
+        hide(index++);
+      }
+    }
+  }
+  return output.join("");
+}
 var pythonAdapter = {
   id: "python",
   extensions: [".py", ".pyi"],
   extractImports(text) {
     const imports = [];
-    const importText = text.replace(/#[^\r\n]*/g, "");
+    const importText = maskPythonNonCode(text);
     for (const match of importText.matchAll(/^[\t ]*from[\t ]+([.A-Za-z_][.A-Za-z0-9_]*)[\t ]+import[\t ]+(\([^)]*\)|[^\r\n]+)/gm)) {
       const specifier = match[1];
       if (!specifier)
@@ -155,7 +196,7 @@ var pythonAdapter = {
       const importedNames = splitImportedNames(match[2] ?? "");
       imports.push({ adapter: "python", specifier, importedNames, wildcard: importedNames.includes("*") });
     }
-    for (const match of text.matchAll(/^\s*import\s+([^#\n]+)/gm)) {
+    for (const match of importText.matchAll(/^[\t ]*import[\t ]+([^\r\n]+)/gm)) {
       for (const entry of (match[1] ?? "").split(",")) {
         const specifier = entry.trim().split(/\s+as\s+/i)[0]?.trim();
         if (specifier && /^[A-Za-z_][A-Za-z0-9_.]*$/.test(specifier)) {
@@ -167,11 +208,12 @@ var pythonAdapter = {
   },
   extractDefinitions(text) {
     const definitions = [];
-    for (const match of text.matchAll(/^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm)) {
+    const code = maskPythonNonCode(text);
+    for (const match of code.matchAll(/^[\t ]*(?:async[\t ]+)?def[\t ]+([A-Za-z_][A-Za-z0-9_]*)[\t ]*\(/gm)) {
       if (match[1])
         definitions.push({ adapter: "python", name: match[1], kind: "function", offset: match.index });
     }
-    for (const match of text.matchAll(/^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm)) {
+    for (const match of code.matchAll(/^[\t ]*class[\t ]+([A-Za-z_][A-Za-z0-9_]*)\b/gm)) {
       if (match[1])
         definitions.push({ adapter: "python", name: match[1], kind: "class", offset: match.index });
     }

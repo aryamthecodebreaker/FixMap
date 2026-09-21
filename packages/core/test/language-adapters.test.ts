@@ -12,6 +12,47 @@ function sample(extension: string, textSample: string) {
 }
 
 describe("built-in language adapters", () => {
+  it.each(["'", '"', "'''", '"""'])("masks truncated Python %s strings", (quote) => {
+    const file = sample('.py', `from .real import Actual\nexample = ${quote}\nfrom .fake import Ghost\ndef fake(): pass`);
+    expect(extractLanguageImports(file).map(({ specifier }) => specifier)).toEqual(['.real']);
+    expect(extractLanguageDefinitions(file)).toEqual([]);
+  });
+
+  it("preserves real Python declarations after escaped quotes and CRLF continuations", () => {
+    const file = sample('.py', [
+      'example = "escaped \\" quote # not a comment"',
+      "raw = r'escaped \\' quote'",
+      'continued = "example \\\r\nfrom .fake import Ghost"',
+      'from .real import Actual',
+      'class Actual: pass'
+    ].join('\r\n'));
+    expect(extractLanguageImports(file).map(({ specifier }) => specifier)).toEqual(['.real']);
+    expect(extractLanguageDefinitions(file).map(({ name }) => name)).toEqual(['Actual']);
+  });
+
+  it("does not turn Python docstrings or quoted examples into source facts", () => {
+    const text = [
+      '"""Usage examples:',
+      'from .fake import Missing',
+      'import imaginary',
+      'def pretend(): pass',
+      'class Fiction: pass',
+      '"""',
+      "example = r'''",
+      'from .other import Ghost',
+      "'''",
+      '# from .comment import Nope',
+      'from .real import Actual',
+      'def actual(): pass'
+    ].join('\r\n');
+    expect(extractLanguageImports(sample('.py', text))).toEqual([
+      { adapter: 'python', specifier: '.real', importedNames: ['Actual'], wildcard: false }
+    ]);
+    const definitions = extractLanguageDefinitions(sample('.py', text));
+    expect(definitions.map(({ name }) => name)).toEqual(['actual']);
+    expect(text.slice(definitions[0]!.offset).trimStart()).toMatch(/^def actual/);
+  });
+
   it("exposes deterministic adapters for eight language families", () => {
     expect(BUILT_IN_LANGUAGE_ADAPTERS.map((adapter) => adapter.id))
       .toEqual(["javascript-typescript", "python", "java", "go", "rust", "ruby", "php", "dotnet"]);
