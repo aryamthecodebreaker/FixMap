@@ -2,6 +2,12 @@
 
 Status: in progress.
 
+Cache-upgrade coverage now loads a structurally valid version-2 index whose cached
+samples contain stale text, then changes one tracked file. Both the edited file
+and unchanged file are rebuilt correctly, with no incremental-hit diagnostic.
+This complements truncated-JSON recovery and proves the old-version rejection
+path. Four focused recovery tests and Core lint pass locally.
+
 Scanner-to-graph integration: a real temporary Git repository now feeds scanner
 fingerprints directly into an identity graph. After a same-size tracked edit,
 the incremental scan reuses the unchanged file, matches a fresh scan, and changes

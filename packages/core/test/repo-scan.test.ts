@@ -871,7 +871,7 @@ describe("scanRepo", () => {
     }
   });
 
-  it("heals a corrupt persistent file index before reusing records", { timeout: 30_000 }, async () => {
+  it.each(["truncated", "legacy-version"])("heals a %s persistent file index before reusing records", { timeout: 30_000 }, async (damage) => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-incremental-corrupt-repo-"));
     const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-incremental-corrupt-store-"));
     const previousCache = process.env.FIXMAP_CACHE_DIR;
@@ -888,11 +888,21 @@ describe("scanRepo", () => {
       await scanRepo({ repoRoot: root, useCache: true });
       const indexName = (await readdir(cacheRoot)).find((entry) => entry.endsWith("-index-v2.json"));
       expect(indexName).toBeDefined();
-      await writeFile(join(cacheRoot, indexName!), "{truncated");
+      if (damage === "truncated") {
+        await writeFile(join(cacheRoot, indexName!), "{truncated");
+      } else {
+        const legacy = JSON.parse(await readFile(join(cacheRoot, indexName!), "utf8")) as {
+          version: number; files: Array<{ file: { textSample: string } }>;
+        };
+        legacy.version = 2;
+        for (const entry of legacy.files) entry.file.textSample = "stale legacy contents";
+        await writeFile(join(cacheRoot, indexName!), JSON.stringify(legacy));
+      }
       await writeFile(join(root, "a.ts"), "export const a = 2;\n");
 
       const repaired = await scanRepo({ repoRoot: root, useCache: true });
       expect(repaired.files.find((file) => file.path === "a.ts")?.textSample).toContain("2");
+      expect(repaired.files.find((file) => file.path === "b.ts")?.textSample).toBe("export const b = 1;\n");
       expect(repaired.diagnostics.map((entry) => entry.code)).not.toContain("incremental-index-hit");
       const repairedIndex = await readFile(join(cacheRoot, indexName!), "utf8");
       expect(() => JSON.parse(repairedIndex)).not.toThrow();
