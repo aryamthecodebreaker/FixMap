@@ -1,4 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { execFile } from "node:child_process";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import { scanRepo } from "../src/repo-scan.js";
 import {
   buildGraphDependencyIndex,
   buildIdentityGraph,
@@ -110,6 +116,46 @@ describe("graph identities", () => {
 });
 
 describe("graph versioning and invalidation", () => {
+  it("invalidates derived nodes using actual incremental scan fingerprints", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-scan-graph-"));
+    const cache = await mkdtemp(join(tmpdir(), "fixmap-scan-graph-cache-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    const exec = promisify(execFile);
+    try {
+      process.env.FIXMAP_CACHE_DIR = cache;
+      await writeFile(join(root, "worker.ts"), "export const worker = 'one';\n");
+      await writeFile(join(root, "stable.ts"), "export const stable = true;\n");
+      await exec("git", ["init", "--quiet"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "fixture"], { cwd: root });
+      const before = await scanRepo({ repoRoot: root, useCache: true });
+      const fingerprint = (repo: typeof before, path: string) => repo.files.find((file) => file.path === path)!.contentFingerprint!;
+      const repository = node("repository", "auth");
+      const source = { kind: "source" as const, repository: "auth", path: "worker.ts", fingerprint: fingerprint(before, "worker.ts") };
+      const file = node("file", "worker.ts", { repository: "auth", parent: repository.id, derivedFrom: [source] });
+      const symbol = node("symbol", "worker", { repository: "auth", parent: file.id });
+      const stable = node("file", "stable.ts", { repository: "auth", parent: repository.id, derivedFrom: [{ ...source, path: "stable.ts", fingerprint: fingerprint(before, "stable.ts") }] });
+      const graph = buildIdentityGraph({ workspace, nodes: [repository, file, symbol, stable], edges: [] });
+      await writeFile(join(root, "worker.ts"), "export const worker = 'two';\n");
+      const after = await scanRepo({ repoRoot: root, useCache: true });
+      expect(after.diagnostics.find((entry) => entry.code === "incremental-index-hit")?.message).toContain("Reused 1 unchanged file record");
+      expect(after.files).toEqual((await scanRepo({ repoRoot: root, useCache: false })).files);
+      expect(fingerprint(after, "stable.ts")).toBe(fingerprint(before, "stable.ts"));
+      expect(fingerprint(after, "worker.ts")).not.toBe(source.fingerprint);
+      const result = invalidateIdentityGraph(graph, buildGraphDependencyIndex(graph), [{
+        repository: "auth", path: source.path, beforeFingerprint: source.fingerprint, afterFingerprint: fingerprint(after, "worker.ts")
+      }]);
+      expect(result.staleNodes).toEqual(expect.arrayContaining([file.id, symbol.id]));
+      expect(result.staleNodes).not.toContain(stable.id);
+      expect(result.staleNodes).not.toContain(repository.id);
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(root, { recursive: true, force: true });
+      await rm(cache, { recursive: true, force: true });
+    }
+  });
+
   function fixture() {
     const source = {
       kind: "source" as const,

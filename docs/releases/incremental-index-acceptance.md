@@ -2,6 +2,14 @@
 
 Status: in progress.
 
+Scanner-to-graph integration: a real temporary Git repository now feeds scanner
+fingerprints directly into an identity graph. After a same-size tracked edit,
+the incremental scan reuses the unchanged file, matches a fresh scan, and changes
+the edited file's fingerprint. Invalidation marks that file and its derived
+symbol stale while leaving the unrelated file and repository node valid. All ten
+identity-graph tests pass locally, including this integration (not only synthetic
+fingerprint inputs).
+
 Windows fixture setup reliability: CI 35522944596 failed before the large-tier
 scan because a single `git add .` exceeded 120 seconds; its cleanup then saw a
 locked directory. Setup now stages the same files in batches of at most 250,
