@@ -20,6 +20,21 @@ describe("built-in language adapters", () => {
     expect(languageAdapterForFile({ extension: ".rs" })?.id).toBe("rust");
   });
 
+  it("extracts parenthesized multiline Python imports with aliases and comments", () => {
+    expect(extractLanguageImports(sample(".py", [
+      "from . import (",
+      "    tokens as token_api, # comment with a closing parenthesis )",
+      "    sessions,",
+      ")",
+      "from app.models import (User, Account as AccountModel)",
+      "from .other import helper # unrelated trailing comment"
+    ].join("\n")))).toEqual([
+      { adapter: "python", specifier: ".", importedNames: ["tokens", "sessions"], wildcard: false },
+      { adapter: "python", specifier: "app.models", importedNames: ["User", "Account"], wildcard: false },
+      { adapter: "python", specifier: ".other", importedNames: ["helper"], wildcard: false }
+    ]);
+  });
+
   it("extracts Python imports, aliases, functions, and classes", () => {
     const file = sample(".py", [
       "import os, app.services.session as session",

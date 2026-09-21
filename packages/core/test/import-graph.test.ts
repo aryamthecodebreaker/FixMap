@@ -77,6 +77,18 @@ describe("buildImportGraph", () => {
     expect([...(graph.imports.get("app.ts") ?? [])]).toEqual(["src/prefix.ts"]);
   });
 
+  it("routes multiline Python imported-module members to their exact files", () => {
+    const graph = buildImportGraph([
+      codeFile("app/service.py", "from . import (\n    tokens as token_api, # )\n    sessions,\n)\n"),
+      codeFile("app/tokens.py", "def decode(): pass\n"),
+      codeFile("app/sessions.py", "def start(): pass\n"),
+      codeFile("unrelated/tokens.py", "def decoy(): pass\n")
+    ]);
+    expect([...(graph.imports.get("app/service.py") ?? [])].sort()).toEqual(["app/sessions.py", "app/tokens.py"]);
+    expect([...(graph.importedBy.get("app/tokens.py") ?? [])]).toEqual(["app/service.py"]);
+    expect(graph.importedBy.get("unrelated/tokens.py")).toBeUndefined();
+  });
+
   it("resolves Python relative, package, and imported-module relationships", () => {
     const files = [
       codeFile("services/auth/app/api/reset.py", [

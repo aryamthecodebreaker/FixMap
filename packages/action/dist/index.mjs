@@ -147,7 +147,8 @@ var pythonAdapter = {
   extensions: [".py", ".pyi"],
   extractImports(text) {
     const imports = [];
-    for (const match of text.matchAll(/^\s*from\s+([.A-Za-z_][.A-Za-z0-9_]*)\s+import\s+([^#\n]+)/gm)) {
+    const importText = text.replace(/#[^\r\n]*/g, "");
+    for (const match of importText.matchAll(/^[\t ]*from[\t ]+([.A-Za-z_][.A-Za-z0-9_]*)[\t ]+import[\t ]+(\([^)]*\)|[^\r\n]+)/gm)) {
       const specifier = match[1];
       if (!specifier)
         continue;
