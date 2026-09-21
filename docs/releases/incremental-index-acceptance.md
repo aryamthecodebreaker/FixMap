@@ -2,6 +2,18 @@
 
 Status: in progress.
 
+Large real-corpus working-tree validation (2026-09-21): webpack pinned commit
+`61d4136e6d16bb52b13802a1a02ed56bdfafbdb3`, editing `lib/Compiler.js`, scanned
+13,464 files. All five rounds matched fresh file records, changed paths, and a
+nonempty diff containing the round-specific edit marker. The isolated local clone
+and its scan cache were cleaned successfully (exit 0); no repository code ran.
+Incremental timings were [6474, 8016, 11399, 8450, 6728] ms, fresh timings
+[10469, 7860, 10634, 8919, 7653] ms; medians 8016/8919 ms. The roughly 10% lower
+median is variable local evidence: incremental was slower in two of five paired
+rounds. It does not establish a universal speed guarantee. The existing incomplete
+webpack cache was preserved; a separate pinned source checkout was fetched for
+this validation and retained under DevCache for reproducibility.
+
 Working-tree coverage correction: earlier scan-only comparisons requested no diff,
 so their equal changed-file lists/diff text were empty, not proof of diff parity.
 The mixed staged/unstaged regression now requests `workingTree: true`, asserts the
