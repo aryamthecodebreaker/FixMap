@@ -2,6 +2,22 @@
 
 Status: in progress.
 
+Current acceptance review (2026-09-21):
+
+| Ledger requirement | Evidence | Outstanding |
+| --- | --- | --- |
+| Reuse unchanged records and refresh changed records | Real Git differential tests, 302-file concurrent stress, 100/1,000/10,000-file repeated comparisons | None for tested scenarios |
+| Exact staged, unstaged, and untracked contents | Same-size untracked edits, mixed staging with nonempty diff parity, staged-blob poisoning regression, rename/deletion comparisons; CI 35600577834 | None for tested scenarios |
+| Fingerprints usable by derived graphs | Real scan-to-identity-graph invalidation test, ten local graph tests passing; CI 35600577834 | None for tested scenarios |
+| Recover corrupt or obsolete caches | Truncated JSON, invalid records, and stale version-2 sample tests; CI 35600577834 | None for tested scenarios |
+| Performance evidence | Four CI environments, three synthetic tiers, real Axios/FixMap/webpack corpora | Small-corpus overhead remains an explicit limitation; no universal speed claim |
+
+The batched fixture at `097b80b` passes all five jobs in CI 35572514030 and
+external evaluation 35572514069. Windows medians were 105/51, 210/175, and
+1204/1440 ms incremental/fresh across the three tiers, with every paired result
+equal. The additional integration and upgrade regressions are included in
+`13f8c57`, which passes CI 35600577834 and external evaluation 35600577562.
+
 Cache-upgrade coverage now loads a structurally valid version-2 index whose cached
 samples contain stale text, then changes one tracked file. Both the edited file
 and unchanged file are rebuilt correctly, with no incremental-hit diagnostic.
@@ -24,8 +40,8 @@ with exit 0, all 15 comparisons equal, and successful cleanup. Median
 incremental/fresh times were 470/217 ms (100), 1134/1192 ms (1,000), and
 7121/18750 ms (10,000). These noisy local timings are not a controlled comparison
 with earlier runs. CI 35571703228 subsequently passed the prior unbatched
-checkpoint, confirming the timeout is intermittent; remote validation of batching
-is still required.
+checkpoint, confirming the timeout is intermittent. Batching subsequently passed
+CI 35572514030, as recorded in the acceptance table above.
 
 Large real-corpus working-tree validation (2026-09-21): webpack pinned commit
 `61d4136e6d16bb52b13802a1a02ed56bdfafbdb3`, editing `lib/Compiler.js`, scanned
@@ -167,8 +183,9 @@ setup 120 seconds, and sets fixture-local `core.autocrlf=false`. Setup remains
 outside scan timings; no user Git configuration changes. The successful run
 completed cleanup too.
 
-Remaining: reduce fixed overhead on small repositories, verify the large-tier
-benefit on independent realistic workloads, and run the expanded performance/stress
-checks across platforms. Scanner correctness already passes cross-platform CI at
-the checkpoint above. Preserve exact content validation; do not substitute
+Remaining: complete the capability acceptance review. The latest upgrade and
+scanner-to-graph regressions now pass remote CI. The larger real-corpus
+and cross-platform measurements are now recorded above. Small-repository overhead
+is still a documented limitation with a fresh-scan escape hatch, not a solved
+performance problem. Preserve exact content validation; do not substitute
 size/mtime-only reuse to make the benchmark faster.

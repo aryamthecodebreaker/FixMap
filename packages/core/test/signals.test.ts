@@ -280,26 +280,35 @@ describe("extractTaskSignals", () => {
     expect(signals.uncheckedChecklistLinesRemoved).toBe(0);
   });
 
-  it("stays linear on a long unbroken run instead of backtracking quadratically", () => {
+  it("stays linear on a long unbroken run instead of backtracking quadratically", { timeout: 60_000 }, () => {
     // The file-mention pattern's body run contains ".", so it competed with the "\." that
     // follows it: on an unbroken run with no extension the engine matched the whole run,
     // failed, and retried one character shorter from every start position. 30,000
     // characters took 2.4 seconds, and the Action feeds this pattern issue text from
     // public pull requests. Scaling is what this asserts, not absolute time, since CI
     // machines vary too much for a millisecond budget to mean anything.
-    const measure = (length: number) => {
-      const text = `flurbulator ${"z".repeat(length)} telemetry`;
+    const texts = [20_000, 80_000].map((length) => `flurbulator ${"z".repeat(length)} telemetry`);
+    const measure = (text: string) => {
       const started = performance.now();
-      extractTaskSignals({ issueText: text });
-      return performance.now() - started;
+      for (let iteration = 0; iteration < 3; iteration++) extractTaskSignals({ issueText: text });
+      return (performance.now() - started) / 3;
     };
 
-    measure(20_000);
-    const small = Math.max(measure(20_000), 1);
-    const large = measure(80_000);
+    // Warm both sizes and alternate order: a single GC/scheduler pause must not
+    // become the scaling result. Keep the original sizes and rejection threshold.
+    for (const text of texts) measure(text);
+    const samples: number[][] = [[], []];
+    for (let round = 0; round < 7; round++) {
+      for (const index of round % 2 ? [1, 0] : [0, 1]) {
+        samples[index]!.push(measure(texts[index]!));
+      }
+    }
+    const median = (values: number[]) => [...values].sort((a, b) => a - b)[3]!;
+    const small = Math.max(median(samples[0]!), 1);
+    const large = median(samples[1]!);
 
     // Four times the input must not cost anything like sixteen times the work.
-    expect(large / small).toBeLessThan(8);
+    expect(large / small, JSON.stringify({ small, large, samples })).toBeLessThan(8);
   });
 
   it("ignores a token too long to be a real search term", () => {
