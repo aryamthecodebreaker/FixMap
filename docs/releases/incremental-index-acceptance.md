@@ -2,6 +2,17 @@
 
 Status: in progress.
 
+Windows fixture setup reliability: CI 35522944596 failed before the large-tier
+scan because a single `git add .` exceeded 120 seconds; its cleanup then saw a
+locked directory. Setup now stages the same files in batches of at most 250,
+without changing the corpus or measured scan boundary. A full local run completed
+with exit 0, all 15 comparisons equal, and successful cleanup. Median
+incremental/fresh times were 470/217 ms (100), 1134/1192 ms (1,000), and
+7121/18750 ms (10,000). These noisy local timings are not a controlled comparison
+with earlier runs. CI 35571703228 subsequently passed the prior unbatched
+checkpoint, confirming the timeout is intermittent; remote validation of batching
+is still required.
+
 Large real-corpus working-tree validation (2026-09-21): webpack pinned commit
 `61d4136e6d16bb52b13802a1a02ed56bdfafbdb3`, editing `lib/Compiler.js`, scanned
 13,464 files. All five rounds matched fresh file records, changed paths, and a

@@ -24,7 +24,13 @@ for (const count of [100, 1000, 10_000]) {
     const git = (...args) => exec("git", args, { cwd: root, timeout: 120_000, maxBuffer: 10 * 1024 * 1024 });
     await git("init", "--quiet");
     await git("config", "core.autocrlf", "false");
-    await git("add", ".");
+    // Staging thousands of new loose objects in one Windows process can exceed
+    // the command deadline before scanning begins. Bound each setup operation;
+    // keep exactly the same corpus and do not include setup in scan timings.
+    for (let offset = 0; offset < count; offset += 250) {
+      const paths = Array.from({ length: Math.min(250, count - offset) }, (_, index) => `src/${offset + index}.ts`);
+      await git("add", "--", ...paths);
+    }
     await git("-c", "user.name=Benchmark", "-c", "user.email=benchmark@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "fixture");
     await scanRepo({ repoRoot: root, useCache: true, includeHistory: false });
     const timings = { incremental: [], fresh: [], cacheKeyGitProbe: [] };
