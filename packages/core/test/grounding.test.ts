@@ -5,6 +5,8 @@ import {
 } from "../src/grounding.js";
 import { rankContextFiles } from "../src/rank.js";
 import type { RepoMap } from "../src/types.js";
+import { createLanguageRegistry } from "../src/language-registry.js";
+import { createCustomLanguageContext } from "../src/custom-language-context.js";
 
 function createRepo(): RepoMap {
   return {
@@ -29,6 +31,29 @@ function createRepo(): RepoMap {
 }
 
 describe("task grounding", () => {
+  it("grounds custom definitions and retains uncertainty when extraction fails", () => {
+    const repo = createRepo();
+    repo.files = [{ ...repo.files[0]!, path: 'src/auth.example', extension: '.example',
+      textSample: 'rule resetPassword\n# function fakeDefinition', textSampleComplete: true }];
+    const context = (broken: boolean) => createCustomLanguageContext(createLanguageRegistry([{
+      id: 'custom:example', version: '1', contractVersion: 1, extensions: ['.example'],
+      extractImports: () => [], extractDefinitions: () => {
+        if (broken) throw new Error('private details');
+        return [{ name: 'resetPassword', kind: 'function', offset: 5 }];
+      }, isTestPath: () => false, resolveImport: () => []
+    }]));
+    const input = { issueText: 'resetPassword fakeDefinition missingHandler' };
+    const result = analyzeTaskGrounding(repo, input, context(false));
+    expect(result.identifiers).toContainEqual({ identifier: 'resetPassword', status: 'exact-definition', matchedFiles: ['src/auth.example'] });
+    expect(result.identifiers).toContainEqual({ identifier: 'fakeDefinition', status: 'exact-text', matchedFiles: ['src/auth.example'] });
+    expect(result.scanComplete).toBe(true);
+    const failed = analyzeTaskGrounding(repo, input, context(true));
+    expect(failed.scanComplete).toBe(false);
+    expect(failed.identifiers).toContainEqual({ identifier: 'missingHandler', status: 'unverified', matchedFiles: [] });
+    expect(failed.identifiers.find((entry) => entry.identifier === 'resetPassword')?.status).toBe('exact-text');
+    expect(analyzeTaskGrounding(repo, input).identifiers.find((entry) => entry.identifier === 'resetPassword')?.status).toBe('exact-text');
+  });
+
   it("distinguishes exact definitions from unresolved identifiers", () => {
     const repo = createRepo();
     const grounding = analyzeTaskGrounding(repo, {

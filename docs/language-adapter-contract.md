@@ -23,7 +23,12 @@ the registry identity, preventing default/custom/version-changed classification
 reuse. A real Git fixture checks warm/default/version isolation and the non-Git
 fallback. Custom test classification still needs scoped extraction integration;
 the scanner does not invoke plugin callbacks in this step.
-Diagnostic/report integration and full analysis integration below
+`analyzeTaskGrounding` now accepts the same explicit scoped context. Valid custom
+definitions participate in exact/partial definition grounding, without applying
+the generic declaration regex to custom syntax. Extraction failures mark scan
+completeness false and unmatched identifiers unverified; literal text matches
+remain separately labeled. Eighty-five grounding/ranking tests pass at this step.
+Passing the context through report/ranking assembly and diagnostic integration below
 remain to be implemented. These internal foundations are not usable language
 support through the public analysis API yet.
 

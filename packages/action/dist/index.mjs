@@ -1035,11 +1035,17 @@ function tokenizePath(path) {
 }
 
 // packages/core/dist/grounding.js
+function definitionsFor(file, custom) {
+  if (!custom?.supports(file.extension))
+    return extractLanguageDefinitions(file);
+  const result = custom.extract(file);
+  return result.status === "ok" ? result.facts.definitions : [];
+}
 var MAX_IDENTIFIER_MATCHED_FILES = 5;
 var VAGUE_TASK_PATTERN = /^\s*(?:please\s+)?(?:improve|make|clean(?:\s+(?:this|it|things?))?\s+up|cleanup|refactor)\b/i;
 var VAGUE_TASK_TERMS = /\b(?:please|improve|better|clean(?:\s+(?:this|it|things?))?\s+up|cleanup|refactor|developer\s+experience|dx|general|overall|codebase|quality|make|things?)\b/gi;
 var CLUSTERED_RANKING_MARGIN = 2;
-function analyzeTaskGrounding(repo, input) {
+function analyzeTaskGrounding(repo, input, custom) {
   const issueText = input.issueText ?? "";
   const signals = extractTaskSignals({
     issueText,
@@ -1047,8 +1053,8 @@ function analyzeTaskGrounding(repo, input) {
     changedFiles: repo.changedFiles
   });
   const anchorIdentifiers = [...signals.identifiers].filter((identifier) => isAnchorIdentifier(identifier, issueText));
-  const batchedMatches = collectBatchedIdentifierMatches(repo, anchorIdentifiers);
-  const identifiers = anchorIdentifiers.map((identifier) => groundIdentifier(repo, identifier, batchedMatches.definitions.get(identifier), batchedMatches.text.get(identifier)));
+  const batchedMatches = collectBatchedIdentifierMatches(repo, anchorIdentifiers, custom);
+  const identifiers = anchorIdentifiers.map((identifier) => groundIdentifier(repo, identifier, batchedMatches.definitions.get(identifier), batchedMatches.text.get(identifier), custom));
   const unresolvedIdentifiers = identifiers.filter((entry) => entry.status === "not-found").map((entry) => entry.identifier);
   const partiallyResolvedIdentifiers = identifiers.filter((entry) => entry.status === "partial-definition").map((entry) => entry.identifier);
   const unverifiedIdentifiers = identifiers.filter((entry) => entry.status === "unverified").map((entry) => entry.identifier);
@@ -1076,7 +1082,7 @@ function analyzeTaskGrounding(repo, input) {
     scanComplete: !repo.diagnostics.some((diagnostic) => diagnostic.code === "scan-limit-reached" || diagnostic.code === "tracked-paths-absent") && // Explicitly false, not merely absent: `textSampleComplete` is optional, and callers
     // that build a RepoMap by hand — the browser demo, an MCP client — leave it undefined.
     // Reading undefined as "incomplete" capped confidence for every one of them.
-    !repo.files.some((file) => file.isSource && file.textSampleComplete === false)
+    !repo.files.some((file) => file.isSource && file.textSampleComplete === false) && !repo.files.some((file) => custom?.supports(file.extension) && custom.extract(file).status === "failed")
   };
 }
 function buildGroundedTaskTokens(grounding, input) {
@@ -1125,12 +1131,12 @@ function buildNextAction(grounding, ranking, contextFiles, hasRoutedTests = true
   }
   return "Add a concrete repository anchor and rerun FixMap.";
 }
-function collectBatchedIdentifierMatches(repo, identifiers) {
-  const definitions = collectIdentifierMatches(repo, identifiers, true);
+function collectBatchedIdentifierMatches(repo, identifiers, custom) {
+  const definitions = collectIdentifierMatches(repo, identifiers, true, custom);
   const withoutDefinitions = identifiers.filter((identifier) => (definitions.get(identifier)?.length ?? 0) === 0);
-  return { definitions, text: collectIdentifierMatches(repo, withoutDefinitions, false) };
+  return { definitions, text: collectIdentifierMatches(repo, withoutDefinitions, false, custom) };
 }
-function collectIdentifierMatches(repo, identifiers, definitions) {
+function collectIdentifierMatches(repo, identifiers, definitions, custom) {
   const matches = new Map(identifiers.map((identifier) => [identifier, []]));
   if (identifiers.length === 0)
     return matches;
@@ -1141,12 +1147,12 @@ function collectIdentifierMatches(repo, identifiers, definitions) {
   for (const file of repo.files) {
     const found = /* @__PURE__ */ new Set();
     if (definitions) {
-      for (const definition of extractLanguageDefinitions(file)) {
+      for (const definition of definitionsFor(file, custom)) {
         if (wanted.has(definition.name))
           found.add(definition.name);
       }
     }
-    for (const match of file.textSample.matchAll(pattern)) {
+    for (const match of definitions && custom?.supports(file.extension) ? [] : file.textSample.matchAll(pattern)) {
       if (match[1])
         found.add(match[1]);
     }
@@ -1158,10 +1164,10 @@ function collectIdentifierMatches(repo, identifiers, definitions) {
   }
   return matches;
 }
-function groundIdentifier(repo, identifier, precomputedDefinitionFiles, precomputedTextFiles) {
+function groundIdentifier(repo, identifier, precomputedDefinitionFiles, precomputedTextFiles, custom) {
   const definitionPattern = new RegExp(`(?<![\\p{L}\\p{N}_$])(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\\s+)${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`, "u");
   const exactPattern = new RegExp(`(?<![\\p{L}\\p{N}_$])${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_$])`, "u");
-  const definitionFiles = precomputedDefinitionFiles ?? repo.files.filter((file) => extractLanguageDefinitions(file).some((entry) => entry.name === identifier) || definitionPattern.test(file.textSample)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
+  const definitionFiles = precomputedDefinitionFiles ?? repo.files.filter((file) => definitionsFor(file, custom).some((entry) => entry.name === identifier) || !custom?.supports(file.extension) && definitionPattern.test(file.textSample)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
   if (definitionFiles.length > 0) {
     return {
       identifier,
@@ -1170,11 +1176,11 @@ function groundIdentifier(repo, identifier, precomputedDefinitionFiles, precompu
     };
   }
   const textFiles = precomputedTextFiles ?? repo.files.filter((file) => exactPattern.test(file.textSample)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
-  return textFiles.length > 0 ? { identifier, status: "exact-text", matchedFiles: textFiles } : groundPartialOrUnverifiedIdentifier(repo, identifier);
+  return textFiles.length > 0 ? { identifier, status: "exact-text", matchedFiles: textFiles } : groundPartialOrUnverifiedIdentifier(repo, identifier, custom);
 }
-function groundPartialOrUnverifiedIdentifier(repo, identifier) {
+function groundPartialOrUnverifiedIdentifier(repo, identifier, custom) {
   const identifierParts = tokenizeIdentifier(identifier);
-  const partialFiles = repo.files.filter((file) => hasDefinitionContainingTokens(file, identifierParts)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
+  const partialFiles = repo.files.filter((file) => hasDefinitionContainingTokens(file, identifierParts, custom)).map((file) => file.path).slice(0, MAX_IDENTIFIER_MATCHED_FILES);
   if (identifierParts.size >= 2 && partialFiles.length > 0) {
     return {
       identifier,
@@ -1182,20 +1188,22 @@ function groundPartialOrUnverifiedIdentifier(repo, identifier) {
       matchedFiles: partialFiles
     };
   }
-  if (repo.files.some((file) => file.isSource && file.textSampleComplete === false)) {
+  if (repo.files.some((file) => file.isSource && file.textSampleComplete === false || custom?.supports(file.extension) && custom.extract(file).status === "failed")) {
     return { identifier, status: "unverified", matchedFiles: [] };
   }
   return { identifier, status: "not-found", matchedFiles: [] };
 }
-function hasDefinitionContainingTokens(file, expectedTokens) {
+function hasDefinitionContainingTokens(file, expectedTokens, custom) {
   if (expectedTokens.size < 2) {
     return false;
   }
-  for (const definition of extractLanguageDefinitions(file)) {
+  for (const definition of definitionsFor(file, custom)) {
     const candidateTokens = tokenizeIdentifier(definition.name);
     if ([...expectedTokens].every((token) => candidateTokens.has(token)))
       return true;
   }
+  if (custom?.supports(file.extension))
+    return false;
   const definitionPattern = /(?<![\p{L}\p{N}_$])(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\s+)([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
   for (const match of file.textSample.matchAll(definitionPattern)) {
     const name = match[1];
