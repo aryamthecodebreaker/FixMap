@@ -2,6 +2,13 @@
 
 Status: implementation design; custom registration is not shipped.
 
+Internal foundation: `language-registry.ts` now validates bounded custom registry
+metadata, rejects built-in/custom extension collisions, copies and freezes
+registrations, and creates an order-independent metadata cache identity. Registry
+instances do not share registration state. This module is not yet exported from
+the package entry point: scoped extraction validation, scanner/cache plumbing,
+resolution, and full analysis integration below remain to be implemented.
+
 ## Existing integration points
 
 - `repo-scan.ts` uses `SOURCE_FILE_EXTENSIONS` and `isLanguageTestPath` to classify
