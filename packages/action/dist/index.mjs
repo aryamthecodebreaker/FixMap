@@ -3268,22 +3268,26 @@ function rankByBm25Detailed(files, task, limit = 5, eligibleKinds = /* @__PURE__
   return rankDocumentsByBm25(candidates.map((file) => ({ id: file.path, text: `${file.path}
 ${file.searchTextSample ?? file.textSample}` })), task, limit);
 }
-function rankSymbolsByBm25Detailed(files, task, limit = 50) {
-  const units = files.flatMap((file) => extractLanguageDefinitions(file).map((definition, index) => {
-    const searchText = file.searchTextSample ?? file.textSample;
-    const offset = definition.offset ?? searchText.indexOf(definition.name);
-    const start = Math.max(0, offset - 500);
-    const end = Math.min(searchText.length, offset + definition.name.length + 1e3);
-    return {
-      id: `${file.path}#${definition.name}:${index}`,
-      path: file.path,
-      symbol: definition.name,
-      kind: definition.kind,
-      text: `${file.path}
+function rankSymbolsByBm25Detailed(files, task, limit = 50, custom) {
+  const units = files.flatMap((file) => {
+    const extracted = custom?.supports(file.extension) ? custom.extract(file) : void 0;
+    const definitions = extracted ? extracted.status === "ok" ? extracted.facts.definitions : [] : extractLanguageDefinitions(file);
+    return definitions.map((definition, index) => {
+      const searchText = file.searchTextSample ?? file.textSample;
+      const offset = definition.offset ?? searchText.indexOf(definition.name);
+      const start = Math.max(0, offset - 500);
+      const end = Math.min(searchText.length, offset + definition.name.length + 1e3);
+      return {
+        id: `${file.path}#${definition.name}:${index}`,
+        path: file.path,
+        symbol: definition.name,
+        kind: definition.kind,
+        text: `${file.path}
 ${definition.kind} ${definition.name}
 ${searchText.slice(start, end)}`
-    };
-  }));
+      };
+    });
+  });
   const ranked = rankDocumentsByBm25(units, task, Math.max(limit * 4, limit));
   const byId = new Map(units.map((unit) => [unit.id, unit]));
   const seenPaths = /* @__PURE__ */ new Set();
@@ -3373,6 +3377,12 @@ function bm25DocumentStatistics(text, queryTerms) {
 }
 
 // packages/core/dist/rank.js
+function definitionsFor2(file, custom) {
+  if (!custom?.supports(file.extension))
+    return extractLanguageDefinitions(file);
+  const result = custom.extract(file);
+  return result.status === "ok" ? result.facts.definitions : [];
+}
 var DEPLOYMENT_TERMS = [
   "deploy",
   "deployment",
@@ -3466,7 +3476,7 @@ function rankContextFilesEvidenceDetailed(repo, input, limit = DEFAULT_CONTEXT_F
   const structuralCandidates = structural.slice(0, sourceLimit);
   const lexicalCandidates = rankByBm25Detailed(eligibleFiles, task, sourceLimit, lexicalKinds);
   const lexicalFinishedAt = performance.now();
-  const symbolCandidates = rankSymbolsByBm25Detailed(eligibleFiles, task, sourceLimit);
+  const symbolCandidates = rankSymbolsByBm25Detailed(eligibleFiles, task, sourceLimit, input.languageContext);
   const symbolFinishedAt = performance.now();
   const structuralRank = new Map(structuralCandidates.map((file, index) => [file.path, index + 1]));
   const lexicalByPath = new Map(lexicalCandidates.map((entry) => [entry.id, entry]));
@@ -3564,7 +3574,7 @@ function rankContextFilesDetailed(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMI
     diffText: input.diffText ?? "",
     changedFiles: repo.changedFiles
   });
-  const grounding = analyzeTaskGrounding(repo, input);
+  const grounding = analyzeTaskGrounding(repo, input, input.languageContext);
   const taskTokens = buildGroundedTaskTokens(grounding, {
     issueText: input.issueText ?? "",
     diffText: input.diffText ?? "",
@@ -3648,7 +3658,7 @@ function rankContextFilesDetailed(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMI
       score += EXACT_LITERAL_BOOST * Math.min(3, exactFragmentOccurrences.get(exactLiteral) ?? 0);
       reasons.push(`contains exact task literal: ${previewFragment(exactLiteral)}`);
     }
-    const definedIdentifiers = (file.kind === "documentation" ? [] : findDefinedIdentifiers(file, definitionSignals)).slice(0, MAX_DEFINITION_IDENTIFIERS);
+    const definedIdentifiers = (file.kind === "documentation" ? [] : findDefinedIdentifiers(file, definitionSignals, input.languageContext)).slice(0, MAX_DEFINITION_IDENTIFIERS);
     if (definedIdentifiers.length > 0) {
       score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
       reasons.push(`defines task identifiers: ${definedIdentifiers.join(", ")}`);
@@ -3657,7 +3667,7 @@ function rankContextFilesDetailed(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMI
         reasons.push("task identifier is defined in maintained implementation source");
       }
     }
-    const taskMatchedDefinitions = signals.exactFragments.length === 0 && !taskTargetsDocumentation ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file, taskTokens)).filter((identifier) => !definedIdentifiers.includes(identifier)).slice(0, MAX_DEFINITION_IDENTIFIERS) : [];
+    const taskMatchedDefinitions = signals.exactFragments.length === 0 && !taskTargetsDocumentation ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file, taskTokens, input.languageContext)).filter((identifier) => !definedIdentifiers.includes(identifier)).slice(0, MAX_DEFINITION_IDENTIFIERS) : [];
     if (taskMatchedDefinitions.length > 0) {
       score += taskMatchedDefinitions.length * TASK_MATCHED_DEFINITION_BOOST;
       reasons.push(`defines symbols matching task terms: ${taskMatchedDefinitions.join(", ")}`);
@@ -3738,7 +3748,7 @@ function rankContextFilesDetailed(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMI
     }
     return { path: file.path, score, isChanged, reasons };
   });
-  const diagnostics = applyImportProximity(scored, repo);
+  const diagnostics = applyImportProximity(scored, repo, input.languageContext);
   const candidates = scored.filter((file) => file.score >= minScore).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
   const ranking = buildRankingShape(candidates);
   const clustered = ranking.clustered;
@@ -3768,7 +3778,7 @@ function hasContestedLead(ranked) {
 function hasDefinitionEvidence(entry) {
   return entry.reasons.some((reason2) => reason2.startsWith("defines task identifiers:") || reason2.startsWith("exact task literal at definition:"));
 }
-function applyImportProximity(scored, repo) {
+function applyImportProximity(scored, repo, custom) {
   const directSeeds = scored.filter((entry) => entry.score >= 8 && hasDirectEvidence(entry)).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, MAX_PROXIMITY_SEEDS);
   const seedEntries = directSeeds.length > 0 ? directSeeds : scored.filter((entry) => entry.score >= 8).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, 2);
   if (seedEntries.length === 0) {
@@ -3776,7 +3786,7 @@ function applyImportProximity(scored, repo) {
   }
   const seeds = seedEntries.map((entry) => entry.path);
   const seedScores = new Map(seedEntries.map((entry) => [entry.path, entry.score]));
-  const graph = buildImportGraph(repo.files);
+  const graph = buildImportGraph(repo.files, custom);
   const diagnostics = [];
   if ((graph.truncatedFiles > 0 || graph.truncatedEdges > 0) && !repo.diagnostics.some((entry) => entry.code === "import-graph-truncated")) {
     diagnostics.push({
@@ -3996,17 +4006,17 @@ function buildDefinitionSignals(identifiers) {
     pattern: new RegExp(`(?<![\\p{L}\\p{N}_$])(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\\s+)${escapeRegExp2(identifier)}(?![\\p{L}\\p{N}_$])`, "u")
   }));
 }
-function findDefinedIdentifiers(file, signals) {
-  const adapterDefinitions = new Set(extractLanguageDefinitions(file).map((entry) => entry.name));
-  return signals.filter((signal) => adapterDefinitions.has(signal.identifier) || signal.pattern.test(rankingText(file))).map((signal) => signal.identifier);
+function findDefinedIdentifiers(file, signals, custom) {
+  const adapterDefinitions = new Set(definitionsFor2(file, custom).map((entry) => entry.name));
+  return signals.filter((signal) => adapterDefinitions.has(signal.identifier) || !custom?.supports(file.extension) && signal.pattern.test(rankingText(file))).map((signal) => signal.identifier);
 }
 function exactIdentifierPattern(identifier) {
   return new RegExp(`(?<![\\p{L}\\p{N}_$])${escapeRegExp2(identifier)}(?![\\p{L}\\p{N}_$])`, "u");
 }
-function findTaskMatchedDefinitions(file, taskTokens) {
-  const definitions = new Set(extractLanguageDefinitions(file).map((entry) => entry.name));
+function findTaskMatchedDefinitions(file, taskTokens, custom) {
+  const definitions = new Set(definitionsFor2(file, custom).map((entry) => entry.name));
   const pattern = /(?<![\p{L}\p{N}_$])(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\s+)([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
-  for (const match of rankingText(file).matchAll(pattern)) {
+  for (const match of custom?.supports(file.extension) ? [] : rankingText(file).matchAll(pattern)) {
     const identifier = match[1];
     if (identifier)
       definitions.add(identifier);

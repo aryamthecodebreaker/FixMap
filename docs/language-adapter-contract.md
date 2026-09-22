@@ -28,7 +28,12 @@ definitions participate in exact/partial definition grounding, without applying
 the generic declaration regex to custom syntax. Extraction failures mark scan
 completeness false and unmatched identifiers unverified; literal text matches
 remain separately labeled. Eighty-five grounding/ranking tests pass at this step.
-Passing the context through report/ranking assembly and diagnostic integration below
+Structural and evidence ranking now accept `languageContext`, using its validated
+definitions for score signals, grounding, symbol-unit retrieval, and import
+proximity. A custom DSL regression proves increased definition evidence and
+symbol retrieval while subsequent default ranking stays unchanged; the focused
+grounding/ranking sweep passes 86 tests. Report assembly, hybrid propagation,
+custom test classification, and diagnostic integration below
 remain to be implemented. These internal foundations are not usable language
 support through the public analysis API yet.
 

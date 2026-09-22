@@ -4,6 +4,14 @@ import { isFixMapArtifact } from "./artifacts.js";
 import { buildImportGraph, findImportProximity } from "./import-graph.js";
 import type { ImportProximity } from "./import-graph.js";
 import { extractLanguageDefinitions } from "./language-adapters.js";
+import type { createCustomLanguageContext } from "./custom-language-context.js";
+type CustomContext = ReturnType<typeof createCustomLanguageContext>;
+
+function definitionsFor(file: RepoFile, custom?: CustomContext) {
+  if (!custom?.supports(file.extension)) return extractLanguageDefinitions(file);
+  const result = custom.extract(file);
+  return result.status === "ok" ? result.facts.definitions : [];
+}
 import {
   analyzeTaskGrounding,
   buildRankingShape,
@@ -137,6 +145,7 @@ export function rankContextFiles(
     issueText?: string | undefined;
     diffText?: string | undefined;
     exclude?: PathExcluder | undefined;
+    languageContext?: CustomContext;
   },
   limit = DEFAULT_CONTEXT_FILE_LIMIT,
   minScore = REPORT_SCORE_CUTOFF
@@ -158,6 +167,7 @@ export function rankContextFilesEvidenceDetailed(
     issueText?: string | undefined;
     diffText?: string | undefined;
     exclude?: PathExcluder | undefined;
+    languageContext?: CustomContext;
   },
   limit = DEFAULT_CONTEXT_FILE_LIMIT,
   minScore = REPORT_SCORE_CUTOFF
@@ -185,7 +195,7 @@ export function rankContextFilesEvidenceDetailed(
   const structuralCandidates = structural.slice(0, sourceLimit);
   const lexicalCandidates = rankByBm25Detailed(eligibleFiles, task, sourceLimit, lexicalKinds);
   const lexicalFinishedAt = performance.now();
-  const symbolCandidates = rankSymbolsByBm25Detailed(eligibleFiles, task, sourceLimit);
+  const symbolCandidates = rankSymbolsByBm25Detailed(eligibleFiles, task, sourceLimit, input.languageContext);
   const symbolFinishedAt = performance.now();
   const structuralRank = new Map(structuralCandidates.map((file, index) => [file.path, index + 1]));
   const lexicalByPath = new Map(lexicalCandidates.map((entry) => [entry.id, entry]));
@@ -294,6 +304,7 @@ export function rankContextFilesDetailed(
     issueText?: string | undefined;
     diffText?: string | undefined;
     exclude?: PathExcluder | undefined;
+    languageContext?: CustomContext;
   },
   limit = DEFAULT_CONTEXT_FILE_LIMIT,
   // `explainFile` lowers this to see what a file scored below the reporting cutoff.
@@ -306,7 +317,7 @@ export function rankContextFilesDetailed(
     diffText: input.diffText ?? "",
     changedFiles: repo.changedFiles
   });
-  const grounding = analyzeTaskGrounding(repo, input);
+  const grounding = analyzeTaskGrounding(repo, input, input.languageContext);
   const taskTokens = buildGroundedTaskTokens(grounding, {
     issueText: input.issueText ?? "",
     diffText: input.diffText ?? "",
@@ -448,7 +459,7 @@ export function rankContextFilesDetailed(
         reasons.push(`contains exact task literal: ${previewFragment(exactLiteral)}`);
       }
 
-      const definedIdentifiers = (file.kind === "documentation" ? [] : findDefinedIdentifiers(file, definitionSignals))
+      const definedIdentifiers = (file.kind === "documentation" ? [] : findDefinedIdentifiers(file, definitionSignals, input.languageContext))
         .slice(0, MAX_DEFINITION_IDENTIFIERS);
       if (definedIdentifiers.length > 0) {
         score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
@@ -467,7 +478,7 @@ export function rankContextFilesDetailed(
 
       const taskMatchedDefinitions = signals.exactFragments.length === 0 &&
         !taskTargetsDocumentation
-        ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file, taskTokens))
+        ? (file.kind === "documentation" ? [] : findTaskMatchedDefinitions(file, taskTokens, input.languageContext))
           .filter((identifier) => !definedIdentifiers.includes(identifier))
           .slice(0, MAX_DEFINITION_IDENTIFIERS)
         : [];
@@ -584,7 +595,7 @@ export function rankContextFilesDetailed(
       return { path: file.path, score, isChanged, reasons };
     });
 
-  const diagnostics = applyImportProximity(scored, repo);
+  const diagnostics = applyImportProximity(scored, repo, input.languageContext);
 
   const candidates = scored
     .filter((file) => file.score >= minScore)
@@ -639,7 +650,7 @@ function hasDefinitionEvidence(entry: ScoredFile): boolean {
   );
 }
 
-function applyImportProximity(scored: ScoredFile[], repo: RepoMap): ScanDiagnostic[] {
+function applyImportProximity(scored: ScoredFile[], repo: RepoMap, custom?: CustomContext): ScanDiagnostic[] {
   const directSeeds = scored
     .filter((entry) => entry.score >= 8 && hasDirectEvidence(entry))
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
@@ -656,7 +667,7 @@ function applyImportProximity(scored: ScoredFile[], repo: RepoMap): ScanDiagnost
 
   const seeds = seedEntries.map((entry) => entry.path);
   const seedScores = new Map(seedEntries.map((entry) => [entry.path, entry.score]));
-  const graph = buildImportGraph(repo.files);
+  const graph = buildImportGraph(repo.files, custom);
   const diagnostics: ScanDiagnostic[] = [];
   if ((graph.truncatedFiles > 0 || graph.truncatedEdges > 0) && !repo.diagnostics.some((entry) => entry.code === "import-graph-truncated")) {
     diagnostics.push({
@@ -961,10 +972,10 @@ function buildDefinitionSignals(identifiers: Set<string>): DefinitionSignal[] {
     }));
 }
 
-function findDefinedIdentifiers(file: RepoFile, signals: DefinitionSignal[]): string[] {
-  const adapterDefinitions = new Set(extractLanguageDefinitions(file).map((entry) => entry.name));
+function findDefinedIdentifiers(file: RepoFile, signals: DefinitionSignal[], custom?: CustomContext): string[] {
+  const adapterDefinitions = new Set(definitionsFor(file, custom).map((entry) => entry.name));
   return signals
-    .filter((signal) => adapterDefinitions.has(signal.identifier) || signal.pattern.test(rankingText(file)))
+    .filter((signal) => adapterDefinitions.has(signal.identifier) || (!custom?.supports(file.extension) && signal.pattern.test(rankingText(file))))
     .map((signal) => signal.identifier);
 }
 
@@ -975,12 +986,12 @@ function exactIdentifierPattern(identifier: string): RegExp {
   );
 }
 
-function findTaskMatchedDefinitions(file: RepoFile, taskTokens: Set<string>): string[] {
-  const definitions = new Set(extractLanguageDefinitions(file).map((entry) => entry.name));
+function findTaskMatchedDefinitions(file: RepoFile, taskTokens: Set<string>, custom?: CustomContext): string[] {
+  const definitions = new Set(definitionsFor(file, custom).map((entry) => entry.name));
   const pattern =
     /(?<![\p{L}\p{N}_$])(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var|class|interface|type|enum|def|fn|func|fun|struct|trait)\s+)([\p{L}_$][\p{L}\p{N}_$]*)(?![\p{L}\p{N}_$])/gu;
 
-  for (const match of rankingText(file).matchAll(pattern)) {
+  for (const match of custom?.supports(file.extension) ? [] : rankingText(file).matchAll(pattern)) {
     const identifier = match[1];
     if (identifier) definitions.add(identifier);
   }

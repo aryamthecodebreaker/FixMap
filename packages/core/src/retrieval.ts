@@ -1,4 +1,5 @@
 import { extractLanguageDefinitions } from "./language-adapters.js";
+import type { createCustomLanguageContext } from "./custom-language-context.js";
 import type { RepoFile } from "./types.js";
 
 const STOPWORDS = new Set(`a about above after again against all am an and any are as at be because been before being
@@ -114,8 +115,11 @@ export function rankByBm25Detailed(
  * Retrieves definition-sized units independently from whole-file retrieval. A symbol hit
  * is mapped back to its owning file, but its symbol identity and rank remain visible.
  */
-export function rankSymbolsByBm25Detailed(files: RepoFile[], task: string, limit = 50): SymbolRetrievalHit[] {
-  const units = files.flatMap((file) => extractLanguageDefinitions(file).map((definition, index) => {
+export function rankSymbolsByBm25Detailed(files: RepoFile[], task: string, limit = 50, custom?: ReturnType<typeof createCustomLanguageContext>): SymbolRetrievalHit[] {
+  const units = files.flatMap((file) => {
+    const extracted = custom?.supports(file.extension) ? custom.extract(file) : undefined;
+    const definitions = extracted ? (extracted.status === "ok" ? extracted.facts.definitions : []) : extractLanguageDefinitions(file);
+    return definitions.map((definition, index) => {
     const searchText = file.searchTextSample ?? file.textSample;
     const offset = definition.offset ?? searchText.indexOf(definition.name);
     const start = Math.max(0, offset - 500);
@@ -127,7 +131,8 @@ export function rankSymbolsByBm25Detailed(files: RepoFile[], task: string, limit
       kind: definition.kind,
       text: `${file.path}\n${definition.kind} ${definition.name}\n${searchText.slice(start, end)}`
     };
-  }));
+    });
+  });
   const ranked = rankDocumentsByBm25(units, task, Math.max(limit * 4, limit));
   const byId = new Map(units.map((unit) => [unit.id, unit]));
   const seenPaths = new Set<string>();
