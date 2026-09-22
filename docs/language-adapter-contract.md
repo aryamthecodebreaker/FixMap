@@ -9,8 +9,10 @@ instances do not share registration state. This module is not yet exported from
 the package entry point. `custom-language-context.ts` now provides a per-registry
 cache with input bounds, output shape/count/offset validation, Core-assigned
 identity/version, copied facts, and explicit unsupported/ok/failed results.
-Exceptions do not expose plugin messages. Scanner/cache plumbing, custom
-resolution, diagnostic/report integration, and full analysis integration below
+Exceptions do not expose plugin messages. The custom resolver boundary now checks
+the bounded candidate snapshot and every proposed target, freezes callback inputs,
+rejects invalid batches, and returns detached sorted targets without self edges.
+Scanner/cache plumbing, graph wiring, diagnostic/report integration, and full analysis integration below
 remain to be implemented. These internal foundations are not usable language
 support through the public analysis API yet.
 

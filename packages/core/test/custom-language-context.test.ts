@@ -10,6 +10,42 @@ function adapter(): CustomLanguageAdapter {
 const file = () => ({ path: 'src/a.example', extension: '.example', textSample: 'hello' });
 
 describe('custom language extraction context', () => {
+  it('contains resolver exceptions and rejects oversized or invalid snapshots before execution', () => {
+    const resolveImport = vi.fn(() => { throw new Error('SECRET'); });
+    const context = createCustomLanguageContext(createLanguageRegistry([{ ...adapter(), resolveImport }]));
+    const imported = { specifier: 'b', importedNames: [], wildcard: false };
+    expect(context.resolve('.example', 'src/a.example', imported, ['../outside']).status).toBe('failed');
+    expect(context.resolve('.example', 'src/a.example', imported, Array(25001).fill('src/a.example')).status).toBe('failed');
+    expect(resolveImport).not.toHaveBeenCalled();
+    expect(context.resolve('.example', 'src/a.example', imported, ['src/a.example'])).toEqual({
+      status: 'failed', adapter: 'custom:example', code: 'adapter-resolution-failed'
+    });
+    const oversized = createCustomLanguageContext(createLanguageRegistry([{ ...adapter(), resolveImport: () => Array(201).fill('src/a.example') }]));
+    expect(oversized.resolve('.example', 'src/a.example', imported, ['src/a.example']).status).toBe('failed');
+    expect(context.resolve('.py', 'src/a.py', imported, ['src/a.py'])).toEqual({ status: 'unsupported' });
+  });
+
+  it('resolves only snapshot targets with immutable inputs and deterministic output', () => {
+    const proposed = ['src/c.example', 'src/b.example', 'src/b.example', 'src/a.example'];
+    const plugin = { ...adapter(), resolveImport: vi.fn((input: Parameters<CustomLanguageAdapter['resolveImport']>[0]) => {
+      expect(Object.isFrozen(input)).toBe(true);
+      expect(Object.isFrozen(input.candidatePaths)).toBe(true);
+      expect(Object.isFrozen(input.imported.importedNames)).toBe(true);
+      return proposed;
+    }) } satisfies CustomLanguageAdapter;
+    const context = createCustomLanguageContext(createLanguageRegistry([plugin]));
+    const result = context.resolve('.example', 'src/a.example', { specifier: './b', importedNames: [], wildcard: false },
+      ['src/c.example', 'src/a.example', 'src/b.example']);
+    proposed.length = 0;
+    expect(result).toEqual({ status: 'ok', targets: ['src/b.example', 'src/c.example'] });
+  });
+
+  it.each(['../escape', '/absolute', 'C:/outside', 'src\\b.example', 'src/missing.example'])('rejects unsupported resolver target %s', (target) => {
+    const context = createCustomLanguageContext(createLanguageRegistry([{ ...adapter(), resolveImport: () => ['src/b.example', target] }]));
+    expect(context.resolve('.example', 'src/a.example', { specifier: 'b', importedNames: [], wildcard: false },
+      ['src/a.example', 'src/b.example'])).toEqual({ status: 'failed', adapter: 'custom:example', code: 'adapter-resolution-failed' });
+  });
+
   it('distinguishes unsupported, empty, and failed extraction', () => {
     const plugin = adapter();
     const context = createCustomLanguageContext(createLanguageRegistry([plugin]));

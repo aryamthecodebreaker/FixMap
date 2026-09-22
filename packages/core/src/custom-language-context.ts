@@ -19,6 +19,13 @@ const KINDS = new Set(["function", "method", "class", "interface", "type", "vari
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const term = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 512 && !/[\x00-\x1f\x7f]/.test(value);
 const fields = (value: Record<string, unknown>, allowed: string[]) => Object.keys(value).every((key) => allowed.includes(key));
+const repoPath = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 4_096 &&
+  !/[\x00-\x1f\x7f\\:]/.test(value) && value.split('/').every((part) => part !== '' && part !== '.' && part !== '..');
+
+export type CustomResolutionResult =
+  | { status: "unsupported" }
+  | { status: "ok"; targets: string[] }
+  | { status: "failed"; adapter: string; code: "adapter-resolution-failed" };
 
 function validImports(value: unknown): value is ImportFact[] {
   return Array.isArray(value) && value.length <= 2_000 && value.every((entry: unknown) =>
@@ -36,6 +43,29 @@ function validDefinitions(value: unknown, textLength: number): value is Definiti
 export function createCustomLanguageContext(registry: LanguageRegistry) {
   const cache = new WeakMap<object, { path: string; extension: string; text: string; result: CustomExtractionResult }>();
   return Object.freeze({
+    resolve(extension: string, fromPath: string, imported: ImportFact, candidatePaths: readonly string[]): CustomResolutionResult {
+      const adapter = registry.customForExtension(extension);
+      if (!adapter) return { status: "unsupported" };
+      try {
+        if (!repoPath(fromPath) || !validImports([imported]) || !Array.isArray(candidatePaths) ||
+          candidatePaths.length > 25_000 || !candidatePaths.every(repoPath)) throw new Error();
+        const candidates = [...new Set(candidatePaths)].sort();
+        const allowed = new Set(candidates);
+        if (!allowed.has(fromPath)) throw new Error();
+        const input = Object.freeze({
+          fromPath,
+          imported: Object.freeze({ ...imported, importedNames: Object.freeze([...imported.importedNames]) }),
+          candidatePaths: Object.freeze(candidates)
+        });
+        const proposed: unknown = adapter.resolveImport(input);
+        if (!Array.isArray(proposed) || proposed.length > 200 ||
+          !proposed.every((target: unknown) => repoPath(target) && allowed.has(target))) throw new Error();
+        // Never retain a plugin-owned result; omit self edges and stabilize ordering.
+        return { status: "ok", targets: [...new Set(proposed as string[])].filter((target) => target !== fromPath).sort() };
+      } catch {
+        return { status: "failed", adapter: adapter.id, code: "adapter-resolution-failed" };
+      }
+    },
     extract(file: { path: string; extension: string; textSample: string; searchTextSample?: string }): CustomExtractionResult {
       const extension = file.extension.toLowerCase();
       const adapter = registry.customForExtension(extension);
