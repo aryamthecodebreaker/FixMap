@@ -431,19 +431,21 @@ function languageAdapterForFile(file) {
 }
 function extractLanguageImports(file) {
   const cached = IMPORT_CACHE.get(file);
-  if (cached)
-    return cached;
-  const imports = languageAdapterForFile(file)?.extractImports(file.searchTextSample ?? file.textSample) ?? [];
-  IMPORT_CACHE.set(file, imports);
-  return imports;
+  const text = file.searchTextSample ?? file.textSample;
+  const extension = file.extension.toLowerCase();
+  const imports = cached?.text === text && cached.extension === extension ? cached.facts : languageAdapterForFile(file)?.extractImports(text) ?? [];
+  if (imports !== cached?.facts)
+    IMPORT_CACHE.set(file, { extension, text, facts: imports });
+  return imports.map((entry) => ({ ...entry, importedNames: [...entry.importedNames] }));
 }
 function extractLanguageDefinitions(file) {
   const cached = DEFINITION_CACHE.get(file);
-  if (cached)
-    return cached;
-  const definitions = languageAdapterForFile(file)?.extractDefinitions(file.searchTextSample ?? file.textSample) ?? [];
-  DEFINITION_CACHE.set(file, definitions);
-  return definitions;
+  const text = file.searchTextSample ?? file.textSample;
+  const extension = file.extension.toLowerCase();
+  const definitions = cached?.text === text && cached.extension === extension ? cached.facts : languageAdapterForFile(file)?.extractDefinitions(text) ?? [];
+  if (definitions !== cached?.facts)
+    DEFINITION_CACHE.set(file, { extension, text, facts: definitions });
+  return definitions.map((entry) => ({ ...entry }));
 }
 function isLanguageTestPath(path, extension) {
   return ADAPTER_BY_EXTENSION.get(extension.toLowerCase())?.isTestPath(path.replace(/\\/g, "/")) ?? false;

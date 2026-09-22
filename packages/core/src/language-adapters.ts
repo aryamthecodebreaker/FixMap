@@ -349,8 +349,9 @@ export const BUILT_IN_LANGUAGE_ADAPTERS: readonly LanguageAdapter[] = Object.fre
 const ADAPTER_BY_EXTENSION = new Map(
   BUILT_IN_LANGUAGE_ADAPTERS.flatMap((adapter) => adapter.extensions.map((extension) => [extension, adapter] as const))
 );
-const IMPORT_CACHE = new WeakMap<object, LanguageImport[]>();
-const DEFINITION_CACHE = new WeakMap<object, LanguageDefinition[]>();
+type FactCache<T> = { extension: string; text: string; facts: T[] };
+const IMPORT_CACHE = new WeakMap<object, FactCache<LanguageImport>>();
+const DEFINITION_CACHE = new WeakMap<object, FactCache<LanguageDefinition>>();
 
 export function languageAdapterForFile(file: Pick<RepoFile, "extension">): LanguageAdapter | undefined {
   return ADAPTER_BY_EXTENSION.get(file.extension.toLowerCase());
@@ -358,18 +359,23 @@ export function languageAdapterForFile(file: Pick<RepoFile, "extension">): Langu
 
 export function extractLanguageImports(file: Pick<RepoFile, "extension" | "textSample" | "searchTextSample">): LanguageImport[] {
   const cached = IMPORT_CACHE.get(file);
-  if (cached) return cached;
-  const imports = languageAdapterForFile(file)?.extractImports(file.searchTextSample ?? file.textSample) ?? [];
-  IMPORT_CACHE.set(file, imports);
-  return imports;
+  const text = file.searchTextSample ?? file.textSample;
+  const extension = file.extension.toLowerCase();
+  const imports = cached?.text === text && cached.extension === extension
+    ? cached.facts : languageAdapterForFile(file)?.extractImports(text) ?? [];
+  if (imports !== cached?.facts) IMPORT_CACHE.set(file, { extension, text, facts: imports });
+  // Keep callers' mutable return values separate from shared cached evidence.
+  return imports.map((entry) => ({ ...entry, importedNames: [...entry.importedNames] }));
 }
 
 export function extractLanguageDefinitions(file: Pick<RepoFile, "extension" | "textSample" | "searchTextSample">): LanguageDefinition[] {
   const cached = DEFINITION_CACHE.get(file);
-  if (cached) return cached;
-  const definitions = languageAdapterForFile(file)?.extractDefinitions(file.searchTextSample ?? file.textSample) ?? [];
-  DEFINITION_CACHE.set(file, definitions);
-  return definitions;
+  const text = file.searchTextSample ?? file.textSample;
+  const extension = file.extension.toLowerCase();
+  const definitions = cached?.text === text && cached.extension === extension
+    ? cached.facts : languageAdapterForFile(file)?.extractDefinitions(text) ?? [];
+  if (definitions !== cached?.facts) DEFINITION_CACHE.set(file, { extension, text, facts: definitions });
+  return definitions.map((entry) => ({ ...entry }));
 }
 
 export function isLanguageTestPath(path: string, extension: string): boolean {

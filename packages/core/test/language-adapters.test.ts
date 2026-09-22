@@ -12,6 +12,49 @@ function sample(extension: string, textSample: string) {
 }
 
 describe("built-in language adapters", () => {
+  it("keys cached facts by the effective search sample, including an empty override", () => {
+    const file: { extension: string; textSample: string; searchTextSample?: string } =
+      sample('.py', 'from .base import Base\ndef base(): pass');
+    expect(extractLanguageDefinitions(file)[0]?.name).toBe('base');
+    expect(extractLanguageImports(file)[0]?.specifier).toBe('.base');
+    file.searchTextSample = 'from .search import Search\ndef search(): pass';
+    expect(extractLanguageDefinitions(file)[0]?.name).toBe('search');
+    expect(extractLanguageImports(file)[0]?.specifier).toBe('.search');
+    file.searchTextSample = '';
+    expect(extractLanguageDefinitions(file)).toEqual([]);
+    expect(extractLanguageImports(file)).toEqual([]);
+    delete file.searchTextSample;
+    expect(extractLanguageDefinitions(file)[0]?.name).toBe('base');
+    expect(extractLanguageImports(file)[0]?.specifier).toBe('.base');
+  });
+
+  it("refreshes cached facts when the same file object changes content or language", () => {
+    const file = sample('.py', 'from .old import Old\ndef old(): pass');
+    expect(extractLanguageImports(file)[0]?.specifier).toBe('.old');
+    expect(extractLanguageDefinitions(file)[0]?.name).toBe('old');
+    file.textSample = 'from .fresh import Fresh\ndef fresh(): pass';
+    expect(extractLanguageImports(file)[0]?.specifier).toBe('.fresh');
+    expect(extractLanguageDefinitions(file)[0]?.name).toBe('fresh');
+    file.extension = '.unknown';
+    expect(extractLanguageImports(file)).toEqual([]);
+    expect(extractLanguageDefinitions(file)).toEqual([]);
+  });
+
+  it("does not expose mutable cached facts to consumers", () => {
+    const file = sample('.py', 'from .real import Actual\ndef actual(): pass');
+    const imports = extractLanguageImports(file);
+    imports[0]!.specifier = '.fake';
+    imports[0]!.importedNames.push('Fake');
+    imports.length = 0;
+    const definitions = extractLanguageDefinitions(file);
+    definitions[0]!.name = 'fake';
+    definitions.length = 0;
+    expect(extractLanguageImports(file)).toEqual([
+      { adapter: 'python', specifier: '.real', importedNames: ['Actual'], wildcard: false }
+    ]);
+    expect(extractLanguageDefinitions(file).map(({ name }) => name)).toEqual(['actual']);
+  });
+
   it.each(["'", '"', "'''", '"""'])("masks truncated Python %s strings", (quote) => {
     const file = sample('.py', `from .real import Actual\nexample = ${quote}\nfrom .fake import Ghost\ndef fake(): pass`);
     expect(extractLanguageImports(file).map(({ specifier }) => specifier)).toEqual(['.real']);
