@@ -2293,8 +2293,8 @@ var COMPILED_TO_SOURCE = {
 };
 var MAX_GRAPH_FILES = 5e3;
 var MAX_EDGES_PER_FILE = 200;
-function buildImportGraph(files) {
-  const allParseable = files.filter((file) => languageAdapterForFile(file) && file.textSample.length > 0);
+function buildImportGraph(files, custom) {
+  const allParseable = files.filter((file) => (languageAdapterForFile(file) || custom?.supports(file.extension)) && file.textSample.length > 0);
   const parseable = allParseable.slice(0, MAX_GRAPH_FILES);
   const dotnetProjects = buildDotnetProjects(files);
   const composerProjects = buildComposerProjects(files);
@@ -2310,11 +2310,35 @@ function buildImportGraph(files) {
   const imports = /* @__PURE__ */ new Map();
   const importedBy = /* @__PURE__ */ new Map();
   let truncatedEdges = 0;
+  const customDiagnostics = [];
+  const candidatePaths = files.map((file) => file.path);
+  function* targetGroups(file) {
+    if (custom?.supports(file.extension)) {
+      const extraction = custom.extract(file);
+      if (extraction.status === "failed") {
+        if (customDiagnostics.length < MAX_GRAPH_FILES)
+          customDiagnostics.push({ path: file.path, adapter: extraction.adapter, code: extraction.code });
+      } else if (extraction.status === "ok") {
+        for (const imported of extraction.facts.imports) {
+          const resolved = custom.resolve(file.extension, file.path, imported, candidatePaths);
+          if (resolved.status === "failed") {
+            if (customDiagnostics.length < MAX_GRAPH_FILES)
+              customDiagnostics.push({ path: file.path, adapter: resolved.adapter, code: resolved.code });
+          } else if (resolved.status === "ok")
+            yield resolved.targets;
+        }
+      }
+      return;
+    }
+    for (const imported of extractLanguageImports(file)) {
+      yield resolveLanguageImport(file.path, imported, resolverIndex, aliases, workspacePackages);
+    }
+  }
   for (const file of parseable) {
     let edges = 0;
     let edgeTruncated = false;
-    importsLoop: for (const imported of extractLanguageImports(file)) {
-      for (const target of resolveLanguageImport(file.path, imported, resolverIndex, aliases, workspacePackages)) {
+    importsLoop: for (const targets of targetGroups(file)) {
+      for (const target of targets) {
         if (edges >= MAX_EDGES_PER_FILE) {
           truncatedEdges += 1;
           edgeTruncated = true;
@@ -2387,7 +2411,8 @@ function buildImportGraph(files) {
     imports,
     importedBy,
     truncatedFiles: Math.max(0, allParseable.length - parseable.length),
-    truncatedEdges
+    truncatedEdges,
+    ...custom ? { customDiagnostics } : {}
   };
 }
 function findImportProximity(graph, seedPaths) {

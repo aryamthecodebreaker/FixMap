@@ -5,6 +5,7 @@ import { buildRustProjects, rustPathDependency, rustProjectForPath, type RustPro
 import { buildGoModules, buildGoWorkspaces, goModuleForPath, goReplacementForImport, goWorkspaceForModules, type GoModule, type GoWorkspace } from "./go-projects.js";
 import { buildRubyProjects, rubyProjectForPath, type RubyProject } from "./ruby-projects.js";
 import type { RepoFile } from "./types.js";
+import type { createCustomLanguageContext } from "./custom-language-context.js";
 
 const RESOLVE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"];
 const COMPILED_TO_SOURCE: Record<string, string[]> = {
@@ -20,6 +21,7 @@ export type ImportGraph = {
   importedBy: Map<string, Set<string>>;
   truncatedFiles: number;
   truncatedEdges: number;
+  customDiagnostics?: Array<{ path: string; adapter: string; code: string }>;
 };
 
 export type ImportProximity = {
@@ -50,8 +52,8 @@ type ResolverIndex = {
   composerDependencyClosures: Map<string, Set<string>>;
 };
 
-export function buildImportGraph(files: RepoFile[]): ImportGraph {
-  const allParseable = files.filter((file) => languageAdapterForFile(file) && file.textSample.length > 0);
+export function buildImportGraph(files: RepoFile[], custom?: ReturnType<typeof createCustomLanguageContext>): ImportGraph {
+  const allParseable = files.filter((file) => (languageAdapterForFile(file) || custom?.supports(file.extension)) && file.textSample.length > 0);
   const parseable = allParseable.slice(0, MAX_GRAPH_FILES);
   const dotnetProjects = buildDotnetProjects(files);
   const composerProjects = buildComposerProjects(files);
@@ -69,13 +71,35 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
   const imports = new Map<string, Set<string>>();
   const importedBy = new Map<string, Set<string>>();
   let truncatedEdges = 0;
+  const customDiagnostics: NonNullable<ImportGraph["customDiagnostics"]> = [];
+  const candidatePaths = files.map((file) => file.path);
+
+  function* targetGroups(file: RepoFile): Generator<string[]> {
+    if (custom?.supports(file.extension)) {
+      const extraction = custom.extract(file);
+      if (extraction.status === "failed") {
+        if (customDiagnostics.length < MAX_GRAPH_FILES) customDiagnostics.push({ path: file.path, adapter: extraction.adapter, code: extraction.code });
+      } else if (extraction.status === "ok") {
+        for (const imported of extraction.facts.imports) {
+          const resolved = custom.resolve(file.extension, file.path, imported, candidatePaths);
+          if (resolved.status === "failed") {
+            if (customDiagnostics.length < MAX_GRAPH_FILES) customDiagnostics.push({ path: file.path, adapter: resolved.adapter, code: resolved.code });
+          } else if (resolved.status === "ok") yield resolved.targets;
+        }
+      }
+      return;
+    }
+    for (const imported of extractLanguageImports(file)) {
+      yield resolveLanguageImport(file.path, imported, resolverIndex, aliases, workspacePackages);
+    }
+  }
 
   for (const file of parseable) {
     let edges = 0;
     let edgeTruncated = false;
     importsLoop:
-    for (const imported of extractLanguageImports(file)) {
-      for (const target of resolveLanguageImport(file.path, imported, resolverIndex, aliases, workspacePackages)) {
+    for (const targets of targetGroups(file)) {
+      for (const target of targets) {
         if (edges >= MAX_EDGES_PER_FILE) {
           truncatedEdges += 1;
           edgeTruncated = true;
@@ -146,7 +170,8 @@ export function buildImportGraph(files: RepoFile[]): ImportGraph {
     imports,
     importedBy,
     truncatedFiles: Math.max(0, allParseable.length - parseable.length),
-    truncatedEdges
+    truncatedEdges,
+    ...(custom ? { customDiagnostics } : {})
   };
 }
 

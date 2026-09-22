@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { createCustomLanguageContext } from "../src/custom-language-context.js";
 import { createLanguageRegistry, type CustomLanguageAdapter } from "../src/language-registry.js";
+import { buildImportGraph, findImportProximity } from "../src/import-graph.js";
+import type { RepoFile } from "../src/types.js";
 
 function adapter(): CustomLanguageAdapter {
   return { id: 'custom:example', contractVersion: 1, version: '1', extensions: ['.example'],
@@ -10,6 +12,47 @@ function adapter(): CustomLanguageAdapter {
 const file = () => ({ path: 'src/a.example', extension: '.example', textSample: 'hello' });
 
 describe('custom language extraction context', () => {
+  it('applies graph edge limits to custom facts while retaining healthy built-in edges', () => {
+    const makeFile = (path: string, textSample = 'source'): RepoFile => ({ path,
+      extension: path.endsWith('.ts') ? '.ts' : '.example', textSample, sizeBytes: textSample.length,
+      isSource: true, isTest: false, kind: 'code' });
+    const targets = Array.from({ length: 201 }, (_, index) => `src/target-${index}.example`);
+    const files = [makeFile('src/a.example', 'imports'), ...targets.map((path) => makeFile(path)),
+      makeFile('src/main.ts', 'import { value } from "./value";'), makeFile('src/value.ts', 'export const value = 1;')];
+    const context = createCustomLanguageContext(createLanguageRegistry([{ ...adapter(),
+      extractImports: (text) => text === 'imports' ? targets.map((specifier) => ({ specifier, importedNames: [], wildcard: false })) : [],
+      resolveImport: ({ imported }) => [imported.specifier]
+    }]));
+    const graph = buildImportGraph(files, context);
+    expect(graph.imports.get('src/a.example')?.size).toBe(200);
+    expect(graph.truncatedEdges).toBe(1);
+    expect([...graph.imports.get('src/main.ts')!]).toEqual(['src/value.ts']);
+  });
+
+  it('connects custom imports to the real graph without changing default analysis', () => {
+    const files: RepoFile[] = ['src/a.example', 'src/b.example'].map((path) => ({
+      path, extension: '.example', textSample: path, sizeBytes: 20, isSource: true, isTest: false, kind: 'code'
+    }));
+    const plugin = { ...adapter(), extractImports: () => [{ specifier: 'b', importedNames: [], wildcard: false }],
+      resolveImport: () => ['src/b.example'] };
+    const context = createCustomLanguageContext(createLanguageRegistry([plugin]));
+    const baseline = buildImportGraph(files);
+    expect(baseline.imports.size).toBe(0);
+    const graph = buildImportGraph(files, context);
+    expect([...graph.imports.get('src/a.example')!]).toEqual(['src/b.example']);
+    expect([...graph.importedBy.get('src/b.example')!]).toEqual(['src/a.example']);
+    expect(findImportProximity(graph, ['src/b.example']).get('src/a.example')).toEqual({
+      distance: 1, seed: 'src/b.example', direction: 'imports'
+    });
+    expect(graph.customDiagnostics).toEqual([]);
+    expect(buildImportGraph(files)).toEqual(baseline);
+    const broken = createCustomLanguageContext(createLanguageRegistry([{ ...plugin, resolveImport: () => ['missing.example'] }]));
+    const failed = buildImportGraph(files, broken);
+    expect(failed.imports.size).toBe(0);
+    expect(failed.customDiagnostics).toHaveLength(2);
+    expect(failed.customDiagnostics?.[0]?.code).toBe('adapter-resolution-failed');
+  });
+
   it('contains resolver exceptions and rejects oversized or invalid snapshots before execution', () => {
     const resolveImport = vi.fn(() => { throw new Error('SECRET'); });
     const context = createCustomLanguageContext(createLanguageRegistry([{ ...adapter(), resolveImport }]));

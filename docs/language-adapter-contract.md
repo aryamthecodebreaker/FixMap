@@ -12,7 +12,12 @@ identity/version, copied facts, and explicit unsupported/ok/failed results.
 Exceptions do not expose plugin messages. The custom resolver boundary now checks
 the bounded candidate snapshot and every proposed target, freezes callback inputs,
 rejects invalid batches, and returns detached sorted targets without self edges.
-Scanner/cache plumbing, graph wiring, diagnostic/report integration, and full analysis integration below
+`buildImportGraph` accepts an explicit scoped context and routes custom facts
+through validated resolution, the existing 200-edge-per-file cap, reverse edges,
+and proximity traversal. Bounded graph-level failure diagnostics remain separate
+from successful empty results; default built-in calls retain their prior shape.
+Custom/built-in mixed graphs and ranking regressions pass 120 focused tests.
+Scanner/cache plumbing, diagnostic/report integration, and full analysis integration below
 remain to be implemented. These internal foundations are not usable language
 support through the public analysis API yet.
 

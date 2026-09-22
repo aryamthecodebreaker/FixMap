@@ -43,6 +43,7 @@ function validDefinitions(value: unknown, textLength: number): value is Definiti
 export function createCustomLanguageContext(registry: LanguageRegistry) {
   const cache = new WeakMap<object, { path: string; extension: string; text: string; result: CustomExtractionResult }>();
   return Object.freeze({
+    supports(extension: string): boolean { return registry.customForExtension(extension) !== undefined; },
     resolve(extension: string, fromPath: string, imported: ImportFact, candidatePaths: readonly string[]): CustomResolutionResult {
       const adapter = registry.customForExtension(extension);
       if (!adapter) return { status: "unsupported" };
