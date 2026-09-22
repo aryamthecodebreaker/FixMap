@@ -1,4 +1,5 @@
 import { buildImportGraph } from "./import-graph.js";
+import type { createCustomLanguageContext } from "./custom-language-context.js";
 import { isFixMapArtifact } from "./artifacts.js";
 import { isBackupPath, isGeneratedPath } from "./paths.js";
 import type {
@@ -30,7 +31,8 @@ export function buildImpactMap(
   requestedSeeds: string[],
   testRoutes: TestRoute[] = [],
   limit = DEFAULT_IMPACT_LIMIT,
-  primaryPaths: readonly string[] = []
+  primaryPaths: readonly string[] = [],
+  languageContext?: ReturnType<typeof createCustomLanguageContext>
 ): ImpactMap {
   const repositoryPaths = new Set(repo.files.filter((file) => !isFixMapArtifact(file)).map((file) => file.path));
   const seeds = [...new Set(requestedSeeds)]
@@ -49,7 +51,7 @@ export function buildImpactMap(
     candidates.set(path, current);
   };
 
-  const graph = buildImportGraph(repo.files);
+  const graph = buildImportGraph(repo.files, languageContext);
   const primarySet = new Set(primaryPaths.filter((path) => repositoryPaths.has(path)));
   const primaryImports = [...primarySet].sort((a, b) => a.localeCompare(b)).flatMap((from) =>
     [...(graph.imports.get(from) ?? [])]

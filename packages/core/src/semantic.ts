@@ -1,4 +1,5 @@
 import { rankContextFilesEvidenceDetailed } from "./rank.js";
+import type { createCustomLanguageContext } from "./custom-language-context.js";
 import { isFixMapArtifact } from "./artifacts.js";
 import type { PathExcluder } from "./exclude.js";
 import type { RankedFile, RepoMap, ScanDiagnostic } from "./types.js";
@@ -65,6 +66,7 @@ export type HybridRankingResult = {
 };
 
 export type HybridRankingOptions = {
+  languageContext?: ReturnType<typeof createCustomLanguageContext>;
   embeddingProvider?: EmbeddingProvider;
   allowRemoteEmbeddings?: boolean;
   exclude?: PathExcluder;
@@ -106,7 +108,7 @@ export async function rankContextFilesHybrid(
   };
   const detailed = rankContextFilesEvidenceDetailed(
     repo,
-    { ...input, exclude: options.exclude },
+    { ...input, exclude: options.exclude, ...(options.languageContext ? { languageContext: options.languageContext } : {}) },
     Number.MAX_SAFE_INTEGER,
     options.minStructuralScore ?? Number.NEGATIVE_INFINITY
   );

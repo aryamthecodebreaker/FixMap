@@ -32,8 +32,12 @@ Structural and evidence ranking now accept `languageContext`, using its validate
 definitions for score signals, grounding, symbol-unit retrieval, and import
 proximity. A custom DSL regression proves increased definition evidence and
 symbol retrieval while subsequent default ranking stays unchanged; the focused
-grounding/ranking sweep passes 86 tests. Report assembly, hybrid propagation,
-custom test classification, and diagnostic integration below
+grounding/ranking sweep passes 86 tests. Normal and hybrid report builders now
+propagate the context through grounding, ranking, and impact assembly, including
+primary graph edges. A shared custom fixture proves both reports retain definition
+grounding and caller impact and pass report validation; 31 focused report/impact/
+hybrid tests pass. Top-level analysis setup, custom test classification, and
+diagnostic integration below
 remain to be implemented. These internal foundations are not usable language
 support through the public analysis API yet.
 

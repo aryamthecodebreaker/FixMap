@@ -13,6 +13,8 @@ import { findGatedTestDiagnostics } from "./test-gates.js";
 import { markdownCode } from "./markdown.js";
 import { DIAGNOSTIC_TERM_LIMIT, truncateForDiagnostic } from "./text.js";
 import { rankContextFilesHybrid } from "./semantic.js";
+import type { createCustomLanguageContext } from "./custom-language-context.js";
+type CustomContext = ReturnType<typeof createCustomLanguageContext>;
 import type { EmbeddingProvider, HybridRankingResult } from "./semantic.js";
 import type { FixMapReport, PackageScript, RankedFile, RepoFile, RepoMap, ReportRetrieval, RiskNote, ScanDiagnostic, TestRoute } from "./types.js";
 import { assessAnnotations, validateAnnotationStore } from "./annotations.js";
@@ -34,18 +36,20 @@ export function buildReportFromRepo(
     limit?: number | undefined;
     exclude?: PathExcluder | undefined;
     annotationAsOf?: string | undefined;
+    languageContext?: CustomContext;
   }
 ): FixMapReport {
   const grounding = analyzeTaskGrounding(repo, {
     issueText: input.issueText,
     diffText: repo.diffText
-  });
+  }, input.languageContext);
   const ranked = rankContextFilesEvidenceDetailed(
     repo,
     {
       issueText: input.issueText,
       diffText: repo.diffText,
-      exclude: input.exclude
+      exclude: input.exclude,
+      ...(input.languageContext ? { languageContext: input.languageContext } : {})
     },
     input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT
   );
@@ -64,14 +68,16 @@ export async function buildHybridReportFromRepo(
     embeddingProvider: EmbeddingProvider;
     allowRemoteEmbeddings?: boolean;
     annotationAsOf?: string | undefined;
+    languageContext?: CustomContext;
   }
 ): Promise<FixMapReport> {
-  const grounding = analyzeTaskGrounding(repo, { issueText: input.issueText, diffText: repo.diffText });
+  const grounding = analyzeTaskGrounding(repo, { issueText: input.issueText, diffText: repo.diffText }, input.languageContext);
   const hybrid = await rankContextFilesHybrid(repo, {
     issueText: input.issueText,
     diffText: repo.diffText
   }, {
     embeddingProvider: input.embeddingProvider,
+    ...(input.languageContext ? { languageContext: input.languageContext } : {}),
     limit: input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT,
     ...(input.allowRemoteEmbeddings !== undefined ? { allowRemoteEmbeddings: input.allowRemoteEmbeddings } : {}),
     ...(input.exclude ? { exclude: input.exclude } : {})
@@ -103,7 +109,7 @@ export async function buildHybridReportFromRepo(
 
 function assembleReport(
   repo: RepoMap,
-  input: { issueText?: string | undefined; exclude?: PathExcluder | undefined; annotationAsOf?: string | undefined },
+  input: { issueText?: string | undefined; exclude?: PathExcluder | undefined; annotationAsOf?: string | undefined; languageContext?: CustomContext },
   grounding: TaskGrounding,
   contextFiles: RankedFile[],
   ranking: RankingShape,
@@ -115,7 +121,7 @@ function assembleReport(
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
-  const impact = buildImpactMap(repo, contextPaths, testRoutes, undefined, contextPaths);
+  const impact = buildImpactMap(repo, contextPaths, testRoutes, undefined, contextPaths, input.languageContext);
   const annotations = input.annotationAsOf
     ? buildReportAnnotations(repo, [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles], input.issueText ?? "", input.annotationAsOf)
     : undefined;

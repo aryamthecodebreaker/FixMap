@@ -3094,7 +3094,7 @@ function isRecord2(candidate) {
 var DEFAULT_IMPACT_LIMIT = 12;
 var MAX_IMPACT_SEEDS = 3;
 var MIN_CO_CHANGE_OCCURRENCES = 2;
-function buildImpactMap(repo, requestedSeeds, testRoutes = [], limit = DEFAULT_IMPACT_LIMIT, primaryPaths = []) {
+function buildImpactMap(repo, requestedSeeds, testRoutes = [], limit = DEFAULT_IMPACT_LIMIT, primaryPaths = [], languageContext) {
   const repositoryPaths = new Set(repo.files.filter((file) => !isFixMapArtifact(file)).map((file) => file.path));
   const seeds = [...new Set(requestedSeeds)].filter((path) => repositoryPaths.has(path)).slice(0, MAX_IMPACT_SEEDS);
   const seedSet = new Set(seeds);
@@ -3109,7 +3109,7 @@ function buildImpactMap(repo, requestedSeeds, testRoutes = [], limit = DEFAULT_I
     }
     candidates.set(path, current);
   };
-  const graph = buildImportGraph(repo.files);
+  const graph = buildImportGraph(repo.files, languageContext);
   const primarySet = new Set(primaryPaths.filter((path) => repositoryPaths.has(path)));
   const primaryImports = [...primarySet].sort((a, b) => a.localeCompare(b)).flatMap((from) => [...graph.imports.get(from) ?? []].filter((to) => to !== from && primarySet.has(to)).sort((a, b) => a.localeCompare(b)).map((to) => ({ from, to })));
   for (const seed of seeds) {
@@ -4219,7 +4219,7 @@ async function rankContextFilesHybrid(repo, input, options = {}) {
     semantic: positiveNumber(options.weights?.semantic, DEFAULT_WEIGHTS.semantic),
     reciprocalRankConstant: DEFAULT_WEIGHTS.reciprocalRankConstant
   };
-  const detailed = rankContextFilesEvidenceDetailed(repo, { ...input, exclude: options.exclude }, Number.MAX_SAFE_INTEGER, options.minStructuralScore ?? Number.NEGATIVE_INFINITY);
+  const detailed = rankContextFilesEvidenceDetailed(repo, { ...input, exclude: options.exclude, ...options.languageContext ? { languageContext: options.languageContext } : {} }, Number.MAX_SAFE_INTEGER, options.minStructuralScore ?? Number.NEGATIVE_INFINITY);
   const structuralByPath = new Map(detailed.structuralFiles.map((file) => [file.path, file]));
   const evidenceByPath = new Map(detailed.contextFiles.map((file) => [file.path, file]));
   const task = [input.issueText ?? "", input.diffText ?? ""].filter(Boolean).join("\n");
@@ -5166,23 +5166,25 @@ function buildReportFromRepo(repo, input) {
   const grounding = analyzeTaskGrounding(repo, {
     issueText: input.issueText,
     diffText: repo.diffText
-  });
+  }, input.languageContext);
   const ranked = rankContextFilesEvidenceDetailed(repo, {
     issueText: input.issueText,
     diffText: repo.diffText,
-    exclude: input.exclude
+    exclude: input.exclude,
+    ...input.languageContext ? { languageContext: input.languageContext } : {}
   }, input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT);
   const contextFiles = ranked.contextFiles;
   const ranking = ranked.ranking;
   return assembleReport(repo, input, grounding, contextFiles, ranking, ranked.diagnostics);
 }
 async function buildHybridReportFromRepo(repo, input) {
-  const grounding = analyzeTaskGrounding(repo, { issueText: input.issueText, diffText: repo.diffText });
+  const grounding = analyzeTaskGrounding(repo, { issueText: input.issueText, diffText: repo.diffText }, input.languageContext);
   const hybrid = await rankContextFilesHybrid(repo, {
     issueText: input.issueText,
     diffText: repo.diffText
   }, {
     embeddingProvider: input.embeddingProvider,
+    ...input.languageContext ? { languageContext: input.languageContext } : {},
     limit: input.limit ?? DEFAULT_CONTEXT_FILE_LIMIT,
     ...input.allowRemoteEmbeddings !== void 0 ? { allowRemoteEmbeddings: input.allowRemoteEmbeddings } : {},
     ...input.exclude ? { exclude: input.exclude } : {}
@@ -5203,7 +5205,7 @@ function assembleReport(repo, input, grounding, contextFiles, ranking, rankingDi
   const contextPaths = contextFiles.map((file) => file.path);
   const testRoutes = buildTestRoutes(repo, contextPaths);
   const routedTestPaths = [...new Set(testRoutes.flatMap((route) => route.relatedFiles))];
-  const impact = buildImpactMap(repo, contextPaths, testRoutes, void 0, contextPaths);
+  const impact = buildImpactMap(repo, contextPaths, testRoutes, void 0, contextPaths, input.languageContext);
   const annotations = input.annotationAsOf ? buildReportAnnotations(repo, [...contextPaths, ...impact.inspectionOrder, ...repo.changedFiles], input.issueText ?? "", input.annotationAsOf) : void 0;
   const decisionInventory = inventoryDecisionRecords(input.exclude ? { ...repo, files: repo.files.filter((file) => !input.exclude.excludes(file.path)) } : repo);
   const decisions = selectDecisionRecords(decisionInventory, {

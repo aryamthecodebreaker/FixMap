@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { rankContextFilesHybrid, type EmbeddingProvider } from "../src/semantic.js";
-import { buildHybridReportFromRepo } from "../src/report.js";
+import { buildHybridReportFromRepo, buildReportFromRepo } from "../src/report.js";
+import { createLanguageRegistry } from "../src/language-registry.js";
+import { createCustomLanguageContext } from "../src/custom-language-context.js";
 import { validateFixMapReport } from "../src/validate.js";
 import type { RepoFile, RepoMap } from "../src/types.js";
 
@@ -44,6 +46,29 @@ function provider(embed: EmbeddingProvider["embed"], overrides: Partial<Embeddin
 }
 
 describe("rankContextFilesHybrid", () => {
+  it("preserves custom grounding and graph evidence through normal and hybrid reports", async () => {
+    const map = repo([file('src/auth.example', 'rule resetPassword'), file('src/caller.example', 'invoke auth')]);
+    const languageContext = createCustomLanguageContext(createLanguageRegistry([{
+      id: 'custom:example', version: '1', contractVersion: 1, extensions: ['.example'],
+      extractDefinitions: (text) => text.startsWith('rule') ? [{ name: 'resetPassword', kind: 'function', offset: 5 }] : [],
+      extractImports: (text) => text.startsWith('invoke') ? [{ specifier: 'auth', importedNames: [], wildcard: false }] : [],
+      isTestPath: () => false, resolveImport: () => ['src/auth.example']
+    }]));
+    const input = { issueText: 'resetPassword', languageContext };
+    const normal = buildReportFromRepo(map, input);
+    const hybrid = await buildHybridReportFromRepo(map, {
+      ...input, embeddingProvider: provider(async (texts) => texts.map(() => [1, 0]))
+    });
+    for (const report of [normal, hybrid]) {
+      expect(report.contextFiles[0]?.path).toBe('src/auth.example');
+      expect(report.analysis?.grounding.identifiers).toContainEqual({
+        identifier: 'resetPassword', status: 'exact-definition', matchedFiles: ['src/auth.example']
+      });
+      expect(JSON.stringify(report.impact)).toContain('src/caller.example');
+      expect(validateFixMapReport(report, 'custom report')).toMatchObject({ success: true });
+    }
+  });
+
   it("uses deterministic structural and lexical fusion when semantics are disabled", async () => {
     const map = repo([
       file("src/email.ts", "export function sendPasswordReset() {}"),
