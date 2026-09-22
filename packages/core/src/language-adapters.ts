@@ -344,7 +344,10 @@ export const BUILT_IN_LANGUAGE_ADAPTERS: readonly LanguageAdapter[] = Object.fre
   rubyAdapter,
   phpAdapter,
   dotnetAdapter
-]);
+].map((adapter) => Object.freeze({
+  ...adapter,
+  extensions: Object.freeze([...adapter.extensions])
+})));
 
 const ADAPTER_BY_EXTENSION = new Map(
   BUILT_IN_LANGUAGE_ADAPTERS.flatMap((adapter) => adapter.extensions.map((extension) => [extension, adapter] as const))

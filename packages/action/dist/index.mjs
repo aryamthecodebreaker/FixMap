@@ -422,7 +422,10 @@ var BUILT_IN_LANGUAGE_ADAPTERS = Object.freeze([
   rubyAdapter,
   phpAdapter,
   dotnetAdapter
-]);
+].map((adapter) => Object.freeze({
+  ...adapter,
+  extensions: Object.freeze([...adapter.extensions])
+})));
 var ADAPTER_BY_EXTENSION = new Map(BUILT_IN_LANGUAGE_ADAPTERS.flatMap((adapter) => adapter.extensions.map((extension) => [extension, adapter])));
 var IMPORT_CACHE = /* @__PURE__ */ new WeakMap();
 var DEFINITION_CACHE = /* @__PURE__ */ new WeakMap();

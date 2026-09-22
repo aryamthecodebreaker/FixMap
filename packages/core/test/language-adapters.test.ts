@@ -12,6 +12,16 @@ function sample(extension: string, textSample: string) {
 }
 
 describe("built-in language adapters", () => {
+  it("prevents consumers from replacing built-in extractors or extension mappings", () => {
+    const adapter = languageAdapterForFile({ extension: '.py' })!;
+    expect(Object.isFrozen(adapter)).toBe(true);
+    expect(Object.isFrozen(adapter.extensions)).toBe(true);
+    expect(Reflect.set(adapter, 'extractImports', () => [])).toBe(false);
+    expect(Reflect.set(adapter.extensions, '0', '.fake')).toBe(false);
+    expect(languageAdapterForFile({ extension: '.py' })).toBe(adapter);
+    expect(extractLanguageImports(sample('.py', 'from .real import Actual'))[0]?.specifier).toBe('.real');
+  });
+
   it("keys cached facts by the effective search sample, including an empty override", () => {
     const file: { extension: string; textSample: string; searchTextSample?: string } =
       sample('.py', 'from .base import Base\ndef base(): pass');
