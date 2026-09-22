@@ -5870,9 +5870,9 @@ async function scanRepo(input) {
   const internalPaths = await resolveInternalPaths(repoRoot, input.internalExclude ?? []);
   const cacheRoot = configuredScanCacheRoot();
   const internalCacheRoot = sameFilesystemPath(cacheRoot, repoRoot) || containedPath(repoRoot, cacheRoot) !== void 0 ? cacheRoot : void 0;
-  const cacheDecision = input.useCache === true ? await buildScanCacheLocation(repoRoot, cacheRoot, internalPaths, input.includeHistory === true) : void 0;
+  const cacheDecision = input.useCache === true ? await buildScanCacheLocation(repoRoot, cacheRoot, internalPaths, input.includeHistory === true, input.languageRegistry?.cacheIdentity) : void 0;
   const cacheLocation = cacheDecision?.location;
-  const incrementalIndexLocation = input.useCache === true && !sameFilesystemPath(cacheRoot, repoRoot) && containedPath(repoRoot, cacheRoot) === void 0 ? buildIncrementalIndexLocation(repoRoot, cacheRoot) : void 0;
+  const incrementalIndexLocation = input.useCache === true && !sameFilesystemPath(cacheRoot, repoRoot) && containedPath(repoRoot, cacheRoot) === void 0 ? buildIncrementalIndexLocation(repoRoot, cacheRoot, input.languageRegistry?.cacheIdentity) : void 0;
   if (input.useCache === false) {
     diagnostics.push({
       code: "cache-bypass",
@@ -5904,7 +5904,7 @@ async function scanRepo(input) {
       message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files, ${describeCacheAge(cached.createdAt)}). Pass --no-cache to rescan.`
     });
   } else {
-    const listed = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths, incrementalIndexLocation);
+    const listed = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths, incrementalIndexLocation, input.languageRegistry);
     files = listed.files;
     trackedFiles = listed.trackedFiles;
     packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
@@ -5942,8 +5942,8 @@ async function scanRepo(input) {
     ...history ? { history } : {}
   };
 }
-function buildIncrementalIndexLocation(root, cacheRoot) {
-  const repoKey = hashText(resolve(root));
+function buildIncrementalIndexLocation(root, cacheRoot, registryIdentity) {
+  const repoKey = hashText(resolve(root) + (registryIdentity ? `\0${registryIdentity}` : ""));
   return { path: join(cacheRoot, `${repoKey}-index-v2.json`), repoKey };
 }
 function configuredScanCacheRoot() {
@@ -5974,7 +5974,7 @@ function hasInternalPath(paths, path) {
 function gitPathspec(internalPaths) {
   return ["--", ".", ...[...internalPaths].sort((a, b) => a.localeCompare(b)).map((path) => `:(exclude,literal)${path}`)];
 }
-async function buildScanCacheLocation(root, cacheRoot, internalPaths, includeHistory) {
+async function buildScanCacheLocation(root, cacheRoot, internalPaths, includeHistory, registryIdentity) {
   if (sameFilesystemPath(cacheRoot, root) || containedPath(root, cacheRoot) !== void 0) {
     return {
       skipReason: "Repository scan caching was skipped because FIXMAP_CACHE_DIR is inside the scanned repository. Move the cache outside the repository to enable exact-state reuse."
@@ -6005,6 +6005,7 @@ async function buildScanCacheLocation(root, cacheRoot, internalPaths, includeHis
       status,
       dirtyDiff,
       includeHistory ? "history" : "no-history",
+      ...registryIdentity ? [registryIdentity] : [],
       ...[...internalPaths].sort((a, b) => a.localeCompare(b))
     ].join("\0"));
     return { location: {
@@ -6160,13 +6161,13 @@ async function listTrackedPaths(root, internalPaths) {
 function resolveDiffSpec(input) {
   return input.diffSpec ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : void 0);
 }
-async function listFiles(root, diagnostics, internalCacheRoot, internalPaths, incrementalIndexLocation) {
+async function listFiles(root, diagnostics, internalCacheRoot, internalPaths, incrementalIndexLocation, languageRegistry) {
   const gitPaths = await listGitPaths(root);
   const visiblePaths = gitPaths?.paths.filter((path) => !hasInternalPath(internalPaths, normalizePath3(path)) && !isInternalCachePath(root, path, internalCacheRoot));
   let files;
   if (gitPaths) {
     const previous = incrementalIndexLocation ? await readIncrementalScanIndex(incrementalIndexLocation) : void 0;
-    const built = await buildFilesFromPaths(root, visiblePaths ?? [], diagnostics, gitPaths.gitLinks, gitPaths.fingerprints, previous);
+    const built = await buildFilesFromPaths(root, visiblePaths ?? [], diagnostics, gitPaths.gitLinks, gitPaths.fingerprints, previous, languageRegistry);
     files = built.files;
     if (incrementalIndexLocation) {
       await writeIncrementalScanIndex(incrementalIndexLocation, built.indexedFiles);
@@ -6180,7 +6181,7 @@ async function listFiles(root, diagnostics, internalCacheRoot, internalPaths, in
     }
   } else {
     const state = { count: 0, limitReported: false, linkedPaths: [] };
-    files = (await walkFiles(root, root, diagnostics, state, internalCacheRoot, internalPaths)).sort((a, b) => a.path.localeCompare(b.path));
+    files = (await walkFiles(root, root, diagnostics, state, internalCacheRoot, internalPaths, languageRegistry)).sort((a, b) => a.path.localeCompare(b.path));
     if (state.linkedPaths.length > 0) {
       const paths = [...new Set(state.linkedPaths)].sort();
       diagnostics.push({
@@ -6243,7 +6244,7 @@ async function listGitPaths(root) {
     return void 0;
   }
 }
-async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* @__PURE__ */ new Set(), fingerprints = /* @__PURE__ */ new Map(), previous) {
+async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* @__PURE__ */ new Set(), fingerprints = /* @__PURE__ */ new Map(), previous, languageRegistry) {
   const results = [];
   const indexedByPath = /* @__PURE__ */ new Map();
   const reusedPaths = /* @__PURE__ */ new Set();
@@ -6265,7 +6266,7 @@ async function buildFilesFromPaths(root, paths, diagnostics, knownGitLinks = /* 
     const fingerprint = fingerprints.get(relativePath) ?? await hashWorktreeFile(absolutePath);
     const prior = fingerprint ? previous?.get(relativePath) : void 0;
     const reused2 = prior && prior.fingerprint === fingerprint ? prior.file : void 0;
-    const scanned = await toRepoFile(absolutePath, relativePath, fingerprint, reused2);
+    const scanned = await toRepoFile(absolutePath, relativePath, fingerprint, reused2, languageRegistry);
     return { index, relativePath, status: "scanned", fingerprint, reused: reused2 !== void 0, scanned };
   };
   let limitReached = false;
@@ -6433,7 +6434,7 @@ function reportEscapedLinks(diagnostics, paths) {
     paths: unique.slice(0, 8)
   });
 }
-async function walkFiles(root, current, diagnostics, state, internalCacheRoot, internalPaths) {
+async function walkFiles(root, current, diagnostics, state, internalCacheRoot, internalPaths, languageRegistry) {
   let entries;
   try {
     entries = await readdir(current, { withFileTypes: true });
@@ -6460,7 +6461,7 @@ async function walkFiles(root, current, diagnostics, state, internalCacheRoot, i
       const directory = join(current, entry.name);
       if (internalCacheRoot && sameFilesystemPath(directory, internalCacheRoot))
         continue;
-      results.push(...await walkFiles(root, directory, diagnostics, state, internalCacheRoot, internalPaths));
+      results.push(...await walkFiles(root, directory, diagnostics, state, internalCacheRoot, internalPaths, languageRegistry));
       continue;
     }
     if (!entry.isFile()) {
@@ -6471,7 +6472,7 @@ async function walkFiles(root, current, diagnostics, state, internalCacheRoot, i
     if (hasInternalPath(internalPaths, relativePath) || isInternalCachePath(root, relativePath, internalCacheRoot))
       continue;
     const fingerprint = await hashWorktreeFile(absolutePath);
-    const scanned = await toRepoFile(absolutePath, relativePath, fingerprint);
+    const scanned = await toRepoFile(absolutePath, relativePath, fingerprint, void 0, languageRegistry);
     if (scanned.status === "ok") {
       results.push(scanned.file);
       state.count += 1;
@@ -6479,7 +6480,7 @@ async function walkFiles(root, current, diagnostics, state, internalCacheRoot, i
   }
   return results;
 }
-async function toRepoFile(absolutePath, relativePath, contentFingerprint, reusable) {
+async function toRepoFile(absolutePath, relativePath, contentFingerprint, reusable, languageRegistry) {
   let fileStat;
   try {
     fileStat = await stat(absolutePath);
@@ -6498,7 +6499,8 @@ async function toRepoFile(absolutePath, relativePath, contentFingerprint, reusab
   }
   const extension = extname(relativePath).toLowerCase();
   const conventionalKind = classifyConventionalTextFile(relativePath);
-  const isSource = SOURCE_EXTENSIONS.has(extension) || conventionalKind !== void 0;
+  const customSource = languageRegistry?.customForExtension(extension) !== void 0;
+  const isSource = customSource || SOURCE_EXTENSIONS.has(extension) || conventionalKind !== void 0;
   const sample = isSource ? await readTextSample(absolutePath, fileStat.size) : { text: "", complete: true };
   if (SFC_EXTENSIONS.has(extension) && sample.text) {
     sample.text = extractScriptBlocks(sample.text);
@@ -6515,7 +6517,7 @@ async function toRepoFile(absolutePath, relativePath, contentFingerprint, reusab
       sizeBytes: fileStat.size,
       isTest: isLanguageTestPath(relativePath, extension) || TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
       isSource,
-      kind: classifyFile(relativePath, extension),
+      kind: customSource ? "code" : classifyFile(relativePath, extension),
       textSample: sample.text,
       ...sample.searchText ? { searchTextSample: sample.searchText } : {},
       textSampleComplete: sample.complete,

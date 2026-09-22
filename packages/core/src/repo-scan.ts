@@ -7,6 +7,7 @@ import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node
 import { promisify } from "node:util";
 import { ALWAYS_IGNORED_DIRS, GENERATED_DIRS, SOURCE_FILE_EXTENSIONS, isGeneratedPath } from "./paths.js";
 import { isLanguageTestPath } from "./language-adapters.js";
+import type { LanguageRegistry } from "./language-registry.js";
 import { markdownCode } from "./markdown.js";
 import { DIAGNOSTIC_SPEC_LIMIT, truncateForDiagnostic } from "./text.js";
 import type { FixMapInput, HistoryCommit, PackageScript, RepoFile, RepoMap, RepositoryHistory } from "./types.js";
@@ -98,7 +99,7 @@ export async function scanRepo(
   input: Pick<
     FixMapInput,
     "repoRoot" | "baseRef" | "headRef" | "diffSpec" | "workingTree" | "includeUntracked" | "useCache" | "includeHistory"
-  > & { internalExclude?: string[] | undefined }
+  > & { internalExclude?: string[] | undefined; languageRegistry?: LanguageRegistry }
 ): Promise<RepoMap> {
   const repoRoot = resolve(input.repoRoot);
   if (!(await isDirectory(repoRoot))) {
@@ -124,12 +125,12 @@ export async function scanRepo(
     ? cacheRoot
     : undefined;
   const cacheDecision = input.useCache === true
-    ? await buildScanCacheLocation(repoRoot, cacheRoot, internalPaths, input.includeHistory === true)
+    ? await buildScanCacheLocation(repoRoot, cacheRoot, internalPaths, input.includeHistory === true, input.languageRegistry?.cacheIdentity)
     : undefined;
   const cacheLocation = cacheDecision?.location;
   const incrementalIndexLocation = input.useCache === true &&
     !sameFilesystemPath(cacheRoot, repoRoot) && containedPath(repoRoot, cacheRoot) === undefined
-    ? buildIncrementalIndexLocation(repoRoot, cacheRoot)
+    ? buildIncrementalIndexLocation(repoRoot, cacheRoot, input.languageRegistry?.cacheIdentity)
     : undefined;
   if (input.useCache === false) {
     diagnostics.push({
@@ -162,7 +163,7 @@ export async function scanRepo(
       message: `Reused the repository scan for the exact current git state (${files.length.toLocaleString()} files, ${describeCacheAge(cached.createdAt)}). Pass --no-cache to rescan.`
     });
   } else {
-    const listed = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths, incrementalIndexLocation);
+    const listed = await listFiles(repoRoot, diagnostics, internalCacheRoot, internalPaths, incrementalIndexLocation, input.languageRegistry);
     files = listed.files;
     trackedFiles = listed.trackedFiles;
     packageScripts = await readPackageScripts(repoRoot, files, diagnostics);
@@ -210,8 +211,8 @@ type ScanCacheLocation = { path: string; stateKey: string };
 type ScanCacheDecision = { location?: ScanCacheLocation; skipReason?: string };
 type IncrementalIndexLocation = { path: string; repoKey: string };
 
-function buildIncrementalIndexLocation(root: string, cacheRoot: string): IncrementalIndexLocation {
-  const repoKey = hashText(resolve(root));
+function buildIncrementalIndexLocation(root: string, cacheRoot: string, registryIdentity?: string): IncrementalIndexLocation {
+  const repoKey = hashText(resolve(root) + (registryIdentity ? `\0${registryIdentity}` : ""));
   return { path: join(cacheRoot, `${repoKey}-index-v2.json`), repoKey };
 }
 
@@ -269,7 +270,8 @@ async function buildScanCacheLocation(
   root: string,
   cacheRoot: string,
   internalPaths: ReadonlySet<string>,
-  includeHistory: boolean
+  includeHistory: boolean,
+  registryIdentity?: string
 ): Promise<ScanCacheDecision> {
   if (sameFilesystemPath(cacheRoot, root) || containedPath(root, cacheRoot) !== undefined) {
     return {
@@ -308,6 +310,7 @@ async function buildScanCacheLocation(
       status,
       dirtyDiff,
       includeHistory ? "history" : "no-history",
+      ...(registryIdentity ? [registryIdentity] : []),
       ...[...internalPaths].sort((a, b) => a.localeCompare(b))
     ].join("\0"));
     return { location: {
@@ -543,7 +546,8 @@ async function listFiles(
   diagnostics: RepoMap["diagnostics"],
   internalCacheRoot: string | undefined,
   internalPaths: ReadonlySet<string>,
-  incrementalIndexLocation?: IncrementalIndexLocation
+  incrementalIndexLocation?: IncrementalIndexLocation,
+  languageRegistry?: LanguageRegistry
 ): Promise<{ files: RepoFile[]; trackedFiles: string[] }> {
   const gitPaths = await listGitPaths(root);
   const visiblePaths = gitPaths?.paths.filter((path) =>
@@ -560,7 +564,8 @@ async function listFiles(
       diagnostics,
       gitPaths.gitLinks,
       gitPaths.fingerprints,
-      previous
+      previous,
+      languageRegistry
     );
     files = built.files;
     if (incrementalIndexLocation) {
@@ -577,7 +582,7 @@ async function listFiles(
     }
   } else {
     const state: ScanState = { count: 0, limitReported: false, linkedPaths: [] };
-    files = (await walkFiles(root, root, diagnostics, state, internalCacheRoot, internalPaths))
+    files = (await walkFiles(root, root, diagnostics, state, internalCacheRoot, internalPaths, languageRegistry))
       .sort((a, b) => a.path.localeCompare(b.path));
     if (state.linkedPaths.length > 0) {
       const paths = [...new Set(state.linkedPaths)].sort();
@@ -685,7 +690,8 @@ async function buildFilesFromPaths(
   diagnostics: RepoMap["diagnostics"],
   knownGitLinks = new Set<string>(),
   fingerprints = new Map<string, string>(),
-  previous?: Map<string, IndexedRepoFile>
+  previous?: Map<string, IndexedRepoFile>,
+  languageRegistry?: LanguageRegistry
 ): Promise<BuiltFiles> {
   const results: RepoFile[] = [];
   const indexedByPath = new Map<string, IndexedRepoFile>();
@@ -720,7 +726,7 @@ async function buildFilesFromPaths(
     const fingerprint = fingerprints.get(relativePath) ?? await hashWorktreeFile(absolutePath);
     const prior = fingerprint ? previous?.get(relativePath) : undefined;
     const reused = prior && prior.fingerprint === fingerprint ? prior.file : undefined;
-    const scanned = await toRepoFile(absolutePath, relativePath, fingerprint, reused);
+    const scanned = await toRepoFile(absolutePath, relativePath, fingerprint, reused, languageRegistry);
     return { index, relativePath, status: "scanned", fingerprint, reused: reused !== undefined, scanned };
   };
 
@@ -974,7 +980,8 @@ async function walkFiles(
   diagnostics: RepoMap["diagnostics"],
   state: ScanState,
   internalCacheRoot: string | undefined,
-  internalPaths: ReadonlySet<string>
+  internalPaths: ReadonlySet<string>,
+  languageRegistry?: LanguageRegistry
 ): Promise<RepoFile[]> {
   let entries;
   try {
@@ -1002,7 +1009,7 @@ async function walkFiles(
       }
       const directory = join(current, entry.name);
       if (internalCacheRoot && sameFilesystemPath(directory, internalCacheRoot)) continue;
-      results.push(...await walkFiles(root, directory, diagnostics, state, internalCacheRoot, internalPaths));
+      results.push(...await walkFiles(root, directory, diagnostics, state, internalCacheRoot, internalPaths, languageRegistry));
       continue;
     }
 
@@ -1014,7 +1021,7 @@ async function walkFiles(
     const relativePath = normalizePath(relative(root, absolutePath));
     if (hasInternalPath(internalPaths, relativePath) || isInternalCachePath(root, relativePath, internalCacheRoot)) continue;
     const fingerprint = await hashWorktreeFile(absolutePath);
-    const scanned = await toRepoFile(absolutePath, relativePath, fingerprint);
+    const scanned = await toRepoFile(absolutePath, relativePath, fingerprint, undefined, languageRegistry);
     if (scanned.status === "ok") {
       results.push(scanned.file);
       state.count += 1;
@@ -1034,7 +1041,8 @@ async function toRepoFile(
   absolutePath: string,
   relativePath: string,
   contentFingerprint: string | undefined,
-  reusable?: RepoFile
+  reusable?: RepoFile,
+  languageRegistry?: LanguageRegistry
 ): Promise<ScannedFile> {
   let fileStat;
   try {
@@ -1056,7 +1064,8 @@ async function toRepoFile(
 
   const extension = extname(relativePath).toLowerCase();
   const conventionalKind = classifyConventionalTextFile(relativePath);
-  const isSource = SOURCE_EXTENSIONS.has(extension) || conventionalKind !== undefined;
+  const customSource = languageRegistry?.customForExtension(extension) !== undefined;
+  const isSource = customSource || SOURCE_EXTENSIONS.has(extension) || conventionalKind !== undefined;
   const sample = isSource
     ? await readTextSample(absolutePath, fileStat.size)
     : { text: "", complete: true };
@@ -1075,7 +1084,7 @@ async function toRepoFile(
       sizeBytes: fileStat.size,
       isTest: isLanguageTestPath(relativePath, extension) || TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
       isSource,
-      kind: classifyFile(relativePath, extension),
+      kind: customSource ? "code" : classifyFile(relativePath, extension),
       textSample: sample.text,
       ...(sample.searchText ? { searchTextSample: sample.searchText } : {}),
       textSampleComplete: sample.complete,

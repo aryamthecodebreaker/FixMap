@@ -5,9 +5,46 @@ import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { parseHistoryLog, scanRepo, summarizeSkippedScope } from "../src/repo-scan.js";
+import { createLanguageRegistry } from "../src/language-registry.js";
 
 const exec = promisify(execFile);
 const HEAVY_GIT_TEST_TIMEOUT = process.platform === "win32" ? 60_000 : 30_000;
+
+it('isolates custom source sampling from default and versioned scan caches', { timeout: HEAVY_GIT_TEST_TIMEOUT }, async () => {
+  const root = await mkdtemp(join(tmpdir(), 'fixmap-custom-scan-'));
+  const cache = await mkdtemp(join(tmpdir(), 'fixmap-custom-cache-'));
+  const previous = process.env.FIXMAP_CACHE_DIR;
+  process.env.FIXMAP_CACHE_DIR = cache;
+  const registry = (version: string) => createLanguageRegistry([{
+    id: 'custom:example', contractVersion: 1, version, extensions: ['.example'],
+    extractImports: () => [], extractDefinitions: () => [], isTestPath: () => false, resolveImport: () => []
+  }]);
+  try {
+    await writeFile(join(root, 'a.example'), 'actual custom source');
+    // Exercise the filesystem fallback before creating a Git checkout.
+    const walked = await scanRepo({ repoRoot: root, languageRegistry: registry('1') });
+    expect(walked.files[0]).toMatchObject({ isSource: true, kind: 'code', textSample: 'actual custom source' });
+    await exec('git', ['init'], { cwd: root });
+    await exec('git', ['add', '.'], { cwd: root });
+    await exec('git', ['-c', 'user.name=FixMap Test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-m', 'fixture'], { cwd: root });
+    const defaults = await scanRepo({ repoRoot: root, useCache: true });
+    expect(defaults.files[0]).toMatchObject({ isSource: false, textSample: '' });
+    const custom = await scanRepo({ repoRoot: root, useCache: true, languageRegistry: registry('1') });
+    expect(custom.files[0]).toMatchObject({ isSource: true, kind: 'code', textSample: 'actual custom source' });
+    const warm = await scanRepo({ repoRoot: root, useCache: true, languageRegistry: registry('1') });
+    expect(warm.files).toEqual(custom.files);
+    expect(warm.diagnostics.some((entry) => entry.code === 'cache-hit')).toBe(true);
+    const upgraded = await scanRepo({ repoRoot: root, useCache: true, languageRegistry: registry('2') });
+    expect(upgraded.files).toEqual(custom.files);
+    expect(upgraded.diagnostics.some((entry) => entry.code === 'cache-hit' || entry.code === 'incremental-index-hit')).toBe(false);
+    expect((await scanRepo({ repoRoot: root, useCache: true })).files).toEqual(defaults.files);
+  } finally {
+    if (previous === undefined) delete process.env.FIXMAP_CACHE_DIR;
+    else process.env.FIXMAP_CACHE_DIR = previous;
+    await rm(root, { recursive: true, force: true });
+    await rm(cache, { recursive: true, force: true });
+  }
+});
 
 async function exactScanCachePath(cacheRoot: string): Promise<string> {
   const name = (await readdir(cacheRoot)).find((entry) =>

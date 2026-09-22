@@ -17,7 +17,13 @@ through validated resolution, the existing 200-edge-per-file cap, reverse edges,
 and proximity traversal. Bounded graph-level failure diagnostics remain separate
 from successful empty results; default built-in calls retain their prior shape.
 Custom/built-in mixed graphs and ranking regressions pass 120 focused tests.
-Scanner/cache plumbing, diagnostic/report integration, and full analysis integration below
+`scanRepo` now accepts explicit registry metadata for custom source sampling in
+Git and filesystem scans. Both exact-state and incremental cache identities include
+the registry identity, preventing default/custom/version-changed classification
+reuse. A real Git fixture checks warm/default/version isolation and the non-Git
+fallback. Custom test classification still needs scoped extraction integration;
+the scanner does not invoke plugin callbacks in this step.
+Diagnostic/report integration and full analysis integration below
 remain to be implemented. These internal foundations are not usable language
 support through the public analysis API yet.
 
