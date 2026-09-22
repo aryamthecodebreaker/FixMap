@@ -6,8 +6,13 @@ Internal foundation: `language-registry.ts` now validates bounded custom registr
 metadata, rejects built-in/custom extension collisions, copies and freezes
 registrations, and creates an order-independent metadata cache identity. Registry
 instances do not share registration state. This module is not yet exported from
-the package entry point: scoped extraction validation, scanner/cache plumbing,
-resolution, and full analysis integration below remain to be implemented.
+the package entry point. `custom-language-context.ts` now provides a per-registry
+cache with input bounds, output shape/count/offset validation, Core-assigned
+identity/version, copied facts, and explicit unsupported/ok/failed results.
+Exceptions do not expose plugin messages. Scanner/cache plumbing, custom
+resolution, diagnostic/report integration, and full analysis integration below
+remain to be implemented. These internal foundations are not usable language
+support through the public analysis API yet.
 
 ## Existing integration points
 
