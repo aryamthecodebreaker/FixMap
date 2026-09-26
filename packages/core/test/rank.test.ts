@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { rankContextFiles, REPORT_SCORE_CUTOFF } from "../src/rank.js";
+import { rankContextFiles, rankContextFilesEvidenceDetailed, REPORT_SCORE_CUTOFF } from "../src/rank.js";
+import { buildHybridReportFromRepo, buildReportFromRepo } from "../src/report.js";
 import type { RepoMap } from "../src/types.js";
 
 function codeFile(path: string, textSample: string): RepoMap["files"][number] {
@@ -25,6 +26,37 @@ function repoWith(files: RepoMap["files"], options: { root?: string; changedFile
 }
 
 describe("rankContextFiles", () => {
+  it("returns graph truncation diagnostics without mutating the caller repository", async () => {
+    const imports = Array.from({ length: 201 }, (_, index) => `import "./dep-${index}";`).join("\n");
+    const repo = repoWith([
+      codeFile("src/seed.ts", `${imports}\nexport const truncationNeedle = true;`),
+      ...Array.from({ length: 201 }, (_, index) => codeFile(`src/dep-${index}.ts`, `export const dep${index} = true;`))
+    ], { changedFiles: ["src/seed.ts"] });
+
+    const detailed = rankContextFilesEvidenceDetailed(repo, { issueText: "truncationNeedle fails" }, 1);
+
+    expect(repo.diagnostics).toEqual([]);
+    expect(detailed.diagnostics).toContainEqual(expect.objectContaining({ code: "import-graph-truncated" }));
+    expect(buildReportFromRepo(repo, { issueText: "truncationNeedle fails", limit: 1 }).diagnostics)
+      .toContainEqual(expect.objectContaining({ code: "import-graph-truncated" }));
+    const hybrid = await buildHybridReportFromRepo(repo, {
+      issueText: "truncationNeedle fails",
+      limit: 1,
+      embeddingProvider: {
+        id: "local-test",
+        version: "1",
+        model: "constant",
+        artifactHash: "a".repeat(64),
+        runtime: "test",
+        dimensions: 1,
+        normalization: "l2",
+        local: true,
+        async embed(texts) { return texts.map(() => [1]); }
+      }
+    });
+    expect(hybrid.diagnostics.filter((entry) => entry.code === "import-graph-truncated")).toHaveLength(1);
+    expect(repo.diagnostics).toEqual([]);
+  });
   it("lets an exact definition site beat vocabulary-dense consumers", () => {
     const repo: RepoMap = {
       root: "/repo",
@@ -52,6 +84,38 @@ describe("rankContextFiles", () => {
 
     expect(ranked[0]?.path).toBe("src/constant.js");
     expect(ranked[0]?.reasons).toContain("defines task identifiers: REGEX_FORMAT");
+  });
+
+  it("ranks a Java method definition above a vocabulary-dense caller", () => {
+    const ranked = rankContextFiles(repoWith([
+      codeFile(
+        "src/main/java/com/acme/auth/PasswordResetService.java",
+        "public final class PasswordResetService { public User resetPassword(User user) { return user; } }"
+      ),
+      codeFile(
+        "src/main/java/com/acme/api/ResetController.java",
+        "password reset recovery token resetPassword password reset recovery token"
+      )
+    ]), { issueText: "resetPassword rejects a valid recovery token" });
+
+    expect(ranked[0]?.path).toBe("src/main/java/com/acme/auth/PasswordResetService.java");
+    expect(ranked[0]?.reasons).toContain("defines task identifiers: resetPassword");
+  });
+
+  it.each([
+    ["Go", "auth/reset.go", "func resetPassword(user User) error { return nil }", "resetPassword"],
+    ["Rust", "src/auth/reset.rs", "pub fn reset_password(user: User) -> Result<()> { Ok(()) }", "reset_password"],
+    ["Ruby", "lib/auth/reset.rb", "def reset_password(user)\n  user\nend", "reset_password"],
+    ["PHP", "src/Auth/Reset.php", "<?php function resetPassword(User $user) { return $user; }", "resetPassword"],
+    [".NET", "src/Auth/ResetService.cs", "class ResetService { public User ResetPassword(User user) { return user; } }", "ResetPassword"]
+  ])("ranks a %s definition above a vocabulary-dense consumer", (_language, path, definition, identifier) => {
+    const ranked = rankContextFiles(repoWith([
+      codeFile(path, definition),
+      codeFile("docs/consumer.txt", "password reset recovery token user failure password reset recovery token")
+    ]), { issueText: `${identifier} rejects a valid recovery token` });
+
+    expect(ranked[0]?.path).toBe(path);
+    expect(ranked[0]?.reasons).toContain(`defines task identifiers: ${identifier}`);
   });
 
   it("keeps task terms when every file shares the same vocabulary", () => {

@@ -11,6 +11,16 @@
 // code get a vote.
 
 import type { RepoFile, RepoMap } from "./types.js";
+import { buildComposerProjects, composerProjectForPath, composerTestCommandForProject } from "./composer-projects.js";
+import {
+  buildDotnetProjects,
+  buildDotnetSolutions,
+  dotnetProjectForPath,
+  dotnetSolutionsContaining,
+  referencingDotnetTestProjects,
+  type DotnetProject
+} from "./dotnet-projects.js";
+import { buildRubyProjects, rubyProjectForPath, rubyTestCommandForProject } from "./ruby-projects.js";
 
 export type PrimaryLanguage = "node" | "python" | "go" | "rust" | "ruby" | "php" | "java" | "dotnet" | "unknown";
 
@@ -164,17 +174,15 @@ function countCodeFiles(files: RepoFile[]): Map<PrimaryLanguage, number> {
  * unambiguous about it. Go and Rust each have exactly one, which is why they can be routed
  * rather than merely suggested.
  *
- * Python is deliberately absent. pytest, tox, unittest and nox are all plausible for a
- * repository carrying a pyproject.toml, and FixMap cannot read which one it configures —
- * `.toml` and `.cfg` are outside the sampled source extensions. Guessing would produce a
- * command that fails, so Python gets a named suggestion in the no-test-route diagnostic
- * instead of a routed command that claims more than FixMap knows.
+ * Python and Ruby are routed only when a runner is explicitly configured or evidenced. A
+ * bare pyproject.toml or Gemfile is not enough evidence: each ecosystem has multiple
+ * plausible runners, so FixMap keeps the uncertainty instead of inventing a command.
  */
 export function manifestTestCommand(
   language: PrimaryLanguage,
   packageDir: string,
   files: RepoFile[] = []
-): { command: string; reason: string } | undefined {
+): { command: string; reason: string; scopeDir?: string } | undefined {
   if (language === "go") {
     // The reason used to assert "go.mod at the repository root" unconditionally, including
     // when Go had been inferred purely from extension share and no root go.mod existed. A
@@ -206,24 +214,228 @@ export function manifestTestCommand(
       ? { command: `cargo test --manifest-path ${manifest.path}`, reason: `nearest crate (${manifest.packageDir}) declared by ${manifest.path}` }
       : { command: "cargo test", reason: "Cargo.toml at the repository root" };
   }
-  const manifest = nearestManifest(files, language);
-  if (language === "ruby" && manifest) {
-    return { command: "bundle exec rspec", reason: `${manifest.path} declares the Ruby bundle` };
+  if (language === "python") {
+    const config = nearestPythonTestConfig(files, packageDir);
+    if (!config) return undefined;
+    const directory = config.path.split("/").slice(0, -1).join("/");
+    if (config.runner === "nox") {
+      return {
+        command: directory ? `nox -f ${config.path}` : "nox",
+        reason: `${config.path} explicitly configures nox`
+      };
+    }
+    if (config.runner === "tox") {
+      return {
+        command: directory ? `tox -c ${config.path}` : "tox",
+        reason: `${config.path} explicitly configures tox`
+      };
+    }
+    if (config.runner === "unittest") {
+      return {
+        command: directory ? `python -m unittest discover -s ${directory}` : "python -m unittest discover",
+        reason: `${config.path} uses Python's unittest framework`
+      };
+    }
+    return {
+      command: directory
+        ? `python -m pytest -c ${config.path} ${directory}`
+        : "python -m pytest",
+      reason: `${config.path} explicitly configures pytest`
+    };
   }
-  if (language === "php" && manifest) {
-    return { command: "composer test", reason: `${manifest.path} declares Composer scripts` };
+  if (language === "ruby") {
+    const projects = buildRubyProjects(files);
+    const candidates = packageDir
+      ? projects.filter((project) => project.root === packageDir)
+      : projects;
+    return candidates.length === 1 ? rubyTestCommandForProject(candidates[0]!) : undefined;
   }
-  if (language === "java" && manifest) {
-    return manifest.path.toLowerCase().endsWith("pom.xml")
-      ? { command: "mvn test", reason: `${manifest.path} declares a Maven project` }
-      : { command: "./gradlew test", reason: `${manifest.path} declares a Gradle project` };
+  if (language === "php") {
+    const projects = buildComposerProjects(files);
+    const candidates = packageDir
+      ? projects.filter((project) => project.root === packageDir)
+      : projects;
+    return candidates.length === 1 ? composerTestCommandForProject(candidates[0]!) : undefined;
+  }
+  if (language === "java") {
+    const javaManifest = requestedOrNearestManifest(files, "java", packageDir);
+    if (!javaManifest) return undefined;
+    const directory = javaManifest.packageDir;
+    if (javaManifest.path.toLowerCase().endsWith("pom.xml")) {
+      const wrapper = findWrapper(files, directory, ["mvnw", "mvnw.cmd"]);
+      const command = wrapper
+        ? `${posixExecutable(wrapper)} test`
+        : directory ? `mvn -f ${javaManifest.path} test` : "mvn test";
+      const framework = javaTestFramework(files, directory);
+      return {
+        command,
+        reason: `${javaManifest.path} declares a Maven project${wrapper ? " with a wrapper" : ""}${framework ? `; ${framework} tests detected` : ""}`
+      };
+    }
+    const wrapper = findWrapper(files, directory, ["gradlew", "gradlew.bat"]);
+    const executable = wrapper ? posixExecutable(wrapper) : "gradle";
+    const command = directory ? `${executable} -p ${directory} test` : `${executable} test`;
+    const framework = javaTestFramework(files, directory);
+    return {
+      command,
+      reason: `${javaManifest.path} declares a Gradle project${wrapper ? " with a wrapper" : ""}${framework ? `; ${framework} tests detected` : ""}`
+    };
   }
   if (language === "dotnet") {
-    return manifest
-      ? { command: `dotnet test${manifest.packageDir ? ` ${manifest.path}` : ""}`, reason: `${manifest.path} declares a .NET project` }
-      : { command: "dotnet test", reason: ".NET source files; no project file was found" };
+    const projects = buildDotnetProjects(files);
+    if (projects.length === 0) {
+      return { command: "dotnet test", reason: ".NET source files; no project file was found" };
+    }
+    const candidates = packageDir
+      ? projects.filter((project) => project.root === packageDir)
+      : projects;
+    return candidates.length === 1 ? dotnetCommandForProject(files, projects, candidates[0]!) : undefined;
   }
   return undefined;
+}
+
+/** Route a C#/F#/VB source path through its exact project and, when declared, its test project. */
+export function dotnetTestCommandForPath(
+  files: RepoFile[],
+  sourcePath: string
+): { command: string; reason: string; scopeDir?: string } | undefined {
+  const projects = buildDotnetProjects(files);
+  const sourceProject = dotnetProjectForPath(projects, sourcePath);
+  return sourceProject ? dotnetCommandForProject(files, projects, sourceProject) : undefined;
+}
+
+export function phpTestCommandForPath(
+  files: RepoFile[],
+  sourcePath: string
+): { command: string; reason: string; scopeDir?: string } | undefined {
+  const projects = buildComposerProjects(files);
+  const project = composerProjectForPath(projects, sourcePath);
+  return project ? composerTestCommandForProject(project) : undefined;
+}
+
+export function rubyTestCommandForPath(
+  files: RepoFile[],
+  sourcePath: string,
+  relatedTests: string[] = []
+): { command: string; reason: string; scopeDir?: string } | undefined {
+  const projects = buildRubyProjects(files);
+  const project = rubyProjectForPath(projects, sourcePath);
+  return project ? rubyTestCommandForProject(project, relatedTests) : undefined;
+}
+
+function dotnetCommandForProject(
+  files: RepoFile[],
+  projects: DotnetProject[],
+  sourceProject: DotnetProject
+): { command: string; reason: string; scopeDir?: string } | undefined {
+  const testProjects = sourceProject.test
+    ? [sourceProject]
+    : referencingDotnetTestProjects(projects, sourceProject.path);
+  if (testProjects.length > 1) {
+    const solutions = dotnetSolutionsContaining(
+      buildDotnetSolutions(files, projects),
+      [sourceProject.path, ...testProjects.map((project) => project.path)]
+    );
+    if (solutions.length !== 1) return undefined;
+    const solution = solutions[0]!;
+    return {
+      command: `dotnet test ${solution.path}`,
+      reason: `${solution.path} is the only solution containing ${sourceProject.path} and ${testProjects.length} referencing test projects`,
+      scopeDir: solution.root
+    };
+  }
+  const testProject = testProjects[0];
+  if (testProject && testProject.path !== sourceProject.path) {
+    return {
+      command: `dotnet test ${testProject.path}`,
+      reason: `${testProject.path} is a test project that references ${sourceProject.path}`,
+      scopeDir: testProject.root
+    };
+  }
+  return {
+    command: `dotnet test ${sourceProject.path}`,
+    reason: `${sourceProject.path} declares the nearest .NET ${sourceProject.test ? "test " : ""}project`,
+    scopeDir: sourceProject.root
+  };
+}
+
+type PythonTestRunner = "pytest" | "tox" | "nox" | "unittest";
+
+function nearestPythonTestConfig(
+  files: RepoFile[],
+  packageDir: string
+): { path: string; runner: PythonTestRunner } | undefined {
+  const candidates = files.flatMap((file) => {
+    const name = file.path.split("/").pop()?.toLowerCase() ?? "";
+    let runner: PythonTestRunner | undefined;
+    if (name === "noxfile.py") runner = "nox";
+    else if (name === "tox.ini" || (name === "pyproject.toml" && /\[tool\.tox\b/i.test(file.textSample))) runner = "tox";
+    else if (name === "pytest.ini" ||
+      (name === "pyproject.toml" && /\[tool\.pytest\.ini_options\]/i.test(file.textSample)) ||
+      (name === "setup.cfg" && /\[(?:tool:)?pytest\]/i.test(file.textSample))) runner = "pytest";
+    else if (file.isTest && /\b(?:import\s+unittest|unittest\.TestCase|from\s+unittest\s+import)\b/.test(file.textSample)) runner = "unittest";
+    return runner ? [{ file, runner }] : [];
+  });
+  const inRequestedPackage = packageDir
+    ? candidates.filter(({ file, runner }) =>
+      runner === "unittest"
+        ? file.path.startsWith(`${packageDir}/`)
+        : file.path === `${packageDir}/${file.path.split("/").pop()}`
+    )
+    : [];
+  const rootDeclaresPython = files.some((file) =>
+    !file.path.includes("/") && languageForManifest(file.path) === "python"
+  );
+  const eligible = packageDir
+    ? inRequestedPackage
+    : rootDeclaresPython
+      ? candidates.filter(({ file, runner }) => runner === "unittest" || !file.path.includes("/"))
+      : candidates;
+  const selected = eligible
+    .sort((a, b) =>
+      a.file.path.split("/").length - b.file.path.split("/").length ||
+      a.file.path.localeCompare(b.file.path)
+    )[0];
+  return selected ? { path: selected.file.path, runner: selected.runner } : undefined;
+}
+
+function javaTestFramework(files: RepoFile[], packageDir: string): "JUnit" | "TestNG" | undefined {
+  const scoped = packageDir ? files.filter((file) => file.path.startsWith(`${packageDir}/`)) : files;
+  const samples = scoped
+    .filter((file) => file.isTest || /(?:pom\.xml|build\.gradle(?:\.kts)?)$/i.test(file.path))
+    .map((file) => file.textSample)
+    .join("\n");
+  if (/\b(?:org\.testng|testng)\b/i.test(samples)) return "TestNG";
+  if (/\b(?:org\.junit|junit-jupiter|junit)\b/i.test(samples)) return "JUnit";
+  return undefined;
+}
+
+function requestedOrNearestManifest(
+  files: RepoFile[],
+  language: PrimaryLanguage,
+  packageDir: string
+): { path: string; packageDir: string } | undefined {
+  if (packageDir) {
+    const requested = files
+      .filter((file) => file.path.split("/").slice(0, -1).join("/") === packageDir)
+      .filter((file) => languageForManifest(file.path) === language)
+      .sort((a, b) => a.path.localeCompare(b.path))[0];
+    if (requested) return { path: requested.path, packageDir };
+  }
+  return nearestManifest(files, language);
+}
+
+function findWrapper(files: RepoFile[], packageDir: string, names: string[]): string | undefined {
+  const normalizedNames = new Set(names.map((name) => name.toLowerCase()));
+  const paths = packageDir
+    ? names.map((name) => `${packageDir}/${name}`)
+    : names;
+  return files.find((file) => paths.some((path) => file.path.toLowerCase() === path.toLowerCase()))?.path ??
+    files.find((file) => !file.path.includes("/") && normalizedNames.has(file.path.toLowerCase()))?.path;
+}
+
+function posixExecutable(path: string): string {
+  return `./${path.replace(/\.cmd$|\.bat$/i, "")}`;
 }
 
 /** The runner to name when there is nothing to route, so the warning is actionable. */
@@ -253,7 +465,12 @@ export function suggestedRunner(language: PrimaryLanguage, files: RepoFile[]): s
   if (language === "rust") {
     return "cargo test";
   }
-  if (language === "ruby") return "bundle exec rspec";
+  if (language === "ruby") {
+    const commands = [...new Set(buildRubyProjects(files)
+      .map((project) => rubyTestCommandForProject(project)?.command)
+      .filter((command): command is string => command !== undefined))];
+    return commands.length === 1 ? commands[0] : undefined;
+  }
   if (language === "php") return "composer test or vendor/bin/phpunit";
   if (language === "java") return "mvn test or ./gradlew test";
   if (language === "dotnet") return "dotnet test";

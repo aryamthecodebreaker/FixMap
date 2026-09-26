@@ -88,6 +88,32 @@ describe("buildImpactMap", () => {
 
     expect(impact.files.find((entry) => entry.path === "src/session.ts")).toBeUndefined();
   });
+
+  it("attributes a routed test to the seed it imports instead of an unrelated earlier seed", () => {
+    const repo = repository(false);
+    repo.files.push({
+      path: "data.json",
+      extension: ".json",
+      sizeBytes: 18,
+      isTest: false,
+      isSource: true,
+      kind: "config",
+      textSample: '{"note":"plain"}'
+    });
+    const impact = buildImpactMap(repo, ["data.json", "src/auth/reset.ts"], [{
+      kind: "test",
+      command: "npm run test",
+      reason: "root test script",
+      relatedFiles: ["test/auth/reset.test.ts"]
+    }]);
+
+    expect(impact.files.find((entry) => entry.path === "test/auth/reset.test.ts")?.evidence)
+      .toContainEqual(expect.objectContaining({
+        kind: "test-route",
+        seed: "src/auth/reset.ts",
+        reason: "routed test for src/auth/reset.ts via npm run test"
+      }));
+  });
 });
 
 describe("repository benchmark path cohorts", () => {

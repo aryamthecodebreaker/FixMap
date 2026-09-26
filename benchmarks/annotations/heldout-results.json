@@ -1,0 +1,8 @@
+{
+  "kind": "heldout-annotation-workflow-not-ranking",
+  "frozenManifestCommit": "59a429c",
+  "results": [
+    { "slug": "lukeed/kleur", "sha": "fa3454483899ddab550d08c18c028e6db1aab0e5", "passed": true, "surfaces": ["core", "cli", "action", "mcp"] },
+    { "slug": "pallets/markupsafe", "sha": "b2e4d9c7687be25695fffbe93a37622302b24fb1", "passed": true, "surfaces": ["core", "cli", "action", "mcp"] }
+  ]
+}

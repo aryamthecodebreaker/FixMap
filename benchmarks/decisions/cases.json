@@ -1,0 +1,12 @@
+{
+  "kind": "frozen-real-document-compatibility-not-ranking",
+  "selection": "First four numbered Markdown decisions in adr/madr tree order, selected by paths before reading contents or running parser. One convention family; not broad held-out coverage.",
+  "repository": "adr/madr",
+  "sha": "ba75bb1b20d42af5746b246ad348c202419ae681",
+  "paths": [
+    "docs/decisions/0000-use-markdown-architectural-decision-records.md",
+    "docs/decisions/0001-use-CC0-or-MIT-as-license.md",
+    "docs/decisions/0002-do-not-use-numbers-in-headings.md",
+    "docs/decisions/0003-provide-own-madr-tools.md"
+  ]
+}

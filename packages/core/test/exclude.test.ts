@@ -97,6 +97,29 @@ describe("buildPathExcluder", () => {
     expect(excluder.excludes("generated/999/result.ts")).toBe(true);
     expect(excluder.excludes("src/result.ts")).toBe(false);
   });
+
+  it("preserves matcher invariants across generated Windows and POSIX patterns", () => {
+    for (let index = 0; index < 300; index += 1) {
+      const area = `area${index % 17}`;
+      const leaf = `file${index}.ts`;
+      const path = `${area}/nested/${leaf}`;
+      const posix = `${area}/**`;
+      const windows = `${area}\\**`;
+      const posixExcluder = buildPathExcluder([posix]);
+      const windowsExcluder = buildPathExcluder([windows]);
+
+      expect(posixExcluder.excludes(path)).toBe(true);
+      expect(windowsExcluder.excludes(path)).toBe(posixExcluder.excludes(path));
+      expect(windowsExcluder.reasonFor(path)).toBe(posix);
+      expect(windowsExcluder.matchedPatterns.has(posix)).toBe(true);
+
+      const restored = buildPathExcluder([posix, `!${area}/nested/${leaf}`]);
+      expect(restored.excludes(path)).toBe(false);
+      expect(restored.reasonFor(path)).toBeUndefined();
+      expect(restored.matchedPatterns.has(posix)).toBe(true);
+      expect(restored.matchedPatterns.has(`!${area}/nested/${leaf}`)).toBe(true);
+    }
+  });
 });
 
 describe("exclusions in ranking", () => {

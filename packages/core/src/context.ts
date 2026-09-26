@@ -1,5 +1,6 @@
 import { extractTaskSignals } from "./signals.js";
-import { markdownCode } from "./markdown.js";
+import { longestBacktickRun, markdownCode } from "./markdown.js";
+import { isFixMapArtifact } from "./artifacts.js";
 import type { FixMapReport, RepoFile, RepoMap } from "./types.js";
 
 export type ContextSnippet = {
@@ -22,10 +23,11 @@ export type ContextPack = {
   estimatedSourceTokens: number;
   tokenEstimate: "utf8-bytes-divided-by-4";
   snippets: ContextSnippet[];
-  omitted: Array<{ path: string; reason: "budget" | "unavailable" | "empty" }>;
+  omitted: Array<{ path: string; reason: "budget" | "unavailable" | "empty" | "fixmap-artifact" | "stale-decision-source" }>;
 };
 
 type Candidate = {
+  sourceFingerprint?: string;
   path: string;
   role: ContextSnippet["role"];
   confidence: ContextSnippet["confidence"];
@@ -62,6 +64,14 @@ export function buildContextPack(input: {
     const file = fileByPath.get(candidate.path);
     if (!file) {
       omitted.push({ path: candidate.path, reason: "unavailable" });
+      continue;
+    }
+    if (isFixMapArtifact(file)) {
+      omitted.push({ path: candidate.path, reason: "fixmap-artifact" });
+      continue;
+    }
+    if (candidate.sourceFingerprint && file.contentFingerprint !== candidate.sourceFingerprint) {
+      omitted.push({ path: candidate.path, reason: "stale-decision-source" });
       continue;
     }
     if (!file.textSample.trim()) {
@@ -160,6 +170,17 @@ function contextCandidates(report: FixMapReport): Candidate[] {
     reason: file.reasons.slice(0, 2).join("; ") || "ranked primary context"
   }));
   const seen = new Set(candidates.map((candidate) => candidate.path));
+  for (const decision of report.decisions ?? []) {
+    const reason = `Authored rationale (${decision.status}${decision.authoredStatus ? `; authored status: ${markdownCode(decision.authoredStatus.replace(/\s+/g, " "))}` : ""}), not proof of enforcement${decision.source ? `; local PR attribution ${decision.source.url}, remote source unverified` : ""}`;
+    const existing = candidates.find((candidate) => candidate.path === decision.path);
+    if (existing) {
+      existing.reason = `${reason}; ${existing.reason}`;
+      existing.sourceFingerprint = decision.sourceFingerprint;
+      continue;
+    }
+    seen.add(decision.path);
+    candidates.push({ path: decision.path, role: "supporting", confidence: "high", reason, sourceFingerprint: decision.sourceFingerprint });
+  }
   for (const file of report.impact?.files ?? []) {
     if (seen.has(file.path)) continue;
     seen.add(file.path);
@@ -179,8 +200,10 @@ function selectRange(
   identifiers: string[],
   allowance: number
 ): { startLine: number; endLine: number; content: string; estimatedTokens: number } | undefined {
-  const lines = file.textSample.replace(/\r\n?/g, "\n").split("\n");
-  const whole = lines.join("\n");
+  const whole = file.textSample.replace(/\r\n?/g, "\n");
+  // A terminator ends its line; it does not create another source line. Preserve
+  // the whole snippet's bytes and genuine blank lines, removing only the sentinel.
+  const lines = (whole.endsWith("\n") ? whole.slice(0, -1) : whole).split("\n");
   const wholeTokens = estimateContextTokens(whole);
   if (wholeTokens <= allowance) {
     return { startLine: 1, endLine: lines.length, content: whole, estimatedTokens: wholeTokens };
@@ -255,7 +278,7 @@ function truncateUtf8(text: string, maxBytes: number): string {
 }
 
 function safeFence(content: string): string {
-  const longest = Math.max(0, ...[...content.matchAll(/`+/g)].map((match) => match[0].length));
+  const longest = longestBacktickRun(content);
   return "`".repeat(Math.max(3, longest + 1));
 }
 

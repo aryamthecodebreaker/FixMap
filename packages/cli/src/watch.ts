@@ -46,6 +46,8 @@ export async function watchRepository(input: WatchRepositoryInput): Promise<Watc
   let sequence = 0;
   let lastUpdate: WatchUpdate | undefined;
 
+  if (!input.fingerprint) await validateWatchRepository(input.repoRoot);
+
   while (!input.signal?.aborted) {
     const currentFingerprint = await fingerprint(input.repoRoot, includeUntracked);
     if (currentFingerprint !== previousFingerprint) {
@@ -62,11 +64,16 @@ export async function watchRepository(input: WatchRepositoryInput): Promise<Watc
       if (!repo.history && history) repo.history = history;
 
       sequence += 1;
+      const verification = verifyPlan(input.report, repo);
+      const mismatch = verification.findings.find((finding) => finding.code === "plan-repository-mismatch");
+      if (mismatch) {
+        throw new Error(`${mismatch.message} Watch stopped because the saved report belongs to a different repository.`);
+      }
       lastUpdate = {
         watchVersion: 1,
         sequence,
         observedAt: new Date().toISOString(),
-        verification: verifyPlan(input.report, repo)
+        verification
       };
       await input.onUpdate(lastUpdate);
       previousFingerprint = currentFingerprint;
@@ -127,8 +134,45 @@ export async function fingerprintWorkingTree(repoRoot: string, includeUntracked:
     if (contentPaths.length > 0) await hashWorkingFiles(repoRoot, contentPaths, hash);
     return hash.digest("hex");
   } catch (error) {
-    throw new Error(`Could not inspect the working tree: ${error instanceof Error ? error.message : String(error)}`);
+    if (isMissingGit(error)) throw new Error("Watch needs Git installed and available on PATH.");
+    if (isNotGitRepository(error)) throw new Error(`Watch needs a local Git checkout; ${resolve(repoRoot)} is not a Git repository.`);
+    throw new Error(`Could not inspect the working tree: ${gitErrorDetail(error)}`);
   }
+}
+
+export async function validateWatchRepository(repoRoot: string): Promise<void> {
+  try {
+    const { stdout } = await exec("git", ["rev-parse", "--is-inside-work-tree"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: GIT_MAX_BUFFER,
+      windowsHide: true
+    });
+    if (stdout.trim() !== "true") throw new Error("not-repository");
+  } catch (error) {
+    if (isMissingGit(error)) throw new Error("Watch needs Git installed and available on PATH.");
+    throw new Error(`Watch needs a local Git checkout; ${resolve(repoRoot)} is not a Git repository.`);
+  }
+}
+
+function isMissingGit(error: unknown): boolean {
+  return (error as { code?: unknown })?.code === "ENOENT";
+}
+
+function isNotGitRepository(error: unknown): boolean {
+  return /not a git repository|not-repository/i.test(gitErrorText(error));
+}
+
+function gitErrorText(error: unknown): string {
+  const candidate = error as { message?: unknown; stderr?: unknown };
+  return `${typeof candidate?.message === "string" ? candidate.message : String(error)}\n${String(candidate?.stderr ?? "")}`;
+}
+
+function gitErrorDetail(error: unknown): string {
+  const candidate = error as { message?: unknown; stderr?: unknown };
+  const stderr = typeof candidate?.stderr === "string" ? candidate.stderr : Buffer.isBuffer(candidate?.stderr) ? candidate.stderr.toString("utf8") : "";
+  const message = typeof candidate?.message === "string" ? candidate.message : String(error);
+  return stderr.split(/\r?\n/).find((line) => line.trim()) ?? message.split(/\r?\n/)[0] ?? "unknown Git error";
 }
 
 function isMissingHead(error: unknown): boolean {

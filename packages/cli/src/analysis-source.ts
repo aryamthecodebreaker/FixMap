@@ -1,6 +1,8 @@
 import {
   buildFixMapAnalysis,
   buildContextPack,
+  createLocalTransformersEmbeddingProvider,
+  withPersistentEmbeddingCache,
   type ContextPack,
   type FixMapReport,
   type RepoMap,
@@ -31,6 +33,7 @@ export type AnalysisSourceInput = {
   limit?: number | undefined;
   exclude?: string[] | undefined;
   internalExclude?: string[] | undefined;
+  semanticModelPath?: string | undefined;
 };
 
 export type AnalyzedRepository = {
@@ -84,6 +87,12 @@ export async function analyzeRepository(
   }
 
   return withRepositorySource(source, async (resolved) => {
+    const embeddingProvider = input.semanticModelPath
+      ? await withPersistentEmbeddingCache(
+        await createLocalTransformersEmbeddingProvider({ modelPath: input.semanticModelPath }),
+        { repositoryRoot: resolved.repoRoot }
+      )
+      : undefined;
     const { report, repo } = await buildFixMapAnalysis({
       repoRoot: resolved.repoRoot,
       issueText: task,
@@ -96,7 +105,8 @@ export async function analyzeRepository(
       includeHistory: true,
       limit: input.limit,
       exclude: input.exclude,
-      internalExclude: input.internalExclude
+      internalExclude: input.internalExclude,
+      embeddingProvider
     });
     report.diagnostics.unshift(...[issueDiagnostic, resolved.diagnostic].filter(
       (entry): entry is ScanDiagnostic => entry !== undefined

@@ -1,0 +1,306 @@
+import { describe, expect, it } from "vitest";
+import {
+  BUILT_IN_LANGUAGE_ADAPTERS,
+  extractLanguageDefinitions,
+  extractLanguageImports,
+  isLanguageTestPath,
+  languageAdapterForFile
+} from "../src/language-adapters.js";
+
+function sample(extension: string, textSample: string) {
+  return { extension, textSample };
+}
+
+describe("built-in language adapters", () => {
+  it("prevents consumers from replacing built-in extractors or extension mappings", () => {
+    const adapter = languageAdapterForFile({ extension: '.py' })!;
+    expect(Object.isFrozen(adapter)).toBe(true);
+    expect(Object.isFrozen(adapter.extensions)).toBe(true);
+    expect(Reflect.set(adapter, 'extractImports', () => [])).toBe(false);
+    expect(Reflect.set(adapter.extensions, '0', '.fake')).toBe(false);
+    expect(languageAdapterForFile({ extension: '.py' })).toBe(adapter);
+    expect(extractLanguageImports(sample('.py', 'from .real import Actual'))[0]?.specifier).toBe('.real');
+  });
+
+  it("keys cached facts by the effective search sample, including an empty override", () => {
+    const file: { extension: string; textSample: string; searchTextSample?: string } =
+      sample('.py', 'from .base import Base\ndef base(): pass');
+    expect(extractLanguageDefinitions(file)[0]?.name).toBe('base');
+    expect(extractLanguageImports(file)[0]?.specifier).toBe('.base');
+    file.searchTextSample = 'from .search import Search\ndef search(): pass';
+    expect(extractLanguageDefinitions(file)[0]?.name).toBe('search');
+    expect(extractLanguageImports(file)[0]?.specifier).toBe('.search');
+    file.searchTextSample = '';
+    expect(extractLanguageDefinitions(file)).toEqual([]);
+    expect(extractLanguageImports(file)).toEqual([]);
+    delete file.searchTextSample;
+    expect(extractLanguageDefinitions(file)[0]?.name).toBe('base');
+    expect(extractLanguageImports(file)[0]?.specifier).toBe('.base');
+  });
+
+  it("refreshes cached facts when the same file object changes content or language", () => {
+    const file = sample('.py', 'from .old import Old\ndef old(): pass');
+    expect(extractLanguageImports(file)[0]?.specifier).toBe('.old');
+    expect(extractLanguageDefinitions(file)[0]?.name).toBe('old');
+    file.textSample = 'from .fresh import Fresh\ndef fresh(): pass';
+    expect(extractLanguageImports(file)[0]?.specifier).toBe('.fresh');
+    expect(extractLanguageDefinitions(file)[0]?.name).toBe('fresh');
+    file.extension = '.unknown';
+    expect(extractLanguageImports(file)).toEqual([]);
+    expect(extractLanguageDefinitions(file)).toEqual([]);
+  });
+
+  it("does not expose mutable cached facts to consumers", () => {
+    const file = sample('.py', 'from .real import Actual\ndef actual(): pass');
+    const imports = extractLanguageImports(file);
+    imports[0]!.specifier = '.fake';
+    imports[0]!.importedNames.push('Fake');
+    imports.length = 0;
+    const definitions = extractLanguageDefinitions(file);
+    definitions[0]!.name = 'fake';
+    definitions.length = 0;
+    expect(extractLanguageImports(file)).toEqual([
+      { adapter: 'python', specifier: '.real', importedNames: ['Actual'], wildcard: false }
+    ]);
+    expect(extractLanguageDefinitions(file).map(({ name }) => name)).toEqual(['actual']);
+  });
+
+  it.each(["'", '"', "'''", '"""'])("masks truncated Python %s strings", (quote) => {
+    const file = sample('.py', `from .real import Actual\nexample = ${quote}\nfrom .fake import Ghost\ndef fake(): pass`);
+    expect(extractLanguageImports(file).map(({ specifier }) => specifier)).toEqual(['.real']);
+    expect(extractLanguageDefinitions(file)).toEqual([]);
+  });
+
+  it("preserves real Python declarations after escaped quotes and CRLF continuations", () => {
+    const file = sample('.py', [
+      'example = "escaped \\" quote # not a comment"',
+      "raw = r'escaped \\' quote'",
+      'continued = "example \\\r\nfrom .fake import Ghost"',
+      'from .real import Actual',
+      'class Actual: pass'
+    ].join('\r\n'));
+    expect(extractLanguageImports(file).map(({ specifier }) => specifier)).toEqual(['.real']);
+    expect(extractLanguageDefinitions(file).map(({ name }) => name)).toEqual(['Actual']);
+  });
+
+  it("does not turn Python docstrings or quoted examples into source facts", () => {
+    const text = [
+      '"""Usage examples:',
+      'from .fake import Missing',
+      'import imaginary',
+      'def pretend(): pass',
+      'class Fiction: pass',
+      '"""',
+      "example = r'''",
+      'from .other import Ghost',
+      "'''",
+      '# from .comment import Nope',
+      'from .real import Actual',
+      'def actual(): pass'
+    ].join('\r\n');
+    expect(extractLanguageImports(sample('.py', text))).toEqual([
+      { adapter: 'python', specifier: '.real', importedNames: ['Actual'], wildcard: false }
+    ]);
+    const definitions = extractLanguageDefinitions(sample('.py', text));
+    expect(definitions.map(({ name }) => name)).toEqual(['actual']);
+    expect(text.slice(definitions[0]!.offset).trimStart()).toMatch(/^def actual/);
+  });
+
+  it("exposes deterministic adapters for eight language families", () => {
+    expect(BUILT_IN_LANGUAGE_ADAPTERS.map((adapter) => adapter.id))
+      .toEqual(["javascript-typescript", "python", "java", "go", "rust", "ruby", "php", "dotnet"]);
+    expect(languageAdapterForFile({ extension: ".py" })?.id).toBe("python");
+    expect(languageAdapterForFile({ extension: ".java" })?.id).toBe("java");
+    expect(languageAdapterForFile({ extension: ".rs" })?.id).toBe("rust");
+  });
+
+  it("extracts parenthesized multiline Python imports with aliases and comments", () => {
+    expect(extractLanguageImports(sample(".py", [
+      "from . import (",
+      "    tokens as token_api, # comment with a closing parenthesis )",
+      "    sessions,",
+      ")",
+      "from app.models import (User, Account as AccountModel)",
+      "from .other import helper # unrelated trailing comment"
+    ].join("\n")))).toEqual([
+      { adapter: "python", specifier: ".", importedNames: ["tokens", "sessions"], wildcard: false },
+      { adapter: "python", specifier: "app.models", importedNames: ["User", "Account"], wildcard: false },
+      { adapter: "python", specifier: ".other", importedNames: ["helper"], wildcard: false }
+    ]);
+  });
+
+  it("extracts Python imports, aliases, functions, and classes", () => {
+    const file = sample(".py", [
+      "import os, app.services.session as session",
+      "from .tokens import decode_token, TokenError as Error",
+      "from app.models import User",
+      "",
+      "async def reset_password(user):",
+      "    return user",
+      "",
+      "class PasswordResetService:",
+      "    pass"
+    ].join("\n"));
+
+    expect(extractLanguageImports(file)).toEqual([
+      { adapter: "python", specifier: ".tokens", importedNames: ["decode_token", "TokenError"], wildcard: false },
+      { adapter: "python", specifier: "app.models", importedNames: ["User"], wildcard: false },
+      { adapter: "python", specifier: "os", importedNames: [], wildcard: false },
+      { adapter: "python", specifier: "app.services.session", importedNames: [], wildcard: false }
+    ]);
+    expect(extractLanguageDefinitions(file).map(({ name, kind }) => ({ name, kind }))).toEqual([
+      { name: "reset_password", kind: "function" },
+      { name: "PasswordResetService", kind: "class" }
+    ]);
+  });
+
+  it("extracts Java imports, types, constructors, and methods", () => {
+    const file = sample(".java", [
+      "package com.acme.auth;",
+      "import com.acme.accounts.User;",
+      "import static com.acme.security.TokenVerifier.verify;",
+      "public final class PasswordResetService implements Resettable {",
+      "  public PasswordResetService() {}",
+      "  public User resetPassword(User user) { return user; }",
+      "}"
+    ].join("\n"));
+
+    expect(extractLanguageImports(file)).toEqual([
+      { adapter: "java", specifier: "com.acme.accounts.User", importedNames: [], wildcard: false },
+      { adapter: "java", specifier: "com.acme.security.TokenVerifier", importedNames: [], wildcard: false }
+    ]);
+    expect(extractLanguageDefinitions(file).map(({ name, kind }) => ({ name, kind }))).toEqual([
+      { name: "PasswordResetService", kind: "class" },
+      { name: "PasswordResetService", kind: "method" },
+      { name: "resetPassword", kind: "method" }
+    ]);
+  });
+
+  it("extracts Go package imports, functions, methods, types, and variables", () => {
+    const file = sample(".go", [
+      "package auth",
+      "import (",
+      "  \"context\"",
+      "  tokens \"example.com/acme/auth/tokens\"",
+      ")",
+      "type PasswordResetService struct {}",
+      "type TokenReader interface { Read() string }",
+      "const DefaultTimeout = 30",
+      "func ResetPassword(ctx context.Context) error { return nil }",
+      "func (s *PasswordResetService) SendMail() {}"
+    ].join("\n"));
+    expect(extractLanguageImports(file)).toEqual([
+      { adapter: "go", specifier: "context", importedNames: [], wildcard: false },
+      { adapter: "go", specifier: "example.com/acme/auth/tokens", importedNames: [], wildcard: false }
+    ]);
+    expect(extractLanguageDefinitions(file).map(({ name, kind }) => ({ name, kind }))).toEqual([
+      { name: "PasswordResetService", kind: "class" },
+      { name: "TokenReader", kind: "class" },
+      { name: "DefaultTimeout", kind: "variable" },
+      { name: "ResetPassword", kind: "function" },
+      { name: "SendMail", kind: "function" }
+    ]);
+  });
+
+  it("extracts Rust uses, modules, functions, data types, traits, aliases, and constants", () => {
+    const file = sample(".rs", [
+      "use crate::auth::{Token, verify};",
+      "pub mod parser;",
+      '#[path = "../generated/parser.rs"]',
+      "mod generated_parser;",
+      "pub struct PasswordResetService;",
+      "pub trait Resettable {}",
+      "pub type UserId = String;",
+      "pub const DEFAULT_TIMEOUT: u64 = 30;",
+      "pub async fn reset_password() {}"
+    ].join("\n"));
+    expect(extractLanguageImports(file)).toEqual([
+      { adapter: "rust", specifier: "file:../generated/parser.rs", importedNames: [], wildcard: false },
+      { adapter: "rust", specifier: "crate::auth", importedNames: [], wildcard: false },
+      { adapter: "rust", specifier: "self::parser", importedNames: [], wildcard: false }
+    ]);
+    expect(extractLanguageDefinitions(file).map(({ name, kind }) => ({ name, kind }))).toEqual([
+      { name: "PasswordResetService", kind: "class" },
+      { name: "Resettable", kind: "interface" },
+      { name: "UserId", kind: "type" },
+      { name: "DEFAULT_TIMEOUT", kind: "variable" },
+      { name: "reset_password", kind: "function" }
+    ]);
+  });
+
+  it("extracts Ruby requires, classes, modules, and methods", () => {
+    const file = sample(".rb", [
+      "require_relative './tokens'",
+      "require 'json'",
+      "module Auth",
+      "  class PasswordResetService",
+      "    def reset_password(user)",
+      "    end",
+      "  end",
+      "end"
+    ].join("\n"));
+    expect(extractLanguageImports(file)).toEqual([
+      { adapter: "ruby", specifier: "relative:./tokens", importedNames: [], wildcard: false },
+      { adapter: "ruby", specifier: "absolute:json", importedNames: [], wildcard: false }
+    ]);
+    expect(extractLanguageDefinitions(file).map(({ name, kind }) => ({ name, kind }))).toEqual([
+      { name: "Auth", kind: "type" },
+      { name: "PasswordResetService", kind: "class" },
+      { name: "reset_password", kind: "method" }
+    ]);
+  });
+
+  it("extracts PHP namespaces/files, types, interfaces, and functions", () => {
+    const file = sample(".php", [
+      "<?php",
+      "use Acme\\Accounts\\User;",
+      "require_once './tokens.php';",
+      "final class PasswordResetService {}",
+      "interface Resettable {}",
+      "function resetPassword(User $user) {}"
+    ].join("\n"));
+    expect(extractLanguageImports(file)).toEqual([
+      { adapter: "php", specifier: "Acme\\Accounts\\User", importedNames: [], wildcard: false },
+      { adapter: "php", specifier: "file:./tokens.php", importedNames: [], wildcard: false }
+    ]);
+    expect(extractLanguageDefinitions(file).map(({ name, kind }) => ({ name, kind }))).toEqual([
+      { name: "PasswordResetService", kind: "class" },
+      { name: "Resettable", kind: "interface" },
+      { name: "resetPassword", kind: "function" }
+    ]);
+  });
+
+  it("extracts .NET usings, types, delegates, and methods", () => {
+    const file = sample(".cs", [
+      "using Acme.Accounts;",
+      "using Token = Acme.Security.Token;",
+      "public sealed class PasswordResetService {",
+      "  public async Task ResetPassword(User user) { }",
+      "}",
+      "public interface IResettable {}",
+      "public delegate void ResetCompleted(User user);"
+    ].join("\n"));
+    expect(extractLanguageImports(file)).toEqual([
+      { adapter: "dotnet", specifier: "Acme.Accounts", importedNames: [], wildcard: false },
+      { adapter: "dotnet", specifier: "Acme.Security.Token", importedNames: [], wildcard: false }
+    ]);
+    expect(extractLanguageDefinitions(file).map(({ name, kind }) => ({ name, kind }))).toEqual([
+      { name: "PasswordResetService", kind: "class" },
+      { name: "ResetPassword", kind: "method" },
+      { name: "IResettable", kind: "interface" },
+      { name: "ResetCompleted", kind: "type" }
+    ]);
+  });
+
+  it("recognizes language-specific test layouts without classifying ordinary source", () => {
+    expect(isLanguageTestPath("tests/auth/test_reset.py", ".py")).toBe(true);
+    expect(isLanguageTestPath("src/auth/reset.py", ".py")).toBe(false);
+    expect(isLanguageTestPath("src/test/java/com/acme/PasswordResetTest.java", ".java")).toBe(true);
+    expect(isLanguageTestPath("src/main/java/com/acme/PasswordReset.java", ".java")).toBe(false);
+    expect(isLanguageTestPath("auth/password_reset_test.go", ".go")).toBe(true);
+    expect(isLanguageTestPath("tests/password_reset.rs", ".rs")).toBe(true);
+    expect(isLanguageTestPath("spec/auth/password_reset_spec.rb", ".rb")).toBe(true);
+    expect(isLanguageTestPath("tests/PasswordResetTest.php", ".php")).toBe(true);
+    expect(isLanguageTestPath("tests/PasswordResetTests.cs", ".cs")).toBe(true);
+  });
+});

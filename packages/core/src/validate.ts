@@ -1,4 +1,6 @@
 import type { FixMapReport } from "./types.js";
+import { validateAnnotationStore } from "./annotations.js";
+import { isDecisionPullRequestUrl } from "./decisions.js";
 
 export type ValidatedFixMapReport =
   | { success: true; report: FixMapReport }
@@ -44,6 +46,19 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
 
   const versioned = record.reportVersion === 1;
   const contextFiles = (candidate as FixMapReport).contextFiles;
+  const unsafeContextPath = contextFiles.findIndex((file) =>
+    isRecord(file) && typeof file.path === "string" && file.path.trim().length > 0 &&
+    !isRepositoryRelativePath(file.path)
+  );
+  if (unsafeContextPath !== -1) {
+    const path = (contextFiles[unsafeContextPath] as unknown as Record<string, unknown>).path;
+    return {
+      success: false,
+      message:
+        `${label} contextFiles[${unsafeContextPath}].path must stay inside the repository and use a normalized ` +
+        `repository-relative path (got ${JSON.stringify(path)}).`
+    };
+  }
   const invalid = contextFiles.findIndex((file) => {
     if (!isRecord(file)) return true;
     const ranked = file;
@@ -55,6 +70,8 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
       ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low"
     ) return true;
     if ((versioned || ranked.reasons !== undefined) && !isStringArray(ranked.reasons)) return true;
+    if ((ranked.fusionScore === undefined) !== (ranked.retrieval === undefined)) return true;
+    if (ranked.fusionScore !== undefined && (!isPositiveFiniteNumber(ranked.fusionScore) || !isRetrievalSignal(ranked.retrieval))) return true;
     return false;
   });
   if (invalid !== -1) {
@@ -140,10 +157,100 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     if (invalidImpact !== -1) {
       return { success: false, message: `${label} has an invalid impact.files entry at index ${invalidImpact}.` };
     }
+    if (impact.primaryImports !== undefined) {
+      const primaryPaths = new Set(contextFiles.map((file) => file.path));
+      const seenEdges = new Set<string>();
+      if (!Array.isArray(impact.primaryImports) || impact.primaryImports.some((edge) => {
+        if (!isRecord(edge) || !isRepositoryRelativePath(edge.from) || !isRepositoryRelativePath(edge.to) ||
+          edge.from === edge.to || !primaryPaths.has(edge.from) || !primaryPaths.has(edge.to)) return true;
+        const key = JSON.stringify([edge.from, edge.to]);
+        if (seenEdges.has(key)) return true;
+        seenEdges.add(key);
+        return false;
+      })) {
+        return { success: false, message: `${label} has invalid impact.primaryImports; each unique edge must join two distinct primary context paths.` };
+      }
+    }
   }
 
   if (!isRepositoryRelativePathArray(record.changedFiles)) {
     return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
+  }
+
+  if (record.annotations !== undefined) {
+    const annotations = record.annotations;
+    if (!isRecord(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) ||
+      !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" ||
+      !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) ||
+      !Array.isArray(annotations.entries)) {
+      return { success: false, message: `${label} has an invalid annotations envelope.` };
+    }
+    const invalidAnnotation = annotations.entries.findIndex((assessment) => {
+      if (!isRecord(assessment) || !isRecord(assessment.annotation) || typeof assessment.message !== "string" ||
+        !["active", "expired", "missing-target", "renamed-target"].includes(String(assessment.status)) ||
+        (assessment.suggestedPath !== undefined && !isRepositoryRelativePath(assessment.suggestedPath))) return true;
+      try {
+        validateAnnotationStore({ annotationStoreVersion: 1, annotations: [assessment.annotation] });
+        return false;
+      } catch {
+        return true;
+      }
+    });
+    if (invalidAnnotation !== -1) {
+      return { success: false, message: `${label} has an invalid annotations entry at index ${invalidAnnotation}.` };
+    }
+  }
+
+  if (record.decisions !== undefined) {
+    if (!Array.isArray(record.decisions)) return { success: false, message: `${label} has invalid decisions; expected an array.` };
+    const invalidDecision = record.decisions.findIndex((decision) => {
+      if (!isRecord(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) ||
+        !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() ||
+        !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) ||
+        typeof decision.decision !== "string" || !decision.decision.trim() ||
+        typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) ||
+        !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) ||
+        !decision.supersedes.every((value) => typeof value === "string" && value.trim()) ||
+        (decision.date !== undefined && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date))) ||
+        (decision.context !== undefined && typeof decision.context !== "string") ||
+        (decision.authoredStatus !== undefined && (typeof decision.authoredStatus !== "string" || !decision.authoredStatus.trim() || decision.authoredStatus.length > 500 || decision.authoredStatus.includes("\0"))) ||
+        (decision.consequences !== undefined && typeof decision.consequences !== "string")) return true;
+      if (decision.source !== undefined && (!isRecord(decision.source) || decision.source.kind !== "pull-request" ||
+        decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url))) return true;
+      return decision.targets.some((target) => {
+        if (!isRecord(target) || !["explicit", "literal-mention"].includes(String(target.evidence))) return true;
+        if (target.kind === "file") return !isRepositoryRelativePath(target.path);
+        if (target.kind === "symbol") return typeof target.name !== "string" || !target.name.trim() ||
+          (target.path !== undefined && !isRepositoryRelativePath(target.path));
+        return (target.kind !== "service" && target.kind !== "contract") || typeof target.name !== "string" || !target.name.trim();
+      });
+    });
+    if (invalidDecision !== -1) return { success: false, message: `${label} has an invalid decisions entry at index ${invalidDecision}.` };
+  }
+
+  if (record.policy !== undefined) {
+    const policy = record.policy;
+    if (!isRecord(policy) || typeof policy.policyFingerprint !== "string" ||
+      !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
+      return { success: false, message: `${label} has an invalid architecture policy envelope.` };
+    }
+    const invalidPolicyFinding = policy.findings.findIndex((finding) => {
+      if (!isRecord(finding) ||
+        !["boundary-violation", "required-test-missing", "review-required", "breaking-contract"].includes(String(finding.code)) ||
+        !["info", "warning", "error"].includes(String(finding.severity)) ||
+        typeof finding.ruleId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(finding.ruleId) ||
+        typeof finding.message !== "string" || !finding.message.trim() ||
+        !isRepositoryRelativePathArray(finding.paths) || !Array.isArray(finding.evidence)) return true;
+      return finding.evidence.some((evidence) => !isRecord(evidence) ||
+        !["import", "changed-file", "test-pattern", "reviewer", "contract-change", "decision-record"].includes(String(evidence.kind)) ||
+        typeof evidence.detail !== "string" || !evidence.detail.trim() ||
+        (evidence.path !== undefined && !isRepositoryRelativePath(evidence.path)) ||
+        (evidence.relatedPath !== undefined && !isRepositoryRelativePath(evidence.relatedPath))
+      );
+    });
+    if (invalidPolicyFinding !== -1) {
+      return { success: false, message: `${label} has an invalid architecture policy finding at index ${invalidPolicyFinding}.` };
+    }
   }
 
   const diagnostics = record.diagnostics as unknown[];
@@ -202,6 +309,33 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
         message: `${label} has an invalid analysis.grounding.identifiers entry at index ${invalidIdentifier}.`
       };
     }
+    if (analysis.retrievalRanking !== undefined) {
+      const retrievalRanking = analysis.retrievalRanking;
+      if (!isRecord(retrievalRanking) ||
+        !isNullableFiniteNumber(retrievalRanking.topFusionScore) ||
+        !isNullableFiniteNumber(retrievalRanking.runnerUpFusionScore) ||
+        !isNullableFiniteNumber(retrievalRanking.topGap)) {
+        return { success: false, message: `${label} has invalid analysis.retrievalRanking fields.` };
+      }
+    }
+  }
+
+  if (record.retrieval !== undefined) {
+    const retrieval = record.retrieval;
+    const weights = isRecord(retrieval) ? retrieval.weights : undefined;
+    if (!isRecord(retrieval) ||
+      (retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic") ||
+      !isRecord(weights) || !isPositiveFiniteNumber(weights.structural) ||
+      !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) ||
+      !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
+      return { success: false, message: `${label} has an invalid retrieval envelope.` };
+    }
+    if (retrieval.mode === "structural-lexical-semantic" && !isSemanticProvenance(retrieval.semantic)) {
+      return { success: false, message: `${label} has invalid or missing semantic retrieval provenance.` };
+    }
+    if (retrieval.mode === "structural-lexical" && retrieval.semantic !== undefined) {
+      return { success: false, message: `${label} carries semantic provenance while declaring structural-lexical retrieval.` };
+    }
   }
 
   return { success: true, report: candidate as FixMapReport };
@@ -235,4 +369,34 @@ function isNullableFiniteNumber(candidate: unknown): boolean {
 function isIdentifierStatus(candidate: unknown): boolean {
   return candidate === "exact-definition" || candidate === "exact-text" ||
     candidate === "partial-definition" || candidate === "not-found" || candidate === "unverified";
+}
+
+function isRetrievalSignal(candidate: unknown): boolean {
+  if (!isRecord(candidate)) return false;
+  const ranks = [candidate.structuralRank, candidate.lexicalRank, candidate.semanticRank];
+  if (ranks.every((rank) => rank === undefined)) return false;
+  if (ranks.some((rank) => rank !== undefined && (!Number.isSafeInteger(rank) || Number(rank) < 1))) return false;
+  if (candidate.structuralScore !== undefined &&
+    (typeof candidate.structuralScore !== "number" || !Number.isFinite(candidate.structuralScore))) return false;
+  return candidate.semanticSimilarity === undefined ||
+    (typeof candidate.semanticSimilarity === "number" && Number.isFinite(candidate.semanticSimilarity) &&
+      candidate.semanticSimilarity >= -1 && candidate.semanticSimilarity <= 1);
+}
+
+function isSemanticProvenance(candidate: unknown): boolean {
+  if (!isRecord(candidate)) return false;
+  return typeof candidate.id === "string" && candidate.id.trim().length > 0 &&
+    typeof candidate.version === "string" && candidate.version.trim().length > 0 &&
+    typeof candidate.model === "string" && candidate.model.trim().length > 0 &&
+    typeof candidate.artifactHash === "string" && /^[a-f0-9]{64}$/.test(candidate.artifactHash) &&
+    typeof candidate.runtime === "string" && candidate.runtime.trim().length > 0 &&
+    Number.isSafeInteger(candidate.dimensions) && Number(candidate.dimensions) > 0 &&
+    (candidate.normalization === "l2" || candidate.normalization === "none") &&
+    typeof candidate.local === "boolean" && typeof candidate.cacheKey === "string" && candidate.cacheKey.trim().length > 0 &&
+    Number.isSafeInteger(candidate.indexedFiles) && Number(candidate.indexedFiles) >= 0 &&
+    Number.isSafeInteger(candidate.truncatedFiles) && Number(candidate.truncatedFiles) >= 0;
+}
+
+function isPositiveFiniteNumber(candidate: unknown): boolean {
+  return typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0;
 }

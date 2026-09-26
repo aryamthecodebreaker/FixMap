@@ -4,7 +4,10 @@ import {
   buildGroundedTaskTokens
 } from "../src/grounding.js";
 import { rankContextFiles } from "../src/rank.js";
+import { rankSymbolsByBm25Detailed } from "../src/retrieval.js";
 import type { RepoMap } from "../src/types.js";
+import { createLanguageRegistry } from "../src/language-registry.js";
+import { createCustomLanguageContext } from "../src/custom-language-context.js";
 
 function createRepo(): RepoMap {
   return {
@@ -29,6 +32,46 @@ function createRepo(): RepoMap {
 }
 
 describe("task grounding", () => {
+  it("uses custom definitions in ranked evidence and symbol retrieval", () => {
+    const repo = createRepo();
+    repo.files = [{ ...repo.files[0]!, path: 'src/auth.example', extension: '.example', textSample: 'rule resetPassword' }];
+    const context = createCustomLanguageContext(createLanguageRegistry([{
+      id: 'custom:example', version: '1', contractVersion: 1, extensions: ['.example'],
+      extractImports: () => [], extractDefinitions: () => [{ name: 'resetPassword', kind: 'function', offset: 5 }],
+      isTestPath: () => false, resolveImport: () => []
+    }]));
+    const baseline = rankContextFiles(repo, { issueText: 'resetPassword' });
+    const ranked = rankContextFiles(repo, { issueText: 'resetPassword', languageContext: context });
+    expect(ranked[0]?.path).toBe('src/auth.example');
+    expect(ranked[0]!.score).toBeGreaterThan(baseline[0]?.score ?? 0);
+    expect(rankSymbolsByBm25Detailed(repo.files, 'resetPassword', 10, context)[0]?.symbol).toBe('resetPassword');
+    expect(rankSymbolsByBm25Detailed(repo.files, 'resetPassword')).toEqual([]);
+    expect(rankContextFiles(repo, { issueText: 'resetPassword' })).toEqual(baseline);
+  });
+
+  it("grounds custom definitions and retains uncertainty when extraction fails", () => {
+    const repo = createRepo();
+    repo.files = [{ ...repo.files[0]!, path: 'src/auth.example', extension: '.example',
+      textSample: 'rule resetPassword\n# function fakeDefinition', textSampleComplete: true }];
+    const context = (broken: boolean) => createCustomLanguageContext(createLanguageRegistry([{
+      id: 'custom:example', version: '1', contractVersion: 1, extensions: ['.example'],
+      extractImports: () => [], extractDefinitions: () => {
+        if (broken) throw new Error('private details');
+        return [{ name: 'resetPassword', kind: 'function', offset: 5 }];
+      }, isTestPath: () => false, resolveImport: () => []
+    }]));
+    const input = { issueText: 'resetPassword fakeDefinition missingHandler' };
+    const result = analyzeTaskGrounding(repo, input, context(false));
+    expect(result.identifiers).toContainEqual({ identifier: 'resetPassword', status: 'exact-definition', matchedFiles: ['src/auth.example'] });
+    expect(result.identifiers).toContainEqual({ identifier: 'fakeDefinition', status: 'exact-text', matchedFiles: ['src/auth.example'] });
+    expect(result.scanComplete).toBe(true);
+    const failed = analyzeTaskGrounding(repo, input, context(true));
+    expect(failed.scanComplete).toBe(false);
+    expect(failed.identifiers).toContainEqual({ identifier: 'missingHandler', status: 'unverified', matchedFiles: [] });
+    expect(failed.identifiers.find((entry) => entry.identifier === 'resetPassword')?.status).toBe('exact-text');
+    expect(analyzeTaskGrounding(repo, input).identifiers.find((entry) => entry.identifier === 'resetPassword')?.status).toBe('exact-text');
+  });
+
   it("distinguishes exact definitions from unresolved identifiers", () => {
     const repo = createRepo();
     const grounding = analyzeTaskGrounding(repo, {
@@ -46,6 +89,61 @@ describe("task grounding", () => {
       "experimentalHoudiniPartialPrerenderScheduler"
     ]);
     expect(grounding.specificity).toBe("anchored");
+  });
+
+  it("batches multiple identifiers without collapsing definition, text, and missing states", () => {
+    const repo = createRepo();
+    repo.files.push({
+      path: "src/cache/caller.ts",
+      extension: ".ts",
+      sizeBytes: 100,
+      isSource: true,
+      isTest: false,
+      kind: "code",
+      textSample: "invokeCacheHook();"
+    });
+
+    const grounding = analyzeTaskGrounding(repo, {
+      issueText: "transitionCacheState invokeCacheHook MissingCacheHook"
+    });
+
+    expect(grounding.identifiers).toEqual([
+      { identifier: "transitionCacheState", status: "exact-definition", matchedFiles: ["src/cache/state.ts"] },
+      { identifier: "invokeCacheHook", status: "exact-text", matchedFiles: ["src/cache/caller.ts"] },
+      { identifier: "MissingCacheHook", status: "not-found", matchedFiles: [] }
+    ]);
+  });
+
+  it("grounds a Java method through the language adapter instead of treating its call sites as definitions", () => {
+    const repo = createRepo();
+    repo.files = [
+      {
+        path: "src/main/java/com/acme/auth/PasswordResetService.java",
+        extension: ".java",
+        sizeBytes: 100,
+        isSource: true,
+        isTest: false,
+        kind: "code",
+        textSample: "public final class PasswordResetService { public User resetPassword(User user) { return user; } }"
+      },
+      {
+        path: "src/main/java/com/acme/api/ResetController.java",
+        extension: ".java",
+        sizeBytes: 100,
+        isSource: true,
+        isTest: false,
+        kind: "code",
+        textSample: "return service.resetPassword(user);"
+      }
+    ];
+
+    const grounding = analyzeTaskGrounding(repo, { issueText: "resetPassword rejects a valid recovery token" });
+
+    expect(grounding.identifiers).toContainEqual({
+      identifier: "resetPassword",
+      status: "exact-definition",
+      matchedFiles: ["src/main/java/com/acme/auth/PasswordResetService.java"]
+    });
   });
 
   it("removes component words that occur only inside unresolved identifiers", () => {
