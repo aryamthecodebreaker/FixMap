@@ -12,7 +12,6 @@ name: Publish
 
 on:
   workflow_dispatch:
-
 permissions:
   contents: read
 
