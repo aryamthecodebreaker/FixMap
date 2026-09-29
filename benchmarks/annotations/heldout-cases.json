@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "selection": "Two small public JS/Python repositories absent from benchmarks and release-doc searches when selected. HEAD revisions and target existence were inspected, but FixMap was not run on either before freezing this file. This is held-out annotation workflow validation, not a ranking benchmark.",
+  "scenarios": "Use the already-defined external workflow unchanged: exact file/service note inclusion and provenance, unrelated-service exclusion, persisted removal, fresh-plan absence, unchanged target source, and Core/CLI/Action parity. Do not replace failures.",
+  "cases": [
+    { "slug": "lukeed/kleur", "repo": "https://github.com/lukeed/kleur.git", "sha": "fa3454483899ddab550d08c18c028e6db1aab0e5", "path": "index.mjs" },
+    { "slug": "pallets/markupsafe", "repo": "https://github.com/pallets/markupsafe.git", "sha": "b2e4d9c7687be25695fffbe93a37622302b24fb1", "path": "src/markupsafe/__init__.py" }
+  ]
+}

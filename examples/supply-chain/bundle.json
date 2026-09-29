@@ -1,0 +1,37 @@
+{
+  "supplyChainBundleVersion": 1,
+  "generatedAt": "2026-08-21T12:00:00Z",
+  "source": {
+    "tool": "external-scanner",
+    "toolVersion": "4.2.0",
+    "databaseVersion": "2026-08-20",
+    "documentFingerprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "components": [
+    {
+      "id": "npm-example-1",
+      "name": "example",
+      "version": "1.0.0",
+      "purl": "pkg:npm/example@1.0.0",
+      "licenses": [
+        "MIT"
+      ],
+      "paths": [
+        "package-lock.json"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "scanner-advisory-1",
+      "kind": "vulnerability",
+      "severity": "high",
+      "confidence": "high",
+      "componentId": "npm-example-1",
+      "summary": "External scanner matched an advisory.",
+      "advisoryId": "EXTERNAL-1",
+      "fixedVersion": "1.0.1",
+      "sourceUrl": "https://scanner.example/advisories/1"
+    }
+  ]
+}

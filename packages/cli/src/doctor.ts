@@ -65,11 +65,12 @@ export async function runDoctorChecks(dependencies: DoctorDependencies = {}): Pr
     findings.push({ label: "Requested package", value: `${requestedVersion} (matches)`, ok: true });
   }
 
-  const binaries = dependencies.resolveBinaries
+  const resolvedBinaries = dependencies.resolveBinaries
     ? await dependencies.resolveBinaries("fixmap")
     : dependencies.resolveBinary
       ? [await dependencies.resolveBinary("fixmap")].filter((entry): entry is string => Boolean(entry))
       : await resolveBinaries("fixmap");
+  const binaries = collapseEquivalentWindowsShims(resolvedBinaries);
   const globalVersion = await (dependencies.globalVersion ?? readGlobalVersion)();
 
   findings.push(binaries.length === 0
@@ -174,6 +175,17 @@ async function resolveBinaries(name: string): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+export function collapseEquivalentWindowsShims(paths: string[]): string[] {
+  const installations = new Map<string, string>();
+  for (const path of paths) {
+    const normalized = path.trim().replace(/\\/g, "/");
+    if (!normalized) continue;
+    const key = normalized.replace(/\.(?:cmd|ps1)$/i, "").toLowerCase();
+    if (!installations.has(key)) installations.set(key, path.trim());
+  }
+  return [...installations.values()];
 }
 
 async function readProjectVersion(start: string): Promise<{ version: string; path: string } | undefined> {

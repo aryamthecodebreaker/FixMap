@@ -2,7 +2,7 @@
   "cases": 12,
   "top1HitRate": 0.5,
   "top3HitRate": 0.667,
-  "top5HitRate": 0.667,
+  "top5HitRate": 0.917,
   "intervals95": {
     "top1": [
       0.254,
@@ -13,38 +13,41 @@
       0.862
     ],
     "top5": [
-      0.391,
-      0.862
+      0.646,
+      0.985
     ]
   },
   "misleadingTopResult": {
-    "cases": 2,
+    "cases": 5,
     "of": 12,
-    "rate": 0.167,
+    "rate": 0.417,
     "slugs": [
       "immerjs/immer",
-      "socketio/socket.io"
+      "jestjs/jest",
+      "knex/knex",
+      "socketio/socket.io",
+      "vuejs/core"
     ]
   },
   "calibration": [
     {
       "confidence": "high",
-      "cases": 3,
-      "top1Correct": 2,
-      "top1Accuracy": 0.667,
+      "cases": 4,
+      "top1Correct": 3,
+      "top1Accuracy": 0.75,
       "interval95": [
-        0.208,
-        0.939
+        0.301,
+        0.954
       ]
     },
     {
       "confidence": "medium",
-      "cases": 7,
-      "top1Correct": 3,
-      "top1Accuracy": 0.429,
+      "cases": 6,
+      "top1Correct": 2,
+      "top1Accuracy": 0.333,
       "interval95": [
-        0.158,
-        0.75
+        0.097,
+        0.7
       ]
     },
     {
@@ -63,7 +66,7 @@
       "cases": 12,
       "top1HitRate": 0.5,
       "top3HitRate": 0.667,
-      "top5HitRate": 0.667,
+      "top5HitRate": 0.917,
       "intervals95": {
         "top1": [
           0.254,
@@ -74,8 +77,8 @@
           0.862
         ],
         "top5": [
-          0.391,
-          0.862
+          0.646,
+          0.985
         ]
       },
       "slugs": [
@@ -97,7 +100,7 @@
       "cases": 9,
       "top1HitRate": 0.333,
       "top3HitRate": 0.556,
-      "top5HitRate": 0.556,
+      "top5HitRate": 0.889,
       "intervals95": {
         "top1": [
           0.121,
@@ -108,8 +111,8 @@
           0.811
         ],
         "top5": [
-          0.267,
-          0.811
+          0.565,
+          0.98
         ]
       },
       "slugs": [
@@ -173,10 +176,10 @@
         "lib/document.js",
         "lib/helpers/setDefaultsOnInsert.js",
         "lib/helpers/update/modifiedPaths.js",
-        "lib/types/array/methods/index.js",
-        "lib/types/subdocument.js"
+        "lib/types/subdocument.js",
+        "types/document.d.ts"
       ],
-      "topConfidence": "medium",
+      "topConfidence": "high",
       "top1Hit": true,
       "top3Hit": true,
       "top5Hit": true,
@@ -222,13 +225,13 @@
         "packages/jest-core/src/TestScheduler.ts",
         "packages/jest-runner/src/runTest.ts",
         "packages/jest-test-sequencer/src/index.ts",
-        "packages/jest-worker/src/workers/processChild.ts",
-        "packages/jest-worker/src/workers/threadChild.ts"
+        "packages/jest-worker/src/workers/threadChild.ts",
+        "packages/jest-mock/src/index.ts"
       ],
       "topConfidence": "medium",
       "top1Hit": false,
       "top3Hit": false,
-      "top5Hit": false,
+      "top5Hit": true,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
       "mentionEvidence": []
@@ -240,16 +243,16 @@
         "lib/dialects/postgres/query/pg-querycompiler.js"
       ],
       "top5Paths": [
-        "lib/dialects/postgres/index.js",
         "lib/knex-builder/make-knex.js",
+        "lib/dialects/postgres/index.js",
         "lib/dialects/oracledb/index.js",
-        "lib/knex-builder/Knex.js",
-        "bin/cli.js"
+        "bin/cli.js",
+        "lib/dialects/postgres/query/pg-querycompiler.js"
       ],
       "topConfidence": "medium",
       "top1Hit": false,
       "top3Hit": false,
-      "top5Hit": false,
+      "top5Hit": true,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
       "mentionEvidence": []
@@ -265,7 +268,7 @@
         "lib/mocha.cjs",
         "lib/reporters/html.js",
         "lib/reporters/base.js",
-        "lib/errors.js"
+        "scripts/update-authors.cjs"
       ],
       "topConfidence": "medium",
       "top1Hit": true,
@@ -285,8 +288,8 @@
         "src/logic/createFormControl.ts",
         "src/useController.ts",
         "src/types/form.ts",
-        "app/src/useFormState.tsx",
-        "src/useFormState.ts"
+        "src/useFormState.ts",
+        "scripts/bench.ts"
       ],
       "topConfidence": "medium",
       "top1Hit": true,
@@ -305,9 +308,9 @@
       "top5Paths": [
         "packages/engine.io-client/lib/transports/polling-xhr.ts",
         "packages/engine.io-client/lib/socket.ts",
-        "packages/engine.io-client/lib/transport.ts",
-        "packages/engine.io-client/lib/transports/polling.ts",
-        "packages/engine.io-client/lib/transports/websocket.ts"
+        "packages/socket.io-client/dist/socket.io.js",
+        "packages/socket.io/client-dist/socket.io.js",
+        "packages/engine.io-client/dist/engine.io.js"
       ],
       "topConfidence": "medium",
       "top1Hit": false,
@@ -326,9 +329,9 @@
       "top5Paths": [
         "packages/svelte/src/internal/client/dom/blocks/boundary.js",
         "packages/svelte/scripts/check-treeshakeability.js",
-        "packages/svelte/src/internal/client/dom/operations.js",
         "packages/svelte/src/internal/client/errors.js",
-        "packages/svelte/src/internal/client/render.js"
+        "packages/svelte/src/internal/client/warnings.js",
+        "packages/svelte/src/internal/server/renderer.js"
       ],
       "topConfidence": "high",
       "top1Hit": true,
@@ -354,9 +357,9 @@
       "top5Paths": [
         "packages/create-vite/template-vue-ts/src/App.vue",
         "packages/create-vite/template-vue/src/App.vue",
-        "packages/vite/types/metadata.d.ts",
         "packages/vite/src/node/optimizer/rolldownDepPlugin.ts",
-        "packages/vite/src/node/plugins/workerImportMetaUrl.ts"
+        "packages/vite/types/metadata.d.ts",
+        "packages/create-vite/src/index.ts"
       ],
       "topConfidence": "high",
       "top1Hit": false,
@@ -377,12 +380,12 @@
         "packages-private/tsconfig.json",
         "packages-private/dts-built-test/tsconfig.json",
         "packages-private/vite-debug/tsconfig.json",
-        "packages/reactivity/src/ref.ts"
+        "packages/runtime-dom/src/index.ts"
       ],
       "topConfidence": "low",
       "top1Hit": false,
       "top3Hit": false,
-      "top5Hit": false,
+      "top5Hit": true,
       "mentionsExpectedPath": false,
       "mentionTier": "none",
       "mentionEvidence": []
@@ -397,8 +400,8 @@
         "lib/winston/transports/file.js",
         "lib/winston/transports/http.js",
         "lib/winston/tail-file.js",
-        "lib/winston/transports/console.js",
-        "lib/winston/logger.js"
+        "lib/winston/logger.js",
+        "lib/winston/common.js"
       ],
       "topConfidence": "low",
       "top1Hit": true,
@@ -416,10 +419,10 @@
       ],
       "top5Paths": [
         "lib/utils/apply-extends.ts",
+        "lib/yargs-factory.ts",
         "lib/command.ts",
-        "lib/completion.ts",
         "lib/validation.ts",
-        "helpers/helpers.mjs"
+        "lib/typings/yargs-parser-types.ts"
       ],
       "topConfidence": "high",
       "top1Hit": true,

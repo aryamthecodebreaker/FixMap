@@ -42,7 +42,8 @@ const cohortOf = (suite: typeof heldout) => ({
 // The comparison a ranked list actually has to win: naive retrieval on the same corpus.
 // Each baseline is reported at its STRONGEST candidate policy — pointing a baseline at every
 // scanned file makes it rank READMEs and turns the comparison into a strawman.
-type BaselineSuite = typeof heldoutBaseline;
+// The renderer consumes policy and arm outcomes, not suite-specific diagnostics.
+type BaselineSuite = Pick<typeof heldoutBaseline, "configuration" | "arms">;
 type BaselineFamily = keyof BaselineSuite["configuration"]["bestPolicyPerFamily"];
 type BaselineArm = keyof BaselineSuite["arms"];
 

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -41,6 +41,28 @@ try {
     process.stderr.write("Action smoke failed: GITHUB_STEP_SUMMARY did not contain the ranked context.\n");
     process.exit(1);
   }
+  const annotate = (request, write = false) => spawnSync(process.execPath, [actionPath], {
+    cwd: temporaryDirectory,
+    env: {
+      ...pickEnvironment(["ComSpec", "HOME", "HOMEDRIVE", "HOMEPATH", "LOCALAPPDATA", "Path", "PATHEXT", "SystemRoot", "TEMP", "TMP", "USERPROFILE"]),
+      INPUT_MODE: "annotate",
+      INPUT_ANNOTATION_REQUEST: JSON.stringify(request),
+      INPUT_ALLOW_ANNOTATION_WRITE: String(write)
+    },
+    encoding: "utf8",
+    timeout: 30_000
+  });
+  const request = { action: "add", scope: { kind: "service", name: "auth" }, note: "Bundled Action smoke" };
+  const denied = annotate(request);
+  if (denied.status === 0 || existsSync(join(temporaryDirectory, ".fixmap"))) throw new Error("Bundled annotation mutation did not fail closed without opt-in.");
+  const added = annotate(request, true);
+  if (added.status !== 0) throw new Error(`Bundled annotation add failed: ${added.stderr}`);
+  const receipt = JSON.parse(added.stdout);
+  const listed = annotate({ action: "list" });
+  if (listed.status !== 0 || JSON.parse(listed.stdout).annotations[0]?.id !== receipt.id) throw new Error("Bundled annotation list did not preserve the new ID.");
+  const removed = annotate({ action: "remove", id: receipt.id }, true);
+  if (removed.status !== 0 || JSON.parse(readFileSync(join(temporaryDirectory, ".fixmap", "annotations.json"), "utf8")).annotations.length !== 0) throw new Error("Bundled annotation removal did not persist.");
+  process.stdout.write("Bundled annotation add/list/remove and write opt-in smoke passed.\n");
 } finally {
   rmSync(temporaryDirectory, { recursive: true, force: true });
 }

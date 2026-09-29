@@ -1,0 +1,115 @@
+{
+  "migrationInputVersion": 1,
+  "graph": {
+    "identityGraphVersion": 1,
+    "workspace": "acme",
+    "version": {
+      "sequence": 1,
+      "fingerprint": "example:acme-users-v1"
+    },
+    "nodes": [
+      {
+        "id": "fixmap://workspace/acme/repository/users",
+        "kind": "repository",
+        "key": "users",
+        "derivedFrom": []
+      },
+      {
+        "id": "fixmap://workspace/acme/repository/users/file/db/schema.sql",
+        "kind": "file",
+        "key": "db/schema.sql",
+        "repository": "users",
+        "parent": "fixmap://workspace/acme/repository/users",
+        "derivedFrom": []
+      },
+      {
+        "id": "fixmap://workspace/acme/repository/users/file/src/users.ts",
+        "kind": "file",
+        "key": "src/users.ts",
+        "repository": "users",
+        "parent": "fixmap://workspace/acme/repository/users",
+        "derivedFrom": []
+      },
+      {
+        "id": "fixmap://workspace/acme/repository/users/file/src/consumer.ts",
+        "kind": "file",
+        "key": "src/consumer.ts",
+        "repository": "users",
+        "parent": "fixmap://workspace/acme/repository/users",
+        "derivedFrom": []
+      },
+      {
+        "id": "fixmap://workspace/acme/repository/users/contract/users-api",
+        "kind": "contract",
+        "key": "users-api",
+        "repository": "users",
+        "parent": "fixmap://workspace/acme/repository/users",
+        "derivedFrom": []
+      }
+    ],
+    "edges": []
+  },
+  "steps": [
+    {
+      "id": "expand-schema",
+      "summary": "Add the nullable field before any writer depends on it.",
+      "dependsOn": [],
+      "edits": [
+        "fixmap://workspace/acme/repository/users/file/db/schema.sql"
+      ],
+      "impacts": [
+        "fixmap://workspace/acme/repository/users/file/src/users.ts",
+        "fixmap://workspace/acme/repository/users/file/src/consumer.ts"
+      ],
+      "contracts": [
+        "fixmap://workspace/acme/repository/users/contract/users-api"
+      ],
+      "compatibility": {
+        "mode": "backward-compatible",
+        "reason": "Existing readers can ignore the nullable field.",
+        "exitCriteria": "Every supported deployment accepts the expanded schema."
+      },
+      "tests": [
+        {
+          "command": "npm run test:migrations",
+          "reason": "Verify old and expanded schemas both load."
+        }
+      ],
+      "rollback": {
+        "trigger": "Schema compatibility verification fails.",
+        "action": "Revert the additive migration before enabling new writers."
+      }
+    },
+    {
+      "id": "enable-writer",
+      "summary": "Write the new field after the compatible schema is deployed.",
+      "dependsOn": [
+        "expand-schema"
+      ],
+      "edits": [
+        "fixmap://workspace/acme/repository/users/file/src/users.ts"
+      ],
+      "impacts": [
+        "fixmap://workspace/acme/repository/users/file/src/consumer.ts"
+      ],
+      "contracts": [
+        "fixmap://workspace/acme/repository/users/contract/users-api"
+      ],
+      "compatibility": {
+        "mode": "dual-write",
+        "reason": "Old and new consumers coexist during rollout.",
+        "exitCriteria": "All consumers read the new field and the backfill is complete."
+      },
+      "tests": [
+        {
+          "command": "npm run test:users",
+          "reason": "Verify both representations remain synchronized."
+        }
+      ],
+      "rollback": {
+        "trigger": "Writer or consumer verification fails.",
+        "action": "Disable the new writer and continue using the old representation."
+      }
+    }
+  ]
+}

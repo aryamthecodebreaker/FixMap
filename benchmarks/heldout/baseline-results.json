@@ -4,7 +4,7 @@
   "configuration": {
     "topN": 5,
     "corpus": "one scanRepo() result per case, shared by every arm",
-    "recordedCorpusFields": "rankings and hit outcomes only; platform-dependent checkout file counts are deliberately omitted",
+    "recordedCorpusFields": "rankings, hit outcomes, and deterministic evidence only; platform-dependent checkout counts and timings are deliberately omitted",
     "searchField": "file path + scanner text sample (files over the scanner's sample limit are truncated for every arm alike)",
     "tokenizer": "lowercase [A-Za-z0-9_$]+ of length >= 3, plus camelCase and underscore sub-tokens",
     "stopwords": 158,
@@ -222,7 +222,7 @@
         "cases": 12,
         "top1HitRate": 0.083,
         "top3HitRate": 0.25,
-        "top5HitRate": 0.333,
+        "top5HitRate": 0.25,
         "intervals95": {
           "top1": [
             0.015,
@@ -233,40 +233,40 @@
             0.532
           ],
           "top5": [
-            0.138,
-            0.609
+            0.089,
+            0.532
           ]
         }
       },
       "unmentioned": {
         "cases": 9,
-        "top1HitRate": 0.111,
+        "top1HitRate": 0,
         "top3HitRate": 0.222,
-        "top5HitRate": 0.333,
+        "top5HitRate": 0.222,
         "intervals95": {
           "top1": [
-            0.02,
-            0.435
+            0,
+            0.299
           ],
           "top3": [
             0.063,
             0.547
           ],
           "top5": [
-            0.121,
-            0.646
+            0.063,
+            0.547
           ]
         }
       },
       "mentioned": {
         "cases": 3,
-        "top1HitRate": 0,
+        "top1HitRate": 0.333,
         "top3HitRate": 0.333,
         "top5HitRate": 0.333,
         "intervals95": {
           "top1": [
-            0,
-            0.562
+            0.061,
+            0.792
           ],
           "top3": [
             0.061,
@@ -282,13 +282,13 @@
     "lexical-literal:source": {
       "all": {
         "cases": 12,
-        "top1HitRate": 0.083,
+        "top1HitRate": 0.167,
         "top3HitRate": 0.25,
         "top5HitRate": 0.333,
         "intervals95": {
           "top1": [
-            0.015,
-            0.354
+            0.047,
+            0.448
           ],
           "top3": [
             0.089,
@@ -304,7 +304,7 @@
         "cases": 9,
         "top1HitRate": 0.111,
         "top3HitRate": 0.222,
-        "top5HitRate": 0.333,
+        "top5HitRate": 0.222,
         "intervals95": {
           "top1": [
             0.02,
@@ -315,70 +315,8 @@
             0.547
           ],
           "top5": [
-            0.121,
-            0.646
-          ]
-        }
-      },
-      "mentioned": {
-        "cases": 3,
-        "top1HitRate": 0,
-        "top3HitRate": 0.333,
-        "top5HitRate": 0.333,
-        "intervals95": {
-          "top1": [
-            0,
-            0.562
-          ],
-          "top3": [
-            0.061,
-            0.792
-          ],
-          "top5": [
-            0.061,
-            0.792
-          ]
-        }
-      }
-    },
-    "lexical-literal:code": {
-      "all": {
-        "cases": 12,
-        "top1HitRate": 0.25,
-        "top3HitRate": 0.417,
-        "top5HitRate": 0.75,
-        "intervals95": {
-          "top1": [
-            0.089,
-            0.532
-          ],
-          "top3": [
-            0.193,
-            0.68
-          ],
-          "top5": [
-            0.468,
-            0.911
-          ]
-        }
-      },
-      "unmentioned": {
-        "cases": 9,
-        "top1HitRate": 0.222,
-        "top3HitRate": 0.444,
-        "top5HitRate": 0.778,
-        "intervals95": {
-          "top1": [
             0.063,
             0.547
-          ],
-          "top3": [
-            0.189,
-            0.733
-          ],
-          "top5": [
-            0.453,
-            0.937
           ]
         }
       },
@@ -403,31 +341,93 @@
         }
       }
     },
+    "lexical-literal:code": {
+      "all": {
+        "cases": 12,
+        "top1HitRate": 0.25,
+        "top3HitRate": 0.5,
+        "top5HitRate": 0.583,
+        "intervals95": {
+          "top1": [
+            0.089,
+            0.532
+          ],
+          "top3": [
+            0.254,
+            0.746
+          ],
+          "top5": [
+            0.32,
+            0.807
+          ]
+        }
+      },
+      "unmentioned": {
+        "cases": 9,
+        "top1HitRate": 0.222,
+        "top3HitRate": 0.444,
+        "top5HitRate": 0.556,
+        "intervals95": {
+          "top1": [
+            0.063,
+            0.547
+          ],
+          "top3": [
+            0.189,
+            0.733
+          ],
+          "top5": [
+            0.267,
+            0.811
+          ]
+        }
+      },
+      "mentioned": {
+        "cases": 3,
+        "top1HitRate": 0.333,
+        "top3HitRate": 0.667,
+        "top5HitRate": 0.667,
+        "intervals95": {
+          "top1": [
+            0.061,
+            0.792
+          ],
+          "top3": [
+            0.208,
+            0.939
+          ],
+          "top5": [
+            0.208,
+            0.939
+          ]
+        }
+      }
+    },
     "bm25:raw": {
       "all": {
         "cases": 12,
         "top1HitRate": 0.167,
-        "top3HitRate": 0.25,
-        "top5HitRate": 0.333,
+        "top3HitRate": 0.167,
+        "top5HitRate": 0.417,
         "intervals95": {
           "top1": [
             0.047,
             0.448
           ],
           "top3": [
-            0.089,
-            0.532
+            0.047,
+            0.448
           ],
           "top5": [
-            0.138,
-            0.609
+            0.193,
+            0.68
           ]
         }
       },
       "unmentioned": {
         "cases": 9,
         "top1HitRate": 0.111,
-        "top3HitRate": 0.222,
+        "top3HitRate": 0.111,
         "top5HitRate": 0.333,
         "intervals95": {
           "top1": [
@@ -435,8 +435,8 @@
             0.435
           ],
           "top3": [
-            0.063,
-            0.547
+            0.02,
+            0.435
           ],
           "top5": [
             0.121,
@@ -448,7 +448,7 @@
         "cases": 3,
         "top1HitRate": 0.333,
         "top3HitRate": 0.333,
-        "top5HitRate": 0.333,
+        "top5HitRate": 0.667,
         "intervals95": {
           "top1": [
             0.061,
@@ -459,8 +459,8 @@
             0.792
           ],
           "top5": [
-            0.061,
-            0.792
+            0.208,
+            0.939
           ]
         }
       }
@@ -469,7 +469,7 @@
       "all": {
         "cases": 12,
         "top1HitRate": 0.167,
-        "top3HitRate": 0.25,
+        "top3HitRate": 0.167,
         "top5HitRate": 0.5,
         "intervals95": {
           "top1": [
@@ -477,8 +477,8 @@
             0.448
           ],
           "top3": [
-            0.089,
-            0.532
+            0.047,
+            0.448
           ],
           "top5": [
             0.254,
@@ -489,7 +489,7 @@
       "unmentioned": {
         "cases": 9,
         "top1HitRate": 0.111,
-        "top3HitRate": 0.222,
+        "top3HitRate": 0.111,
         "top5HitRate": 0.444,
         "intervals95": {
           "top1": [
@@ -497,8 +497,8 @@
             0.435
           ],
           "top3": [
-            0.063,
-            0.547
+            0.02,
+            0.435
           ],
           "top5": [
             0.189,
@@ -532,7 +532,7 @@
         "cases": 12,
         "top1HitRate": 0.5,
         "top3HitRate": 0.583,
-        "top5HitRate": 0.917,
+        "top5HitRate": 1,
         "intervals95": {
           "top1": [
             0.254,
@@ -543,15 +543,15 @@
             0.807
           ],
           "top5": [
-            0.646,
-            0.985
+            0.757,
+            1
           ]
         }
       },
       "unmentioned": {
         "cases": 9,
         "top1HitRate": 0.444,
-        "top3HitRate": 0.556,
+        "top3HitRate": 0.444,
         "top5HitRate": 1,
         "intervals95": {
           "top1": [
@@ -559,8 +559,8 @@
             0.733
           ],
           "top3": [
-            0.267,
-            0.811
+            0.189,
+            0.733
           ],
           "top5": [
             0.701,
@@ -571,20 +571,20 @@
       "mentioned": {
         "cases": 3,
         "top1HitRate": 0.667,
-        "top3HitRate": 0.667,
-        "top5HitRate": 0.667,
+        "top3HitRate": 1,
+        "top5HitRate": 1,
         "intervals95": {
           "top1": [
             0.208,
             0.939
           ],
           "top3": [
-            0.208,
-            0.939
+            0.438,
+            1
           ],
           "top5": [
-            0.208,
-            0.939
+            0.438,
+            1
           ]
         }
       }
@@ -594,7 +594,7 @@
         "cases": 12,
         "top1HitRate": 0.5,
         "top3HitRate": 0.667,
-        "top5HitRate": 0.667,
+        "top5HitRate": 0.917,
         "intervals95": {
           "top1": [
             0.254,
@@ -605,8 +605,8 @@
             0.862
           ],
           "top5": [
-            0.391,
-            0.862
+            0.646,
+            0.985
           ]
         }
       },
@@ -614,7 +614,7 @@
         "cases": 9,
         "top1HitRate": 0.333,
         "top3HitRate": 0.556,
-        "top5HitRate": 0.556,
+        "top5HitRate": 0.889,
         "intervals95": {
           "top1": [
             0.121,
@@ -625,8 +625,8 @@
             0.811
           ],
           "top5": [
-            0.267,
-            0.811
+            0.565,
+            0.98
           ]
         }
       },
@@ -668,10 +668,10 @@
           "pValue": 0.0625
         },
         "top5": {
-          "aWins": 5,
+          "aWins": 8,
           "bWins": 0,
-          "discordant": 5,
-          "pValue": 0.0625
+          "discordant": 8,
+          "pValue": 0.0078
         }
       },
       "lexical-literal:code": {
@@ -682,16 +682,16 @@
           "pValue": 0.4531
         },
         "top3": {
-          "aWins": 4,
+          "aWins": 3,
           "bWins": 1,
-          "discordant": 5,
-          "pValue": 0.375
+          "discordant": 4,
+          "pValue": 0.625
         },
         "top5": {
-          "aWins": 2,
-          "bWins": 3,
-          "discordant": 5,
-          "pValue": 1
+          "aWins": 4,
+          "bWins": 0,
+          "discordant": 4,
+          "pValue": 0.125
         }
       },
       "bm25:code": {
@@ -708,10 +708,10 @@
           "pValue": 1
         },
         "top5": {
-          "aWins": 1,
-          "bWins": 4,
-          "discordant": 5,
-          "pValue": 0.375
+          "aWins": 0,
+          "bWins": 1,
+          "discordant": 1,
+          "pValue": 1
         }
       }
     },
@@ -730,10 +730,10 @@
           "pValue": 0.0625
         },
         "top5": {
-          "aWins": 5,
+          "aWins": 8,
           "bWins": 0,
-          "discordant": 5,
-          "pValue": 0.0625
+          "discordant": 8,
+          "pValue": 0.0078
         }
       },
       "lexical-literal:code": {
@@ -750,10 +750,10 @@
           "pValue": 1
         },
         "top5": {
-          "aWins": 1,
-          "bWins": 3,
-          "discordant": 4,
-          "pValue": 0.625
+          "aWins": 3,
+          "bWins": 0,
+          "discordant": 3,
+          "pValue": 0.25
         }
       },
       "bm25:code": {
@@ -764,19 +764,2330 @@
           "pValue": 1
         },
         "top3": {
-          "aWins": 3,
+          "aWins": 4,
           "bWins": 3,
-          "discordant": 6,
+          "discordant": 7,
           "pValue": 1
         },
         "top5": {
           "aWins": 0,
-          "bWins": 4,
-          "discordant": 4,
-          "pValue": 0.125
+          "bWins": 1,
+          "discordant": 1,
+          "pValue": 1
         }
       }
     }
+  },
+  "diagnostics": {
+    "meanReciprocalRankAt5": 0.633333,
+    "candidateRecallAt50": {
+      "structuralAt50": 1,
+      "lexicalAt50": 1,
+      "symbolAt50": 1,
+      "unionAt50": 1
+    },
+    "failureClasses": {
+      "none": 11,
+      "rerank-miss": 1
+    },
+    "cases": [
+      {
+        "slug": "Automattic/mongoose",
+        "expected": [
+          "lib/document.js"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 1,
+          "lexical": 2,
+          "symbol": 2
+        },
+        "intent": "types",
+        "queryExpansions": [
+          {
+            "term": "modifiedpath",
+            "source": "modifiedpaths",
+            "rule": "inflection"
+          },
+          {
+            "term": "loop",
+            "source": "loops",
+            "rule": "inflection"
+          },
+          {
+            "term": "hook",
+            "source": "hooks",
+            "rule": "inflection"
+          },
+          {
+            "term": "fall",
+            "source": "falls",
+            "rule": "inflection"
+          },
+          {
+            "term": "documentmodifiedpath",
+            "source": "documentmodifiedpaths",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "lib/document.js",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 145,
+            "lexicalRank": 2,
+            "symbolRank": 2,
+            "symbol": "iiiLen",
+            "fusionScore": 150.9
+          },
+          {
+            "path": "lib/helpers/setDefaultsOnInsert.js",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 64,
+            "lexicalRank": 28,
+            "symbolRank": 23,
+            "symbol": "isModified",
+            "fusionScore": 67.5
+          },
+          {
+            "path": "lib/helpers/update/modifiedPaths.js",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 57,
+            "lexicalRank": 21,
+            "symbolRank": 8,
+            "symbol": "modifiedPaths",
+            "fusionScore": 61.52
+          },
+          {
+            "path": "lib/types/subdocument.js",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 48,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "myPath",
+            "fusionScore": 54
+          },
+          {
+            "path": "lib/types/array/methods/index.js",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 48,
+            "lexicalRank": 12,
+            "symbolRank": 11,
+            "symbol": "cur",
+            "fusionScore": 52.94
+          },
+          {
+            "path": "types/document.d.ts",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 45,
+            "lexicalRank": 3,
+            "symbolRank": 3,
+            "symbol": "falls",
+            "fusionScore": 50.8
+          },
+          {
+            "path": "lib/helpers/common.js",
+            "tier": "direct",
+            "structuralRank": 6,
+            "structuralScore": 47,
+            "lexicalRank": 43,
+            "symbolRank": 25,
+            "symbol": "modifiedPaths",
+            "fusionScore": 49.52
+          },
+          {
+            "path": "lib/mongoose.js",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 45,
+            "lexicalRank": 18,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 47.48
+          },
+          {
+            "path": "lib/types/documentArray/methods/index.js",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 43,
+            "lexicalRank": 30,
+            "symbolRank": 19,
+            "symbol": "index",
+            "fusionScore": 46.54
+          },
+          {
+            "path": "lib/schema.js",
+            "tier": "corroborated",
+            "structuralRank": 13,
+            "structuralScore": 41,
+            "lexicalRank": 5,
+            "symbolRank": 15,
+            "symbol": "reserved",
+            "fusionScore": 46.2
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "lib/document.js",
+            "intent": "types",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 1,
+            "structuralScore": 145,
+            "lexicalRank": 2,
+            "lexicalScore": 40.441541,
+            "symbolRank": 2,
+            "symbolScore": 38.58651,
+            "symbol": "iiiLen",
+            "queryExpansions": [
+              {
+                "term": "modifiedpath",
+                "source": "modifiedpaths",
+                "rule": "inflection"
+              },
+              {
+                "term": "loop",
+                "source": "loops",
+                "rule": "inflection"
+              },
+              {
+                "term": "hook",
+                "source": "hooks",
+                "rule": "inflection"
+              },
+              {
+                "term": "fall",
+                "source": "falls",
+                "rule": "inflection"
+              },
+              {
+                "term": "documentmodifiedpath",
+                "source": "documentmodifiedpaths",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 150.9
+          }
+        ]
+      },
+      {
+        "slug": "immerjs/immer",
+        "expected": [
+          "src/types/types-external.ts"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 2,
+        "reciprocalRank": 0.5,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 2,
+          "lexical": 1,
+          "symbol": 2
+        },
+        "intent": "types",
+        "queryExpansions": [
+          {
+            "term": "producewithpatche",
+            "source": "producewithpatches",
+            "rule": "inflection"
+          },
+          {
+            "term": "patche",
+            "source": "patches",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "src/immer.ts",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 68,
+            "lexicalRank": 2,
+            "symbolRank": 1,
+            "symbol": "is",
+            "fusionScore": 73.94
+          },
+          {
+            "path": "src/types/types-external.ts",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 49,
+            "lexicalRank": 1,
+            "symbolRank": 2,
+            "symbol": "Draft",
+            "fusionScore": 54.96
+          },
+          {
+            "path": "src/plugins/patches.ts",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 21,
+            "lexicalRank": 8,
+            "symbolRank": 10,
+            "symbol": "isSet",
+            "fusionScore": 26.22
+          },
+          {
+            "path": "src/core/immerClass.ts",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 20,
+            "lexicalRank": 3,
+            "symbolRank": 3,
+            "symbol": "patches",
+            "fusionScore": 25.8
+          },
+          {
+            "path": "src/core/proxy.ts",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 20,
+            "lexicalRank": 7,
+            "symbolRank": 8,
+            "symbol": "ProxyBaseState",
+            "fusionScore": 25.36
+          },
+          {
+            "path": "src/plugins/arrayMethods.ts",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 18,
+            "lexicalRank": 6,
+            "symbolRank": 6,
+            "symbol": "SHIFTING_METHODS",
+            "fusionScore": 23.5
+          },
+          {
+            "path": "src/types/types-internal.ts",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 17,
+            "lexicalRank": 19,
+            "symbolRank": 11,
+            "symbol": "GeneratePatches",
+            "fusionScore": 21.52
+          },
+          {
+            "path": "src/core/finalize.ts",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 16,
+            "lexicalRank": 12,
+            "symbolRank": 9,
+            "symbol": "callback",
+            "fusionScore": 21.02
+          },
+          {
+            "path": "src/core/scope.ts",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 16,
+            "lexicalRank": 16,
+            "symbolRank": 12,
+            "symbol": "ImmerScope",
+            "fusionScore": 20.66
+          },
+          {
+            "path": "src/utils/errors.ts",
+            "tier": "corroborated",
+            "structuralRank": 12,
+            "structuralScore": 14,
+            "lexicalRank": 4,
+            "symbolRank": 4,
+            "symbol": "or",
+            "fusionScore": 19.7
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "src/types/types-external.ts",
+            "intent": "types",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 2,
+            "structuralScore": 49,
+            "lexicalRank": 1,
+            "lexicalScore": 23.991307,
+            "symbolRank": 2,
+            "symbolScore": 21.908069,
+            "symbol": "Draft",
+            "queryExpansions": [
+              {
+                "term": "producewithpatche",
+                "source": "producewithpatches",
+                "rule": "inflection"
+              },
+              {
+                "term": "patche",
+                "source": "patches",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 54.96
+          }
+        ]
+      },
+      {
+        "slug": "jestjs/jest",
+        "expected": [
+          "packages/jest-mock/src/index.ts"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 5,
+        "reciprocalRank": 0.2,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 30,
+          "lexical": 1,
+          "symbol": 1
+        },
+        "intent": "tests",
+        "queryExpansions": [
+          {
+            "term": "spuriou",
+            "source": "spurious",
+            "rule": "inflection"
+          },
+          {
+            "term": "function",
+            "source": "functions",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "overload",
+            "source": "overloads",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "packages/jest-core/src/TestScheduler.ts",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 64,
+            "lexicalRank": 34,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 65.52
+          },
+          {
+            "path": "packages/jest-runner/src/runTest.ts",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 64,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 64
+          },
+          {
+            "path": "packages/jest-test-sequencer/src/index.ts",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 64,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 64
+          },
+          {
+            "path": "packages/jest-worker/src/workers/threadChild.ts",
+            "tier": "direct",
+            "structuralRank": 5,
+            "structuralScore": 59,
+            "lexicalRank": 19,
+            "symbolRank": 19,
+            "symbol": "reportClientError",
+            "fusionScore": 63.2
+          },
+          {
+            "path": "packages/jest-worker/src/workers/processChild.ts",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 59,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 59
+          },
+          {
+            "path": "packages/jest-worker/__typetests__/testWorker.ts",
+            "tier": "direct",
+            "structuralRank": 6,
+            "structuralScore": 58,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 58
+          },
+          {
+            "path": "packages/jest-runner/src/index.ts",
+            "tier": "direct",
+            "structuralRank": 7,
+            "structuralScore": 57,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 57
+          },
+          {
+            "path": "e2e/Utils.ts",
+            "tier": "direct",
+            "structuralRank": 8,
+            "structuralScore": 56,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 56
+          },
+          {
+            "path": "packages/jest-schemas/src/raw-types.ts",
+            "tier": "direct",
+            "structuralRank": 9,
+            "structuralScore": 56,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 56
+          },
+          {
+            "path": "packages/jest-globals/src/index.ts",
+            "tier": "direct",
+            "structuralRank": 10,
+            "structuralScore": 55,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 55
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "packages/jest-mock/src/index.ts",
+            "intent": "tests",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 30,
+            "structuralScore": 38,
+            "lexicalRank": 1,
+            "lexicalScore": 59.89423,
+            "symbolRank": 1,
+            "symbolScore": 57.31637,
+            "symbol": "RejectType",
+            "queryExpansions": [
+              {
+                "term": "spuriou",
+                "source": "spurious",
+                "rule": "inflection"
+              },
+              {
+                "term": "function",
+                "source": "functions",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "overload",
+                "source": "overloads",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 44
+          }
+        ]
+      },
+      {
+        "slug": "knex/knex",
+        "expected": [
+          "lib/dialects/postgres/query/pg-querycompiler.js"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 5,
+        "reciprocalRank": 0.2,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 8,
+          "lexical": 1,
+          "symbol": 2
+        },
+        "intent": "implementation",
+        "queryExpansions": [
+          {
+            "term": "env",
+            "source": "environment",
+            "rule": "technical-alias"
+          },
+          {
+            "term": "come",
+            "source": "comes",
+            "rule": "inflection"
+          },
+          {
+            "term": "user",
+            "source": "users",
+            "rule": "inflection"
+          },
+          {
+            "term": "seem",
+            "source": "seems",
+            "rule": "inflection"
+          },
+          {
+            "term": "work",
+            "source": "works",
+            "rule": "inflection"
+          },
+          {
+            "term": "join",
+            "source": "joins",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "lib/knex-builder/make-knex.js",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 49,
+            "lexicalRank": 14,
+            "symbolRank": 11,
+            "symbol": "i",
+            "fusionScore": 53.82
+          },
+          {
+            "path": "lib/dialects/postgres/index.js",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 49,
+            "lexicalRank": 8,
+            "symbolRank": 22,
+            "symbol": "sql",
+            "fusionScore": 53.74
+          },
+          {
+            "path": "lib/dialects/oracledb/index.js",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 48,
+            "lexicalRank": 5,
+            "symbolRank": 7,
+            "symbol": "detectedVersion",
+            "fusionScore": 53.52
+          },
+          {
+            "path": "bin/cli.js",
+            "tier": "direct",
+            "structuralRank": 5,
+            "structuralScore": 46,
+            "lexicalRank": 10,
+            "symbolRank": 8,
+            "symbol": "localVersion",
+            "fusionScore": 51.18
+          },
+          {
+            "path": "lib/dialects/mysql/index.js",
+            "tier": "direct",
+            "structuralRank": 6,
+            "structuralScore": 46,
+            "lexicalRank": 42,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 47.04
+          },
+          {
+            "path": "lib/knex-builder/Knex.js",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 47,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 47
+          },
+          {
+            "path": "lib/dialects/postgres/query/pg-querycompiler.js",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 32,
+            "lexicalRank": 1,
+            "symbolRank": 2,
+            "symbol": "schema",
+            "fusionScore": 37.96
+          },
+          {
+            "path": "knex.js",
+            "tier": "direct",
+            "structuralRank": 7,
+            "structuralScore": 37,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 37
+          },
+          {
+            "path": "lib/dialects/postgres/schema/pg-tablecompiler.js",
+            "tier": "corroborated",
+            "structuralRank": 10,
+            "structuralScore": 32,
+            "lexicalRank": 29,
+            "symbolRank": 13,
+            "symbol": "TableCompiler_PG",
+            "fusionScore": 35.84
+          },
+          {
+            "path": "types/index.d.ts",
+            "tier": "direct",
+            "structuralRank": 11,
+            "structuralScore": 30,
+            "lexicalRank": 3,
+            "symbolRank": 21,
+            "symbol": "QueryBuilder",
+            "fusionScore": 35.08
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "lib/dialects/postgres/query/pg-querycompiler.js",
+            "intent": "implementation",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 8,
+            "structuralScore": 32,
+            "lexicalRank": 1,
+            "lexicalScore": 32.660663,
+            "symbolRank": 2,
+            "symbolScore": 26.313091,
+            "symbol": "schema",
+            "queryExpansions": [
+              {
+                "term": "env",
+                "source": "environment",
+                "rule": "technical-alias"
+              },
+              {
+                "term": "come",
+                "source": "comes",
+                "rule": "inflection"
+              },
+              {
+                "term": "user",
+                "source": "users",
+                "rule": "inflection"
+              },
+              {
+                "term": "seem",
+                "source": "seems",
+                "rule": "inflection"
+              },
+              {
+                "term": "work",
+                "source": "works",
+                "rule": "inflection"
+              },
+              {
+                "term": "join",
+                "source": "joins",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 37.96
+          }
+        ]
+      },
+      {
+        "slug": "mochajs/mocha",
+        "expected": [
+          "lib/reporters/xunit.js"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 1,
+          "lexical": 5,
+          "symbol": 2
+        },
+        "intent": "implementation",
+        "queryExpansions": [
+          {
+            "term": "sequence",
+            "source": "sequences",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "mochaj",
+            "source": "mochajs",
+            "rule": "inflection"
+          },
+          {
+            "term": "prerequisite",
+            "source": "prerequisites",
+            "rule": "inflection"
+          },
+          {
+            "term": "bracket",
+            "source": "brackets",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "lib/reporters/xunit.js",
+            "tier": "corroborated",
+            "structuralRank": 1,
+            "structuralScore": 31,
+            "lexicalRank": 5,
+            "symbolRank": 2,
+            "symbol": "XUnit",
+            "fusionScore": 36.72
+          },
+          {
+            "path": "lib/mocha.cjs",
+            "tier": "corroborated",
+            "structuralRank": 2,
+            "structuralScore": 24,
+            "lexicalRank": 7,
+            "symbolRank": 6,
+            "symbol": "reporter",
+            "fusionScore": 29.44
+          },
+          {
+            "path": "lib/reporters/html.js",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 23,
+            "lexicalRank": 14,
+            "symbolRank": 26,
+            "symbol": "error",
+            "fusionScore": 27.22
+          },
+          {
+            "path": "lib/reporters/base.js",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 21,
+            "lexicalRank": 20,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 23.36
+          },
+          {
+            "path": "lib/nodejs/parallel-buffered-runner.cjs",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 18,
+            "lexicalRank": 26,
+            "symbolRank": 21,
+            "symbol": "state",
+            "fusionScore": 21.7
+          },
+          {
+            "path": "lib/cli/watch-run.cjs",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 16,
+            "lexicalRank": 17,
+            "symbolRank": 15,
+            "symbol": "twice",
+            "fusionScore": 20.48
+          },
+          {
+            "path": "lib/errors.js",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 18,
+            "lexicalRank": 29,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 19.82
+          },
+          {
+            "path": "lib/utils.cjs",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 14,
+            "lexicalRank": 6,
+            "symbolRank": 4,
+            "symbol": "k",
+            "fusionScore": 19.58
+          },
+          {
+            "path": "lib/nodejs/serializer.js",
+            "tier": "corroborated",
+            "structuralRank": 10,
+            "structuralScore": 14,
+            "lexicalRank": 8,
+            "symbolRank": 19,
+            "symbol": "value",
+            "fusionScore": 18.86
+          },
+          {
+            "path": "lib/runner.cjs",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 16,
+            "lexicalRank": 28,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 17.88
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "lib/reporters/xunit.js",
+            "intent": "implementation",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 1,
+            "structuralScore": 31,
+            "lexicalRank": 5,
+            "lexicalScore": 18.580452,
+            "symbolRank": 2,
+            "symbolScore": 19.163114,
+            "symbol": "XUnit",
+            "queryExpansions": [
+              {
+                "term": "sequence",
+                "source": "sequences",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "mochaj",
+                "source": "mochajs",
+                "rule": "inflection"
+              },
+              {
+                "term": "prerequisite",
+                "source": "prerequisites",
+                "rule": "inflection"
+              },
+              {
+                "term": "bracket",
+                "source": "brackets",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 36.72
+          }
+        ]
+      },
+      {
+        "slug": "react-hook-form/react-hook-form",
+        "expected": [
+          "src/logic/createFormControl.ts"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 1,
+          "lexical": 4,
+          "symbol": 1
+        },
+        "intent": "presentation",
+        "queryExpansions": [
+          {
+            "term": "rebuild",
+            "source": "rebuilds",
+            "rule": "inflection"
+          },
+          {
+            "term": "dirtyfield",
+            "source": "dirtyfields",
+            "rule": "inflection"
+          },
+          {
+            "term": "difference",
+            "source": "differences",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "suspiciou",
+            "source": "suspicious",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "src/logic/createFormControl.ts",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 107,
+            "lexicalRank": 4,
+            "symbolRank": 1,
+            "symbol": "isCurrentFieldPristine",
+            "fusionScore": 112.82
+          },
+          {
+            "path": "src/useController.ts",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 70,
+            "lexicalRank": 9,
+            "symbolRank": 9,
+            "symbol": "onChange",
+            "fusionScore": 75.2
+          },
+          {
+            "path": "src/types/form.ts",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 57,
+            "lexicalRank": 2,
+            "symbolRank": 3,
+            "symbol": "UseFormClearErrors",
+            "fusionScore": 62.86
+          },
+          {
+            "path": "src/useFormState.ts",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 38,
+            "lexicalRank": 5,
+            "symbolRank": 7,
+            "symbol": "onSubmit",
+            "fusionScore": 43.52
+          },
+          {
+            "path": "app/src/useFormState.tsx",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 38,
+            "lexicalRank": 17,
+            "symbolRank": 14,
+            "symbol": "UseFormState",
+            "fusionScore": 42.52
+          },
+          {
+            "path": "app/src/formStateWithNestedFields.tsx",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 37,
+            "lexicalRank": 24,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 39.12
+          },
+          {
+            "path": "app/src/useFieldArrayUnregister.tsx",
+            "tier": "corroborated",
+            "structuralRank": 12,
+            "structuralScore": 31,
+            "lexicalRank": 7,
+            "symbolRank": 6,
+            "symbol": "UseFieldArrayUnregister",
+            "fusionScore": 36.44
+          },
+          {
+            "path": "app/src/formState.tsx",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 34,
+            "lexicalRank": 19,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 36.42
+          },
+          {
+            "path": "app/src/formStateWithSchema.tsx",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 34,
+            "lexicalRank": 27,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 35.94
+          },
+          {
+            "path": "app/src/conditionalField.tsx",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 31,
+            "lexicalRank": 10,
+            "symbolRank": 17,
+            "symbol": "ConditionalField",
+            "fusionScore": 35.82
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "src/logic/createFormControl.ts",
+            "intent": "presentation",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 1,
+            "structuralScore": 107,
+            "lexicalRank": 4,
+            "lexicalScore": 32.249133,
+            "symbolRank": 1,
+            "symbolScore": 35.427822,
+            "symbol": "isCurrentFieldPristine",
+            "queryExpansions": [
+              {
+                "term": "rebuild",
+                "source": "rebuilds",
+                "rule": "inflection"
+              },
+              {
+                "term": "dirtyfield",
+                "source": "dirtyfields",
+                "rule": "inflection"
+              },
+              {
+                "term": "difference",
+                "source": "differences",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "suspiciou",
+                "source": "suspicious",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 112.82
+          }
+        ]
+      },
+      {
+        "slug": "socketio/socket.io",
+        "expected": [
+          "packages/engine.io-client/lib/socket.ts"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 2,
+        "reciprocalRank": 0.5,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 2,
+          "lexical": 3,
+          "symbol": 1
+        },
+        "intent": "presentation",
+        "queryExpansions": [
+          {
+            "term": "transport",
+            "source": "transports",
+            "rule": "inflection"
+          },
+          {
+            "term": "option",
+            "source": "options",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "packages/engine.io-client/lib/transports/polling-xhr.ts",
+            "tier": "corroborated",
+            "structuralRank": 1,
+            "structuralScore": 50,
+            "lexicalRank": 7,
+            "symbolRank": 5,
+            "symbol": "Request",
+            "fusionScore": 55.48
+          },
+          {
+            "path": "packages/engine.io-client/lib/socket.ts",
+            "tier": "corroborated",
+            "structuralRank": 2,
+            "structuralScore": 49,
+            "lexicalRank": 3,
+            "symbolRank": 1,
+            "symbol": "Socket",
+            "fusionScore": 54.88
+          },
+          {
+            "path": "packages/socket.io-client/dist/socket.io.js",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 49,
+            "lexicalRank": 9,
+            "symbolRank": 2,
+            "symbol": "comes",
+            "fusionScore": 54.48
+          },
+          {
+            "path": "packages/socket.io/client-dist/socket.io.js",
+            "tier": "corroborated",
+            "structuralRank": 10,
+            "structuralScore": 49,
+            "lexicalRank": 10,
+            "symbolRank": 3,
+            "symbol": "comes",
+            "fusionScore": 54.38
+          },
+          {
+            "path": "packages/engine.io-client/lib/transports/websocket.ts",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 49,
+            "lexicalRank": 13,
+            "symbolRank": 27,
+            "symbol": "debug",
+            "fusionScore": 53.24
+          },
+          {
+            "path": "packages/engine.io/lib/transports-uws/polling.ts",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 49,
+            "lexicalRank": 17,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 51.54
+          },
+          {
+            "path": "packages/engine.io/lib/transports/polling.ts",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 49,
+            "lexicalRank": 23,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 51.18
+          },
+          {
+            "path": "packages/socket.io/lib/client.ts",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 49,
+            "lexicalRank": 25,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 51.06
+          },
+          {
+            "path": "packages/socket.io-client/lib/socket.ts",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 49,
+            "lexicalRank": 33,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 50.58
+          },
+          {
+            "path": "packages/engine.io-client/lib/transport.ts",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 49,
+            "lexicalRank": 36,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 50.4
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "packages/engine.io-client/lib/socket.ts",
+            "intent": "presentation",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 2,
+            "structuralScore": 49,
+            "lexicalRank": 3,
+            "lexicalScore": 34.543824,
+            "symbolRank": 1,
+            "symbolScore": 28.011296,
+            "symbol": "Socket",
+            "queryExpansions": [
+              {
+                "term": "transport",
+                "source": "transports",
+                "rule": "inflection"
+              },
+              {
+                "term": "option",
+                "source": "options",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 54.88
+          }
+        ]
+      },
+      {
+        "slug": "sveltejs/svelte",
+        "expected": [
+          "packages/svelte/src/internal/client/dom/blocks/boundary.js"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 1,
+          "lexical": 1,
+          "symbol": 1
+        },
+        "intent": "presentation",
+        "queryExpansions": [
+          {
+            "term": "fail",
+            "source": "fails",
+            "rule": "inflection"
+          },
+          {
+            "term": "hydrate",
+            "source": "hydrates",
+            "rule": "inflection"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "sveltej",
+            "source": "sveltejs",
+            "rule": "inflection"
+          },
+          {
+            "term": "package",
+            "source": "packages",
+            "rule": "inflection"
+          },
+          {
+            "term": "block",
+            "source": "blocks",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "packages/svelte/src/internal/client/dom/blocks/boundary.js",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 148,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "comment",
+            "fusionScore": 154
+          },
+          {
+            "path": "packages/svelte/scripts/check-treeshakeability.js",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 49,
+            "lexicalRank": 25,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 51.06
+          },
+          {
+            "path": "packages/svelte/src/internal/client/errors.js",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 40,
+            "lexicalRank": 3,
+            "symbolRank": 3,
+            "symbol": "cannot",
+            "fusionScore": 45.8
+          },
+          {
+            "path": "packages/svelte/src/internal/client/warnings.js",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 40,
+            "lexicalRank": 4,
+            "symbolRank": 9,
+            "symbol": "hydration_mismatch",
+            "fusionScore": 45.5
+          },
+          {
+            "path": "packages/svelte/src/internal/client/render.js",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 40,
+            "lexicalRank": 6,
+            "symbolRank": 26,
+            "symbol": "listeners",
+            "fusionScore": 44.7
+          },
+          {
+            "path": "packages/svelte/src/internal/client/dom/hydration.js",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 38,
+            "lexicalRank": 5,
+            "symbolRank": 4,
+            "symbol": "set_hydrate_node",
+            "fusionScore": 43.64
+          },
+          {
+            "path": "packages/svelte/src/internal/client/dom/operations.js",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 40,
+            "lexicalRank": 36,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 41.4
+          },
+          {
+            "path": "packages/svelte/src/internal/client/dom/blocks/snippet.js",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 36,
+            "lexicalRank": 29,
+            "symbolRank": 31,
+            "symbol": "result",
+            "fusionScore": 39.12
+          },
+          {
+            "path": "packages/svelte/src/index-client.js",
+            "tier": "corroborated",
+            "structuralRank": 10,
+            "structuralScore": 35,
+            "lexicalRank": 37,
+            "symbolRank": 28,
+            "symbol": "init_update_callbacks",
+            "fusionScore": 37.76
+          },
+          {
+            "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/shared/component.js",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 36,
+            "lexicalRank": 48,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 36.68
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "packages/svelte/src/internal/client/dom/blocks/boundary.js",
+            "intent": "presentation",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 1,
+            "structuralScore": 148,
+            "lexicalRank": 1,
+            "lexicalScore": 49.30408,
+            "symbolRank": 1,
+            "symbolScore": 45.860919,
+            "symbol": "comment",
+            "queryExpansions": [
+              {
+                "term": "fail",
+                "source": "fails",
+                "rule": "inflection"
+              },
+              {
+                "term": "hydrate",
+                "source": "hydrates",
+                "rule": "inflection"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "sveltej",
+                "source": "sveltejs",
+                "rule": "inflection"
+              },
+              {
+                "term": "package",
+                "source": "packages",
+                "rule": "inflection"
+              },
+              {
+                "term": "block",
+                "source": "blocks",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 154
+          }
+        ]
+      },
+      {
+        "slug": "vitejs/vite",
+        "expected": [
+          "packages/vite/src/node/server/bundledDev.ts"
+        ],
+        "failureClass": "rerank-miss",
+        "bestFinalRank": null,
+        "reciprocalRank": 0,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 30,
+          "lexical": 10,
+          "symbol": 9
+        },
+        "intent": "types",
+        "queryExpansions": [
+          {
+            "term": "crate",
+            "source": "crates",
+            "rule": "inflection"
+          },
+          {
+            "term": "env",
+            "source": "environment",
+            "rule": "technical-alias"
+          },
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "work",
+            "source": "works",
+            "rule": "inflection"
+          },
+          {
+            "term": "change",
+            "source": "changes",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "packages/create-vite/template-vue-ts/src/App.vue",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 87,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 87
+          },
+          {
+            "path": "packages/create-vite/template-vue/src/App.vue",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 87,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 87
+          },
+          {
+            "path": "packages/vite/src/node/optimizer/rolldownDepPlugin.ts",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 29,
+            "lexicalRank": 19,
+            "symbolRank": 12,
+            "symbol": "matchesEntireLine",
+            "fusionScore": 33.48
+          },
+          {
+            "path": "packages/vite/types/metadata.d.ts",
+            "tier": "single-source",
+            "structuralRank": 3,
+            "structuralScore": 33,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 33
+          },
+          {
+            "path": "packages/vite/src/node/plugins/workerImportMetaUrl.ts",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 28,
+            "lexicalRank": 28,
+            "symbolRank": 10,
+            "symbol": "builtUrl",
+            "fusionScore": 32.02
+          },
+          {
+            "path": "packages/create-vite/src/index.ts",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 26,
+            "lexicalRank": 1,
+            "symbolRank": 6,
+            "symbol": "helpMessage",
+            "fusionScore": 31.8
+          },
+          {
+            "path": "packages/vite/src/node/utils.ts",
+            "tier": "corroborated",
+            "structuralRank": 13,
+            "structuralScore": 26,
+            "lexicalRank": 3,
+            "symbolRank": 7,
+            "symbol": "prefix",
+            "fusionScore": 31.64
+          },
+          {
+            "path": "packages/vite/src/node/plugins/css.ts",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 26,
+            "lexicalRank": 21,
+            "symbolRank": 5,
+            "symbol": "commonIeMessage",
+            "fusionScore": 30.64
+          },
+          {
+            "path": "packages/vite/src/node/plugins/oxc.ts",
+            "tier": "corroborated",
+            "structuralRank": 11,
+            "structuralScore": 26,
+            "lexicalRank": 20,
+            "symbolRank": 24,
+            "symbol": "id",
+            "fusionScore": 29.94
+          },
+          {
+            "path": "packages/vite/src/types/commonjs.d.ts",
+            "tier": "corroborated",
+            "structuralRank": 15,
+            "structuralScore": 25,
+            "lexicalRank": 32,
+            "symbolRank": 2,
+            "symbol": "s",
+            "fusionScore": 29.1
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "packages/vite/src/node/server/bundledDev.ts",
+            "intent": "types",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 30,
+            "structuralScore": 21,
+            "lexicalRank": 10,
+            "lexicalScore": 32.18662,
+            "symbolRank": 9,
+            "symbolScore": 25.681692,
+            "symbol": "chunkMetadataMap",
+            "queryExpansions": [
+              {
+                "term": "crate",
+                "source": "crates",
+                "rule": "inflection"
+              },
+              {
+                "term": "env",
+                "source": "environment",
+                "rule": "technical-alias"
+              },
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "work",
+                "source": "works",
+                "rule": "inflection"
+              },
+              {
+                "term": "change",
+                "source": "changes",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 26.14
+          }
+        ]
+      },
+      {
+        "slug": "vuejs/core",
+        "expected": [
+          "packages/runtime-dom/src/index.ts"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 5,
+        "reciprocalRank": 0.2,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 8,
+          "lexical": 1,
+          "symbol": 1
+        },
+        "intent": "types",
+        "queryExpansions": [
+          {
+            "term": "http",
+            "source": "https",
+            "rule": "inflection"
+          },
+          {
+            "term": "comment",
+            "source": "comments",
+            "rule": "inflection"
+          },
+          {
+            "term": "work",
+            "source": "works",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "tsconfig.json",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 87,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 87
+          },
+          {
+            "path": "packages-private/tsconfig.json",
+            "tier": "direct",
+            "structuralRank": 2,
+            "structuralScore": 83,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 83
+          },
+          {
+            "path": "packages-private/dts-built-test/tsconfig.json",
+            "tier": "direct",
+            "structuralRank": 3,
+            "structuralScore": 77,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 77
+          },
+          {
+            "path": "packages-private/vite-debug/tsconfig.json",
+            "tier": "direct",
+            "structuralRank": 4,
+            "structuralScore": 71,
+            "lexicalRank": null,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 71
+          },
+          {
+            "path": "packages/reactivity/src/ref.ts",
+            "tier": "direct",
+            "structuralRank": 5,
+            "structuralScore": 65,
+            "lexicalRank": 19,
+            "symbolRank": 23,
+            "symbol": "for",
+            "fusionScore": 69.04
+          },
+          {
+            "path": "packages/compiler-sfc/src/script/resolveType.ts",
+            "tier": "direct",
+            "structuralRank": 6,
+            "structuralScore": 59,
+            "lexicalRank": 31,
+            "symbolRank": 31,
+            "symbol": "loadTSConfig",
+            "fusionScore": 62
+          },
+          {
+            "path": "packages/compiler-sfc/src/style/preprocessors.ts",
+            "tier": "direct",
+            "structuralRank": 7,
+            "structuralScore": 46,
+            "lexicalRank": 33,
+            "symbolRank": 32,
+            "symbol": "getSource",
+            "fusionScore": 48.84
+          },
+          {
+            "path": "packages/runtime-dom/src/index.ts",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 31,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "RefUnwrapBailTypes",
+            "fusionScore": 37
+          },
+          {
+            "path": "packages/reactivity/__benchmarks__/computed.bench.ts",
+            "tier": "direct",
+            "structuralRank": 9,
+            "structuralScore": 30,
+            "lexicalRank": 11,
+            "symbolRank": 7,
+            "symbol": "computeds",
+            "fusionScore": 35.16
+          },
+          {
+            "path": "packages/reactivity/src/reactive.ts",
+            "tier": "corroborated",
+            "structuralRank": 20,
+            "structuralScore": 22,
+            "lexicalRank": 5,
+            "symbolRank": 10,
+            "symbol": "readonly",
+            "fusionScore": 27.4
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "packages/runtime-dom/src/index.ts",
+            "intent": "types",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 8,
+            "structuralScore": 31,
+            "lexicalRank": 1,
+            "lexicalScore": 29.373229,
+            "symbolRank": 1,
+            "symbolScore": 26.516597,
+            "symbol": "RefUnwrapBailTypes",
+            "queryExpansions": [
+              {
+                "term": "http",
+                "source": "https",
+                "rule": "inflection"
+              },
+              {
+                "term": "comment",
+                "source": "comments",
+                "rule": "inflection"
+              },
+              {
+                "term": "work",
+                "source": "works",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 37
+          }
+        ]
+      },
+      {
+        "slug": "winstonjs/winston",
+        "expected": [
+          "lib/winston/transports/file.js"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 1,
+          "lexical": 4,
+          "symbol": 4
+        },
+        "intent": "implementation",
+        "queryExpansions": [
+          {
+            "term": "constant",
+            "source": "constants",
+            "rule": "inflection"
+          },
+          {
+            "term": "term",
+            "source": "terms",
+            "rule": "inflection"
+          },
+          {
+            "term": "emit",
+            "source": "emits",
+            "rule": "inflection"
+          },
+          {
+            "term": "come",
+            "source": "comes",
+            "rule": "inflection"
+          },
+          {
+            "term": "read",
+            "source": "reads",
+            "rule": "inflection"
+          },
+          {
+            "term": "property",
+            "source": "properties",
+            "rule": "inflection"
+          },
+          {
+            "term": "help",
+            "source": "helps",
+            "rule": "inflection"
+          },
+          {
+            "term": "present",
+            "source": "presents",
+            "rule": "inflection"
+          },
+          {
+            "term": "previou",
+            "source": "previous",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "lib/winston/transports/file.js",
+            "tier": "corroborated",
+            "structuralRank": 1,
+            "structuralScore": 52,
+            "lexicalRank": 4,
+            "symbolRank": 4,
+            "symbol": "out",
+            "fusionScore": 57.7
+          },
+          {
+            "path": "lib/winston/transports/http.js",
+            "tier": "corroborated",
+            "structuralRank": 2,
+            "structuralScore": 32,
+            "lexicalRank": 6,
+            "symbolRank": 7,
+            "symbol": "i",
+            "fusionScore": 37.46
+          },
+          {
+            "path": "lib/winston/tail-file.js",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 31,
+            "lexicalRank": 5,
+            "symbolRank": 3,
+            "symbol": "to",
+            "fusionScore": 36.68
+          },
+          {
+            "path": "lib/winston/logger.js",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 29,
+            "lexicalRank": 3,
+            "symbolRank": 2,
+            "symbol": "no",
+            "fusionScore": 34.84
+          },
+          {
+            "path": "lib/winston/transports/console.js",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 30,
+            "lexicalRank": 20,
+            "symbolRank": 21,
+            "symbol": "os",
+            "fusionScore": 34.06
+          },
+          {
+            "path": "lib/winston.js",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 27,
+            "lexicalRank": 2,
+            "symbolRank": 8,
+            "symbol": "defaultLogger",
+            "fusionScore": 32.66
+          },
+          {
+            "path": "lib/winston/transports/stream.js",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 28,
+            "lexicalRank": 14,
+            "symbolRank": 16,
+            "symbol": "for",
+            "fusionScore": 32.62
+          },
+          {
+            "path": "lib/winston/exception-handler.js",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 25,
+            "lexicalRank": 10,
+            "symbolRank": 11,
+            "symbol": "trace",
+            "fusionScore": 30.06
+          },
+          {
+            "path": "lib/winston/rejection-handler.js",
+            "tier": "corroborated",
+            "structuralRank": 10,
+            "structuralScore": 25,
+            "lexicalRank": 11,
+            "symbolRank": 12,
+            "symbol": "trace",
+            "fusionScore": 29.96
+          },
+          {
+            "path": "lib/winston/transports/index.js",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 26,
+            "lexicalRank": 13,
+            "symbolRank": null,
+            "symbol": null,
+            "fusionScore": 28.78
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "lib/winston/transports/file.js",
+            "intent": "implementation",
+            "tier": "corroborated",
+            "direct": false,
+            "structuralRank": 1,
+            "structuralScore": 52,
+            "lexicalRank": 4,
+            "lexicalScore": 11.212788,
+            "symbolRank": 4,
+            "symbolScore": 9.421797,
+            "symbol": "out",
+            "queryExpansions": [
+              {
+                "term": "constant",
+                "source": "constants",
+                "rule": "inflection"
+              },
+              {
+                "term": "term",
+                "source": "terms",
+                "rule": "inflection"
+              },
+              {
+                "term": "emit",
+                "source": "emits",
+                "rule": "inflection"
+              },
+              {
+                "term": "come",
+                "source": "comes",
+                "rule": "inflection"
+              },
+              {
+                "term": "read",
+                "source": "reads",
+                "rule": "inflection"
+              },
+              {
+                "term": "property",
+                "source": "properties",
+                "rule": "inflection"
+              },
+              {
+                "term": "help",
+                "source": "helps",
+                "rule": "inflection"
+              },
+              {
+                "term": "present",
+                "source": "presents",
+                "rule": "inflection"
+              },
+              {
+                "term": "previou",
+                "source": "previous",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 57.7
+          }
+        ]
+      },
+      {
+        "slug": "yargs/yargs",
+        "expected": [
+          "lib/utils/apply-extends.ts"
+        ],
+        "failureClass": "none",
+        "bestFinalRank": 1,
+        "reciprocalRank": 1,
+        "candidateRecall": {
+          "structuralAt50": true,
+          "lexicalAt50": true,
+          "symbolAt50": true,
+          "unionAt50": true
+        },
+        "sourceBestRanks": {
+          "structural": 1,
+          "lexical": 1,
+          "symbol": 1
+        },
+        "intent": "configuration",
+        "queryExpansions": [
+          {
+            "term": "extend",
+            "source": "extends",
+            "rule": "inflection"
+          },
+          {
+            "term": "util",
+            "source": "utils",
+            "rule": "inflection"
+          },
+          {
+            "term": "config",
+            "source": "configuration",
+            "rule": "technical-alias"
+          },
+          {
+            "term": "property",
+            "source": "properties",
+            "rule": "inflection"
+          },
+          {
+            "term": "detail",
+            "source": "details",
+            "rule": "inflection"
+          }
+        ],
+        "topEvidenceProfiles": [
+          {
+            "path": "lib/utils/apply-extends.ts",
+            "tier": "direct",
+            "structuralRank": 1,
+            "structuralScore": 140,
+            "lexicalRank": 1,
+            "symbolRank": 1,
+            "symbol": "mergeDeep",
+            "fusionScore": 146
+          },
+          {
+            "path": "lib/yargs-factory.ts",
+            "tier": "corroborated",
+            "structuralRank": 2,
+            "structuralScore": 57,
+            "lexicalRank": 3,
+            "symbolRank": 3,
+            "symbol": "Options",
+            "fusionScore": 62.8
+          },
+          {
+            "path": "lib/command.ts",
+            "tier": "corroborated",
+            "structuralRank": 3,
+            "structuralScore": 39,
+            "lexicalRank": 5,
+            "symbolRank": 5,
+            "symbol": "commandString",
+            "fusionScore": 44.6
+          },
+          {
+            "path": "lib/validation.ts",
+            "tier": "corroborated",
+            "structuralRank": 5,
+            "structuralScore": 39,
+            "lexicalRank": 7,
+            "symbolRank": 7,
+            "symbol": "limitedChoices",
+            "fusionScore": 44.4
+          },
+          {
+            "path": "lib/completion.ts",
+            "tier": "corroborated",
+            "structuralRank": 4,
+            "structuralScore": 39,
+            "lexicalRank": 11,
+            "symbolRank": 12,
+            "symbol": "startsByTwoDashes",
+            "fusionScore": 43.96
+          },
+          {
+            "path": "helpers/helpers.mjs",
+            "tier": "corroborated",
+            "structuralRank": 6,
+            "structuralScore": 37,
+            "lexicalRank": 6,
+            "symbolRank": 4,
+            "symbol": "applyExtends",
+            "fusionScore": 42.58
+          },
+          {
+            "path": "lib/middleware.ts",
+            "tier": "corroborated",
+            "structuralRank": 7,
+            "structuralScore": 27,
+            "lexicalRank": 10,
+            "symbolRank": 8,
+            "symbol": "GlobalMiddleware",
+            "fusionScore": 32.18
+          },
+          {
+            "path": "lib/typings/yargs-parser-types.ts",
+            "tier": "corroborated",
+            "structuralRank": 8,
+            "structuralScore": 23,
+            "lexicalRank": 2,
+            "symbolRank": 2,
+            "symbol": "that",
+            "fusionScore": 28.9
+          },
+          {
+            "path": "lib/usage.ts",
+            "tier": "corroborated",
+            "structuralRank": 9,
+            "structuralScore": 23,
+            "lexicalRank": 12,
+            "symbolRank": 16,
+            "symbol": "isBoolean",
+            "fusionScore": 27.74
+          },
+          {
+            "path": "lib/utils/levenshtein.ts",
+            "tier": "corroborated",
+            "structuralRank": 10,
+            "structuralScore": 22,
+            "lexicalRank": 4,
+            "symbolRank": 13,
+            "symbol": "j",
+            "fusionScore": 27.34
+          }
+        ],
+        "expectedEvidenceProfiles": [
+          {
+            "path": "lib/utils/apply-extends.ts",
+            "intent": "configuration",
+            "tier": "direct",
+            "direct": true,
+            "structuralRank": 1,
+            "structuralScore": 140,
+            "lexicalRank": 1,
+            "lexicalScore": 51.47791,
+            "symbolRank": 1,
+            "symbolScore": 42.59491,
+            "symbol": "mergeDeep",
+            "queryExpansions": [
+              {
+                "term": "extend",
+                "source": "extends",
+                "rule": "inflection"
+              },
+              {
+                "term": "util",
+                "source": "utils",
+                "rule": "inflection"
+              },
+              {
+                "term": "config",
+                "source": "configuration",
+                "rule": "technical-alias"
+              },
+              {
+                "term": "property",
+                "source": "properties",
+                "rule": "inflection"
+              },
+              {
+                "term": "detail",
+                "source": "details",
+                "rule": "inflection"
+              }
+            ],
+            "fusionScore": 146
+          }
+        ]
+      }
+    ]
   },
   "results": [
     {
@@ -814,83 +3125,83 @@
         },
         "lexical-literal:raw": {
           "top5Paths": [
+            "lib/document.js",
+            "CHANGELOG.md",
             "lib/connection.js",
-            "docs/schematypes.md",
-            "lib/schemaType.js",
-            "types/document.d.ts",
-            "lib/types/subdocument.js"
+            "lib/schema.js",
+            "docs/schematypes.md"
           ],
-          "top1Hit": false,
-          "top3Hit": false,
-          "top5Hit": false
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
         },
         "lexical-literal:source": {
           "top5Paths": [
+            "lib/document.js",
+            "CHANGELOG.md",
             "lib/connection.js",
-            "docs/schematypes.md",
-            "lib/schemaType.js",
-            "types/document.d.ts",
-            "lib/types/subdocument.js"
+            "lib/schema.js",
+            "docs/schematypes.md"
           ],
-          "top1Hit": false,
-          "top3Hit": false,
-          "top5Hit": false
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
         },
         "lexical-literal:code": {
           "top5Paths": [
+            "lib/document.js",
             "lib/connection.js",
+            "lib/schema.js",
             "lib/schemaType.js",
-            "types/document.d.ts",
-            "lib/types/subdocument.js",
-            "lib/mongoose.js"
+            "lib/model.js"
           ],
-          "top1Hit": false,
-          "top3Hit": false,
-          "top5Hit": false
+          "top1Hit": true,
+          "top3Hit": true,
+          "top5Hit": true
         },
         "bm25:raw": {
           "top5Paths": [
             "lib/types/subdocument.js",
             "types/document.d.ts",
-            "docs/documents.md",
             "test/types.documentarray.test.js",
-            "lib/helpers/symbols.js"
+            "docs/documents.md",
+            "lib/document.js"
           ],
           "top1Hit": false,
           "top3Hit": false,
-          "top5Hit": false
+          "top5Hit": true
         },
         "bm25:source": {
           "top5Paths": [
             "lib/types/subdocument.js",
             "types/document.d.ts",
             "docs/documents.md",
-            "lib/helpers/symbols.js",
-            "docs/middleware.md"
+            "lib/document.js",
+            "lib/helpers/symbols.js"
           ],
           "top1Hit": false,
           "top3Hit": false,
-          "top5Hit": false
+          "top5Hit": true
         },
         "bm25:code": {
           "top5Paths": [
             "lib/types/subdocument.js",
             "types/document.d.ts",
-            "lib/helpers/symbols.js",
-            "lib/helpers/model/discriminator.js",
-            "lib/schemaType.js"
+            "lib/document.js",
+            "lib/model.js",
+            "lib/helpers/symbols.js"
           ],
           "top1Hit": false,
-          "top3Hit": false,
-          "top5Hit": false
+          "top3Hit": true,
+          "top5Hit": true
         },
         "fixmap": {
           "top5Paths": [
             "lib/document.js",
             "lib/helpers/setDefaultsOnInsert.js",
             "lib/helpers/update/modifiedPaths.js",
-            "lib/types/array/methods/index.js",
-            "lib/types/subdocument.js"
+            "lib/types/subdocument.js",
+            "types/document.d.ts"
           ],
           "top1Hit": true,
           "top3Hit": true,
@@ -927,13 +3238,13 @@
         },
         "lexical-literal:raw": {
           "top5Paths": [
+            "__tests__/base.js",
             "src/types/types-external.ts",
             "src/immer.ts",
             "src/plugins/arrayMethods.ts",
-            "src/core/immerClass.ts",
-            "website/docs/pitfalls.md"
+            "src/core/immerClass.ts"
           ],
-          "top1Hit": true,
+          "top1Hit": false,
           "top3Hit": true,
           "top5Hit": true
         },
@@ -1040,27 +3351,27 @@
         },
         "lexical-literal:raw": {
           "top5Paths": [
-            "docs/MockFunctionAPI.md",
-            "website/versioned_docs/version-30.4/MockFunctionAPI.md",
-            "website/versioned_docs/version-29.7/MockFunctionAPI.md",
-            "website/versioned_docs/version-30.0/MockFunctionAPI.md",
-            "packages/jest-mock/src/index.ts"
+            "CHANGELOG_PRE_v30.md",
+            "website/versioned_docs/version-30.4/Configuration.md",
+            "website/versioned_docs/version-30.0/Configuration.md",
+            "docs/Configuration.md",
+            "website/versioned_docs/version-29.7/Configuration.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
-          "top5Hit": true
+          "top5Hit": false
         },
         "lexical-literal:source": {
           "top5Paths": [
-            "docs/MockFunctionAPI.md",
-            "website/versioned_docs/version-30.4/MockFunctionAPI.md",
-            "website/versioned_docs/version-29.7/MockFunctionAPI.md",
-            "website/versioned_docs/version-30.0/MockFunctionAPI.md",
-            "packages/jest-mock/src/index.ts"
+            "CHANGELOG_PRE_v30.md",
+            "website/versioned_docs/version-30.4/Configuration.md",
+            "website/versioned_docs/version-30.0/Configuration.md",
+            "docs/Configuration.md",
+            "website/versioned_docs/version-29.7/Configuration.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
-          "top5Hit": true
+          "top5Hit": false
         },
         "lexical-literal:code": {
           "top5Paths": [
@@ -1092,11 +3403,11 @@
             "website/versioned_docs/version-30.0/MockFunctionAPI.md",
             "website/versioned_docs/version-30.4/MockFunctionAPI.md",
             "docs/MockFunctionAPI.md",
-            "packages/expect/src/types.ts"
+            "packages/jest-mock/src/index.ts"
           ],
           "top1Hit": false,
           "top3Hit": false,
-          "top5Hit": false
+          "top5Hit": true
         },
         "bm25:code": {
           "top5Paths": [
@@ -1115,12 +3426,12 @@
             "packages/jest-core/src/TestScheduler.ts",
             "packages/jest-runner/src/runTest.ts",
             "packages/jest-test-sequencer/src/index.ts",
-            "packages/jest-worker/src/workers/processChild.ts",
-            "packages/jest-worker/src/workers/threadChild.ts"
+            "packages/jest-worker/src/workers/threadChild.ts",
+            "packages/jest-mock/src/index.ts"
           ],
           "top1Hit": false,
           "top3Hit": false,
-          "top5Hit": false
+          "top5Hit": true
         }
       }
     },
@@ -1153,11 +3464,11 @@
         },
         "lexical-literal:raw": {
           "top5Paths": [
+            "CHANGELOG.md",
+            "docs/src/changelog.md",
+            "docs/src/guide/query-builder.md",
             "docs/src/guide/schema-builder.md",
-            "docs/src/guide/index.md",
-            "test/integration2/query/select/selects.spec.js",
-            "test/unit/schema-builder/mysql.js",
-            "docs/src/guide/migrations.md"
+            "docs/src/guide/index.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1165,11 +3476,11 @@
         },
         "lexical-literal:source": {
           "top5Paths": [
+            "CHANGELOG.md",
+            "docs/src/changelog.md",
+            "docs/src/guide/query-builder.md",
             "docs/src/guide/schema-builder.md",
-            "docs/src/guide/index.md",
-            "docs/src/guide/migrations.md",
-            "UPGRADING.md",
-            "lib/query/querycompiler.js"
+            "docs/src/guide/index.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1177,11 +3488,11 @@
         },
         "lexical-literal:code": {
           "top5Paths": [
+            "types/index.d.ts",
             "lib/query/querycompiler.js",
             "lib/query/querybuilder.js",
             "lib/dialects/mssql/query/mssql-querycompiler.js",
-            "lib/dialects/postgres/query/pg-querycompiler.js",
-            "lib/schema/tablebuilder.js"
+            "lib/dialects/postgres/query/pg-querycompiler.js"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1189,35 +3500,35 @@
         },
         "bm25:raw": {
           "top5Paths": [
+            "docs/src/guide/query-builder.md",
             "docs/src/guide/schema-builder.md",
             "docs/src/guide/index.md",
             "lib/dialects/postgres/query/pg-querycompiler.js",
-            "docs/src/faq/recipes.md",
-            "lib/dialects/mssql/query/mssql-querycompiler.js"
+            "docs/src/faq/recipes.md"
           ],
           "top1Hit": false,
-          "top3Hit": true,
+          "top3Hit": false,
           "top5Hit": true
         },
         "bm25:source": {
           "top5Paths": [
+            "docs/src/guide/query-builder.md",
             "docs/src/guide/schema-builder.md",
             "docs/src/guide/index.md",
-            "lib/dialects/postgres/query/pg-querycompiler.js",
-            "docs/src/faq/recipes.md",
-            "docs/src/guide/raw.md"
+            "UPGRADING.md",
+            "docs/src/faq/recipes.md"
           ],
           "top1Hit": false,
-          "top3Hit": true,
-          "top5Hit": true
+          "top3Hit": false,
+          "top5Hit": false
         },
         "bm25:code": {
           "top5Paths": [
             "lib/dialects/postgres/query/pg-querycompiler.js",
             "lib/dialects/mssql/query/mssql-querycompiler.js",
             "lib/query/querycompiler.js",
-            "lib/schema/tablecompiler.js",
-            "lib/dialects/postgres/index.js"
+            "types/index.d.ts",
+            "lib/schema/tablecompiler.js"
           ],
           "top1Hit": true,
           "top3Hit": true,
@@ -1225,15 +3536,15 @@
         },
         "fixmap": {
           "top5Paths": [
-            "lib/dialects/postgres/index.js",
             "lib/knex-builder/make-knex.js",
+            "lib/dialects/postgres/index.js",
             "lib/dialects/oracledb/index.js",
-            "lib/knex-builder/Knex.js",
-            "bin/cli.js"
+            "bin/cli.js",
+            "lib/dialects/postgres/query/pg-querycompiler.js"
           ],
           "top1Hit": false,
           "top3Hit": false,
-          "top5Hit": false
+          "top5Hit": true
         }
       }
     },
@@ -1273,8 +3584,8 @@
             ".github/CONTRIBUTING.md",
             "MAINTAINERS.md",
             ".github/ISSUE_TEMPLATE/01-bug.yml",
-            "README.md",
-            "PROJECT_CHARTER.md"
+            "CHANGELOG.md",
+            "README.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1285,8 +3596,8 @@
             ".github/CONTRIBUTING.md",
             "MAINTAINERS.md",
             ".github/ISSUE_TEMPLATE/01-bug.yml",
-            "README.md",
-            "PROJECT_CHARTER.md"
+            "CHANGELOG.md",
+            "README.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1346,7 +3657,7 @@
             "lib/mocha.cjs",
             "lib/reporters/html.js",
             "lib/reporters/base.js",
-            "lib/errors.js"
+            "scripts/update-authors.cjs"
           ],
           "top1Hit": true,
           "top3Hit": true,
@@ -1421,8 +3732,8 @@
           "top5Paths": [
             "CHANGELOG.md",
             "scripts/bench.ts",
-            "src/__tests__/useForm/setValue.test.tsx",
             "src/types/form.ts",
+            "src/__tests__/useForm/setValue.test.tsx",
             "src/__tests__/useForm/subscribe.test.tsx"
           ],
           "top1Hit": false,
@@ -1458,8 +3769,8 @@
             "src/logic/createFormControl.ts",
             "src/useController.ts",
             "src/types/form.ts",
-            "app/src/useFormState.tsx",
-            "src/useFormState.ts"
+            "src/useFormState.ts",
+            "scripts/bench.ts"
           ],
           "top1Hit": true,
           "top3Hit": true,
@@ -1496,11 +3807,11 @@
         },
         "lexical-literal:raw": {
           "top5Paths": [
+            "packages/socket.io-client/dist/socket.io.js",
+            "packages/socket.io/client-dist/socket.io.js",
+            "packages/engine.io-client/dist/engine.io.js",
             "packages/engine.io/lib/server.ts",
-            "packages/socket.io-client/dist/socket.io.esm.min.js",
-            "packages/socket.io/client-dist/socket.io.esm.min.js",
-            "packages/engine.io-client/dist/engine.io.esm.min.js",
-            "packages/socket.io-client/CHANGELOG.md"
+            "packages/socket.io-client/dist/socket.io.esm.min.js"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1508,11 +3819,11 @@
         },
         "lexical-literal:source": {
           "top5Paths": [
+            "packages/socket.io-client/dist/socket.io.js",
+            "packages/socket.io/client-dist/socket.io.js",
+            "packages/engine.io-client/dist/engine.io.js",
             "packages/engine.io/lib/server.ts",
-            "packages/socket.io-client/dist/socket.io.esm.min.js",
-            "packages/socket.io/client-dist/socket.io.esm.min.js",
-            "packages/engine.io-client/dist/engine.io.esm.min.js",
-            "packages/socket.io-client/CHANGELOG.md"
+            "packages/socket.io-client/dist/socket.io.esm.min.js"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1520,32 +3831,20 @@
         },
         "lexical-literal:code": {
           "top5Paths": [
+            "packages/socket.io-client/dist/socket.io.js",
+            "packages/socket.io/client-dist/socket.io.js",
+            "packages/engine.io-client/dist/engine.io.js",
             "packages/engine.io/lib/server.ts",
-            "packages/socket.io-client/dist/socket.io.esm.min.js",
-            "packages/socket.io/client-dist/socket.io.esm.min.js",
-            "packages/engine.io-client/dist/engine.io.esm.min.js",
-            "packages/engine.io-client/lib/socket.ts"
+            "packages/socket.io-client/dist/socket.io.esm.min.js"
           ],
           "top1Hit": false,
           "top3Hit": false,
-          "top5Hit": true
+          "top5Hit": false
         },
         "bm25:raw": {
           "top5Paths": [
-            "packages/engine.io-client/README.md",
-            "packages/engine.io/README.md",
             "packages/engine.io/lib/server.ts",
-            "packages/engine.io-client/lib/transports/polling-xhr.ts",
-            "packages/engine.io-client/lib/socket.ts"
-          ],
-          "top1Hit": false,
-          "top3Hit": false,
-          "top5Hit": true
-        },
-        "bm25:source": {
-          "top5Paths": [
             "packages/engine.io-client/README.md",
-            "packages/engine.io/lib/server.ts",
             "packages/engine.io/README.md",
             "packages/engine.io-client/lib/socket.ts",
             "packages/engine.io-client/dist/engine.io.esm.min.js"
@@ -1554,25 +3853,37 @@
           "top3Hit": false,
           "top5Hit": true
         },
+        "bm25:source": {
+          "top5Paths": [
+            "packages/engine.io/lib/server.ts",
+            "packages/engine.io-client/README.md",
+            "packages/engine.io/README.md",
+            "packages/engine.io-client/dist/engine.io.esm.min.js",
+            "packages/engine.io-client/lib/socket.ts"
+          ],
+          "top1Hit": false,
+          "top3Hit": false,
+          "top5Hit": true
+        },
         "bm25:code": {
           "top5Paths": [
             "packages/engine.io/lib/server.ts",
-            "packages/engine.io-client/lib/socket.ts",
+            "packages/socket.io-client/dist/socket.io.js",
+            "packages/socket.io/client-dist/socket.io.js",
             "packages/engine.io-client/dist/engine.io.esm.min.js",
-            "packages/engine.io-client/lib/transports/polling-xhr.ts",
-            "packages/socket.io-client/dist/socket.io.esm.min.js"
+            "packages/engine.io-client/lib/socket.ts"
           ],
           "top1Hit": false,
-          "top3Hit": true,
+          "top3Hit": false,
           "top5Hit": true
         },
         "fixmap": {
           "top5Paths": [
             "packages/engine.io-client/lib/transports/polling-xhr.ts",
             "packages/engine.io-client/lib/socket.ts",
-            "packages/engine.io-client/lib/transport.ts",
-            "packages/engine.io-client/lib/transports/polling.ts",
-            "packages/engine.io-client/lib/transports/websocket.ts"
+            "packages/socket.io-client/dist/socket.io.js",
+            "packages/socket.io/client-dist/socket.io.js",
+            "packages/engine.io-client/dist/engine.io.js"
           ],
           "top1Hit": false,
           "top3Hit": true,
@@ -1615,11 +3926,11 @@
         },
         "lexical-literal:raw": {
           "top5Paths": [
+            "packages/svelte/CHANGELOG.md",
             "documentation/docs/07-misc/07-v5-migration-guide.md",
-            "packages/svelte/src/internal/server/renderer.js",
-            "packages/svelte/messages/client-warnings/warnings.md",
-            "documentation/docs/98-reference/.generated/client-warnings.md",
-            "packages/svelte/src/internal/client/reactivity/batch.js"
+            "packages/svelte/types/index.d.ts",
+            "packages/svelte/src/compiler/errors.js",
+            "packages/svelte/src/internal/server/renderer.js"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1627,11 +3938,11 @@
         },
         "lexical-literal:source": {
           "top5Paths": [
+            "packages/svelte/CHANGELOG.md",
             "documentation/docs/07-misc/07-v5-migration-guide.md",
-            "packages/svelte/src/internal/server/renderer.js",
-            "packages/svelte/messages/client-warnings/warnings.md",
-            "documentation/docs/98-reference/.generated/client-warnings.md",
-            "packages/svelte/src/internal/client/reactivity/batch.js"
+            "packages/svelte/types/index.d.ts",
+            "packages/svelte/src/compiler/errors.js",
+            "packages/svelte/src/internal/server/renderer.js"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1639,23 +3950,23 @@
         },
         "lexical-literal:code": {
           "top5Paths": [
+            "packages/svelte/types/index.d.ts",
+            "packages/svelte/src/compiler/errors.js",
             "packages/svelte/src/internal/server/renderer.js",
             "packages/svelte/src/internal/client/reactivity/batch.js",
-            "packages/svelte/src/internal/client/errors.js",
-            "packages/svelte/src/internal/client/dom/blocks/boundary.js",
-            "packages/svelte/src/internal/client/reactivity/deriveds.js"
+            "packages/svelte/src/internal/client/errors.js"
           ],
           "top1Hit": false,
           "top3Hit": false,
-          "top5Hit": true
+          "top5Hit": false
         },
         "bm25:raw": {
           "top5Paths": [
+            "packages/svelte/CHANGELOG.md",
+            "packages/svelte/CHANGELOG-pre-5.md",
             "documentation/docs/05-special-elements/01-svelte-boundary.md",
             "packages/svelte/src/internal/shared/errors.js",
-            "CODE_OF_CONDUCT.md",
-            "packages/svelte/tests/hydration/samples/raw-mismatch-static/_config.js",
-            "packages/svelte/messages/client-errors/errors.md"
+            "CODE_OF_CONDUCT.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1667,17 +3978,17 @@
             "documentation/docs/98-reference/.generated/client-errors.md",
             "packages/svelte/messages/client-warnings/warnings.md",
             "documentation/docs/98-reference/.generated/client-warnings.md",
-            "packages/svelte/src/internal/client/dom/blocks/boundary.js"
+            "packages/svelte/CHANGELOG.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
-          "top5Hit": true
+          "top5Hit": false
         },
         "bm25:code": {
           "top5Paths": [
             "packages/svelte/src/internal/client/dom/blocks/boundary.js",
-            "packages/svelte/src/internal/client/errors.js",
             "packages/svelte/src/internal/server/renderer.js",
+            "packages/svelte/src/internal/client/errors.js",
             "packages/svelte/src/internal/client/warnings.js",
             "packages/svelte/src/internal/shared/errors.js"
           ],
@@ -1689,9 +4000,9 @@
           "top5Paths": [
             "packages/svelte/src/internal/client/dom/blocks/boundary.js",
             "packages/svelte/scripts/check-treeshakeability.js",
-            "packages/svelte/src/internal/client/dom/operations.js",
             "packages/svelte/src/internal/client/errors.js",
-            "packages/svelte/src/internal/client/render.js"
+            "packages/svelte/src/internal/client/warnings.js",
+            "packages/svelte/src/internal/server/renderer.js"
           ],
           "top1Hit": true,
           "top3Hit": true,
@@ -1730,9 +4041,9 @@
           "top5Paths": [
             "docs/config/shared-options.md",
             "CONTRIBUTING.md",
+            "packages/vite/CHANGELOG.md",
             "packages/vite/src/node/utils.ts",
-            "docs/guide/features.md",
-            "packages/vite/src/node/build.ts"
+            "docs/guide/features.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1742,9 +4053,9 @@
           "top5Paths": [
             "docs/config/shared-options.md",
             "CONTRIBUTING.md",
+            "packages/vite/CHANGELOG.md",
             "packages/vite/src/node/utils.ts",
-            "docs/guide/features.md",
-            "packages/vite/src/node/build.ts"
+            "docs/guide/features.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1753,10 +4064,10 @@
         "lexical-literal:code": {
           "top5Paths": [
             "packages/vite/src/node/utils.ts",
+            "packages/vite/src/node/config.ts",
             "packages/vite/src/node/build.ts",
             "packages/vite/src/node/optimizer/index.ts",
-            "packages/vite/src/node/server/index.ts",
-            "packages/create-vite/src/index.ts"
+            "packages/vite/src/node/server/index.ts"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1802,9 +4113,9 @@
           "top5Paths": [
             "packages/create-vite/template-vue-ts/src/App.vue",
             "packages/create-vite/template-vue/src/App.vue",
-            "packages/vite/types/metadata.d.ts",
             "packages/vite/src/node/optimizer/rolldownDepPlugin.ts",
-            "packages/vite/src/node/plugins/workerImportMetaUrl.ts"
+            "packages/vite/types/metadata.d.ts",
+            "packages/create-vite/src/index.ts"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1841,11 +4152,11 @@
         },
         "lexical-literal:raw": {
           "top5Paths": [
+            "changelogs/CHANGELOG-3.3.md",
             ".github/contributing.md",
-            "packages/compiler-sfc/src/script/resolveType.ts",
-            "packages/runtime-core/src/component.ts",
-            "packages/compiler-sfc/src/compileScript.ts",
-            "changelogs/CHANGELOG-3.1.md"
+            "changelogs/CHANGELOG-3.4.md",
+            "CHANGELOG.md",
+            "changelogs/CHANGELOG-3.0.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1853,11 +4164,11 @@
         },
         "lexical-literal:source": {
           "top5Paths": [
+            "changelogs/CHANGELOG-3.3.md",
             ".github/contributing.md",
-            "packages/compiler-sfc/src/script/resolveType.ts",
-            "packages/runtime-core/src/component.ts",
-            "packages/compiler-sfc/src/compileScript.ts",
-            "changelogs/CHANGELOG-3.1.md"
+            "changelogs/CHANGELOG-3.4.md",
+            "CHANGELOG.md",
+            "changelogs/CHANGELOG-3.0.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1867,21 +4178,21 @@
           "top5Paths": [
             "packages/compiler-sfc/src/script/resolveType.ts",
             "packages/runtime-core/src/component.ts",
+            "packages/runtime-core/src/renderer.ts",
             "packages/compiler-sfc/src/compileScript.ts",
-            "packages/runtime-dom/src/jsx.ts",
-            "packages/runtime-dom/src/index.ts"
+            "packages/runtime-dom/src/jsx.ts"
           ],
           "top1Hit": false,
           "top3Hit": false,
-          "top5Hit": true
+          "top5Hit": false
         },
         "bm25:raw": {
           "top5Paths": [
             ".github/ISSUE_TEMPLATE/bug_report.yml",
             ".github/contributing.md",
+            "changelogs/CHANGELOG-3.3.md",
             "packages/compiler-sfc/README.md",
-            "changelogs/CHANGELOG-3.1.md",
-            "packages/vue-compat/README.md"
+            "changelogs/CHANGELOG-3.4.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1891,9 +4202,9 @@
           "top5Paths": [
             ".github/ISSUE_TEMPLATE/bug_report.yml",
             ".github/contributing.md",
+            "changelogs/CHANGELOG-3.3.md",
             "packages/compiler-sfc/README.md",
-            "changelogs/CHANGELOG-3.1.md",
-            "packages/vue-compat/README.md"
+            "changelogs/CHANGELOG-3.4.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -1917,11 +4228,11 @@
             "packages-private/tsconfig.json",
             "packages-private/dts-built-test/tsconfig.json",
             "packages-private/vite-debug/tsconfig.json",
-            "packages/reactivity/src/ref.ts"
+            "packages/runtime-dom/src/index.ts"
           ],
           "top1Hit": false,
           "top3Hit": false,
-          "top5Hit": false
+          "top5Hit": true
         }
       }
     },
@@ -1993,8 +4304,8 @@
             ".github/ISSUE_TEMPLATE/bug_report.yml",
             "lib/winston/common.js",
             "docs/transports.md",
-            "test/unit/winston/logger-legacy.test.js",
-            "UPGRADE-3.0.md"
+            "UPGRADE-3.0.md",
+            "README.md"
           ],
           "top1Hit": false,
           "top3Hit": false,
@@ -2029,8 +4340,8 @@
             "lib/winston/transports/file.js",
             "lib/winston/transports/http.js",
             "lib/winston/tail-file.js",
-            "lib/winston/transports/console.js",
-            "lib/winston/logger.js"
+            "lib/winston/logger.js",
+            "lib/winston/common.js"
           ],
           "top1Hit": true,
           "top3Hit": true,
@@ -2073,37 +4384,37 @@
         },
         "lexical-literal:raw": {
           "top5Paths": [
+            "CHANGELOG.md",
             "docs/api.md",
-            "docs/advanced.md",
-            "lib/utils/apply-extends.ts",
-            "test/validation.mjs",
-            "lib/command.ts"
+            "lib/yargs-factory.ts",
+            "test/yargs.mjs",
+            "docs/advanced.md"
           ],
           "top1Hit": false,
-          "top3Hit": true,
-          "top5Hit": true
+          "top3Hit": false,
+          "top5Hit": false
         },
         "lexical-literal:source": {
           "top5Paths": [
+            "CHANGELOG.md",
             "docs/api.md",
+            "lib/yargs-factory.ts",
             "docs/advanced.md",
-            "lib/utils/apply-extends.ts",
-            "lib/command.ts",
-            "lib/typings/yargs-parser-types.ts"
+            "lib/utils/apply-extends.ts"
           ],
           "top1Hit": false,
-          "top3Hit": true,
+          "top3Hit": false,
           "top5Hit": true
         },
         "lexical-literal:code": {
           "top5Paths": [
+            "lib/yargs-factory.ts",
             "lib/utils/apply-extends.ts",
             "lib/command.ts",
             "lib/typings/yargs-parser-types.ts",
-            "lib/validation.ts",
-            "lib/completion.ts"
+            "lib/validation.ts"
           ],
-          "top1Hit": true,
+          "top1Hit": false,
           "top3Hit": true,
           "top5Hit": true
         },
@@ -2111,9 +4422,9 @@
           "top5Paths": [
             "lib/utils/apply-extends.ts",
             "lib/typings/yargs-parser-types.ts",
-            "lib/utils/levenshtein.ts",
             "docs/api.md",
-            "helpers/helpers.mjs"
+            "lib/yargs-factory.ts",
+            "test/yargs.mjs"
           ],
           "top1Hit": true,
           "top3Hit": true,
@@ -2124,7 +4435,7 @@
             "lib/utils/apply-extends.ts",
             "lib/typings/yargs-parser-types.ts",
             "docs/api.md",
-            "lib/utils/levenshtein.ts",
+            "lib/yargs-factory.ts",
             "docs/advanced.md"
           ],
           "top1Hit": true,
@@ -2135,8 +4446,8 @@
           "top5Paths": [
             "lib/utils/apply-extends.ts",
             "lib/typings/yargs-parser-types.ts",
+            "lib/yargs-factory.ts",
             "lib/utils/levenshtein.ts",
-            "helpers/helpers.mjs",
             "lib/command.ts"
           ],
           "top1Hit": true,
@@ -2146,10 +4457,10 @@
         "fixmap": {
           "top5Paths": [
             "lib/utils/apply-extends.ts",
+            "lib/yargs-factory.ts",
             "lib/command.ts",
-            "lib/completion.ts",
             "lib/validation.ts",
-            "helpers/helpers.mjs"
+            "lib/typings/yargs-parser-types.ts"
           ],
           "top1Hit": true,
           "top3Hit": true,

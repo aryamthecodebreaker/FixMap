@@ -50,7 +50,7 @@ function fixtureDir(tier) {
 async function generateFixture(tier) {
   const root = fixtureDir(tier);
   const marker = `${root}.complete`;
-  if (await exists(marker)) {
+  if (await exists(marker) && await exists(root)) {
     return root;
   }
   await rm(marker, { force: true });

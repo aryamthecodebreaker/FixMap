@@ -1,0 +1,18 @@
+{
+  "kind": "reviewed-field-compatibility-development-cohort",
+  "repository": "adr/madr",
+  "sha": "ba75bb1b20d42af5746b246ad348c202419ae681",
+  "selectionCommit": "e4d9d3d",
+  "parsed": 4,
+  "total": 4,
+  "statuses": ["unknown", "unknown", "unknown", "unknown"],
+  "fingerprints": [
+    "worktree:87575b5c003e272644e4d54bf1610082e5ffab0119c155be9b0187051ac30a59",
+    "worktree:c954d5acfcef40e78ca8607db99e24b3b908a483b02a0b3499e86d57f707370f",
+    "worktree:f16f74c7836220542a530e7d9077dd73e8fb2e9b19979c4d345faa8a486bc0dd",
+    "worktree:c3086180bbebf2a80e697a11e34928c9db62f20861c6fedb14ec815f8646c772"
+  ],
+  "fieldsMatched": 4,
+  "review": "Title, context, decision, absent date/consequences and authored status checked against source. First three have no status; fourth says on hold. This exposed discarded authored status, repaired with a separate authoredStatus field. This cohort is now development evidence, not untouched validation.",
+  "remaining": "Evaluate another convention family and complete consumer checks for authoredStatus."
+}

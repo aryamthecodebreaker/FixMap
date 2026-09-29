@@ -1,0 +1,7 @@
+{
+  "kind": "untouched-document-validation",
+  "selection": "Next two numbered npryce/adr-tools documents after the development cohort, selected from previously observed tree paths before reading or parsing their contents. No overlap with development documents; same repository and convention, not independent repository coverage.",
+  "repository": "npryce/adr-tools",
+  "sha": "b3279baf9be2207d1a4f4bbd608fd0b591c72aee",
+  "paths": ["doc/adr/0004-markdown-format.md", "doc/adr/0005-help-comments.md"]
+}

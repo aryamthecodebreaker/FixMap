@@ -44,7 +44,7 @@ const namedCases = heldout.results.length - cohortSize;
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
   <title id="title">FixMap benchmark</title>
-  <desc id="description">On ${cohortSize} held-out tasks that did not name the fixing file, FixMap and BM25 both ranked it in the top three for ${fixmapTop3} cases. BM25 ranked it in the top five for ${bm25Top5}, compared with ${fixmapTop5} for FixMap.</desc>
+  <desc id="description">On ${cohortSize} held-out tasks that did not name the fixing file, FixMap ranked it in the top three for ${fixmapTop3} cases and BM25 for ${bm25Top3}. BM25 ranked it in the top five for ${bm25Top5}, compared with ${fixmapTop5} for FixMap.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#07120f"/>
@@ -58,7 +58,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" v
   <rect width="1200" height="630" fill="url(#bg)"/>
   <rect x="44" y="42" width="1112" height="546" rx="30" fill="#0f211b" stroke="#285044"/>
   <text x="82" y="102" fill="#72f0b8" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="2">FIXMAP · EVIDENCE AUDIT</text>
-  <text x="82" y="154" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="38" font-weight="750">The baseline erased the published advantage.</text>
+  <text x="82" y="154" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="38" font-weight="750">Held-out results, with the baseline beside them.</text>
 
   <rect x="82" y="194" width="316" height="176" rx="22" fill="#132a23" stroke="#72f0b8" stroke-width="2"/>
   <text x="108" y="232" fill="#72f0b8" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">FIXMAP · UNMENTIONED</text>
@@ -80,7 +80,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" v
 
   <rect x="82" y="394" width="996" height="104" rx="20" fill="#0b1915" stroke="#29483e"/>
   <text x="108" y="429" fill="#9db9af" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">WHAT THE AUDIT FOUND</text>
-  <text x="108" y="460" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="20">FixMap does not beat BM25 over code files on unseen repositories.</text>
+  <text x="108" y="460" fill="#f2f7f5" font-family="Segoe UI, Arial, sans-serif" font-size="20">This small frozen cohort does not establish general superiority.</text>
   <text x="108" y="486" fill="#b8cdc5" font-family="Segoe UI, Arial, sans-serif" font-size="16">${namedCases} of ${heldout.cases} tasks named their answer; those cases are now reported separately.</text>
 
   <rect x="82" y="526" width="996" height="2" fill="url(#accent)"/>

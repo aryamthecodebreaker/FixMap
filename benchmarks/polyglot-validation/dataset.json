@@ -1,0 +1,185 @@
+{
+  "generatedAt": "2026-09-03",
+  "status": "validation-frozen",
+  "taskTextRule": "Closing issue title plus the first 600 characters of its body.",
+  "selectionRule": "Per configured repository and language: the first of the 100 most recently updated merged pull requests that closes an issue with at least 80 body characters, is not docs-titled, changes no more than 20 files total, and modifies 1-3 non-test implementation files in that language. It must have merged after 2026-08-22T23:59:59Z. Pull requests already present in ../polyglot-dev/dataset.json are excluded. The PR base commit and exact fixing source paths are frozen before FixMap is measured.",
+  "languages": [
+    "go",
+    "rust",
+    "ruby",
+    "php",
+    "dotnet"
+  ],
+  "cases": [
+    {
+      "slug": "prometheus/prometheus",
+      "language": "go",
+      "repo": "https://github.com/prometheus/prometheus.git",
+      "license": "Apache-2.0",
+      "sha": "d15adb9ad7e5d9fbde3a9a8f30200593a5a14d86",
+      "issue": 10352,
+      "pullRequest": 19511,
+      "task": "Patch log level config on runtime\n\n## Proposal\r\n**Use case. Why is this important?**\r\n\r\nIn some cases we would like to know what's going on with prometheus in production, we would like to see prometheus log change to debug. I thought it would be nice to have a way to change the log level in runtime without interrupting prometheus work (such as deployment).\r\n\r\nSo I'm thinking something like adding `PATCH /config` endpoint to prometheus could be nice, or maybe just specific only for the log level\r\n",
+      "expected": [
+        "cmd/prometheus/main.go",
+        "config/config.go"
+      ]
+    },
+    {
+      "slug": "tokio-rs/tokio",
+      "language": "rust",
+      "repo": "https://github.com/tokio-rs/tokio.git",
+      "license": "MIT",
+      "sha": "ea91b33ca57ff0581b38e735cc108f831bccbdaa",
+      "issue": 8394,
+      "pullRequest": 8397,
+      "task": "duplex(0) / zero-capacity in-memory pipe deadlocks on any write\n\n**Version**\ntokio master (latest)\n\n**Platform**\nAny (not platform-specific)\n\n**Description**\n\nCreating an in-memory pipe with a buffer size of 0 — `tokio::io::duplex(0)`, `simplex(0)`, or `SimplexStream::new_unsplit(0)` — deadlocks forever on the first non-empty write. The writer waits for free buffer space, the reader waits for data, but with a 0-byte buffer neither can ever happen.\n\nI tried this code (it hangs forever):\n\n```rust\n#[tokio::main]\nasync fn main() {\n    let (mut a, mut b) = tokio::io::duplex(0);\n    tokio::join!(\n        async { a.write_all(b\"x\").await.unwrap(); },\n        async ",
+      "expected": [
+        "tokio/src/io/util/mem.rs"
+      ]
+    },
+    {
+      "slug": "rust-lang/cargo",
+      "language": "rust",
+      "repo": "https://github.com/rust-lang/cargo.git",
+      "license": "Apache-2.0",
+      "sha": "3bb5bfd13ea9c974056b70e2dd8f6d80378e1457",
+      "issue": 17009,
+      "pullRequest": 17335,
+      "task": "Tracking Issue for min-publish-age RFC 3923\n\n### Summary\n\nRFC: [#3923](https://github.com/rust-lang/rfcs/pull/3923)\nOriginal issue: https://github.com/rust-lang/cargo/issues/15973\nImplementation: https://github.com/rust-lang/cargo/pull/17012\nDocumentation: https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#min-publish-age\n\nThis RFC adds a configuration to set the minimum publish age used for dependency resolution.\n\n\n### Unresolved Issues\n\n* [ ] How do we make it clear when things are held back?\n  * The \"locking\" message for [Cargo time machine (generate lock files based on old registry state) #5221](https://github.com/rust-l",
+      "expected": [
+        "src/resolver/version_prefs.rs",
+        "src/workspace/features.rs",
+        "src/workspace/workspace.rs"
+      ]
+    },
+    {
+      "slug": "rails/rails",
+      "language": "ruby",
+      "repo": "https://github.com/rails/rails.git",
+      "license": "MIT",
+      "sha": "86d9bbff9242ae91bfc8560ec900ef8245e35d44",
+      "issue": 58637,
+      "pullRequest": 58639,
+      "task": "Rails.cache.fetch_multi returns keys in a non-deterministic order when LocalCache is active\n\n\n\n### Steps to reproduce\n\n```ruby\n# frozen_string_literal: true\n\nrequire 'bundler/inline'\n\ngemfile(true) do\n  source 'https://rubygems.org'\n\n  git_source(:github) { |repo| \"https://github.com/#{repo}.git\" }\n\n  gem 'rails', github: 'rails/rails'\nend\n\nrequire 'active_support'\nrequire 'active_support/core_ext/object/blank'\nrequire 'minitest/autorun'\n\nclass BugTest < Minitest::Test\n  def setup\n    @cache = ActiveSupport::Cache.lookup_store(:memory_store)\n  end\n\n  def test_fetch_multi\n    @cache.with_local_cache do\n      result = @cache.fetch_multi('foo', 'bar') { 0 }\n\n      # pass\n      assert_equ",
+      "expected": [
+        "activesupport/lib/active_support/cache/strategy/local_cache.rb"
+      ]
+    },
+    {
+      "slug": "rubocop/rubocop",
+      "language": "ruby",
+      "repo": "https://github.com/rubocop/rubocop.git",
+      "license": "MIT",
+      "sha": "df038fd787cc8471771bbb44ebef667fd6f0f327",
+      "issue": 15636,
+      "pullRequest": 15637,
+      "task": "Lint/CopDirectiveSyntax flags directive text inside `--` reasons\n\n## Description:\n\n`Lint/CopDirectiveSyntax` treats directive-looking text after a valid `--` reason as a second directive.\nThat reports a malformed directive offense even though the text after `--` is only explanatory text.\n\n## Expected behavior:\n\n`Lint/CopDirectiveSyntax` should ignore directive-looking text inside a valid `--` reason comment.\n\nThis comment should not register an offense:\n\n```ruby\n# rubocop:disable Layout/LineLength -- see # rubocop:disable Style/Encoding in old branch\n```\n\n## Actual behavior:\n\n`Lint/CopDirectiveSyntax` scans the whole comment text for directives, including th",
+      "expected": [
+        "lib/rubocop/cop/lint/cop_directive_syntax.rb"
+      ]
+    },
+    {
+      "slug": "symfony/symfony",
+      "language": "php",
+      "repo": "https://github.com/symfony/symfony.git",
+      "license": "MIT",
+      "sha": "9fb98ad38bb5942b68c3233a8817b2990053eca6",
+      "issue": 28158,
+      "pullRequest": 54752,
+      "task": "There is no way to exclude path only from root directory\n\n**Symfony version(s) affected**: 4.1.3\r\n\r\n**Description**  \r\nI'm using PHP-CS-Fixer. It's using symfony/finder to create files list, that should be fixed. Some of my projects not using `src/` directory for source files, so I need to write some exclude rules. For example:\r\n\r\n```php\r\n<?php\r\n$finder = \\PhpCsFixer\\Finder::create()\r\n    ->in(__DIR__)\r\n    ->exclude('data')\r\n    ->exclude('docker')\r\n    ->exclude('frontend')\r\n    ->exclude('common/emails')\r\n    ->exclude('common/templates')\r\n    ->notPath('#.*/runtime#')\r\n    ->notPath('#.*/views#')\r\n    ->notPath('autocompletion.php')\r\n    ->exclud",
+      "expected": [
+        "src/Symfony/Component/Finder/Finder.php",
+        "src/Symfony/Component/Finder/Iterator/ExcludeDirectoryFilterIterator.php"
+      ]
+    },
+    {
+      "slug": "composer/composer",
+      "language": "php",
+      "repo": "https://github.com/composer/composer.git",
+      "license": "MIT",
+      "sha": "24e396b5279a92fadf4897dd701d2cb97942cda3",
+      "issue": 12955,
+      "pullRequest": 13049,
+      "task": "`show --tree --format=json`: include installed version for sub-dependencies\n\nIn [git-pkgs/resolve](https://github.com/git-pkgs/resolve) we build dependency graphs by shelling out to each ecosystem's package manager and parsing the output. For Composer we'd like to use `composer show --tree --format=json`, but below the top level the `version` field is the constraint from the parent's `require` block rather than the installed version:\n\n```json\n{\n  \"name\": \"guzzlehttp/guzzle\",\n  \"version\": \"7.12.3\",\n  \"requires\": [\n    { \"name\": \"guzzlehttp/promises\", \"version\": \"^2.5\", \"requires\": [ ... ] }\n  ]\n}\n```\n\n`guzzlehttp/promises` is installed at `2.5.0` but the tree reports `^",
+      "expected": [
+        "src/Composer/Command/ShowCommand.php"
+      ]
+    },
+    {
+      "slug": "dotnet/runtime",
+      "language": "dotnet",
+      "repo": "https://github.com/dotnet/runtime.git",
+      "license": "MIT",
+      "sha": "399c3eb8ba823f00f9a250de4a3cdbdfb5d18f33",
+      "issue": 133096,
+      "pullRequest": 133097,
+      "task": "[Test Failure] Authentication failed: Status code: QUIC_STATUS_TLS_ERROR when SNI is missing or IP literal\n\n## Build Information\nBuild: https://dev.azure.com/dnceng-public/cbb18261-c48f-4abb-8651-8cdcb5474649/_build/results?buildId=1575283\nBuild error leg or test failing: System.Net.Quic.Tests.MsQuicTests.DoesNotSendIPAsSni\nPull request: https://github.com/dotnet/runtime/pull/132974\n<!-- Error message template  -->\n## Error Message\n\n**DO NOT USE JSON BELOW IF THIS IS A BUILD BREAK** otherwise build analysis will allow pull requests to merge that break the build worse. For a build break, do not use this issue form. Make a regular new issue.\n\nFill the error message using [step by step known issues gui",
+      "expected": [
+        "src/libraries/System.Net.Quic/src/System/Net/Quic/QuicConnection.cs"
+      ]
+    }
+  ],
+  "skipped": [
+    {
+      "slug": "gin-gonic/gin",
+      "language": "go",
+      "reason": "no eligible fixing pull request merged after 2026-08-22T23:59:59Z among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "go-gorm/gorm",
+      "language": "go",
+      "reason": "no eligible fixing pull request merged after 2026-08-22T23:59:59Z among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "spf13/cobra",
+      "language": "go",
+      "reason": "no eligible fixing pull request merged after 2026-08-22T23:59:59Z among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "clap-rs/clap",
+      "language": "rust",
+      "reason": "no eligible fixing pull request merged after 2026-08-22T23:59:59Z among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "serde-rs/serde",
+      "language": "rust",
+      "reason": "no eligible fixing pull request merged after 2026-08-22T23:59:59Z among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "rspec/rspec-core",
+      "language": "ruby",
+      "reason": "no eligible fixing pull request merged after 2026-08-22T23:59:59Z among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "sidekiq/sidekiq",
+      "language": "ruby",
+      "reason": "no eligible fixing pull request merged after 2026-08-22T23:59:59Z among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "sebastianbergmann/phpunit",
+      "language": "php",
+      "reason": "no eligible fixing pull request merged after 2026-08-22T23:59:59Z among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "guzzle/guzzle",
+      "language": "php",
+      "reason": "no eligible fixing pull request merged after 2026-08-22T23:59:59Z among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "AutoMapper/AutoMapper",
+      "language": "dotnet",
+      "reason": "no eligible fixing pull request merged after 2026-08-22T23:59:59Z among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "serilog/serilog",
+      "language": "dotnet",
+      "reason": "no eligible fixing pull request merged after 2026-08-22T23:59:59Z among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "JamesNK/Newtonsoft.Json",
+      "language": "dotnet",
+      "reason": "no eligible fixing pull request merged after 2026-08-22T23:59:59Z among the 100 most recently updated merged PRs"
+    }
+  ]
+}

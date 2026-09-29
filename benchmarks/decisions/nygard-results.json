@@ -1,0 +1,13 @@
+{
+  "repository": "npryce/adr-tools",
+  "sha": "b3279baf9be2207d1a4f4bbd608fd0b591c72aee",
+  "selectionCommit": "a7e0be5",
+  "initial": { "parsed": 3, "fieldsMatched": 0, "cause": "Title-adjacent Date metadata was omitted." },
+  "afterRepair": { "parsed": 3, "fieldsMatched": 3 },
+  "fingerprints": [
+    "worktree:b2cd0491a18e87ef52a6263c9d7d25bc87a1b67b4962db1cdb383bf83088f5b9",
+    "worktree:dd81183eea0214e3cc88f7c1ae9189259a420dcce327bb636f52523aef112b45",
+    "worktree:fd9c961907c1ba023c7b8782eda5ae1bf379ce1231569ec03fc81c07373a0552"
+  ],
+  "scope": "Reviewed title, context, decision, consequences, accepted status and authored status, and 2016-02-12 date. Development evidence after repair; not untouched validation."
+}

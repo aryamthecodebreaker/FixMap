@@ -179,4 +179,12 @@ describe("compareReports", () => {
       "Previous report has a duplicate contextFiles path: a.ts"
     );
   });
+
+  it("does not dereference missing grounding on a malformed additive analysis object", () => {
+    const malformed = reportOf([{ path: "a.ts" }]) as FixMapReport & { analysis?: unknown };
+    malformed.analysis = {};
+
+    expect(() => compareReports(malformed as FixMapReport, reportOf([{ path: "a.ts" }]))).not.toThrow();
+    expect(compareReports(malformed as FixMapReport, reportOf([{ path: "a.ts" }])).groundingChanged).toBe(false);
+  });
 });
