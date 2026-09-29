@@ -14,7 +14,7 @@ FixMap does not generate code and does not use an LLM internally.
 Its purpose is to help developers and coding agents understand where to investigate before making changes, rather than blindly searching or loading large portions of a repository.
 
 Website:
-[https://usefixmap.vercel.app](https://usefixmap.vercel.app)
+[https://fixmap.aryam.me](https://fixmap.aryam.me)
 
 GitHub:
 https://github.com/aryamthecodebreaker/FixMap
