@@ -1,16 +1,7 @@
 name: external-eval
 
 on:
-  pull_request:
-    paths:
-      - "benchmarks/**"
-      - "scripts/evaluate-baseline.mjs"
-      - "scripts/lib/**"
-      - ".github/workflows/external-eval.yml"
   workflow_dispatch:
-  schedule:
-    - cron: "17 5 * * 1"
-
 permissions:
   contents: read
 
