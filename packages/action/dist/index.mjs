@@ -2234,9 +2234,9 @@ function parseManifest(file, manifestRoots) {
     if (!match?.[1] || !match[2])
       continue;
     const alias = rustIdentifier(match[1]);
-    const fields = match[2];
-    const packageName = /(?:^|,)\s*package\s*=\s*["']([^"']+)["']/.exec(fields)?.[1]?.trim();
-    const rawPath = /(?:^|,)\s*path\s*=\s*["']([^"']+)["']/.exec(fields)?.[1]?.trim();
+    const fields2 = match[2];
+    const packageName = /(?:^|,)\s*package\s*=\s*["']([^"']+)["']/.exec(fields2)?.[1]?.trim();
+    const rawPath = /(?:^|,)\s*path\s*=\s*["']([^"']+)["']/.exec(fields2)?.[1]?.trim();
     if (rawPath) {
       const targetRoot = normalizeRelativeRoot2(root, rawPath);
       if (!targetRoot || !manifestRoots.has(targetRoot))
@@ -2250,7 +2250,7 @@ function parseManifest(file, manifestRoots) {
       (workspaceSection ? workspace : direct).push(dependency);
       continue;
     }
-    if (dependencySection && /(?:^|,)\s*workspace\s*=\s*true\s*(?:,|$)/.test(fields))
+    if (dependencySection && /(?:^|,)\s*workspace\s*=\s*true\s*(?:,|$)/.test(fields2))
       inherited.push(alias);
   }
   return {
@@ -3226,7 +3226,7 @@ function retrievalTokens(text) {
   return tokens;
 }
 function retrievalQueryTerms(task) {
-  return [...new Set(retrievalTokens(task))].filter((term) => !STOPWORDS.has(term));
+  return [...new Set(retrievalTokens(task))].filter((term2) => !STOPWORDS.has(term2));
 }
 var TECHNICAL_ALIASES = Object.freeze({
   auth: ["authentication"],
@@ -3246,11 +3246,11 @@ function buildRetrievalQuery(task) {
   const originalTerms = retrievalQueryTerms(task);
   const seen = new Set(originalTerms);
   const expansions = [];
-  const add = (term, source, rule) => {
-    if (term.length < 3 || STOPWORDS.has(term) || seen.has(term))
+  const add = (term2, source, rule) => {
+    if (term2.length < 3 || STOPWORDS.has(term2) || seen.has(term2))
       return;
-    seen.add(term);
-    expansions.push({ term, source, rule });
+    seen.add(term2);
+    expansions.push({ term: term2, source, rule });
   };
   for (const source of originalTerms) {
     const aliases = Object.hasOwn(TECHNICAL_ALIASES, source) ? TECHNICAL_ALIASES[source] ?? [] : [];
@@ -3308,11 +3308,11 @@ function rankDocumentsByBm25(inputs, task, limit = 5) {
   if (inputs.length === 0 || terms.length === 0)
     return [];
   const queryTerms = new Set(terms);
-  const documentFrequency = new Map(terms.map((term) => [term, 0]));
+  const documentFrequency = new Map(terms.map((term2) => [term2, 0]));
   const documents = inputs.map((input) => {
     const statistics = bm25DocumentStatistics(input.text, queryTerms);
-    for (const term of statistics.counts.keys()) {
-      documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1);
+    for (const term2 of statistics.counts.keys()) {
+      documentFrequency.set(term2, (documentFrequency.get(term2) ?? 0) + 1);
     }
     return { id: input.id, ...statistics };
   });
@@ -3323,11 +3323,11 @@ function rankDocumentsByBm25(inputs, task, limit = 5) {
     return [];
   for (const document of documents) {
     let score = 0;
-    for (const term of terms) {
-      const frequency = document.counts.get(term) ?? 0;
+    for (const term2 of terms) {
+      const frequency = document.counts.get(term2) ?? 0;
       if (frequency === 0)
         continue;
-      const df = documentFrequency.get(term) ?? 0;
+      const df = documentFrequency.get(term2) ?? 0;
       const idf = Math.log(1 + (documents.length - df + 0.5) / (df + 0.5));
       score += idf * (frequency * 2.2 / (frequency + 1.2 * (0.25 + 0.75 * document.length / averageLength)));
     }
@@ -3358,7 +3358,7 @@ function compareBm25(left, right) {
 function bm25DocumentStatistics(text, queryTerms) {
   const counts = /* @__PURE__ */ new Map();
   let length = 0;
-  const record2 = (token) => {
+  const record3 = (token) => {
     length += 1;
     if (queryTerms.has(token))
       counts.set(token, (counts.get(token) ?? 0) + 1);
@@ -3367,11 +3367,11 @@ function bm25DocumentStatistics(text, queryTerms) {
     const raw = match[0];
     const lower = raw.toLowerCase();
     if (lower.length >= 3)
-      record2(lower);
+      record3(lower);
     const parts = raw.split(/(?<=[a-z0-9])(?=[A-Z])|_/).filter((part) => part.length >= 3);
     if (parts.length > 1)
       for (const part of parts)
-        record2(part.toLowerCase());
+        record3(part.toLowerCase());
   }
   return { counts, length };
 }
@@ -3695,7 +3695,7 @@ function rankContextFilesDetailed(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMI
     } else if (file.kind === "config" && !isChanged) {
       score -= 4;
     }
-    const isDeploymentConfig = file.path === "package.json" || DEPLOYMENT_TERMS.some((term) => [...tokenizeText(term)].some((token) => pathTokens.has(token)));
+    const isDeploymentConfig = file.path === "package.json" || DEPLOYMENT_TERMS.some((term2) => [...tokenizeText(term2)].some((token) => pathTokens.has(token)));
     if (taskTargetsDeployment && file.kind === "config" && !file.path.includes("/") && isDeploymentConfig) {
       score += 5;
       reasons.push("root configuration for a deployment-related task");
@@ -4672,7 +4672,7 @@ function selectDecisionRecords(inventory, input) {
     throw new Error("Unsupported decision inventory version.");
   const paths = new Set(input.paths.map(normalizePath2));
   const task = input.task.toLowerCase();
-  return inventory.records.filter((record2) => record2.targets.some((target) => target.kind === "file" && paths.has(target.path) || target.kind === "symbol" && Boolean(target.path && paths.has(target.path)) || (target.kind === "service" || target.kind === "contract") && containsLiteralTerm(task, target.name)) || titleTerms(record2.title).some((term) => containsLiteralTerm(task, term)));
+  return inventory.records.filter((record3) => record3.targets.some((target) => target.kind === "file" && paths.has(target.path) || target.kind === "symbol" && Boolean(target.path && paths.has(target.path)) || (target.kind === "service" || target.kind === "contract") && containsLiteralTerm(task, target.name)) || titleTerms(record3.title).some((term2) => containsLiteralTerm(task, term2)));
 }
 function parseDecisionRecord(input) {
   const path = validatePath(input.path);
@@ -4913,10 +4913,10 @@ function normalizeProse(value, maximum) {
   return normalized;
 }
 function titleTerms(title) {
-  return title.toLowerCase().match(/[a-z0-9][a-z0-9_-]{3,}/g)?.filter((term) => !["decision", "record", "architecture", "using", "with"].includes(term)) ?? [];
+  return title.toLowerCase().match(/[a-z0-9][a-z0-9_-]{3,}/g)?.filter((term2) => !["decision", "record", "architecture", "using", "with"].includes(term2)) ?? [];
 }
-function containsLiteralTerm(text, term) {
-  const literal = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function containsLiteralTerm(text, term2) {
+  const literal = term2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(^|[^\\p{L}\\p{N}_-])${literal}(?=$|[^\\p{L}\\p{N}_-])`, "iu").test(text);
 }
 function validatePath(value) {
@@ -5492,7 +5492,7 @@ function findEmptyResultDiagnostics(repo, contextFiles, issueText, exclude) {
       message: "No context files: the task text contained no searchable term. Every word was a common word, a language keyword, or shorter than three characters. Name the failing behavior, a symbol, or a file path."
     }];
   }
-  const preview = terms.slice(0, MAX_REPORTED_TERMS).map((term) => truncateForDiagnostic(term, DIAGNOSTIC_TERM_LIMIT)).join(", ");
+  const preview = terms.slice(0, MAX_REPORTED_TERMS).map((term2) => truncateForDiagnostic(term2, DIAGNOSTIC_TERM_LIMIT)).join(", ");
   const remainder = terms.length > MAX_REPORTED_TERMS ? ` (+${terms.length - MAX_REPORTED_TERMS} more)` : "";
   return [{
     code: "no-context-match",
@@ -5624,7 +5624,7 @@ function buildRiskNotes(contextPaths, changedFiles = []) {
   const diffPresent = changedFiles.length > 0;
   const risks = [];
   for (const rule of RISK_RULES) {
-    const terms = rule.terms.flatMap((term) => [...riskTokens(term)]);
+    const terms = rule.terms.flatMap((term2) => [...riskTokens(term2)]);
     const inChanged = terms.some((token) => changedTokens.has(token));
     const inContext = terms.some((token) => contextTokens.has(token));
     if (!inChanged && !inContext) {
@@ -5648,7 +5648,7 @@ function pathsForRiskArea(area, paths) {
     return [];
   return paths.filter((path) => {
     const tokens = riskTokens(path);
-    return rule.terms.flatMap((term) => [...riskTokens(term)]).some((token) => tokens.has(token));
+    return rule.terms.flatMap((term2) => [...riskTokens(term2)]).some((token) => tokens.has(token));
   });
 }
 function riskTokens(value) {
@@ -6804,11 +6804,11 @@ function parseHistoryLog(logText, repositoryPaths) {
   const commits = [];
   let inspectedCommits = 0;
   let skippedLargeCommits = 0;
-  for (const record2 of logText.split("")) {
-    if (!record2)
+  for (const record3 of logText.split("")) {
+    if (!record3)
       continue;
-    const fields = record2.split("\0");
-    const header = fields.shift()?.replace(/^\r?\n/, "") ?? "";
+    const fields2 = record3.split("\0");
+    const header = fields2.shift()?.replace(/^\r?\n/, "") ?? "";
     const separator = header.indexOf("");
     if (separator === -1)
       continue;
@@ -6820,7 +6820,7 @@ function parseHistoryLog(logText, repositoryPaths) {
     if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(hash) || !Number.isSafeInteger(committedAt) || committedAt < 0)
       continue;
     inspectedCommits += 1;
-    const allFiles = [...new Set(fields.map((path) => path.replace(/^\r?\n/, "")).filter(Boolean).map(normalizePath3))];
+    const allFiles = [...new Set(fields2.map((path) => path.replace(/^\r?\n/, "")).filter(Boolean).map(normalizePath3))];
     if (allFiles.length > MAX_HISTORY_FILES_PER_COMMIT) {
       skippedLargeCommits += 1;
       continue;
@@ -6975,6 +6975,84 @@ function normalizePath3(path) {
   return path.split(sep).join("/");
 }
 
+// packages/core/dist/custom-language-context.js
+var KINDS = /* @__PURE__ */ new Set(["function", "method", "class", "interface", "type", "variable"]);
+var record = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+var term = (value) => typeof value === "string" && value.length > 0 && value.length <= 512 && !/[\x00-\x1f\x7f]/.test(value);
+var fields = (value, allowed) => Object.keys(value).every((key) => allowed.includes(key));
+var repoPath = (value) => typeof value === "string" && value.length > 0 && value.length <= 4096 && !/[\x00-\x1f\x7f\\:]/.test(value) && value.split("/").every((part) => part !== "" && part !== "." && part !== "..");
+function validImports(value) {
+  return Array.isArray(value) && value.length <= 2e3 && value.every((entry) => record(entry) && fields(entry, ["specifier", "importedNames", "wildcard"]) && term(entry.specifier) && typeof entry.wildcard === "boolean" && Array.isArray(entry.importedNames) && entry.importedNames.length <= 200 && entry.importedNames.every(term));
+}
+function validDefinitions(value, textLength) {
+  return Array.isArray(value) && value.length <= 2e3 && value.every((entry) => record(entry) && fields(entry, ["name", "kind", "offset"]) && term(entry.name) && typeof entry.kind === "string" && KINDS.has(entry.kind) && (entry.offset === void 0 || Number.isInteger(entry.offset) && entry.offset >= 0 && entry.offset < textLength));
+}
+function createCustomLanguageContext(registry) {
+  const cache = /* @__PURE__ */ new WeakMap();
+  return Object.freeze({
+    supports(extension) {
+      return registry.customForExtension(extension) !== void 0;
+    },
+    resolve(extension, fromPath, imported, candidatePaths) {
+      const adapter = registry.customForExtension(extension);
+      if (!adapter)
+        return { status: "unsupported" };
+      try {
+        if (!repoPath(fromPath) || !validImports([imported]) || !Array.isArray(candidatePaths) || candidatePaths.length > 25e3 || !candidatePaths.every(repoPath))
+          throw new Error();
+        const candidates = [...new Set(candidatePaths)].sort();
+        const allowed = new Set(candidates);
+        if (!allowed.has(fromPath))
+          throw new Error();
+        const input = Object.freeze({
+          fromPath,
+          imported: Object.freeze({ ...imported, importedNames: Object.freeze([...imported.importedNames]) }),
+          candidatePaths: Object.freeze(candidates)
+        });
+        const proposed = adapter.resolveImport(input);
+        if (!Array.isArray(proposed) || proposed.length > 200 || !proposed.every((target) => repoPath(target) && allowed.has(target)))
+          throw new Error();
+        return { status: "ok", targets: [...new Set(proposed)].filter((target) => target !== fromPath).sort() };
+      } catch {
+        return { status: "failed", adapter: adapter.id, code: "adapter-resolution-failed" };
+      }
+    },
+    extract(file) {
+      const extension = file.extension.toLowerCase();
+      const adapter = registry.customForExtension(extension);
+      if (!adapter)
+        return { status: "unsupported" };
+      const text = file.searchTextSample ?? file.textSample;
+      const previous = cache.get(file);
+      if (previous?.path === file.path && previous.extension === extension && previous.text === text)
+        return structuredClone(previous.result);
+      let result;
+      if (text.length > 64e3 || file.path.length > 4096 || !file.path || /[\x00-\x1f\x7f\\:]/.test(file.path) || file.path.split("/").some((part) => !part || part === "." || part === "..")) {
+        result = { status: "failed", adapter: adapter.id, code: "adapter-input-invalid" };
+      } else {
+        try {
+          const rawImports = adapter.extractImports(text);
+          if (!validImports(rawImports))
+            throw new Error();
+          const imports = structuredClone(rawImports);
+          const rawDefinitions = adapter.extractDefinitions(text);
+          if (!validDefinitions(rawDefinitions, text.length))
+            throw new Error();
+          const definitions = structuredClone(rawDefinitions);
+          const isTest = adapter.isTestPath(file.path);
+          if (!validImports(imports) || !validDefinitions(definitions, text.length) || typeof isTest !== "boolean")
+            throw new Error();
+          result = { status: "ok", facts: { adapter: adapter.id, version: adapter.version, imports, definitions, isTest } };
+        } catch {
+          result = { status: "failed", adapter: adapter.id, code: "adapter-extraction-failed" };
+        }
+      }
+      cache.set(file, { path: file.path, extension, text, result });
+      return structuredClone(result);
+    }
+  });
+}
+
 // packages/core/dist/plan.js
 async function buildFixMapReport(input) {
   return (await buildFixMapAnalysis(input)).report;
@@ -6992,11 +7070,13 @@ async function buildFixMapAnalysis(input) {
   const requestedExclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
   const internalExclude = buildPathExcluder((input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern)));
   const exclude = combineExclusions(requestedExclude, internalExclude);
+  const languageContext = input.languageRegistry ? createCustomLanguageContext(input.languageRegistry) : void 0;
   const reportInput = {
     issueText: input.issueText,
     limit: input.limit,
     exclude,
-    annotationAsOf: (/* @__PURE__ */ new Date()).toISOString()
+    annotationAsOf: (/* @__PURE__ */ new Date()).toISOString(),
+    ...languageContext ? { languageContext } : {}
   };
   const report = input.embeddingProvider ? await buildHybridReportFromRepo(repo, { ...reportInput, embeddingProvider: input.embeddingProvider }) : buildReportFromRepo(repo, reportInput);
   if (generatedArtifacts.length > 0) {
@@ -7499,19 +7579,19 @@ function validateFixMapReport(candidate, label) {
       message: `${label} is not a FixMap JSON report: no contextFiles array.`
     };
   }
-  const record2 = candidate;
-  if (record2.reportVersion !== void 0 && record2.reportVersion !== 1) {
+  const record3 = candidate;
+  if (record3.reportVersion !== void 0 && record3.reportVersion !== 1) {
     return {
       success: false,
-      message: `${label} uses unsupported reportVersion ${JSON.stringify(record2.reportVersion)}; this FixMap release supports reportVersion 1.`
+      message: `${label} uses unsupported reportVersion ${JSON.stringify(record3.reportVersion)}; this FixMap release supports reportVersion 1.`
     };
   }
   const invalidEnvelopeFields = [
-    typeof record2.summary === "string" ? void 0 : "summary (string)",
-    Array.isArray(record2.testRoutes) ? void 0 : "testRoutes (array)",
-    Array.isArray(record2.risks) ? void 0 : "risks (array)",
-    Array.isArray(record2.changedFiles) ? void 0 : "changedFiles (array)",
-    Array.isArray(record2.diagnostics) ? void 0 : "diagnostics (array)"
+    typeof record3.summary === "string" ? void 0 : "summary (string)",
+    Array.isArray(record3.testRoutes) ? void 0 : "testRoutes (array)",
+    Array.isArray(record3.risks) ? void 0 : "risks (array)",
+    Array.isArray(record3.changedFiles) ? void 0 : "changedFiles (array)",
+    Array.isArray(record3.diagnostics) ? void 0 : "diagnostics (array)"
   ].filter((field) => field !== void 0);
   if (invalidEnvelopeFields.length > 0) {
     return {
@@ -7519,7 +7599,7 @@ function validateFixMapReport(candidate, label) {
       message: `${label} is missing or has invalid fields in the complete FixMap report envelope: ${invalidEnvelopeFields.join(", ")}.`
     };
   }
-  const versioned = record2.reportVersion === 1;
+  const versioned = record3.reportVersion === 1;
   const contextFiles = candidate.contextFiles;
   const unsafeContextPath = contextFiles.findIndex((file) => isRecord6(file) && typeof file.path === "string" && file.path.trim().length > 0 && !isRepositoryRelativePath(file.path));
   if (unsafeContextPath !== -1) {
@@ -7571,7 +7651,7 @@ function validateFixMapReport(candidate, label) {
       };
     }
   }
-  const testRoutes = record2.testRoutes;
+  const testRoutes = record3.testRoutes;
   const invalidRoute = testRoutes.findIndex((route) => {
     if (!isRecord6(route))
       return true;
@@ -7583,7 +7663,7 @@ function validateFixMapReport(candidate, label) {
       message: `${label} has an invalid testRoutes entry at index ${invalidRoute}; each route needs a string "command" and an array of non-empty string paths named relatedFiles; optional kind and reason fields must use their documented types.`
     };
   }
-  const risks = record2.risks;
+  const risks = record3.risks;
   const invalidRisk = risks.findIndex((risk) => {
     if (!isRecord6(risk))
       return true;
@@ -7595,8 +7675,8 @@ function validateFixMapReport(candidate, label) {
       message: `${label} has an invalid risks entry at index ${invalidRisk}; each risk needs a non-empty string "area", and optional reason and severity fields must use their documented types.`
     };
   }
-  if (record2.impact !== void 0) {
-    const impact = record2.impact;
+  if (record3.impact !== void 0) {
+    const impact = record3.impact;
     const history = isRecord6(impact) ? impact.history : void 0;
     if (!isRecord6(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord6(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
       return { success: false, message: `${label} has an invalid impact graph envelope.` };
@@ -7625,11 +7705,11 @@ function validateFixMapReport(candidate, label) {
       }
     }
   }
-  if (!isRepositoryRelativePathArray(record2.changedFiles)) {
+  if (!isRepositoryRelativePathArray(record3.changedFiles)) {
     return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
   }
-  if (record2.annotations !== void 0) {
-    const annotations = record2.annotations;
+  if (record3.annotations !== void 0) {
+    const annotations = record3.annotations;
     if (!isRecord6(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) || !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) || !Array.isArray(annotations.entries)) {
       return { success: false, message: `${label} has an invalid annotations envelope.` };
     }
@@ -7647,10 +7727,10 @@ function validateFixMapReport(candidate, label) {
       return { success: false, message: `${label} has an invalid annotations entry at index ${invalidAnnotation}.` };
     }
   }
-  if (record2.decisions !== void 0) {
-    if (!Array.isArray(record2.decisions))
+  if (record3.decisions !== void 0) {
+    if (!Array.isArray(record3.decisions))
       return { success: false, message: `${label} has invalid decisions; expected an array.` };
-    const invalidDecision = record2.decisions.findIndex((decision) => {
+    const invalidDecision = record3.decisions.findIndex((decision) => {
       if (!isRecord6(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.authoredStatus !== void 0 && (typeof decision.authoredStatus !== "string" || !decision.authoredStatus.trim() || decision.authoredStatus.length > 500 || decision.authoredStatus.includes("\0")) || decision.consequences !== void 0 && typeof decision.consequences !== "string")
         return true;
       if (decision.source !== void 0 && (!isRecord6(decision.source) || decision.source.kind !== "pull-request" || decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url)))
@@ -7668,8 +7748,8 @@ function validateFixMapReport(candidate, label) {
     if (invalidDecision !== -1)
       return { success: false, message: `${label} has an invalid decisions entry at index ${invalidDecision}.` };
   }
-  if (record2.policy !== void 0) {
-    const policy = record2.policy;
+  if (record3.policy !== void 0) {
+    const policy = record3.policy;
     if (!isRecord6(policy) || typeof policy.policyFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
       return { success: false, message: `${label} has an invalid architecture policy envelope.` };
     }
@@ -7682,7 +7762,7 @@ function validateFixMapReport(candidate, label) {
       return { success: false, message: `${label} has an invalid architecture policy finding at index ${invalidPolicyFinding}.` };
     }
   }
-  const diagnostics = record2.diagnostics;
+  const diagnostics = record3.diagnostics;
   const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
     if (!isRecord6(diagnostic))
       return true;
@@ -7694,8 +7774,8 @@ function validateFixMapReport(candidate, label) {
       message: `${label} has an invalid diagnostics entry at index ${invalidDiagnostic}; each diagnostic needs string code and message fields, an info, warning, or error severity, and optional non-empty string paths.`
     };
   }
-  if (record2.analysis !== void 0) {
-    const analysis = record2.analysis;
+  if (record3.analysis !== void 0) {
+    const analysis = record3.analysis;
     const grounding = isRecord6(analysis) ? analysis.grounding : void 0;
     const specificity = isRecord6(grounding) ? grounding.specificity : void 0;
     if (specificity !== "anchored" && specificity !== "descriptive" && specificity !== "vague") {
@@ -7724,8 +7804,8 @@ function validateFixMapReport(candidate, label) {
       }
     }
   }
-  if (record2.retrieval !== void 0) {
-    const retrieval = record2.retrieval;
+  if (record3.retrieval !== void 0) {
+    const retrieval = record3.retrieval;
     const weights = isRecord6(retrieval) ? retrieval.weights : void 0;
     if (!isRecord6(retrieval) || retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic" || !isRecord6(weights) || !isPositiveFiniteNumber(weights.structural) || !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) || !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
       return { success: false, message: `${label} has an invalid retrieval envelope.` };
@@ -7802,7 +7882,7 @@ async function runAnnotationAction(input, repoRoot, allowWrite) {
   } catch {
     throw new Error("annotation-request must be valid JSON.");
   }
-  if (!record(request) || !["list", "add", "remove"].includes(String(request.action))) throw new Error("annotation-request requires action: list, add, or remove.");
+  if (!record2(request) || !["list", "add", "remove"].includes(String(request.action))) throw new Error("annotation-request requires action: list, add, or remove.");
   const allowed = request.action === "list" ? ["action"] : request.action === "remove" ? ["action", "id"] : ["action", "scope", "note", "owner", "expiresAt"];
   if (Object.keys(request).some((key) => !allowed.includes(key))) throw new Error("annotation-request contains fields not allowed for this action.");
   if (request.action === "list") return `${JSON.stringify(await readAnnotationStore(repoRoot), null, 2)}
@@ -7815,15 +7895,15 @@ async function runAnnotationAction(input, repoRoot, allowWrite) {
     return `${JSON.stringify({ action: "remove", id, path: ".fixmap/annotations.json" })}
 `;
   }
-  if (!record(request.scope) || typeof request.note !== "string" || request.owner !== void 0 && typeof request.owner !== "string" || request.expiresAt !== void 0 && typeof request.expiresAt !== "string") throw new Error("Invalid annotation scope, note, owner, or expiry.");
+  if (!record2(request.scope) || typeof request.note !== "string" || request.owner !== void 0 && typeof request.owner !== "string" || request.expiresAt !== void 0 && typeof request.expiresAt !== "string") throw new Error("Invalid annotation scope, note, owner, or expiry.");
   const scopeFields = {
     file: ["kind", "path"],
     symbol: ["kind", "path", "symbol"],
     service: ["kind", "name"],
     contract: ["kind", "name", "path"]
   };
-  const fields = typeof request.scope.kind === "string" && Object.hasOwn(scopeFields, request.scope.kind) ? scopeFields[request.scope.kind] : void 0;
-  if (!fields || Object.keys(request.scope).some((key) => !fields.includes(key))) {
+  const fields2 = typeof request.scope.kind === "string" && Object.hasOwn(scopeFields, request.scope.kind) ? scopeFields[request.scope.kind] : void 0;
+  if (!fields2 || Object.keys(request.scope).some((key) => !fields2.includes(key))) {
     throw new Error("Annotation scope contains an unsupported kind or fields.");
   }
   const annotation = createAnnotation({
@@ -7845,7 +7925,7 @@ async function runAnnotationAction(input, repoRoot, allowWrite) {
   return `${JSON.stringify({ action: "add", id: annotation.id, path: ".fixmap/annotations.json" })}
 `;
 }
-function record(value) {
+function record2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 

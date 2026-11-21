@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -7,6 +7,8 @@ import { describe, expect, it } from "vitest";
 import { buildFixMapAnalysis, buildFixMapReport } from "../src/plan.js";
 import { renderMarkdownReport } from "../src/report.js";
 import type { EmbeddingProvider } from "../src/semantic.js";
+import { createLanguageRegistry } from "../src/language-registry.js";
+import { validateFixMapReport } from "../src/validate.js";
 
 const exec = promisify(execFile);
 
@@ -25,6 +27,35 @@ async function createAuthFixture(): Promise<string> {
 }
 
 describe("buildFixMapReport", () => {
+  it("scans and ranks a custom language through the top-level analysis entry point", async () => {
+    const root = await mkdtemp(join(tmpdir(), 'fixmap-custom-plan-'));
+    try {
+      await writeFile(join(root, 'auth.example'), 'rule resetPassword');
+      await writeFile(join(root, 'caller.example'), 'invoke auth');
+      await exec('git', ['init'], { cwd: root });
+      await exec('git', ['add', '.'], { cwd: root });
+      await exec('git', ['-c', 'user.name=FixMap Test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-m', 'fixture'], { cwd: root });
+      const languageRegistry = createLanguageRegistry([{
+        id: 'custom:example', version: '1', contractVersion: 1, extensions: ['.example'],
+        extractDefinitions: (text) => text.startsWith('rule') ? [{ name: 'resetPassword', kind: 'function', offset: 5 }] : [],
+        extractImports: (text) => text.startsWith('invoke') ? [{ specifier: 'auth', importedNames: [], wildcard: false }] : [],
+        isTestPath: () => false, resolveImport: () => ['auth.example']
+      }]);
+      const [custom, defaults] = await Promise.all([
+        buildFixMapAnalysis({ repoRoot: root, issueText: 'resetPassword', languageRegistry }),
+        buildFixMapAnalysis({ repoRoot: root, issueText: 'resetPassword' })
+      ]);
+      expect(custom.report.contextFiles[0]?.path).toBe('auth.example');
+      expect(custom.report.analysis?.grounding.identifiers).toContainEqual({
+        identifier: 'resetPassword', status: 'exact-definition', matchedFiles: ['auth.example']
+      });
+      expect(JSON.stringify(custom.report.impact)).toContain('caller.example');
+      expect(validateFixMapReport(custom.report, 'custom analysis')).toMatchObject({ success: true });
+      expect(defaults.repo.files.every((file) => file.textSample === '')).toBe(true);
+      expect(defaults.report.contextFiles).toEqual([]);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it("excludes a FixMap report saved by an earlier invocation", async () => {
     const root = await createAuthFixture();
     await writeFile(join(root, "plan.json"), JSON.stringify({

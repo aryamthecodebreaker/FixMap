@@ -5,6 +5,8 @@ import { markdownCode } from "./markdown.js";
 import type { PathExcluder } from "./exclude.js";
 import { buildHybridReportFromRepo, buildReportFromRepo } from "./report.js";
 import { scanRepo } from "./repo-scan.js";
+import type { LanguageRegistry } from "./language-registry.js";
+import { createCustomLanguageContext } from "./custom-language-context.js";
 import type { EmbeddingProvider } from "./semantic.js";
 import type { FixMapInput, FixMapReport } from "./types.js";
 import { fixMapArtifactKind, isFixMapArtifact } from "./artifacts.js";
@@ -19,6 +21,7 @@ export async function buildFixMapReport(
     /** Known command artifacts that must not compete with repository files in ranking. */
     internalExclude?: string[] | undefined;
     embeddingProvider?: EmbeddingProvider | undefined;
+    languageRegistry?: LanguageRegistry;
   }
 ): Promise<FixMapReport> {
   return (await buildFixMapAnalysis(input)).report;
@@ -38,6 +41,7 @@ export async function buildFixMapAnalysis(
     exclude?: string[] | undefined;
     internalExclude?: string[] | undefined;
     embeddingProvider?: EmbeddingProvider | undefined;
+    languageRegistry?: LanguageRegistry;
   }
 ): Promise<{ report: FixMapReport; repo: Awaited<ReturnType<typeof scanRepo>>; exclusions: PathExcluder }> {
   const scannedRepo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
@@ -59,11 +63,13 @@ export async function buildFixMapAnalysis(
   );
   const exclude = combineExclusions(requestedExclude, internalExclude);
 
+  const languageContext = input.languageRegistry ? createCustomLanguageContext(input.languageRegistry) : undefined;
   const reportInput = {
     issueText: input.issueText,
     limit: input.limit,
     exclude,
-    annotationAsOf: new Date().toISOString()
+    annotationAsOf: new Date().toISOString(),
+    ...(languageContext ? { languageContext } : {})
   };
   const report = input.embeddingProvider
     ? await buildHybridReportFromRepo(repo, { ...reportInput, embeddingProvider: input.embeddingProvider })
