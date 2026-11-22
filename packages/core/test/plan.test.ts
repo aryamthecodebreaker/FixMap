@@ -53,7 +53,76 @@ describe("buildFixMapReport", () => {
       expect(validateFixMapReport(custom.report, 'custom analysis')).toMatchObject({ success: true });
       expect(defaults.repo.files.every((file) => file.textSample === '')).toBe(true);
       expect(defaults.report.contextFiles).toEqual([]);
+      expect(custom.report.languageAdapters).toEqual([{ id: 'custom:example', version: '1', extensions: ['.example'] }]);
+      expect(defaults.report.languageAdapters).toBeUndefined();
     } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("classifies custom test files, contains failing adapters, and keeps concurrent registries independent", async () => {
+    const root = await mkdtemp(join(tmpdir(), 'fixmap-custom-failures-'));
+    try {
+      await writeFile(join(root, 'auth.example'), 'rule resetPassword');
+      await writeFile(join(root, 'auth.check.example'), 'invoke auth');
+      await writeFile(join(root, 'broken.example'), 'explode');
+      await exec('git', ['init'], { cwd: root });
+      await exec('git', ['add', '.'], { cwd: root });
+      await exec('git', ['-c', 'user.name=FixMap Test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-m', 'fixture'], { cwd: root });
+      const healthy = createLanguageRegistry([{
+        id: 'custom:example', version: '2', contractVersion: 1, extensions: ['.example'],
+        extractDefinitions: (text) => {
+          if (text === 'explode') throw new Error('secret plugin detail');
+          return text.startsWith('rule') ? [{ name: 'resetPassword', kind: 'function', offset: 5 }] : [];
+        },
+        extractImports: (text) => text.startsWith('invoke') ? [{ specifier: 'auth', importedNames: [], wildcard: false }] : [],
+        isTestPath: (path) => path.endsWith('.check.example'),
+        resolveImport: () => ['auth.example']
+      }]);
+      const malformed = createLanguageRegistry([{
+        id: 'custom:example', version: '3', contractVersion: 1, extensions: ['.example'],
+        // Forged provenance and an unsupported kind must be rejected as a whole batch.
+        extractDefinitions: () => [{ name: 'resetPassword', kind: 'macro', offset: 0, adapter: 'builtin:typescript' }] as never,
+        extractImports: () => [],
+        isTestPath: () => true,
+        resolveImport: () => ['../outside.example']
+      }]);
+      const [first, second] = await Promise.all([
+        buildFixMapAnalysis({ repoRoot: root, issueText: 'resetPassword', languageRegistry: healthy, useCache: false }),
+        buildFixMapAnalysis({ repoRoot: root, issueText: 'resetPassword', languageRegistry: malformed, useCache: false })
+      ]);
+
+      expect(first.repo.files.find((file) => file.path === 'auth.check.example')?.isTest).toBe(true);
+      expect(first.repo.files.find((file) => file.path === 'auth.example')?.isTest).toBe(false);
+      expect(first.report.contextFiles[0]?.path).toBe('auth.example');
+      const firstFailure = first.report.diagnostics.find((diagnostic) => diagnostic.code === 'language-adapter-failed');
+      expect(firstFailure?.paths).toEqual(['broken.example']);
+      expect(firstFailure?.message).toContain('custom:example, adapter-extraction-failed');
+      expect(JSON.stringify(first.report)).not.toContain('secret plugin detail');
+      expect(first.report.languageAdapters).toEqual([{ id: 'custom:example', version: '2', extensions: ['.example'] }]);
+      expect(validateFixMapReport(first.report, 'healthy custom analysis')).toMatchObject({ success: true });
+
+      // The malformed registry produced no definitions, so nothing is grounded and every file is reported.
+      expect(second.report.analysis?.grounding.identifiers.find((entry) => entry.identifier === 'resetPassword')?.status).not.toBe('exact-definition');
+      expect(second.report.diagnostics.find((diagnostic) => diagnostic.code === 'language-adapter-failed')?.paths)
+        .toEqual(['auth.check.example', 'auth.example', 'broken.example']);
+      expect(second.repo.files.every((file) => !file.isTest)).toBe(true);
+      expect(JSON.stringify(second.report.impact ?? {})).not.toContain('outside.example');
+      expect(second.report.languageAdapters?.[0]?.version).toBe('3');
+      expect(validateFixMapReport(second.report, 'malformed custom analysis')).toMatchObject({ success: true });
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("rejects malformed language adapter provenance in saved reports", () => {
+    const base = { summary: 's', contextFiles: [], testRoutes: [], risks: [], changedFiles: [], diagnostics: [] };
+    expect(validateFixMapReport({ ...base, languageAdapters: [{ id: 'custom:ok', version: '1', extensions: ['.ok'] }] }, 'r')).toMatchObject({ success: true });
+    for (const languageAdapters of [
+      [{ id: 'typescript', version: '1', extensions: ['.ts'] }],
+      [{ id: 'custom:ok', version: '1', extensions: [] }],
+      [{ id: 'custom:ok', version: '1', extensions: ['.OK'] }],
+      [{ id: 'custom:ok', version: '1', extensions: ['.ok'], extractImports: 'code' }],
+      'custom:ok'
+    ]) {
+      expect(validateFixMapReport({ ...base, languageAdapters }, 'r')).toMatchObject({ success: false });
+    }
   });
 
   it("excludes a FixMap report saved by an earlier invocation", async () => {

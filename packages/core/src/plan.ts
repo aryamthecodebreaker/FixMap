@@ -64,6 +64,7 @@ export async function buildFixMapAnalysis(
   const exclude = combineExclusions(requestedExclude, internalExclude);
 
   const languageContext = input.languageRegistry ? createCustomLanguageContext(input.languageRegistry) : undefined;
+  const analyzedRepo = languageContext ? classifyCustomTests(repo, languageContext) : repo;
   const reportInput = {
     issueText: input.issueText,
     limit: input.limit,
@@ -72,8 +73,30 @@ export async function buildFixMapAnalysis(
     ...(languageContext ? { languageContext } : {})
   };
   const report = input.embeddingProvider
-    ? await buildHybridReportFromRepo(repo, { ...reportInput, embeddingProvider: input.embeddingProvider })
-    : buildReportFromRepo(repo, reportInput);
+    ? await buildHybridReportFromRepo(analyzedRepo, { ...reportInput, embeddingProvider: input.embeddingProvider })
+    : buildReportFromRepo(analyzedRepo, reportInput);
+
+  if (input.languageRegistry && languageContext) {
+    report.languageAdapters = input.languageRegistry.customAdapters.map((adapter) => ({
+      id: adapter.id,
+      version: adapter.version,
+      extensions: [...adapter.extensions]
+    }));
+    const { total, entries } = languageContext.failures();
+    if (total > 0) {
+      const shown = entries.slice(0, 8);
+      report.diagnostics.push({
+        code: "language-adapter-failed",
+        severity: "warning",
+        message:
+          `${total} custom language adapter ${total === 1 ? "call" : "calls"} failed or returned invalid results, so ` +
+          `${total === 1 ? "that file was" : "those files were"} analyzed without custom facts: ` +
+          shown.map((entry) => `${markdownCode(entry.path)} (${entry.adapter}, ${entry.code})`).join(", ") +
+          `${total > shown.length ? ", ..." : ""}.`,
+        paths: shown.map((entry) => entry.path)
+      });
+    }
+  }
 
   if (generatedArtifacts.length > 0) {
     const described = generatedArtifacts.slice(0, 8).map((file) =>
@@ -120,7 +143,7 @@ export async function buildFixMapAnalysis(
     }
   }
 
-  return { report, repo, exclusions: exclude };
+  return { report, repo: analyzedRepo, exclusions: exclude };
 }
 
 function combineExclusions(primary: PathExcluder, internal: PathExcluder): PathExcluder {
@@ -169,4 +192,22 @@ async function readIgnoreFile(repoRoot: string): Promise<string[]> {
     // Having no ignore file is the normal case, not an error worth reporting.
     return [];
   }
+}
+
+type ScannedRepo = Awaited<ReturnType<typeof scanRepo>>;
+
+/**
+ * A custom adapter may add test classification (for example its own test-file naming);
+ * it never removes the language-neutral classification the scanner already made.
+ */
+function classifyCustomTests(repo: ScannedRepo, context: ReturnType<typeof createCustomLanguageContext>): ScannedRepo {
+  let changed = false;
+  const files = repo.files.map((file) => {
+    if (file.isTest || !context.supports(file.extension)) return file;
+    const extracted = context.extract(file);
+    if (extracted.status !== "ok" || !extracted.facts.isTest) return file;
+    changed = true;
+    return { ...file, isTest: true };
+  });
+  return changed ? { ...repo, files } : repo;
 }

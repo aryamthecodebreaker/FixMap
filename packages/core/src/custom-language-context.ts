@@ -22,6 +22,14 @@ const fields = (value: Record<string, unknown>, allowed: string[]) => Object.key
 const repoPath = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 4_096 &&
   !/[\x00-\x1f\x7f\\:]/.test(value) && value.split('/').every((part) => part !== '' && part !== '.' && part !== '..');
 
+export type CustomLanguageFailure = {
+  adapter: string;
+  path: string;
+  code: "adapter-input-invalid" | "adapter-extraction-failed" | "adapter-resolution-failed";
+};
+
+const MAX_RECORDED_FAILURES = 200;
+
 export type CustomResolutionResult =
   | { status: "unsupported" }
   | { status: "ok"; targets: string[] }
@@ -42,7 +50,21 @@ function validDefinitions(value: unknown, textLength: number): value is Definiti
 /** Trusted synchronous callbacks only: exception containment is not execution isolation. */
 export function createCustomLanguageContext(registry: LanguageRegistry) {
   const cache = new WeakMap<object, { path: string; extension: string; text: string; result: CustomExtractionResult }>();
+  const failures = new Map<string, CustomLanguageFailure>();
+  let failureCount = 0;
+  const recordFailure = (failure: CustomLanguageFailure) => {
+    const key = [failure.adapter, failure.path, failure.code].join("\u0000");
+    if (failures.has(key)) return;
+    failureCount += 1;
+    if (failures.size < MAX_RECORDED_FAILURES) failures.set(key, failure);
+  };
   return Object.freeze({
+    /** Detached, sorted, bounded failures; total counts every distinct failure seen. */
+    failures(): { total: number; entries: CustomLanguageFailure[] } {
+      const entries = [...failures.values()].map((entry) => ({ ...entry })).sort((left, right) =>
+        left.path < right.path ? -1 : left.path > right.path ? 1 : left.code < right.code ? -1 : left.code > right.code ? 1 : 0);
+      return { total: failureCount, entries };
+    },
     supports(extension: string): boolean { return registry.customForExtension(extension) !== undefined; },
     resolve(extension: string, fromPath: string, imported: ImportFact, candidatePaths: readonly string[]): CustomResolutionResult {
       const adapter = registry.customForExtension(extension);
@@ -64,6 +86,7 @@ export function createCustomLanguageContext(registry: LanguageRegistry) {
         // Never retain a plugin-owned result; omit self edges and stabilize ordering.
         return { status: "ok", targets: [...new Set(proposed as string[])].filter((target) => target !== fromPath).sort() };
       } catch {
+        if (repoPath(fromPath)) recordFailure({ adapter: adapter.id, path: fromPath, code: "adapter-resolution-failed" });
         return { status: "failed", adapter: adapter.id, code: "adapter-resolution-failed" };
       }
     },
@@ -95,6 +118,9 @@ export function createCustomLanguageContext(registry: LanguageRegistry) {
           // No raw exception details or source text cross the diagnostic boundary.
           result = { status: "failed", adapter: adapter.id, code: "adapter-extraction-failed" };
         }
+      }
+      if (result.status === "failed" && repoPath(file.path)) {
+        recordFailure({ adapter: adapter.id, path: file.path, code: result.code });
       }
       cache.set(file, { path: file.path, extension, text, result });
       return structuredClone(result);

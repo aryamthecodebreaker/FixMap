@@ -177,6 +177,19 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
   }
 
+  if (record.languageAdapters !== undefined) {
+    const adapters = record.languageAdapters;
+    if (!Array.isArray(adapters) || adapters.length > 32 || !adapters.every((adapter) =>
+      isRecord(adapter) &&
+      Object.keys(adapter).every((key) => key === "id" || key === "version" || key === "extensions") &&
+      typeof adapter.id === "string" && /^custom:[a-z][a-z0-9-]{0,63}$/.test(adapter.id) &&
+      typeof adapter.version === "string" && /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(adapter.version) &&
+      Array.isArray(adapter.extensions) && adapter.extensions.length > 0 && adapter.extensions.length <= 32 &&
+      adapter.extensions.every((extension: unknown) => typeof extension === "string" && /^\.[a-z0-9][a-z0-9_-]{0,15}$/.test(extension)))) {
+      return { success: false, message: `${label} has invalid languageAdapters; each entry needs a custom: id, a version, and lowercase extensions.` };
+    }
+  }
+
   if (record.annotations !== undefined) {
     const annotations = record.annotations;
     if (!isRecord(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) ||
