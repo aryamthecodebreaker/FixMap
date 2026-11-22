@@ -1,18 +1,17 @@
 import { realpath, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { compareArchitectureRefs, type ArchitectureDrift, type HistoricalArchitectureSnapshot } from "@aryam/fixmap-core";
+import { compareArchitectureRefs, type ArchitectureRefComparison } from "@aryam/fixmap-core";
 
-export const HISTORY_USAGE = `Usage: fixmap history --from <git-ref> --to <git-ref> [--repo <dir>] [--coupling-delta <n>] [--no-policy] [--format markdown|json] [--output <file>]
+export const HISTORY_USAGE = `Usage: fixmap history --from <git-ref> --to <git-ref> [--repo <dir>] [--coupling-delta <n>] [--no-policy] [--no-cache] [--format markdown|json] [--output <file>]
 
-Compares exact committed architecture snapshots through Git objects without checking out either ref or changing the worktree.
+Preview: Compares exact committed architecture snapshots through Git objects without checking out either ref or changing the worktree.
+Reports added/removed import edges, new/resolved cycles, .fixmap/policy.json boundary violations, coupling growth, and
+decision disagreements: edges at --to that break a fixmap-deny-imports rule stated by an accepted decision record.
+Snapshots are cached per exact commit outside the repository (FIXMAP_CACHE_DIR); --no-cache rebuilds them.
 `;
 
-type HistoryResult = {
-  from: HistoricalArchitectureSnapshot;
-  to: HistoricalArchitectureSnapshot;
-  drift: ArchitectureDrift;
-};
+type HistoryResult = ArchitectureRefComparison;
 
 export async function runHistoryCommand(
   args: string[],
@@ -42,7 +41,8 @@ export async function runHistoryCommand(
       fromRef: parsed.from,
       toRef: parsed.to,
       applyRepositoryPolicy: parsed.applyPolicy,
-      couplingDelta: parsed.couplingDelta
+      couplingDelta: parsed.couplingDelta,
+      useCache: parsed.useCache
     });
     const rendered = parsed.format === "json" ? `${JSON.stringify(result, null, 2)}\n` : renderHistoryMarkdown(result);
     if (parsed.output) await (dependencies.writeOutput ?? ((path, contents) => writeFile(path, contents, "utf8")))(parsed.output, rendered);
@@ -75,6 +75,12 @@ export function renderHistoryMarkdown(result: HistoryResult): string {
     ...section("New boundary violations", drift.newBoundaryViolations, (entry) => `\`${entry.ruleId}\`: \`${entry.from}\` -> \`${entry.to}\``),
     ...section("Resolved boundary violations", drift.resolvedBoundaryViolations, (entry) => `\`${entry.ruleId}\`: \`${entry.from}\` -> \`${entry.to}\``),
     ...section("Coupling growth", drift.couplingGrowth, (entry) => `\`${entry.path}\`: ${entry.before} -> ${entry.after} (+${entry.delta})`),
+    ...section("Decision disagreements", result.decisionDisagreements, (entry) =>
+      `\`${entry.decisionPath}\` (${entry.decisionTitle}) denies \`${entry.rule.from}\` -> \`${entry.rule.deny}\`; ` +
+      `\`${entry.edge.from}\` -> \`${entry.edge.to}\` ${entry.introduced ? "was introduced in this range" : "already existed at the earlier ref"}`),
+    ...(result.to.decisionDiagnostics.length > 0
+      ? section("Decision records not evaluated", result.to.decisionDiagnostics, (entry) => entry.message)
+      : []),
     "> Read-only historical comparison. FixMap read committed Git objects and did not checkout a ref or change the worktree."
   ].join("\n")}\n`;
 }
@@ -86,6 +92,7 @@ type ParsedArgs = {
   repo: string;
   couplingDelta: number;
   applyPolicy: boolean;
+  useCache: boolean;
   format: "markdown" | "json";
   output?: string;
 } | { ok: false; message: string };
@@ -96,15 +103,17 @@ function parseArgs(args: string[]): ParsedArgs {
   let repo = ".";
   let couplingDelta = 2;
   let applyPolicy = true;
+  let useCache = true;
   let format: "markdown" | "json" = "markdown";
   let output: string | undefined;
   const seen = new Set<string>();
   for (let index = 0; index < args.length; index += 1) {
     const raw = args[index]!;
-    if (raw === "--no-policy") {
-      if (seen.has(raw)) return { ok: false, message: "Pass --no-policy only once." };
+    if (raw === "--no-policy" || raw === "--no-cache") {
+      if (seen.has(raw)) return { ok: false, message: `Pass ${raw} only once.` };
       seen.add(raw);
-      applyPolicy = false;
+      if (raw === "--no-policy") applyPolicy = false;
+      else useCache = false;
       continue;
     }
     const separator = raw.indexOf("=");
@@ -134,7 +143,7 @@ function parseArgs(args: string[]): ParsedArgs {
     }
   }
   if (!from || !to) return { ok: false, message: "history requires both --from <git-ref> and --to <git-ref>." };
-  return { ok: true, from, to, repo, couplingDelta, applyPolicy, format, ...(output ? { output } : {}) };
+  return { ok: true, from, to, repo, couplingDelta, applyPolicy, useCache, format, ...(output ? { output } : {}) };
 }
 
 function historyError(repo: string, error: unknown): string {

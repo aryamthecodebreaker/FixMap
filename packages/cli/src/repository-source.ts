@@ -31,6 +31,8 @@ export type RepositoryPlanInput = {
   baseRef?: string | undefined;
   headRef?: string | undefined;
   checkoutRef?: string | undefined;
+  /** Preview: rank against this local committed ref without checking it out. */
+  atRef?: string | undefined;
   workingTree?: boolean | undefined;
   includeUntracked?: boolean | undefined;
   useCache?: boolean | undefined;
@@ -574,7 +576,8 @@ export async function buildReportForRepository(
         exclude: input.exclude,
         internalExclude: input.internalExclude,
         embeddingProvider,
-        ...(evidenceSources.length > 0 ? { evidenceSources } : {})
+        ...(evidenceSources.length > 0 ? { evidenceSources } : {}),
+        ...(input.atRef ? { atRef: input.atRef } : {})
       });
       reportProgress(`ranked ${report.contextFiles.length} context files`);
       const sourceDiagnostics = [issueDiagnostic, resolvedSource.diagnostic].filter(

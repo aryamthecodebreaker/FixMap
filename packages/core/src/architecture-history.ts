@@ -1,11 +1,17 @@
 import { execFile, spawn } from "node:child_process";
-import { extname, resolve } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { architecturePolicyFromRepo, buildArchitectureSnapshot, compareArchitectureSnapshots } from "./architecture.js";
 import type { ArchitectureDrift, ArchitectureSnapshot } from "./architecture.js";
+import { inventoryDecisionRecords } from "./decisions.js";
+import type { DecisionDiagnostic } from "./decisions.js";
+import { buildPathExcluder } from "./exclude.js";
 import { isLanguageTestPath } from "./language-adapters.js";
 import { SOURCE_FILE_EXTENSIONS } from "./paths.js";
-import type { RepoFile, RepoMap, ScanDiagnostic } from "./types.js";
+import type { PackageScript, RepoFile, RepoMap, ScanDiagnostic } from "./types.js";
 
 const exec = promisify(execFile);
 const MAX_REF_LENGTH = 500;
@@ -14,6 +20,12 @@ const MAX_FILES = 25_000;
 const MAX_TEXT_SAMPLE_BYTES = 64_000;
 const MAX_BATCH_BYTES = 64 * 1024 * 1024;
 const MAX_BATCH_OUTPUT_BYTES = MAX_BATCH_BYTES + 2 * 1024 * 1024;
+// Bump whenever the import graph, snapshot, or decision-rule derivation changes. A commit's
+// tree never changes, so this version and the commit ID are the whole invalidation key.
+const ARCHITECTURE_CACHE_VERSION = 1;
+const ARCHITECTURE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const ARCHITECTURE_CACHE_FILE = /^architecture-v\d+-[a-f0-9]{40,64}-(?:policy|no-policy)\.json$/;
+const ARCHITECTURE_CACHE_TEMP_FILE = /^architecture-v\d+-[a-f0-9]{40,64}-(?:policy|no-policy)\.json\.\d+-[0-9a-f-]{36}\.tmp$/;
 
 type TreeEntry = { mode: string; oid: string; size: number; path: string };
 
@@ -21,19 +33,55 @@ export type HistoricalRepoMap = {
   requestedRef: string;
   commit: string;
   repo: RepoMap;
+  /** Root `.fixmapignore` text as committed, when present and readable. */
+  ignoreFile?: string;
+};
+
+/** An import rule stated by an accepted decision record at this commit. */
+export type HistoricalDecisionRule = {
+  decisionId: string;
+  decisionPath: string;
+  decisionTitle: string;
+  from: string;
+  deny: string;
 };
 
 export type HistoricalArchitectureSnapshot = {
   requestedRef: string;
   commit: string;
   snapshot: ArchitectureSnapshot;
+  decisionRules: HistoricalDecisionRule[];
+  /** Decision records at this commit that could not be read as authored rules. */
+  decisionDiagnostics: DecisionDiagnostic[];
 };
+
+export type DecisionDisagreement = {
+  decisionId: string;
+  decisionPath: string;
+  decisionTitle: string;
+  rule: { from: string; deny: string };
+  edge: { from: string; to: string };
+  /** True when the violating edge is absent from the earlier snapshot. */
+  introduced: boolean;
+};
+
+export type ArchitectureRefComparison = {
+  from: HistoricalArchitectureSnapshot;
+  to: HistoricalArchitectureSnapshot;
+  drift: ArchitectureDrift;
+  decisionDisagreements: DecisionDisagreement[];
+};
+
+type ArchitectureEntry = Omit<HistoricalArchitectureSnapshot, "requestedRef" | "commit">;
 
 /** Read a committed repository state through Git objects without checking it out. */
 export async function scanRepoAtRef(input: { repoRoot: string; ref: string }): Promise<HistoricalRepoMap> {
   const repoRoot = resolve(input.repoRoot);
   const requestedRef = validateRef(input.ref);
-  const commit = await resolveCommit(repoRoot, requestedRef);
+  return scanCommit(repoRoot, requestedRef, await resolveCommit(repoRoot, requestedRef));
+}
+
+async function scanCommit(repoRoot: string, requestedRef: string, commit: string): Promise<HistoricalRepoMap> {
   const { stdout } = await exec("git", ["ls-tree", "-r", "-z", "-l", "--full-tree", commit, "--"], {
     cwd: repoRoot,
     encoding: "utf8",
@@ -51,13 +99,15 @@ export async function scanRepoAtRef(input: { repoRoot: string; ref: string }): P
   const readable: TreeEntry[] = [];
   let scheduledBytes = 0;
   for (const entry of entries) {
-    if (!isSourcePath(entry.path) || entry.size > MAX_TEXT_SAMPLE_BYTES) continue;
+    if ((!isSourcePath(entry.path) && entry.path !== ".fixmapignore") || entry.size > MAX_TEXT_SAMPLE_BYTES) continue;
     if (scheduledBytes + entry.size > MAX_BATCH_BYTES) continue;
     readable.push(entry);
     scheduledBytes += entry.size;
   }
   const content = await readBlobs(repoRoot, readable);
   const files = entries.map((entry): RepoFile => buildRepoFile(entry, content.get(entry.oid)));
+  const ignoreEntry = entries.find((entry) => entry.path === ".fixmapignore");
+  const ignoreBytes = ignoreEntry ? content.get(ignoreEntry.oid) : undefined;
   return {
     requestedRef,
     commit,
@@ -65,12 +115,13 @@ export async function scanRepoAtRef(input: { repoRoot: string; ref: string }): P
       root: repoRoot,
       files,
       trackedFiles: entries.map((entry) => entry.path),
-      packageScripts: [],
+      packageScripts: historicalPackageScripts(files, diagnostics),
       changedFiles: [],
       diffText: "",
       packageManager: inferPackageManager(entries),
       diagnostics
-    }
+    },
+    ...(ignoreBytes ? { ignoreFile: ignoreBytes.toString("utf8") } : {})
   };
 }
 
@@ -78,14 +129,37 @@ export async function buildArchitectureSnapshotAtRef(input: {
   repoRoot: string;
   ref: string;
   applyRepositoryPolicy?: boolean;
+  /** Reuse and store per-commit snapshots outside the repository (default true). */
+  useCache?: boolean;
 }): Promise<HistoricalArchitectureSnapshot> {
-  const historical = await scanRepoAtRef(input);
-  const policy = input.applyRepositoryPolicy === false ? undefined : architecturePolicyFromRepo(historical.repo);
-  return {
-    requestedRef: historical.requestedRef,
-    commit: historical.commit,
-    snapshot: buildArchitectureSnapshot(historical.repo, policy)
+  const repoRoot = resolve(input.repoRoot);
+  const requestedRef = validateRef(input.ref);
+  const commit = await resolveCommit(repoRoot, requestedRef);
+  const applyPolicy = input.applyRepositoryPolicy !== false;
+  const cachePath = input.useCache === false ? undefined : architectureCachePath(repoRoot, commit, applyPolicy);
+  const cached = cachePath ? await readArchitectureCache(cachePath, commit, applyPolicy) : undefined;
+  if (cached) return { requestedRef, commit, ...cached };
+
+  const historical = await scanCommit(repoRoot, requestedRef, commit);
+  const policy = applyPolicy ? architecturePolicyFromRepo(historical.repo) : undefined;
+  const inventory = inventoryDecisionRecords(historical.repo);
+  const entry: ArchitectureEntry = {
+    snapshot: buildArchitectureSnapshot(historical.repo, policy),
+    // Only accepted records state intent. Proposed, rejected, superseded, and unlabeled
+    // records are history, and treating them as rules would invent disagreements.
+    decisionRules: inventory.records.filter((record) => record.status === "accepted").flatMap((record) =>
+      (record.dependencyRules ?? []).map((rule) => ({
+        decisionId: record.id,
+        decisionPath: record.path,
+        decisionTitle: record.title,
+        from: rule.from,
+        deny: rule.deny
+      }))
+    ),
+    decisionDiagnostics: inventory.diagnostics.filter((diagnostic) => diagnostic.code !== "decision-target-missing")
   };
+  if (cachePath) await writeArchitectureCache(cachePath, commit, applyPolicy, entry);
+  return { requestedRef, commit, ...entry };
 }
 
 export async function compareArchitectureRefs(input: {
@@ -94,30 +168,155 @@ export async function compareArchitectureRefs(input: {
   toRef: string;
   applyRepositoryPolicy?: boolean;
   couplingDelta?: number;
-}): Promise<{
-  from: HistoricalArchitectureSnapshot;
-  to: HistoricalArchitectureSnapshot;
-  drift: ArchitectureDrift;
-}> {
+  useCache?: boolean;
+}): Promise<ArchitectureRefComparison> {
+  const options = {
+    repoRoot: input.repoRoot,
+    ...(input.applyRepositoryPolicy !== undefined ? { applyRepositoryPolicy: input.applyRepositoryPolicy } : {}),
+    ...(input.useCache !== undefined ? { useCache: input.useCache } : {})
+  };
   const [from, to] = await Promise.all([
-    buildArchitectureSnapshotAtRef({
-      repoRoot: input.repoRoot,
-      ref: input.fromRef,
-      ...(input.applyRepositoryPolicy !== undefined ? { applyRepositoryPolicy: input.applyRepositoryPolicy } : {})
-    }),
-    buildArchitectureSnapshotAtRef({
-      repoRoot: input.repoRoot,
-      ref: input.toRef,
-      ...(input.applyRepositoryPolicy !== undefined ? { applyRepositoryPolicy: input.applyRepositoryPolicy } : {})
-    })
+    buildArchitectureSnapshotAtRef({ ...options, ref: input.fromRef }),
+    buildArchitectureSnapshotAtRef({ ...options, ref: input.toRef })
   ]);
   return {
     from,
     to,
     drift: compareArchitectureSnapshots(from.snapshot, to.snapshot, {
       ...(input.couplingDelta !== undefined ? { couplingDelta: input.couplingDelta } : {})
-    })
+    }),
+    decisionDisagreements: findDecisionDisagreements(from.snapshot, to)
   };
+}
+
+/** Rules come from the later commit's accepted records and are checked against its edges. */
+function findDecisionDisagreements(
+  previous: ArchitectureSnapshot,
+  current: HistoricalArchitectureSnapshot
+): DecisionDisagreement[] {
+  const earlier = new Set(previous.edges.map((edge) => `${edge.from}\0${edge.to}`));
+  return current.decisionRules.flatMap((rule) => {
+    const from = buildPathExcluder([rule.from]);
+    const deny = buildPathExcluder([rule.deny]);
+    return current.snapshot.edges.filter((edge) => from.excludes(edge.from) && deny.excludes(edge.to)).map((edge) => ({
+      decisionId: rule.decisionId,
+      decisionPath: rule.decisionPath,
+      decisionTitle: rule.decisionTitle,
+      rule: { from: rule.from, deny: rule.deny },
+      edge: { from: edge.from, to: edge.to },
+      introduced: !earlier.has(`${edge.from}\0${edge.to}`)
+    }));
+  }).sort((a, b) => a.decisionPath.localeCompare(b.decisionPath) || a.rule.from.localeCompare(b.rule.from) ||
+    a.rule.deny.localeCompare(b.rule.deny) || a.edge.from.localeCompare(b.edge.from) || a.edge.to.localeCompare(b.edge.to));
+}
+
+function architectureCacheRoot(): string {
+  // Same location rules as the repository scan cache: FIXMAP_CACHE_DIR, else the user cache.
+  return resolve(process.env.FIXMAP_CACHE_DIR ?? join(
+    process.env.LOCALAPPDATA ?? process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"),
+    "fixmap",
+    "scans"
+  ));
+}
+
+function architectureCachePath(repoRoot: string, commit: string, applyPolicy: boolean): string | undefined {
+  const cacheRoot = architectureCacheRoot();
+  const fold = (value: string) => process.platform === "win32" ? value.toLowerCase() : value;
+  const distance = relative(fold(repoRoot), fold(cacheRoot));
+  // Never write into the repository being read, matching the scan cache.
+  if (distance === "" || (distance !== ".." && !distance.startsWith(`..${sep}`) && !isAbsolute(distance))) return undefined;
+  return join(cacheRoot, `architecture-v${ARCHITECTURE_CACHE_VERSION}-${commit}-${applyPolicy ? "policy" : "no-policy"}.json`);
+}
+
+async function readArchitectureCache(path: string, commit: string, applyPolicy: boolean): Promise<ArchitectureEntry | undefined> {
+  try {
+    const parsed = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+    if (parsed.architectureHistoryCacheVersion !== ARCHITECTURE_CACHE_VERSION || parsed.commit !== commit ||
+      parsed.applyPolicy !== applyPolicy || typeof parsed.checksum !== "string") return undefined;
+    if (parsed.checksum !== checksum(JSON.stringify(parsed.entry))) return undefined;
+    return isArchitectureEntry(parsed.entry) ? parsed.entry : undefined;
+  } catch {
+    // Missing, unreadable, or corrupt entries are rebuilt from Git objects.
+    return undefined;
+  }
+}
+
+async function writeArchitectureCache(path: string, commit: string, applyPolicy: boolean, entry: ArchitectureEntry): Promise<void> {
+  const temporaryPath = `${path}.${process.pid}-${randomUUID()}.tmp`;
+  try {
+    await mkdir(dirname(path), { recursive: true });
+    await pruneArchitectureCache(dirname(path));
+    const record = {
+      architectureHistoryCacheVersion: ARCHITECTURE_CACHE_VERSION,
+      commit,
+      applyPolicy,
+      checksum: checksum(JSON.stringify(entry)),
+      entry
+    };
+    await writeFile(temporaryPath, `${JSON.stringify(record)}\n`, { encoding: "utf8", flag: "wx" });
+    await rename(temporaryPath, path);
+  } catch {
+    // Caching is an optimization; a read-only cache directory must not fail a history run.
+    try {
+      await unlink(temporaryPath);
+    } catch { /* The rename may already have consumed it. */ }
+  }
+}
+
+async function pruneArchitectureCache(directory: string): Promise<void> {
+  try {
+    const now = Date.now();
+    await Promise.all((await readdir(directory, { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && (ARCHITECTURE_CACHE_FILE.test(entry.name) || ARCHITECTURE_CACHE_TEMP_FILE.test(entry.name)))
+      .map(async (entry) => {
+        const path = join(directory, entry.name);
+        try {
+          if (now - (await stat(path)).mtimeMs > ARCHITECTURE_CACHE_MAX_AGE_MS) await unlink(path);
+        } catch { /* Best effort. */ }
+      }));
+  } catch { /* A missing or read-only directory is harmless. */ }
+}
+
+function isArchitectureEntry(value: unknown): value is ArchitectureEntry {
+  if (!isRecord(value) || !isRecord(value.snapshot) || !Array.isArray(value.decisionRules) || !Array.isArray(value.decisionDiagnostics)) return false;
+  const snapshot = value.snapshot;
+  const edge = (entry: unknown) => isRecord(entry) && typeof entry.from === "string" && typeof entry.to === "string";
+  return snapshot.architectureSnapshotVersion === 1 && typeof snapshot.fingerprint === "string" &&
+    typeof snapshot.sourceFingerprint === "string" && Array.isArray(snapshot.edges) && snapshot.edges.every(edge) &&
+    Array.isArray(snapshot.cycles) && snapshot.cycles.every((cycle) => Array.isArray(cycle) && cycle.every((path) => typeof path === "string")) &&
+    Array.isArray(snapshot.coupling) && Array.isArray(snapshot.boundaryViolations) && isRecord(snapshot.truncated) &&
+    value.decisionRules.every((rule) => isRecord(rule) &&
+      ["decisionId", "decisionPath", "decisionTitle", "from", "deny"].every((key) => typeof rule[key] === "string"));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function checksum(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function historicalPackageScripts(files: readonly RepoFile[], diagnostics: ScanDiagnostic[]): PackageScript[] {
+  return files.filter((file) => file.path === "package.json" || file.path.endsWith("/package.json")).flatMap((manifest) => {
+    if (manifest.textSampleComplete !== true) return [];
+    try {
+      const parsed = JSON.parse(manifest.textSample.replace(/^﻿/, "")) as { name?: unknown; scripts?: unknown };
+      const packageDir = manifest.path.includes("/") ? manifest.path.slice(0, manifest.path.lastIndexOf("/")) : "";
+      const packageName = typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : undefined;
+      const scripts = isRecord(parsed.scripts) ? parsed.scripts : {};
+      return Object.entries(scripts).flatMap(([name, command]) => typeof command === "string"
+        ? [{ name, command, packageDir, ...(packageName ? { packageName } : {}) }]
+        : []);
+    } catch {
+      diagnostics.push({
+        code: "package-json-invalid",
+        severity: "warning",
+        message: `Could not parse ${manifest.path} at this commit; scripts from that package were skipped.`
+      });
+      return [];
+    }
+  });
 }
 
 function validateRef(value: string): string {

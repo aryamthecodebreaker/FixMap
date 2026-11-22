@@ -65,6 +65,7 @@ type PlanArguments = {
   head?: string;
   repo?: string;
   ref?: string;
+  at?: string;
   format?: "markdown" | "json" | "agent";
   limit?: number;
   exclude?: string[];
@@ -149,6 +150,12 @@ const PLAN_TOOL = {
           "GitHub URLs support issue-only analysis and are removed after scanning."
       },
       ref: { type: "string", description: "Branch or tag to scan when repo is a remote GitHub URL" },
+      at: {
+        type: "string",
+        description:
+          "Preview (may change before v0.10.0): Rank against this committed Git ref of a local repo, read from Git objects " +
+          "without checking out or changing the worktree. Needs issue; cannot be combined with diff, base/head, workingTree, or a remote repo."
+      },
       format: {
         type: "string",
         description: "Output format: markdown (default), json, or compact agent, case-insensitive"
@@ -391,7 +398,9 @@ const HISTORY_TOOL = {
   title: "FixMap history",
   description:
     "Preview (may change before v0.10.0): Compare architecture at two exact committed Git refs without checking out either ref or changing the worktree. " +
-    "Returns immutable commit IDs plus added/removed edges, cycle and boundary drift, and coupling growth.",
+    "Returns immutable commit IDs plus added/removed edges, cycle and boundary drift, coupling growth, and decision disagreements: " +
+    "edges at the later ref that break a fixmap-deny-imports rule stated by an accepted decision record. " +
+    "Snapshots are cached per exact commit outside the repository.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -400,6 +409,7 @@ const HISTORY_TOOL = {
       to: { type: "string", description: "Later committed Git ref" },
       couplingDelta: { type: "integer", minimum: 1, maximum: 10000, description: "Minimum coupling growth to report (default 2)" },
       applyPolicy: { type: "boolean", description: "Apply the repository architecture policy when present (default true)" },
+      noCache: { type: "boolean", description: "Rebuild both snapshots instead of reusing the per-commit cache" },
       format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
     },
     required: ["from", "to"],
@@ -749,7 +759,7 @@ export function createFixMapMcpServer(
     }
     if (request.params.name === HISTORY_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;
-      const unknown = Object.keys(record ?? {}).filter((key) => !["repo", "from", "to", "couplingDelta", "applyPolicy", "format"].includes(key));
+      const unknown = Object.keys(record ?? {}).filter((key) => !["repo", "from", "to", "couplingDelta", "applyPolicy", "noCache", "format"].includes(key));
       if (unknown.length > 0) {
         return { isError: true, content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }] };
       }
@@ -763,8 +773,10 @@ export function createFixMapMcpServer(
       if (record.couplingDelta !== undefined && (!Number.isSafeInteger(record.couplingDelta) || Number(record.couplingDelta) < 1 || Number(record.couplingDelta) > 10_000)) {
         return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "couplingDelta" must be an integer from 1 to 10000.' }] };
       }
-      if (record.applyPolicy !== undefined && typeof record.applyPolicy !== "boolean") {
-        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "applyPolicy" must be a boolean.' }] };
+      for (const name of ["applyPolicy", "noCache"] as const) {
+        if (record[name] !== undefined && typeof record[name] !== "boolean") {
+          return { isError: true, content: [{ type: "text", text: `Invalid arguments: "${name}" must be a boolean.` }] };
+        }
       }
       const format = normalizeFormat(record.format);
       if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
@@ -775,7 +787,8 @@ export function createFixMapMcpServer(
           fromRef: record.from.trim(),
           toRef: record.to.trim(),
           couplingDelta: record.couplingDelta === undefined ? 2 : Number(record.couplingDelta),
-          applyRepositoryPolicy: record.applyPolicy === undefined ? true : record.applyPolicy
+          applyRepositoryPolicy: record.applyPolicy !== false,
+          useCache: record.noCache !== true
         });
         return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(result, null, 2)}\n` : renderHistoryMarkdown(result) }] };
       } catch (error) {
@@ -981,6 +994,7 @@ export function createFixMapMcpServer(
       report = await buildReportForRepository({
         repo: args.repo ?? (tryParseGitHubIssueSource(args.issue ?? "") ? undefined : defaultRepo),
         checkoutRef: args.ref,
+        ...(args.at ? { atRef: args.at } : {}),
         issueText: args.issue,
         diffSpec: args.diff,
         baseRef: args.base,
@@ -1033,7 +1047,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence"]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence", "at"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return {
@@ -1101,6 +1115,17 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
     return { success: false, message: '"ref" must be a safe branch or tag name.' };
   }
   if (value.issue && /^https?:\/\/\S+$/i.test(value.issue) && !tryParseGitHubIssueSource(value.issue)) return { success: false, message: '"issue" URL must be a canonical public GitHub issue or pull request URL.' };
+  if (record.at !== undefined) {
+    if (typeof record.at !== "string" || !record.at.trim() || record.at.length > 500 || /[\0\r\n]/.test(record.at) || record.at.trim().startsWith("-")) {
+      return { success: false, message: '"at" must be a bounded single-line Git ref.' };
+    }
+    if (value.diff || value.base || value.head || value.workingTree) return { success: false, message: '"at" cannot be combined with diff, base/head, or workingTree.' };
+    if (/^https?:\/\//i.test(value.repo ?? "") || (!value.repo && tryParseGitHubIssueSource(value.issue ?? ""))) {
+      return { success: false, message: '"at" needs a local repository, not a remote GitHub URL.' };
+    }
+    if (!value.issue) return { success: false, message: '"at" needs "issue" so there is a task to rank against.' };
+    value.at = record.at.trim();
+  }
   return { success: true, value };
 }
 
