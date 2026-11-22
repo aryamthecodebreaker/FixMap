@@ -3,8 +3,21 @@
 All notable changes to FixMap are documented here.
 
 Accuracy figures inside a released entry are the numbers measured **at that release** and are
-left as written. The current numbers live on the [evidence page](https://usefixmap.vercel.app/evidence),
+left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
+
+## 0.9.1 - 2026-11-22
+
+### Security
+
+- The CLI and MCP server now depend on `@modelcontextprotocol/sdk` 1.32.0, which resolves the SDK advisories GHSA-6prh-2h8m-c8cw, GHSA-22jm-h49p-29qw, GHSA-46jr-4wx8-v453, GHSA-rvq5-wwqv-78pq, GHSA-6qxp-vccf-f47h, and GHSA-f897-62hf-6gxq.
+- The lockfile resolves every open advisory in FixMap's dependency tree, including the MCP transport stack (hono, @hono/node-server, body-parser, ip-address, proxy-addr, fast-uri, zod) and the website toolchain (Next.js 16.4.6, sharp, Vite, Vitest, typescript-eslint). `npm audit` reports zero vulnerabilities, and every installed package has a verified npm registry signature.
+
+### Improved
+
+- Package metadata, the README, and the npm package page point to the canonical site at https://fixmap.aryam.me.
+
+No ranking, report, or command behavior changes in this release.
 
 ## 0.9.0 - 2026-08-13
 

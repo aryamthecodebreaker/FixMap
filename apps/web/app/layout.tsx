@@ -10,7 +10,7 @@ const body = Geist({ subsets: ["latin"], variable: "--font-body" });
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://usefixmap.vercel.app"),
+  metadataBase: new URL("https://fixmap.aryam.me"),
   title: { default: "FixMap — Tell AI coding tools which files to check", template: "%s | FixMap" },
   description:
     "Describe what is broken. FixMap tells AI coding tools which files to open, which tests to run, and what other code to review.",

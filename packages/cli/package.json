@@ -1,6 +1,6 @@
 {
   "name": "@aryam/fixmap",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "mcpName": "io.github.aryamthecodebreaker/fixmap",
   "description": "Local-first CLI and MCP server mapping tasks and diffs to ranked context, likely impact, tests, and risks.",
   "license": "MIT",
@@ -9,7 +9,7 @@
     "url": "git+https://github.com/aryamthecodebreaker/FixMap.git",
     "directory": "packages/cli"
   },
-  "homepage": "https://usefixmap.vercel.app",
+  "homepage": "https://fixmap.aryam.me",
   "bugs": {
     "url": "https://github.com/aryamthecodebreaker/FixMap/issues"
   },
@@ -46,8 +46,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@aryam/fixmap-core": "0.9.0",
-    "@modelcontextprotocol/sdk": "1.30.0"
+    "@aryam/fixmap-core": "0.9.1",
+    "@modelcontextprotocol/sdk": "1.32.0"
   },
   "engines": {
     "node": ">=20.11"
