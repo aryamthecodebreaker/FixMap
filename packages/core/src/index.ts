@@ -50,6 +50,11 @@ export { addOutcomeRecord, createOutcomeRecord, emptyOutcomeStore, removeOutcome
 export type { OutcomeCalibration, OutcomeRecord, OutcomeStore, TestOutcomeStatus } from "./outcomes.js";
 export { buildChangeDossier, validateChangeDossier } from "./dossier.js";
 export type { ChangeDossier, ChangeDossierInput, DossierAssumption } from "./dossier.js";
+export {
+  deleteStoredDossier, deleteStoredOutcome, isStoredRecordId, pruneStoredOutcomes, readStoredDossier, readStoredDossiers,
+  readStoredOutcome, readStoredOutcomes, saveStoredDossier, saveStoredOutcome
+} from "./record-store.js";
+export type { StoredRecordProblem, StoredRecords } from "./record-store.js";
 export { routeReviewers } from "./ownership.js";
 export type { ReviewEvidence, ReviewRoutingResult, ReviewSuggestion } from "./ownership.js";
 export { buildSandboxInvocation, runSandbox } from "./sandbox.js";

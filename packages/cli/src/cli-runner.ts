@@ -118,6 +118,8 @@ Usage:
   fixmap sandbox --request sandbox.json --execute-declared-command
   fixmap watch --report plan.json --repo .
   fixmap annotate src/auth/token.ts --note "Do not refactor; external contract"
+  fixmap outcome record --report plan.json --working-tree --assessment agent --status succeeded
+  fixmap dossier create --report plan.json --task "Fix login" --diff main...HEAD --pr <url>
   fixmap features
   fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>]
   fixmap mcp [--repo <path>]
@@ -143,6 +145,8 @@ Commands:
   runtime             Preview: Map redaction-reviewed runtime evidence to exact files
   sandbox             Preview: Run one explicitly consented command in an isolated container
   watch               Recheck working-tree drift and impact whenever edits change
+  outcome             Preview: Save predicted-versus-edited outcomes locally and calibrate them
+  dossier             Preview: Save a fingerprinted change dossier for a finished change
   annotate            Attach reviewable tribal knowledge to files, symbols, services, or contracts
   features            List every FixMap capability and its command
   setup               Preview workflows, or explicitly install /fixmap for coding agents
@@ -236,6 +240,11 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     });
     await runMcpServer(defaultRepo);
     return 0;
+  }
+
+  if (args[0] === "outcome" || args[0] === "dossier") {
+    const module = await import("./outcome-command.js");
+    return (args[0] === "outcome" ? module.runOutcomeCommand : module.runDossierCommand)(args.slice(1), { stdout, stderr });
   }
 
   if (args[0] === "annotate") {
