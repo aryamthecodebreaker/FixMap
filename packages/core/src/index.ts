@@ -30,6 +30,8 @@ export type {
   LanguageDefinition,
   LanguageImport
 } from "./language-adapters.js";
+export { FIXMAP_FEATURES } from "./feature-catalog.js";
+export type { FixMapFeature } from "./feature-catalog.js";
 export { buildImpactMap } from "./impact.js";
 export { collectEvidence } from "./evidence.js";
 export { readAnnotationStore, updateAnnotationStore } from "./annotation-store.js";

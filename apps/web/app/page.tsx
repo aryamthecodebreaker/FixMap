@@ -10,7 +10,15 @@ import {
 } from "@phosphor-icons/react/ssr";
 import { InteractiveMapStage } from "./_components/interactive-map-stage";
 import { AiExplainer } from "./_components/ai-explainer";
+import { FIXMAP_FEATURES } from "@aryam/fixmap-core/browser";
 import { repoUrl, siteStats } from "./_lib/site-data";
+import { loadUsageStats, USAGE_FIRST_PUBLISHED, USAGE_PACKAGE, USAGE_REPOSITORY } from "./_lib/usage-stats";
+
+/** Refresh the public npm and GitHub usage numbers at most once an hour. */
+export const revalidate = 3600;
+
+const formatCount = (value: number) => value.toLocaleString("en-US");
+const launchMonth = new Date(`${USAGE_FIRST_PUBLISHED}T00:00:00Z`).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 
 const outcomes = [
   { number: "01", name: "Files to check first", detail: "See which files best match the problem and why FixMap picked them.", href: "/product#plan" },
@@ -28,7 +36,8 @@ const heldoutUnmentioned = siteStats.heldout.cohorts.unmentioned;
 const heldoutBaseline = siteStats.baselines.heldout;
 const count = (rate: number | null, cases: number) => Math.round((rate ?? 0) * cases);
 
-export default function HomePage() {
+export default async function HomePage() {
+  const usage = await loadUsageStats();
   return (
     <main className="pro-home">
       <section className="pro-hero page-shell">
@@ -95,6 +104,40 @@ export default function HomePage() {
             </article>
           </div>
         </div>
+      </section>
+
+      <section className="pro-usage page-shell" aria-labelledby="pro-usage-title">
+        <div className="pro-section-heading">
+          <h2 id="pro-usage-title">How often FixMap is downloaded.</h2>
+          <p>
+            Live from npm and GitHub, refreshed every hour. A download is not a person: automated builds,
+            mirrors, and repeat installs all count. FixMap itself never reports usage.
+          </p>
+          <Link className="text-link" href="/features">
+            See all {FIXMAP_FEATURES.length} features ({FIXMAP_FEATURES.filter((feature) => !feature.preview).length} ready, {FIXMAP_FEATURES.filter((feature) => feature.preview).length} preview) <ArrowRight size={17} weight="bold" aria-hidden />
+          </Link>
+        </div>
+        {usage ? (
+          <div>
+            <dl className="pro-usage-grid">
+              <div><dt>Downloads, last 7 days</dt><dd>{formatCount(usage.lastWeek)}</dd></div>
+              <div><dt>Downloads, last 30 days</dt><dd>{formatCount(usage.lastMonth)}</dd></div>
+              <div><dt>Downloads since {launchMonth}</dt><dd>{formatCount(usage.sinceLaunch)}</dd></div>
+              <div><dt>GitHub stars</dt><dd>{usage.stars === null ? "—" : formatCount(usage.stars)}</dd></div>
+            </dl>
+            <p className="pro-usage-source">
+              Source: <a href={`https://www.npmjs.com/package/${USAGE_PACKAGE}`}>{USAGE_PACKAGE} on npm</a> and{" "}
+              <a href={`https://github.com/${USAGE_REPOSITORY}`}>GitHub</a>. Checked{" "}
+              <time dateTime={usage.fetchedAt}>
+                {new Date(usage.fetchedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC
+              </time>.
+            </p>
+          </div>
+        ) : (
+          <p className="pro-usage-source">
+            Download numbers are unavailable right now. See <a href={`https://www.npmjs.com/package/${USAGE_PACKAGE}`}>{USAGE_PACKAGE} on npm</a>.
+          </p>
+        )}
       </section>
 
       <section className="pro-surfaces page-shell">
