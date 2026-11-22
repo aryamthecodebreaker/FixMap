@@ -92,7 +92,8 @@ async function run(root: string, env: NodeJS.ProcessEnv, overrides: ActionDepend
   return { stdout, summary: writes.get("summary.md") ?? "", outputs: writes.get("output.txt") ?? "", comment };
 }
 
-describe("Action change scope (preview)", () => {
+// Real Git repositories and scans run several times slower on Windows runners than locally.
+describe("Action change scope (preview)", { timeout: 30_000 }, () => {
   it("splits newline- and comma-separated path inputs", () => {
     expect(splitPathListInput(" src/a.ts,\nsrc/b.ts\r\n\n, src/c ")).toEqual(["src/a.ts", "src/b.ts", "src/c"]);
     expect(splitPathListInput(undefined)).toEqual([]);
@@ -163,7 +164,7 @@ describe("Action change scope (preview)", () => {
   });
 });
 
-describe("Action capability maps (preview)", () => {
+describe("Action capability maps (preview)", { timeout: 30_000 }, () => {
   const checkout = { "src/checkout.ts": 'import { b } from "./b";\nexport const checkout = b;\n', ...importGraph };
 
   it("adds the current capability map without writing the store", async () => {
