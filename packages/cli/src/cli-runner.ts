@@ -43,6 +43,7 @@ export type CliOptions = {
   baseRef?: string | undefined;
   headRef?: string | undefined;
   checkoutRef?: string | undefined;
+  atRef?: string | undefined;
   format: "markdown" | "json" | "agent";
   output?: string | undefined;
   explainPath?: string | undefined;
@@ -95,6 +96,7 @@ Usage:
   fixmap plan --issue "Fix login" --format agent
   fixmap plan --issue "Fix login in auth middleware" --compare plan.json
   fixmap plan --base main --head HEAD --format json
+  fixmap plan --issue "Fix login" --at v0.9.0
   fixmap verify --report plan.json --diff main...HEAD
   fixmap verify --report plan.json --working-tree
   fixmap verify --report plan.json --working-tree --fail-on warning
@@ -162,6 +164,7 @@ Options:
   --evidence <file>   Attach a version-1 evidence bundle from another tool (repeatable; data only, never executed)
   --repo <source>     Local path or public GitHub HTTPS URL (defaults to current directory)
   --ref <branch|tag>  Branch or tag to scan when --repo is a remote GitHub URL
+  --at <git-ref>      Preview: Rank against a local committed ref, read from Git objects without checkout
   --limit <n>         Maximum context files to report (default 8, max 20)
   --exclude <glob>    Path pattern to leave out of ranking (repeatable)
   --format <fmt>      Output format: markdown (default), json, or compact agent
@@ -631,7 +634,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 1;
   }
   if (options.command === "verify") {
-    const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain", options.semanticModelPath && "--semantic-model", options.evidencePaths.length > 0 && "--evidence"].filter(Boolean);
+    const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain", options.semanticModelPath && "--semantic-model", options.evidencePaths.length > 0 && "--evidence", options.atRef && "--at"].filter(Boolean);
     if (planOnly.length > 0) { stderr(`verify does not accept plan-only option(s): ${planOnly.join(", ")}.\n`); return 1; }
     const outputCollision = await describeOutputInputCollision(options);
     if (outputCollision) { stderr(`${outputCollision}\n`); return 1; }
@@ -698,6 +701,22 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   if (options.checkoutRef && !remoteRepository) {
     stderr("--ref only applies when --repo is a remote GitHub URL or the issue URL infers one.\n");
     return 1;
+  }
+  if (options.atRef) {
+    const conflicting = [
+      (options.diffSpec || options.baseRef || options.headRef) && "--diff/--base/--head",
+      options.workingTree && "--working-tree",
+      options.explainPath && "--explain",
+      remoteRepository && "a remote repository"
+    ].filter(Boolean);
+    if (conflicting.length > 0) {
+      stderr(`--at ranks one local committed state and cannot be combined with ${conflicting.join(", ")}.\n`);
+      return 1;
+    }
+    if (!options.issueText) {
+      stderr("--at needs --issue or --issue-file so there is a task to rank against.\n");
+      return 1;
+    }
   }
   const unsupportedTaskUrl = describeUnsupportedTaskUrl(options.issueText);
   if (unsupportedTaskUrl) { stderr(`${unsupportedTaskUrl}\n`); return 1; }
@@ -775,6 +794,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       baseRef: options.baseRef,
       headRef: options.headRef,
       checkoutRef: options.checkoutRef,
+      ...(options.atRef ? { atRef: options.atRef } : {}),
       workingTree: options.workingTree,
       includeUntracked: options.includeUntracked,
       useCache: !options.noCache,
@@ -1026,6 +1046,7 @@ const SINGLE_VALUE_FLAGS = new Set([
   "--base",
   "--head",
   "--ref",
+  "--at",
   "--repo",
   "--semantic-model",
   "--evidence",
@@ -1067,6 +1088,7 @@ export function parseArgs(args: string[]): CliOptions {
   let baseRef: string | undefined;
   let headRef: string | undefined;
   let checkoutRef: string | undefined;
+  let atRef: string | undefined;
   let format: "markdown" | "json" | "agent" = "markdown";
   let output: string | undefined;
   let explainPath: string | undefined;
@@ -1149,6 +1171,11 @@ export function parseArgs(args: string[]): CliOptions {
       } else {
         invalidValues.push("--ref requires a safe branch or tag name");
       }
+    } else if (arg === "--at") {
+      consumeValue();
+      const trimmed = value?.trim();
+      if (trimmed && trimmed.length <= 500 && !/[\0\r\n]/.test(trimmed) && !trimmed.startsWith("-")) atRef = trimmed;
+      else invalidValues.push("--at requires a bounded single-line Git ref");
     } else if (arg === "--repo") {
       consumeValue();
       if (value?.trim()) repo = expandHomePath(value.trim());
@@ -1234,6 +1261,7 @@ export function parseArgs(args: string[]): CliOptions {
     baseRef,
     headRef,
     checkoutRef,
+    atRef,
     format,
     output,
     explainPath,

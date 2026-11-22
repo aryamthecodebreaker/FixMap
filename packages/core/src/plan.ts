@@ -5,6 +5,7 @@ import { markdownCode } from "./markdown.js";
 import type { PathExcluder } from "./exclude.js";
 import { buildHybridReportFromRepo, buildReportFromRepo } from "./report.js";
 import { scanRepo } from "./repo-scan.js";
+import { scanRepoAtRef, type HistoricalRepoMap } from "./architecture-history.js";
 import type { LanguageRegistry } from "./language-registry.js";
 import { createCustomLanguageContext } from "./custom-language-context.js";
 import type { EmbeddingProvider } from "./semantic.js";
@@ -25,6 +26,8 @@ export async function buildFixMapReport(
     languageRegistry?: LanguageRegistry;
     /** Explicit evidence providers, typically imported bundles; collected without network or code execution. */
     evidenceSources?: readonly ReportEvidenceSource[];
+    /** Preview: rank against this committed ref, read from Git objects without checkout. */
+    atRef?: string | undefined;
   }
 ): Promise<FixMapReport> {
   return (await buildFixMapAnalysis(input)).report;
@@ -47,9 +50,12 @@ export async function buildFixMapAnalysis(
     languageRegistry?: LanguageRegistry;
     /** Explicit evidence providers, typically imported bundles; collected without network or code execution. */
     evidenceSources?: readonly ReportEvidenceSource[];
+    /** Preview: rank against this committed ref, read from Git objects without checkout. */
+    atRef?: string | undefined;
   }
 ): Promise<{ report: FixMapReport; repo: Awaited<ReturnType<typeof scanRepo>>; exclusions: PathExcluder }> {
-  const scannedRepo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
+  const historical = input.atRef === undefined ? undefined : await scanHistoricalRepo(input.repoRoot, input.atRef, input);
+  const scannedRepo = historical?.repo ?? await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
   const generatedArtifacts = scannedRepo.files.filter(isFixMapArtifact);
   const generatedPaths = new Set(generatedArtifacts.map((file) => file.path));
   const repo = generatedArtifacts.length === 0
@@ -62,7 +68,10 @@ export async function buildFixMapAnalysis(
           ? { trackedFiles: scannedRepo.trackedFiles.filter((path) => !generatedPaths.has(path)) }
           : {})
       };
-  const requestedExclude = await resolveExclusions(input.repoRoot, input.exclude ?? []);
+  // A historical plan honors the .fixmapignore committed at that ref, not today's worktree copy.
+  const requestedExclude = historical
+    ? excluderFor(input.repoRoot, [...parseIgnoreFile(historical.ignoreFile ?? ""), ...(input.exclude ?? [])])
+    : await resolveExclusions(input.repoRoot, input.exclude ?? []);
   const internalExclude = buildPathExcluder(
     (input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern))
   );
@@ -172,9 +181,31 @@ function combineExclusions(primary: PathExcluder, internal: PathExcluder): PathE
  * refinement of that, not a replacement for it.
  */
 export async function resolveExclusions(repoRoot: string, patterns: string[]): Promise<PathExcluder> {
-  const combined = [...await readIgnoreFile(repoRoot), ...patterns]
-    .map((pattern) => normalizeAbsolutePattern(repoRoot, pattern));
+  return excluderFor(repoRoot, [...await readIgnoreFile(repoRoot), ...patterns]);
+}
+
+function excluderFor(repoRoot: string, patterns: string[]): PathExcluder {
+  const combined = patterns.map((pattern) => normalizeAbsolutePattern(repoRoot, pattern));
   return combined.length > 0 ? buildPathExcluder(combined) : NO_EXCLUSIONS;
+}
+
+async function scanHistoricalRepo(
+  repoRoot: string,
+  ref: string,
+  input: Pick<FixMapInput, "diffSpec" | "baseRef" | "headRef" | "workingTree" | "includeUntracked">
+): Promise<HistoricalRepoMap> {
+  if (input.diffSpec !== undefined || input.baseRef !== undefined || input.headRef !== undefined || input.workingTree || input.includeUntracked) {
+    throw new Error("A historical plan ranks one committed state, so it cannot be combined with a diff or the working tree.");
+  }
+  const historical = await scanRepoAtRef({ repoRoot, ref });
+  historical.repo.diagnostics.unshift({
+    code: "historical-plan",
+    severity: "info",
+    message:
+      `Preview: ranked against ${markdownCode(historical.requestedRef)} at commit ${markdownCode(historical.commit)}, ` +
+      "read from committed Git objects without checking out or changing the worktree. Co-change history and uncommitted files were not used."
+  });
+  return historical;
 }
 
 /**

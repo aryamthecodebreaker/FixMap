@@ -140,6 +140,7 @@ export type {
 } from "./architecture.js";
 export { parseDecisionRecord, selectDecisionRecords } from "./decisions.js";
 export type {
+  DecisionDependencyRule,
   DecisionDiagnostic,
   DecisionInventory,
   DecisionRecord,

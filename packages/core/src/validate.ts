@@ -245,7 +245,10 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
         (decision.date !== undefined && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date))) ||
         (decision.context !== undefined && typeof decision.context !== "string") ||
         (decision.authoredStatus !== undefined && (typeof decision.authoredStatus !== "string" || !decision.authoredStatus.trim() || decision.authoredStatus.length > 500 || decision.authoredStatus.includes("\0"))) ||
-        (decision.consequences !== undefined && typeof decision.consequences !== "string")) return true;
+        (decision.consequences !== undefined && typeof decision.consequences !== "string") ||
+        (decision.dependencyRules !== undefined && (!Array.isArray(decision.dependencyRules) ||
+          !decision.dependencyRules.every((rule) => isRecord(rule) && typeof rule.from === "string" && rule.from.trim() &&
+            typeof rule.deny === "string" && rule.deny.trim())))) return true;
       if (decision.source !== undefined && (!isRecord(decision.source) || decision.source.kind !== "pull-request" ||
         decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url))) return true;
       return decision.targets.some((target) => {

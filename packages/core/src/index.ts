@@ -224,9 +224,16 @@ export type {
   ArchitectureSnapshot
 } from "./architecture.js";
 export { buildArchitectureSnapshotAtRef, compareArchitectureRefs, scanRepoAtRef } from "./architecture-history.js";
-export type { HistoricalArchitectureSnapshot, HistoricalRepoMap } from "./architecture-history.js";
+export type {
+  ArchitectureRefComparison,
+  DecisionDisagreement,
+  HistoricalArchitectureSnapshot,
+  HistoricalDecisionRule,
+  HistoricalRepoMap
+} from "./architecture-history.js";
 export { inventoryDecisionRecords, parseDecisionRecord, selectDecisionRecords } from "./decisions.js";
 export type {
+  DecisionDependencyRule,
   DecisionDiagnostic,
   DecisionInventory,
   DecisionRecord,

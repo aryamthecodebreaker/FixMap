@@ -19,10 +19,17 @@ export type DecisionRecord = {
   consequences?: string;
   targets: DecisionTarget[];
   supersedes: string[];
+  /**
+   * Import rules the record states explicitly in `fixmap-deny-imports` frontmatter, one
+   * `<from pattern> -> <denied pattern>` per item. Prose is never read for rules.
+   */
+  dependencyRules?: DecisionDependencyRule[];
   sourceFingerprint: string;
   /** Repository-authored attribution, not proof of remote contents or authorship. */
   source?: { kind: "pull-request"; url: string; verification: "unverified-local-attribution" };
 };
+
+export type DecisionDependencyRule = { from: string; deny: string };
 
 export type DecisionDiagnostic = {
   code: "decision-source-incomplete" | "decision-parse-failed" | "decision-target-missing";
@@ -163,6 +170,7 @@ export function parseDecisionRecord(input: {
   const heading = documentHeadings(body).find((entry) => entry.level === 1);
   const titleDate = heading ? /^\s*Date:[ \t]*(\d{4}-\d{2}-\d{2})[ \t]*(?:\r?\n|$)/i.exec(body.slice(heading.end))?.[1] : undefined;
   const date = normalizeDate(frontmatter.date ?? section(sections, ["date"]) ?? titleDate);
+  const dependencyRules = parseDependencyRules(frontmatter["fixmap-deny-imports"]);
   const sourceUrl = frontmatter["fixmap-source-pr"];
   if (sourceUrl !== undefined && !isDecisionPullRequestUrl(sourceUrl)) throw new Error("Invalid decision pull-request source.");
   return {
@@ -178,6 +186,7 @@ export function parseDecisionRecord(input: {
       ...(consequences ? { consequences: normalizeProse(consequences, 8_000) } : {}),
       targets,
       supersedes: parseReferences(supersedesText),
+      ...(dependencyRules.length > 0 ? { dependencyRules } : {}),
       sourceFingerprint: input.fingerprint,
       ...(sourceUrl ? { source: { kind: "pull-request" as const, url: sourceUrl, verification: "unverified-local-attribution" as const } } : {})
     }
@@ -299,6 +308,30 @@ function targetKey(target: DecisionTarget): string {
   if (target.kind === "file") return `file:${target.path}`;
   if (target.kind === "symbol") return `symbol:${target.path ?? ""}:${target.name}`;
   return `${target.kind}:${target.name}`;
+}
+
+const MAX_DEPENDENCY_RULES = 100;
+
+/** A malformed rule rejects the whole record rather than silently dropping an authored constraint. */
+function parseDependencyRules(text: string | undefined): DecisionDependencyRule[] {
+  if (text === undefined || !text.trim()) return [];
+  const rules = text.split("\n").map((line) => line.trim()).filter(Boolean).map((line): DecisionDependencyRule => {
+    const match = /^(.+?)\s*->\s*(.+)$/.exec(unquote(line.replace(/^`|`$/g, "")));
+    if (!match) throw new Error(`Invalid fixmap-deny-imports rule: ${line}`);
+    return { from: dependencyPattern(match[1]!), deny: dependencyPattern(match[2]!) };
+  });
+  if (rules.length > MAX_DEPENDENCY_RULES) throw new Error(`fixmap-deny-imports exceeds the ${MAX_DEPENDENCY_RULES}-rule bound.`);
+  const unique = new Map(rules.map((rule) => [`${rule.from}\0${rule.deny}`, rule]));
+  return [...unique.values()].sort((a, b) => a.from.localeCompare(b.from) || a.deny.localeCompare(b.deny));
+}
+
+function dependencyPattern(value: string): string {
+  const pattern = value.trim().replace(/^`|`$/g, "").replace(/\\/g, "/");
+  if (!pattern || pattern.length > 500 || pattern.startsWith("!") || pattern.includes("\0") || pattern.includes("->") ||
+    /^(?:\/|[A-Za-z]:)/.test(pattern) || pattern.split("/").includes("..")) {
+    throw new Error(`Invalid fixmap-deny-imports pattern: ${value}`);
+  }
+  return pattern;
 }
 
 function parseReferences(text: string): string[] {

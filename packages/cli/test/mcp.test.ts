@@ -402,7 +402,7 @@ describe("fixmap mcp server", () => {
     expect(plan).toBeDefined();
     expect(plan?.description).toContain("test commands");
     expect(Object.keys(plan?.inputSchema.properties ?? {}).sort()).toEqual(
-      ["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence"].sort()
+      ["issue", "diff", "base", "head", "repo", "ref", "at", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence"].sort()
     );
     expect(plan?.inputSchema.additionalProperties).toBe(false);
     expect(plan?.inputSchema.properties?.repo?.description).toContain("public GitHub HTTPS");
@@ -439,7 +439,7 @@ describe("fixmap mcp server", () => {
     expect(reverseDocs?.inputSchema.required).toEqual(["input"]);
     expect(reverseDocs?.inputSchema.additionalProperties).toBe(false);
     const history = tools.tools.find((tool) => tool.name === "fixmap_history");
-    expect(Object.keys(history?.inputSchema.properties ?? {}).sort()).toEqual(["repo", "from", "to", "couplingDelta", "applyPolicy", "format"].sort());
+    expect(Object.keys(history?.inputSchema.properties ?? {}).sort()).toEqual(["repo", "from", "to", "couplingDelta", "applyPolicy", "noCache", "format"].sort());
     expect(history?.inputSchema.required).toEqual(["from", "to"]);
     expect(history?.inputSchema.additionalProperties).toBe(false);
     const supplyChain = tools.tools.find((tool) => tool.name === "fixmap_supply_chain");
