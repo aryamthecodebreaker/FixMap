@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { parseHistoryLog, scanRepo, summarizeSkippedScope } from "../src/repo-scan.js";
+import { INCREMENTAL_INDEX_MIN_FILES, parseHistoryLog, scanRepo, summarizeSkippedScope } from "../src/repo-scan.js";
 import { createLanguageRegistry } from "../src/language-registry.js";
 
 const exec = promisify(execFile);
@@ -820,6 +820,49 @@ describe("scanRepo", () => {
       else process.env.GIT_TRACE = previousTrace;
       if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
       else process.env.FIXMAP_CACHE_DIR = previousCache;
+      await rm(cacheRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("skips the persistent index below the default size threshold and uses it at the threshold", { timeout: 30_000 }, async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-incremental-threshold-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-incremental-threshold-store-"));
+    const previousCache = process.env.FIXMAP_CACHE_DIR;
+    const previousMin = process.env.FIXMAP_INCREMENTAL_INDEX_MIN_FILES;
+    process.env.FIXMAP_CACHE_DIR = cacheRoot;
+    try {
+      await writeFile(join(root, "a.ts"), "export const a = 'one';\n");
+      await writeFile(join(root, "b.ts"), "export const b = 'stable';\n");
+      await exec("git", ["init", "-b", "main"], { cwd: root });
+      await exec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      await exec("git", ["config", "user.name", "Test User"], { cwd: root });
+      await exec("git", ["add", "."], { cwd: root });
+      await exec("git", ["commit", "-m", "initial"], { cwd: root });
+
+      // Production default: two files are far below the threshold, so no index is used.
+      delete process.env.FIXMAP_INCREMENTAL_INDEX_MIN_FILES;
+      expect(INCREMENTAL_INDEX_MIN_FILES).toBe(1_000);
+      await scanRepo({ repoRoot: root, useCache: true });
+      await writeFile(join(root, "a.ts"), "export const a = 'two';\n");
+      const small = await scanRepo({ repoRoot: root, useCache: true });
+      expect(small.diagnostics.some((entry) => entry.code === "incremental-index-hit")).toBe(false);
+      expect(small.files).toEqual((await scanRepo({ repoRoot: root, useCache: false })).files);
+
+      // At the threshold the index is written and reused.
+      process.env.FIXMAP_INCREMENTAL_INDEX_MIN_FILES = "2";
+      // Change the state first so the exact-state cache cannot answer instead of a real scan.
+      await writeFile(join(root, "a.ts"), "export const a = 'two-b';\n");
+      await scanRepo({ repoRoot: root, useCache: true });
+      await writeFile(join(root, "a.ts"), "export const a = 'three';\n");
+      const atThreshold = await scanRepo({ repoRoot: root, useCache: true });
+      expect(atThreshold.diagnostics.find((entry) => entry.code === "incremental-index-hit")?.message)
+        .toContain("Reused 1 unchanged file record");
+    } finally {
+      if (previousCache === undefined) delete process.env.FIXMAP_CACHE_DIR;
+      else process.env.FIXMAP_CACHE_DIR = previousCache;
+      if (previousMin === undefined) delete process.env.FIXMAP_INCREMENTAL_INDEX_MIN_FILES;
+      else process.env.FIXMAP_INCREMENTAL_INDEX_MIN_FILES = previousMin;
+      await rm(root, { recursive: true, force: true });
       await rm(cacheRoot, { recursive: true, force: true });
     }
   });

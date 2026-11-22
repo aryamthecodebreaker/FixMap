@@ -2,7 +2,7 @@ import { mkdtemp, readdir, realpath, symlink, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { withPersistentEmbeddingCache } from "../src/semantic-cache.js";
+import { EMBED_BATCH_SIZE, withPersistentEmbeddingCache } from "../src/semantic-cache.js";
 import type { EmbeddingProvider } from "../src/semantic.js";
 
 function provider(calls: string[][], artifactHash = "a".repeat(64)): EmbeddingProvider {
@@ -35,6 +35,37 @@ describe("withPersistentEmbeddingCache", () => {
     expect(calls).toEqual([["session document", "account document"], ["new document"]]);
     expect(vectors).toEqual([[1, 0], [0, 1]]);
     expect((await readdir(cacheRoot)).filter((name) => name.endsWith(".json"))).toHaveLength(1);
+  });
+
+  it("embeds misses in batches and keeps finished batches when a run is cut short", async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), "fixmap-semantic-repo-"));
+    const cacheRoot = await mkdtemp(join(tmpdir(), "fixmap-semantic-cache-"));
+    const texts = Array.from({ length: EMBED_BATCH_SIZE * 2 + 3 }, (_, index) => `document ${index}`);
+    const controller = new AbortController();
+    const firstCalls: string[][] = [];
+    const interrupted: EmbeddingProvider = {
+      ...provider(firstCalls),
+      async embed(batch) {
+        firstCalls.push([...batch]);
+        // The caller's time budget runs out while the second batch is being embedded.
+        if (firstCalls.length === 2) {
+          controller.abort();
+          throw new Error("embedding provider timed out");
+        }
+        return batch.map(() => [0, 1]);
+      }
+    };
+    const first = await withPersistentEmbeddingCache(interrupted, { repositoryRoot, cacheRoot });
+    await expect(first.embed(texts, { signal: controller.signal })).rejects.toThrow("timed out");
+    expect(firstCalls.map((batch) => batch.length)).toEqual([EMBED_BATCH_SIZE, EMBED_BATCH_SIZE]);
+
+    // The next run resumes: only the documents the interrupted run never finished are embedded.
+    const secondCalls: string[][] = [];
+    const second = await withPersistentEmbeddingCache(provider(secondCalls), { repositoryRoot, cacheRoot });
+    const vectors = await second.embed(texts, { signal: new AbortController().signal });
+    expect(vectors).toHaveLength(texts.length);
+    expect(secondCalls.flat()).toEqual(texts.slice(EMBED_BATCH_SIZE));
+    expect(secondCalls.map((batch) => batch.length)).toEqual([EMBED_BATCH_SIZE, 3]);
   });
 
   it("isolates caches by model artifact and heals corrupt JSON", async () => {

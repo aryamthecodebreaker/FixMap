@@ -9,6 +9,9 @@ import { resolve, join, relative, isAbsolute } from "node:path";
 import { promisify } from "node:util";
 import { scanRepo } from "../packages/core/dist/index.js";
 
+// Measure the incremental machinery itself at every tier, below the production size threshold too.
+process.env.FIXMAP_INCREMENTAL_INDEX_MIN_FILES ??= "0";
+
 const [sourceArg, editPath] = process.argv.slice(2);
 assert(sourceArg && editPath, "Provide a local checkout and a tracked text file");
 assert(!isAbsolute(editPath) && !editPath.split(/[\\/]/).includes(".."), "Edit path must stay within the clone");

@@ -9,6 +9,9 @@ export default defineConfig({
   test: {
     maxWorkers: 4,
     testTimeout: 15_000,
-    hookTimeout: 15_000
+    hookTimeout: 15_000,
+    // Exercise the persistent incremental index on small fixtures; production only uses it
+    // from INCREMENTAL_INDEX_MIN_FILES tracked paths. One test covers that default explicitly.
+    env: { FIXMAP_INCREMENTAL_INDEX_MIN_FILES: "0" }
   }
 });

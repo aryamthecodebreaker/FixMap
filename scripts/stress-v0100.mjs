@@ -4,6 +4,9 @@ import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import {
+// Measure the incremental machinery itself at every tier, below the production size threshold too.
+process.env.FIXMAP_INCREMENTAL_INDEX_MIN_FILES ??= "0";
+
   buildFixMapAnalysis,
   scanRepo,
   validateFixMapReport

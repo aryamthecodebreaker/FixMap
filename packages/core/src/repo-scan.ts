@@ -216,6 +216,16 @@ function buildIncrementalIndexLocation(root: string, cacheRoot: string, registry
   return { path: join(cacheRoot, `${repoKey}-index-v2.json`), repoKey };
 }
 
+/** Default minimum visible tracked-path count before the persistent incremental index is used. */
+export const INCREMENTAL_INDEX_MIN_FILES = 1_000;
+
+function incrementalIndexMinFiles(): number {
+  const configured = process.env.FIXMAP_INCREMENTAL_INDEX_MIN_FILES;
+  if (configured === undefined || configured === "") return INCREMENTAL_INDEX_MIN_FILES;
+  const parsed = Number(configured);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : INCREMENTAL_INDEX_MIN_FILES;
+}
+
 function configuredScanCacheRoot(): string {
   return resolve(process.env.FIXMAP_CACHE_DIR ?? join(
     process.env.LOCALAPPDATA ?? process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"),
@@ -555,7 +565,12 @@ async function listFiles(
   );
   let files: RepoFile[];
   if (gitPaths) {
-    const previous = incrementalIndexLocation
+    // Below the threshold, reading and rewriting the persistent index costs more than it
+    // saves (measured in docs/releases/incremental-index-acceptance.md), so small
+    // repositories take the plain fresh path. Fingerprints are still computed either way.
+    const useIncrementalIndex = incrementalIndexLocation !== undefined &&
+      (visiblePaths?.length ?? 0) >= incrementalIndexMinFiles();
+    const previous = useIncrementalIndex && incrementalIndexLocation
       ? await readIncrementalScanIndex(incrementalIndexLocation)
       : undefined;
     const built = await buildFilesFromPaths(
@@ -568,7 +583,7 @@ async function listFiles(
       languageRegistry
     );
     files = built.files;
-    if (incrementalIndexLocation) {
+    if (useIncrementalIndex && incrementalIndexLocation) {
       await writeIncrementalScanIndex(incrementalIndexLocation, built.indexedFiles);
     }
     if (previous && built.reused > 0) {
