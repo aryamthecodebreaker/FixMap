@@ -1,45 +1,58 @@
 # Custom language adapters: implementation contract
 
-Status: implementation design; custom registration is not shipped.
+Status: implemented in Core. `createLanguageRegistry` is exported from
+`@aryam/fixmap-core` (Node entry point); `buildFixMapAnalysis` and
+`buildFixMapReport` accept it as `languageRegistry`.
 
-Internal foundation: `language-registry.ts` now validates bounded custom registry
-metadata, rejects built-in/custom extension collisions, copies and freezes
-registrations, and creates an order-independent metadata cache identity. Registry
-instances do not share registration state. This module is not yet exported from
-the package entry point. `custom-language-context.ts` now provides a per-registry
-cache with input bounds, output shape/count/offset validation, Core-assigned
-identity/version, copied facts, and explicit unsupported/ok/failed results.
-Exceptions do not expose plugin messages. The custom resolver boundary now checks
-the bounded candidate snapshot and every proposed target, freezes callback inputs,
-rejects invalid batches, and returns detached sorted targets without self edges.
-`buildImportGraph` accepts an explicit scoped context and routes custom facts
-through validated resolution, the existing 200-edge-per-file cap, reverse edges,
-and proximity traversal. Bounded graph-level failure diagnostics remain separate
-from successful empty results; default built-in calls retain their prior shape.
-Custom/built-in mixed graphs and ranking regressions pass 120 focused tests.
-`scanRepo` now accepts explicit registry metadata for custom source sampling in
-Git and filesystem scans. Both exact-state and incremental cache identities include
-the registry identity, preventing default/custom/version-changed classification
-reuse. A real Git fixture checks warm/default/version isolation and the non-Git
-fallback. Custom test classification still needs scoped extraction integration;
-the scanner does not invoke plugin callbacks in this step.
-`analyzeTaskGrounding` now accepts the same explicit scoped context. Valid custom
-definitions participate in exact/partial definition grounding, without applying
-the generic declaration regex to custom syntax. Extraction failures mark scan
-completeness false and unmatched identifiers unverified; literal text matches
-remain separately labeled. Eighty-five grounding/ranking tests pass at this step.
-Structural and evidence ranking now accept `languageContext`, using its validated
-definitions for score signals, grounding, symbol-unit retrieval, and import
-proximity. A custom DSL regression proves increased definition evidence and
-symbol retrieval while subsequent default ranking stays unchanged; the focused
-grounding/ranking sweep passes 86 tests. Normal and hybrid report builders now
-propagate the context through grounding, ranking, and impact assembly, including
-primary graph edges. A shared custom fixture proves both reports retain definition
-grounding and caller impact and pass report validation; 31 focused report/impact/
-hybrid tests pass. Top-level analysis setup, custom test classification, and
-diagnostic integration below
-remain to be implemented. These internal foundations are not usable language
-support through the public analysis API yet.
+## Using a custom adapter
+
+```js
+import { createLanguageRegistry, buildFixMapAnalysis } from "@aryam/fixmap-core";
+
+const languageRegistry = createLanguageRegistry([{
+  id: "custom:dsl", version: "1", contractVersion: 1, extensions: [".dsl"],
+  extractDefinitions: (text) => [/* { name, kind, offset } */],
+  extractImports: (text) => [/* { specifier, importedNames, wildcard } */],
+  isTestPath: (path) => path.endsWith(".spec.dsl"),
+  resolveImport: ({ fromPath, imported, candidatePaths }) => [/* paths from candidatePaths */]
+}]);
+
+const { report } = await buildFixMapAnalysis({ repoRoot: ".", issueText: "…", languageRegistry });
+```
+
+What Core guarantees:
+
+- Registration rejects invalid IDs, versions, extensions, and any extension that a
+  built-in or another custom adapter already owns, before calling any callback.
+- Every callback result is validated (counts, string bounds, supported definition
+  kinds, offsets inside the sample, boolean test classification). A malformed batch
+  is rejected whole; a throwing callback is contained. Either way the file is
+  analyzed without custom facts and the report gets one bounded
+  `language-adapter-failed` warning naming the adapter, path, and failure code.
+  Plugin exception messages and source text never enter the report.
+- Resolved import targets must be repository-relative paths from the scanned
+  snapshot; anything else is dropped, along with self edges.
+- `isTestPath` can add test classification for its files. It never removes the
+  language-neutral classification (for example a `test/` directory).
+- Reports record the registered adapters as additive `languageAdapters`
+  provenance (id, version, extensions; never callbacks). Saved-report validation
+  checks this field.
+- Scan caches include the registry identity, so changing an adapter's version or
+  registration never reuses stale classification. Each analysis gets its own
+  extraction context, so concurrent analyses with different registries stay
+  independent.
+
+What it does not do: registration is a trusted host-code API, not a sandbox (see
+below). The CLI, MCP server, and GitHub Action never load language plugins from a
+repository or from configuration; only code that calls Core directly can register
+adapters.
+
+Acceptance evidence: `packages/core/test/plan.test.ts` covers ranking, grounding,
+impact, test classification, a throwing adapter, a malformed adapter with forged
+provenance and an escaping import target, concurrent registries on the same
+extension, and report validation through `buildFixMapAnalysis` on real Git
+repositories. A packed `@aryam/fixmap-core` tarball installed into a clean
+consumer registers a `.dsl` adapter and produces a valid report.
 
 ## Existing integration points
 
