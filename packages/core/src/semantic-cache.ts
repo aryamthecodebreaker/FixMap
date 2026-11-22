@@ -19,6 +19,10 @@ export type PersistentEmbeddingCacheOptions = {
 
 const CACHE_VERSION = 1;
 const DEFAULT_MAX_ENTRIES = 50_000;
+/** Cache misses sent to the provider per call. */
+export const EMBED_BATCH_SIZE = 16;
+/** Minimum time between progress writes while a large batch of misses is embedded. */
+const PERSIST_INTERVAL_MS = 5_000;
 
 /** Wraps an embedding provider with an atomic, model-isolated, local persistent cache. */
 export async function withPersistentEmbeddingCache(
@@ -59,22 +63,38 @@ export async function withPersistentEmbeddingCache(
         return [...hit.vector];
       });
       const missingIndexes = output.flatMap((vector, index) => vector ? [] : [index]);
-      if (missingIndexes.length > 0) {
-        const missingTexts = missingIndexes.map((index) => texts[index]!);
-        const generated = await provider.embed(missingTexts, context);
-        if (generated.length !== missingTexts.length) {
-          throw new Error(`embedding provider returned ${generated.length} vectors for ${missingTexts.length} cache misses`);
+      const persist = () => {
+        pruneEntries(cache.entries, maxEntries);
+        writeQueue = writeQueue.then(() => writeCache(cachePath, cache));
+        return writeQueue;
+      };
+      // Embed misses in small batches and keep every finished batch. A large first run can
+      // exceed the caller's time budget on CPU; saving progress means the next run resumes
+      // instead of starting over, so big repositories converge to a warm cache.
+      let lastPersisted = Date.now();
+      try {
+        for (let start = 0; start < missingIndexes.length; start += EMBED_BATCH_SIZE) {
+          if (context.signal.aborted) throw new Error("embedding was aborted");
+          const batchIndexes = missingIndexes.slice(start, start + EMBED_BATCH_SIZE);
+          const batchTexts = batchIndexes.map((index) => texts[index]!);
+          const generated = await provider.embed(batchTexts, context);
+          if (generated.length !== batchTexts.length) {
+            throw new Error(`embedding provider returned ${generated.length} vectors for ${batchTexts.length} cache misses`);
+          }
+          generated.forEach((vector, generatedIndex) => {
+            const originalIndex = batchIndexes[generatedIndex]!;
+            const copied = Array.from(vector);
+            output[originalIndex] = copied;
+            cache.entries[keys[originalIndex]!] = { vector: copied, lastUsedAt: now };
+          });
+          if (Date.now() - lastPersisted >= PERSIST_INTERVAL_MS) {
+            lastPersisted = Date.now();
+            await persist();
+          }
         }
-        generated.forEach((vector, generatedIndex) => {
-          const originalIndex = missingIndexes[generatedIndex]!;
-          const copied = Array.from(vector);
-          output[originalIndex] = copied;
-          cache.entries[keys[originalIndex]!] = { vector: copied, lastUsedAt: now };
-        });
+      } finally {
+        await persist();
       }
-      pruneEntries(cache.entries, maxEntries);
-      writeQueue = writeQueue.then(() => writeCache(cachePath, cache));
-      await writeQueue;
       return output.map((vector) => vector!);
     }
   };

@@ -1,6 +1,6 @@
 {
   "name": "@aryam/fixmap-core",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "Deterministic local-first repository scanner, context ranker, Impact Graph, and report renderer for coding agents.",
   "license": "MIT",
   "repository": {

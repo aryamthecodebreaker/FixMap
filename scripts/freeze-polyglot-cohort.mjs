@@ -1,5 +1,5 @@
-// Freeze a mechanically selected Go/Rust/Ruby/PHP/.NET development cohort before
-// invoking FixMap. Selection reads GitHub issue and pull-request metadata only.
+// Freeze a mechanically selected multi-language cohort before invoking FixMap.
+// Selection reads GitHub issue and pull-request metadata only.
 
 import { execFile } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
@@ -12,7 +12,7 @@ const exec = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const suiteIndex = process.argv.indexOf("--suite");
 const suite = suiteIndex === -1 ? "polyglot-dev" : process.argv[suiteIndex + 1];
-if (!suite || !["polyglot-dev", "polyglot-validation"].includes(suite)) {
+if (!suite || !["polyglot-dev", "polyglot-validation", "polyglot-heldout"].includes(suite)) {
   throw new Error(`Unknown polyglot cohort suite: ${suite ?? "(missing)"}.`);
 }
 const suiteDir = join(root, "benchmarks", suite);
@@ -20,14 +20,20 @@ const config = JSON.parse(await readFile(join(suiteDir, "repositories.json"), "u
 const outputPath = join(suiteDir, "dataset.json");
 const mergedAfter = parseOptionalTimestamp(config.mergedAfter, "mergedAfter");
 const excludedPullRequests = await loadExcludedPullRequests(config.excludePullRequestsFrom);
+const targetPerLanguage = config.targetPerLanguage === undefined ? Infinity : config.targetPerLanguage;
+if (targetPerLanguage !== Infinity && (!Number.isSafeInteger(targetPerLanguage) || targetPerLanguage < 1)) {
+  throw new Error(`Invalid targetPerLanguage in ${suite}/repositories.json.`);
+}
 const languageExtensions = {
+  python: /\.py$/i,
+  java: /\.java$/i,
   go: /\.go$/i,
   rust: /\.rs$/i,
   ruby: /\.rb$/i,
   php: /\.php$/i,
   dotnet: /\.cs$/i
 };
-const excludedPath = /(?:^|\/)(?:docs?|documentation|examples?|samples?|tests?|specs?|testdata|fixtures?|benchmarks?|generated|vendor|build|dist|target|obj|bin)(?:\/|$)|(?:^|\/)[^/]+_test\.go$|(?:^|\/)[^/]+_spec\.rb$|(?:^|\/)[^/]+_test\.rb$|(?:Test|Tests|TestCase)\.(?:php|cs)$/i;
+const excludedPath = /(?:^|\/)(?:docs?|documentation|examples?|samples?|tests?|specs?|testdata|fixtures?|benchmarks?|generated|vendor|build|dist|target|obj|bin)(?:\/|$)|(?:^|\/)[^/]+_test\.go$|(?:^|\/)[^/]+_spec\.rb$|(?:^|\/)[^/]+_test\.rb$|(?:Test|Tests|TestCase)\.(?:php|cs|java)$|(?:^|\/)(?:test_[^/]+|[^/]+_test|conftest)\.py$/i;
 const generatedPath = /(?:\.g\.cs|\.designer\.cs|\.generated\.cs|_generated\.go)$/i;
 const docTitle = /\b(?:docs?|documentation|readme|changelog|typo|spelling)\b/i;
 const query = `query($owner:String!,$name:String!){
@@ -45,10 +51,14 @@ const query = `query($owner:String!,$name:String!){
 
 const cases = [];
 const skipped = [];
+const selectedPerLanguage = new Map();
 for (const configured of config.repositories) {
   const [owner, name] = String(configured.slug).split("/");
   const extension = languageExtensions[configured.language];
   if (!owner || !name || !extension) throw new Error(`Invalid polyglot repository config: ${JSON.stringify(configured)}`);
+  // Candidates are walked in their frozen order; once a language has its quota, later
+  // candidates are not queried, so the outcome never depends on which ones would rank well.
+  if ((selectedPerLanguage.get(configured.language) ?? 0) >= targetPerLanguage) continue;
   const response = await graphql({ owner, name });
   const repository = response.data?.repository;
   const selected = repository?.pullRequests?.nodes?.find((pullRequest) =>
@@ -79,6 +89,7 @@ for (const configured of config.repositories) {
     task: `${issue.title}\n\n${issue.body.slice(0, 600)}`,
     expected
   });
+  selectedPerLanguage.set(configured.language, (selectedPerLanguage.get(configured.language) ?? 0) + 1);
 }
 
 const dataset = {
@@ -89,8 +100,9 @@ const dataset = {
     "Per configured repository and language: the first of the 100 most recently updated merged pull requests that closes an issue with at least 80 body characters, is not docs-titled, changes no more than 20 files total, and modifies 1-3 non-test implementation files in that language." +
     (config.mergedAfter ? ` It must have merged after ${config.mergedAfter}.` : "") +
     (config.excludePullRequestsFrom ? ` Pull requests already present in ${config.excludePullRequestsFrom} are excluded.` : "") +
+    (targetPerLanguage !== Infinity ? ` Candidates are walked in their configured order until ${targetPerLanguage} repositories per language yield a case; later candidates are not queried.` : "") +
     " The PR base commit and exact fixing source paths are frozen before FixMap is measured.",
-  languages: ["go", "rust", "ruby", "php", "dotnet"],
+  languages: [...new Set(config.repositories.map((entry) => entry.language))],
   cases,
   skipped
 };
