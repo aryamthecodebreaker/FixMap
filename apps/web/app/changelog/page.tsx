@@ -44,9 +44,30 @@ type Release = {
 
 const releases: Release[] = [
   {
-    version: "0.9.3",
+    version: "0.9.4",
     date: "November 22, 2026",
     label: "Latest release",
+    summary: "Local semantic search now finishes on large repositories, and an honest test on 28 never-seen projects keeps language support in preview because Java missed.",
+    groups: [
+      {
+        label: "Fixed",
+        items: [
+          "Local semantic search saves its progress in small batches, so a large repository's first run no longer times out and starts over every time.",
+          "Release verification no longer fails for five minutes after a successful publish because of a stale npm cache."
+        ]
+      },
+      {
+        label: "Evidence",
+        items: [
+          "On 28 cases from projects no earlier test used, FixMap found a fixing file in its first five results 50% of the time, versus 39% for keyword search. Java found 0 of 4, so language support stays a preview.",
+          "Repeat scans of changed repositories are about 30% faster at 1,000 files and 52% faster at 10,000 files."
+        ]
+      }
+    ]
+  },
+  {
+    version: "0.9.3",
+    date: "November 22, 2026",
     summary: "Teach FixMap a new language from your own code, with broken plugins safely contained, plus live download numbers and a full feature list on this site.",
     groups: [
       {

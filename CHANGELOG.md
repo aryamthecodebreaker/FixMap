@@ -6,6 +6,19 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.4 - 2026-11-22
+
+### Fixed
+
+- Local semantic retrieval (`--semantic-model`) now embeds uncached files in batches of 16 and saves every finished batch. Before, a large repository's first run sent every file in one call, hit the 120-second budget on CPU, and saved nothing, so it never reached a warm cache.
+- The publish workflow bypasses npm's local cache when it verifies a release. A cached "not found" from the pre-publish check made verification fail for up to five minutes after a successful publish.
+
+### Evidence
+
+- Language support was tested on 28 cases from repositories no earlier FixMap test used, against a pass bar published before measuring. FixMap placed a fixing file in the Top-5 for 50% of cases versus 39% for BM25 keyword search, with no errors, but Java scored 0 of 4, so language support stays labelled preview. Results and misses are in `benchmarks/polyglot-heldout`.
+- The persistent incremental scan index is accepted: rescans of changed repositories are about 30% faster at 1,000 files and 52% faster at 10,000 files. Small repositories pay about 0.1 s for the exact-state cache check that makes unchanged reruns instant.
+- `scripts/benchmark-semantic.mjs` measures structural, cold-cache, and warm-cache plan time with a local model you supply.
+
 ## 0.9.3 - 2026-11-22
 
 ### Added
