@@ -6,9 +6,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { scanRepo } from "../packages/core/dist/index.js";
 
-// Measure the incremental machinery itself at every tier, below the production size threshold too.
-process.env.FIXMAP_INCREMENTAL_INDEX_MIN_FILES ??= "0";
-
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 const previousCache = process.env.FIXMAP_CACHE_DIR;
 const results = [];

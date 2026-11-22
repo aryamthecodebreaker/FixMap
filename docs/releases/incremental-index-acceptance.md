@@ -1,6 +1,6 @@
 # Incremental index acceptance
 
-Status: in progress.
+Status: implemented (2026-11-22). Small-repository overhead is explained and accepted below.
 
 Current acceptance review (2026-09-21):
 
@@ -189,3 +189,26 @@ and cross-platform measurements are now recorded above. Small-repository overhea
 is still a documented limitation with a fresh-scan escape hatch, not a solved
 performance problem. Preserve exact content validation; do not substitute
 size/mtime-only reuse to make the benchmark faster.
+
+## Small-repository overhead resolved by measurement (2026-11-22)
+
+A size threshold that skipped the persistent index below 1,000 files was built and measured
+on one idle Windows machine with `scripts/benchmark-incremental.mjs` (five alternating-order
+rounds per tier, medians, every paired scan identical):
+
+| Files | Index always used: cached / fresh ms | Index skipped below 1,000: cached / fresh ms |
+| --- | --- | --- |
+| 100 | 193 / 97 | 214 / 107 |
+| 1,000 | 479 / 688 | 322 / 413 |
+| 10,000 | 2,074 / 4,338 | 2,073 / 4,475 |
+
+Skipping the index did not change the 100-file gap, so the change was reverted. The same run's
+calibration of the exact-state cache key's Git probe (`git status` plus `git diff`) took
+100 / 161 / 195 ms at the three tiers: the small-repository gap is that probe, not the
+incremental index. The probe is what lets an unchanged rerun return the exact cached scan,
+so it is kept; `--no-cache` remains the escape hatch.
+
+Conclusion: the incremental index is exact in every tested scenario and roughly halves
+rescans of large changed repositories (about 52% at 10,000 files, 30% at 1,000 files in this
+run). Cached mode costs about 0.1 s extra on a small repository whose contents changed. This
+is a documented trade-off, not a universal speed claim.
