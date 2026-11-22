@@ -49,3 +49,32 @@ recorded and published, and the misses become development cases.
 
 This collection uses public GitHub metadata during development only. It adds no network,
 API, account, or upload behavior to the FixMap product.
+
+## Run log
+
+- 2026-11-22, first measurement: aborted at case 24 of 28 when the evaluation machine's disk
+  filled during a Git checkout (`unable to write file`). The run prints only timings until it
+  finishes, so no hit or miss was observed and nothing was recorded. No code that affects
+  ranking changed before the rerun; the only commit in between limits when the incremental
+  scan index is used and batches optional semantic embedding, and both produce identical
+  scan and ranking output.
+- 2026-11-22, rerun after freeing disk space: recorded in `baseline-results.json`.
+
+## Result (rerun, 2026-11-22)
+
+| Condition | Outcome |
+| --- | --- |
+| 1. No silent failures | Pass: 28 of 28 cases scanned and ranked without error. |
+| 2. Every language works | **Fail**: Java placed a fixing file in the Top-5 for 0 of 4 cases. Python 4/4, Rust 4/4, PHP 2/4, .NET 2/4, Go 1/4, Ruby 1/4. |
+| 3. Not worse than keyword search | Pass: FixMap Top-5 50.0% (14/28) vs BM25-over-code 39.3% (11/28); Top-1 tied at 28.6%. |
+
+Language support therefore stays labelled preview. BM25 also found 0 of 4 Java cases.
+
+Java misses: `skylot/jadx#3014` and `termux/termux-app#5090` are rerank misses (the fixing
+file was a candidate but ranked below the Top-5); `NationalSecurityAgency/ghidra#10055` is a
+candidate-recall miss on a vague task; `iluwatar/java-design-patterns#3550` adds new files, so
+its expected paths do not exist at the base commit and no ranker could hit them. The frozen
+case rule did not exclude new-file fixes; it is not changed after measurement.
+
+Per the bar above, the Java cases now move to development use. A newly frozen cohort is
+required before language support can leave preview.
