@@ -1,0 +1,421 @@
+{
+  "generatedAt": "2026-11-22",
+  "status": "held-out",
+  "taskTextRule": "Closing issue title plus the first 600 characters of its body.",
+  "selectionRule": "Per configured repository and language: the first of the 100 most recently updated merged pull requests that closes an issue with at least 80 body characters, is not docs-titled, changes no more than 20 files total, and modifies 1-3 non-test implementation files in that language. Candidates are walked in their configured order until 4 repositories per language yield a case; later candidates are not queried. The PR base commit and exact fixing source paths are frozen before FixMap is measured.",
+  "languages": [
+    "python",
+    "java",
+    "go",
+    "rust",
+    "ruby",
+    "php",
+    "dotnet"
+  ],
+  "cases": [
+    {
+      "slug": "NousResearch/hermes-agent",
+      "language": "python",
+      "repo": "https://github.com/NousResearch/hermes-agent.git",
+      "license": "MIT",
+      "sha": "59dd35ce48ab50d7f59fa00d0ac70ca0d08b38d3",
+      "issue": 101138,
+      "pullRequest": 153528,
+      "task": "Telegram status-noise filter misses the current retry format, and the final-response path never consults it at all\n\n\n### Summary\n\nTwo related defects in the gateway's suppression of provider retry chatter on Telegram:\n\n1. `_TELEGRAM_NOISY_STATUS_RE` no longer matches the retry messages the runtime actually emits. The\n   emitter gained a retry counter; the pattern did not follow.\n2. More importantly, the **final response** of a turn does not go through the noise filter at all —\n   `_sanitize_gateway_final_response` never consults it. So even a perfectly maintained pattern\n   cannot suppress the last message, which is the one the user is most likely to read.\n\nThe result, in our deployment: on a model returnin",
+      "expected": [
+        "agent/turn_empty_response.py",
+        "gateway/run.py",
+        "gateway/run_status_filter.py"
+      ]
+    },
+    {
+      "slug": "yt-dlp/yt-dlp",
+      "language": "python",
+      "repo": "https://github.com/yt-dlp/yt-dlp.git",
+      "license": "Unlicense",
+      "sha": "28b379d666051e795cbb663adac85179d5ce81f7",
+      "issue": 17969,
+      "pullRequest": 17978,
+      "task": "La7 new url not supported it anymore\n\n### Checklist\n\n- [x] I've read the [**NO AI / NO LLM POLICY**](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#no-ai--no-llm-policy) and understand I may be blocked from the repository if it is violated\n- [x] I'm reporting that yt-dlp is broken on a **supported** site\n- [x] I've verified that I have **updated yt-dlp to nightly or master** ([update instructions](https://github.com/yt-dlp/yt-dlp#update-channels))\n- [x] I've checked that all provided URLs are playable in a browser with the same IP and same login details\n- [x] I've checked that all URLs and arguments with special char",
+      "expected": [
+        "yt_dlp/extractor/_extractors.py",
+        "yt_dlp/extractor/la7.py"
+      ]
+    },
+    {
+      "slug": "microsoft/markitdown",
+      "language": "python",
+      "repo": "https://github.com/microsoft/markitdown.git",
+      "license": "MIT",
+      "sha": "533ea574b3ee74548d85411332ee793606e156b9",
+      "issue": 1597,
+      "pullRequest": 1656,
+      "task": "Unicode error converting Microsoft Documentation PDF to markdown file.\n\nhttps://learn.microsoft.com/en-us/windows/win32/direct3d12/direct3d-12-graphics         click \"download PDF' in the bottom left. file too large to upload here.\n\n\nTerminal output:\n```\nTraceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"...\\Roaming\\Python\\Python314\\Scripts\\markitdown.exe\\__main__.py\", line 6, in <module>\n    sys.exit(main())\n             ~~~~^^\n  File \"...\\Roaming\\Python\\Python314\\site-packages\\markitdown\\__main__.py\", line 93, in main\n    _handle_output(args, result)\n    ~~~~~~~~~~~~",
+      "expected": [
+        "packages/markitdown/src/markitdown/__main__.py"
+      ]
+    },
+    {
+      "slug": "Significant-Gravitas/AutoGPT",
+      "language": "python",
+      "repo": "https://github.com/Significant-Gravitas/AutoGPT.git",
+      "license": "NOASSERTION",
+      "sha": "5f9eed6cc90bab61fff25dd47792d56c918411e4",
+      "issue": 14485,
+      "pullRequest": 14534,
+      "task": "Boolean block inputs with surrounding whitespace coerce to False\n\nBoolean block inputs with surrounding whitespace coerce to the wrong value.\n\nRepro: `convert(\" true \", bool)` returns `False` (same for `\"1 \"`). The string-to-bool conversion in `backend/util/type.py` doesn't strip whitespace first, so any padded value from an LLM or user input silently becomes `False`. sibling converters (`__convert_list` strips, `float()` tolerates whitespace) already handle this.\n\nThis feeds `coerce_inputs_to_schema`, used by both the executor and CoPilot, so an agent can take the wrong branch from input like `\" true\\n\"`.\n\nFix: strip before comparing (one line), plus regres",
+      "expected": [
+        "autogpt_platform/backend/backend/util/type.py"
+      ]
+    },
+    {
+      "slug": "NationalSecurityAgency/ghidra",
+      "language": "java",
+      "repo": "https://github.com/NationalSecurityAgency/ghidra.git",
+      "license": "Apache-2.0",
+      "sha": "ac245cfdbd035c14180bb7a470e39348511b4ba2",
+      "issue": 9182,
+      "pullRequest": 10055,
+      "task": "Lag in Patch Instruction\n\nLag occurs when opening [ when entering ARM instructions such as ldr and b.eq in Patch Instruction.\n\nI am using ghidra 12.0.4.",
+      "expected": [
+        "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/app/plugin/assembler/sleigh/symbol/AssemblyNumericSymbols.java"
+      ]
+    },
+    {
+      "slug": "iluwatar/java-design-patterns",
+      "language": "java",
+      "repo": "https://github.com/iluwatar/java-design-patterns.git",
+      "license": "NOASSERTION",
+      "sha": "b55fc2bcb5f8e1c4b884bca0a38d402d19fe467c",
+      "issue": 3227,
+      "pullRequest": 3550,
+      "task": "Implement Fork/Join pattern\n\n## Description\n\nThe Fork/Join pattern is a concurrency design approach that splits (“forks”) a large task into multiple smaller subtasks, processes these subtasks in parallel, and then recombines (“joins”) their results. In Java, this pattern is embodied by the `ForkJoinPool` and `RecursiveTask` / `RecursiveAction` classes within the `java.util.concurrent` package. It’s particularly useful for CPU-intensive, divide-and-conquer problems where parallel processing can significantly reduce completion time.\n\n### Key Elements\n\n- **Divide-and-Conquer**: Recursively split tasks into smaller chunks unt",
+      "expected": [
+        "fork-join/src/main/java/com/iluwatar/forkjoin/App.java",
+        "fork-join/src/main/java/com/iluwatar/forkjoin/ForkJoinSumCalculator.java",
+        "fork-join/src/main/java/com/iluwatar/forkjoin/SumTask.java"
+      ]
+    },
+    {
+      "slug": "termux/termux-app",
+      "language": "java",
+      "repo": "https://github.com/termux/termux-app.git",
+      "license": "NOASSERTION",
+      "sha": "d8d6b02aceb70e80588cadd7b79507676f1a95fc",
+      "issue": 4647,
+      "pullRequest": 5090,
+      "task": "[Bug]: MIUI/Xiaomi HyperOS Mini Window Flickering Issue\n\n### Problem description\n\nWhen keeping Termux in mini-window/floating mode on MIUI/HyperOS, the window exhibits persistent flickering.\n\n\n### Steps to reproduce the behavior.\n\n1. Launch Termux  \n2. Enable floating/mini-window mode  \n3. Observe flickering immediately\n\n### What is the expected behavior?\n\nStable rendering of Termux mini-window  \n\n### System information\n\n* Termux application version:lastest\n* Android OS version:13\n* Device model:Xiaomi 10S\n* Xiaomi HyperOS version:1.0.4\n",
+      "expected": [
+        "app/src/main/java/com/termux/app/terminal/TermuxActivityRootView.java"
+      ]
+    },
+    {
+      "slug": "skylot/jadx",
+      "language": "java",
+      "repo": "https://github.com/skylot/jadx.git",
+      "license": "Apache-2.0",
+      "sha": "5781c8674cec35ea697bbd1434f0a40f527882dd",
+      "issue": 2884,
+      "pullRequest": 3014,
+      "task": "[core] Failed to restore switch over string\n\n### Issue details\n\nJADX throws decomp warning when decompiling [`com.bandcamp.android_3.3.5-220483`](https://www.apkmirror.com/apk/bandcamp-inc/bandcamp/bandcamp-3-3-5-release/)\n\n\nI have tried in other decompilers and they fail (Fernflower, unknown version)\n```\n   public final void m(GsonRequest<LoginResponse> param1) {\n      // $VF: Couldn't be decompiled\n      // Please report this to the Vineflower issue tracker, at https://github.com/Vineflower/vineflower/issues with a copy of the class file (if you have the rights to distribute it!)\n      //\n```\n\n[Login.java](https://github.com/user-attac",
+      "expected": [
+        "jadx-core/src/main/java/jadx/core/dex/visitors/regions/SwitchOverStringVisitor.java"
+      ]
+    },
+    {
+      "slug": "ollama/ollama",
+      "language": "go",
+      "repo": "https://github.com/ollama/ollama.git",
+      "license": "MIT",
+      "sha": "b8db8d5b5c8daedbbef7bb9ace2221a38bc384c2",
+      "issue": 18950,
+      "pullRequest": 19748,
+      "task": "Scheduler reloads the model when a request's `shift` differs from the loaded runner's; launch shift-capable and enforce `shift:false` per request instead\n\n**Version:** 0.35.0, Linux (Ubuntu 24.04) / ROCm, AMD RX 7900 XTX, model `gemma4-26b` (Q4_K_M, 131072 ctx), `OLLAMA_KEEP_ALIVE=-1`, `OLLAMA_CONTEXT_LENGTH=131072`.\n\n### What happens\n\n`needsReload` in `server/sched.go` returns true when `resolveContextShift(req.shift, model)` differs from `runner.contextShift`. Because `--context-shift` is a llama-server **launch** flag, the only way to satisfy the request is to stop the runner and relaunch it: the debug log shows `msg=reloading` immediately followed by \"resetting model to expire immediately to make room\", then a fresh `starting llama-server` f",
+      "expected": [
+        "llm/llama_server.go",
+        "server/sched.go"
+      ]
+    },
+    {
+      "slug": "kubernetes/kubernetes",
+      "language": "go",
+      "repo": "https://github.com/kubernetes/kubernetes.git",
+      "license": "Apache-2.0",
+      "sha": "dd17674001a6e7649c7e5ec69a8617b779a131f2",
+      "issue": 135245,
+      "pullRequest": 143073,
+      "task": "fd leak in kube-apiserver\n\n### What happened?\n\nWhen using `lsof` to check the file descriptors of kube-apiserver, we observed a large number of unreclaimed file descriptors as shown below:\n```\nCOMMAND     PID     USER   FD   TYPE     DEVICE SIZE/OFF NODE NAME\nkube-apis 15754     3001 *770u  sock    0,8      0t0 4243227966 protocol: TCP\n```\n\n### What did you expect to happen?\n\nNo unused and unreclaimed fds.\n\n### How can we reproduce it (as minimally and precisely as possible)?\n\nCreate a pod, make it enter the CrashLoopBackOff state, then use `kubectl exec` to run commands inside the container.\n\n```\nNAME                  ",
+      "expected": [
+        "staging/src/k8s.io/streaming/pkg/httpstream/spdy/roundtripper.go"
+      ]
+    },
+    {
+      "slug": "JuliusBrussee/caveman",
+      "language": "go",
+      "repo": "https://github.com/JuliusBrussee/caveman.git",
+      "license": "Apache-2.0",
+      "sha": "944413127101fc816451571c169dc1eeb3194bed",
+      "issue": 1336,
+      "pullRequest": 1394,
+      "task": "agent-drift: qwen — installed 0.26.1 exceeds pinned 0.25.2\n\n<!-- caveman-agent-drift:qwen -->\n\nThe `qwen` upstream released a version newer than the pin the profile claims to test.\n\n- installed (@latest): `0.26.1`\n- profile `tested_agent_version`: `0.25.2`\n\nThis is a non-blocking drift report from the nightly Agent conformance workflow. To clear it:\n1. Verify `qwen@0.26.1` wraps correctly.\n2. Bump `tested_agent_version` in `agents/profiles/qwen.json` (the conformance CI pin is derived from it and enforced by `compile.mjs`).\n3. Update `last_verified_at`/`verified_by` if the profile carries them.",
+      "expected": [
+        "mem/cmd/cavemem/main.go",
+        "mem/store.go"
+      ]
+    },
+    {
+      "slug": "microsoft/TypeScript",
+      "language": "go",
+      "repo": "https://github.com/microsoft/TypeScript.git",
+      "license": "Apache-2.0",
+      "sha": "f5a247c0ca4e85f1f6ed304c71f149c9f6b3290e",
+      "issue": 64668,
+      "pullRequest": 64743,
+      "task": "panic: Unhandled case in Node.MemberList\n\n### 🔎 Search Terms\n\n\"panic: Unhandled case in Node.MemberList\"\n\n### 🕗 Version & Regression Information\n\nnightly\n\n### ⏯ Playground Link\n\n_No response_\n\n### 💻 Code\n\n```ts\nnamespace E { export class C {} }\nenum E { D = E[\"C\"] }\n```\n\n\n### 🙁 Actual behavior\n\n```\npanic: Unhandled case in Node.MemberList: KindModuleBlock [recovered, repanicked]\ngithub.com/microsoft/TypeScript/tsc/internal/ast.(*Node).MemberList(...)\ngithub.com/microsoft/TypeScript/tsc/internal/ast.(*Node).Members(...)\ngithub.com/microsoft/TypeScript/tsc/internal/checker.(*Checker).computeEnumMemberValues(...)\ngithub.com/microsoft",
+      "expected": [
+        "tsc/internal/checker/checker.go"
+      ]
+    },
+    {
+      "slug": "ultraworkers/claw-code",
+      "language": "rust",
+      "repo": "https://github.com/ultraworkers/claw-code.git",
+      "license": "MIT",
+      "sha": "a2eb74c00effdc815770f030d3a979aa89295d1b",
+      "issue": 3326,
+      "pullRequest": 3333,
+      "task": "[Slice 3.2] Commands: Expand Slash Command Coverage (80 Missing)\n\n## Task\n\nImplement missing 80+ slash commands to reach parity with GJC's 120+ command catalog. Currently have 40/120+.\n\n## Acceptance Criteria\n\n- [ ] Workflow commands (/plan, /review, /approve, /ultragoal)\n- [ ] Model selection (/model set, /model list, /model info)\n- [ ] Cost calculator (/cost)\n- [ ] Advanced debugging (/dump, /trace, /debug advanced)\n- [ ] Task management (/tasks list, /tasks cancel)\n- [ ] Theme management (/theme set, /theme list)\n- [ ] Advanced permission controls\n- [ ] IRC coordination (/irc)\n- [ ] Additional domain-specific commands\n- [ ] All commands have: spec entry, ",
+      "expected": [
+        "rust/crates/commands/src/lib.rs"
+      ]
+    },
+    {
+      "slug": "farion1231/cc-switch",
+      "language": "rust",
+      "repo": "https://github.com/farion1231/cc-switch.git",
+      "license": "MIT",
+      "sha": "2c084ec752a985fa77470facc14cad76ee67e8e1",
+      "issue": 9847,
+      "pullRequest": 9848,
+      "task": "[Bug] Claude Code 经 Codex OAuth 使用 GPT‑6.2 时，顶层 instructions 缓存复用偏低\n\n### 本人说明\n\n完成了补丁的构建以及A/B测试\n\n### 背景\n\nClaude Code 经 CC Switch 本地路由接入官方 Codex OAuth 时，CC Switch 会清理 Anthropic `system` 中的计费头，然后把系统提示写入 Responses 的顶层 `instructions`。会话消息则单独转换为 `input`。这使该路径使用了 OpenCode 在 GPT‑6.2 上观察到缓存读取偏低的请求形态。 [CC Switch v4.0.38 转换器源码](https://github.com/farion1231/cc-switch/blob/2c084ec752a985fa77470facc14cad76ee67e8e1/src-tauri/src/proxy/providers/transform_responses.rs#L1794-L1817)\n\nOpenCode 用相同系统提示比较了顶层 `instructions` 和首条 `developer` 消息。以 ChatGPT 登录的 GPT‑6.2 Sol 为例，第二次请求的缓存读取从 **0 / 9,672** 增至 **9,472 / 9,663**。该 PR 也测试了 Astra 和 API Key 路径，GPT‑6.1 Sol 对照在两种形态下均有命中。OpenCode 后续",
+      "expected": [
+        "src-tauri/src/proxy/providers/transform_responses.rs",
+        "src-tauri/src/proxy/providers/transform_responses/tests.rs"
+      ]
+    },
+    {
+      "slug": "rustdesk/rustdesk",
+      "language": "rust",
+      "repo": "https://github.com/rustdesk/rustdesk.git",
+      "license": "AGPL-3.0",
+      "sha": "eb239024503160707cca87ba6cef5fbfb8fa3f0d",
+      "issue": 15875,
+      "pullRequest": 16729,
+      "task": "Privacy mode prevents lock-after-session-end on macOS, leaving the remote unlocked and visible\n\n## Summary\n\nOn a macOS controlled device, disconnecting with privacy mode enabled leaves the screen **unlocked and visible**, even though \"Lock after session end\" is on. Disconnecting *without* privacy mode locks correctly.\n\nThe end state is worse than not using privacy mode at all: the user leaves believing the screen is protected, and it ends up both visible and unlocked.\n\n## Reproduce\n\nControlled: macOS (tested on macOS 26, RustDesk 1.4.9, Apple Silicon)\nControlling: any client\n\n1. On the controlled peer, set a permanent password and enable `lock-after-session-end` for that peer\n2. Connect,",
+      "expected": [
+        "src/privacy_mode/macos.rs",
+        "src/server/connection.rs"
+      ]
+    },
+    {
+      "slug": "rust-lang/rust",
+      "language": "rust",
+      "repo": "https://github.com/rust-lang/rust.git",
+      "license": "Apache-2.0",
+      "sha": "9de746938314271db6dbb62dc3b4f07288d07d54",
+      "issue": 165650,
+      "pullRequest": 165814,
+      "task": "`let_underscore_lock` suggestion crosses macro boundaries\n\n### Code\n\n```Rust\npub fn f(m: std::sync::Mutex<String>) {\n    let _ = dbg!(m.lock().unwrap());\n}\n```\n\n### Current output\n\n```Shell\nerror: non-binding let on a synchronization lock\n   --> src/lib.rs:2:9\n    |\n  2 |     let _ = dbg!(m.lock().unwrap());\n    |         ^ this lock is not assigned to a binding and is immediately dropped\n    |\n    = note: `#[deny(let_underscore_lock)]` (part of `#[deny(let_underscore)]`) on by default\nhelp: consider binding to an unused variable to avoid immediately dropping the value\n    |\n  2 |     let _unused = dbg!(m.lock().unwrap());\n    |          ++++++\nhelp: ",
+      "expected": [
+        "compiler/rustc_lint/src/let_underscore.rs"
+      ]
+    },
+    {
+      "slug": "jekyll/jekyll",
+      "language": "ruby",
+      "repo": "https://github.com/jekyll/jekyll.git",
+      "license": "MIT",
+      "sha": "202df571314ba1d18e9fccd81d12aaad4a703c38",
+      "issue": 5931,
+      "pullRequest": 9981,
+      "task": "Issues with lazy initializations using the  ||= operator when iterating document collections\n\nWhile developing a pagination plugin I came a cross a strange error when users tried to build jekyll using the `--drafts` argument\r\n\r\n```\r\njekyll build --drafts\r\n```\r\n\r\nI traced the problem to the use of the `||=` operator in the document.rb class. One example is the [date function](https://github.com/jekyll/jekyll/blob/master/lib/jekyll/document.rb#L60-L62). Using lazy assignment for member variables actually causes issues when iterating over documents that do not have these fields set as the collection iterator is broken as soon as the values are assigned.\r\n\r\nThis surfaces when using the `--",
+      "expected": [
+        "lib/jekyll/document.rb"
+      ]
+    },
+    {
+      "slug": "mastodon/mastodon",
+      "language": "ruby",
+      "repo": "https://github.com/mastodon/mastodon.git",
+      "license": "AGPL-3.0",
+      "sha": "166fb24fa53c13f632513f2aafc42f4f0cdb50b2",
+      "issue": 41756,
+      "pullRequest": 41761,
+      "task": "ActionView::MissingTemplate (Missing template redirects/show...)\n\n### Steps to reproduce the problem\n\n1. grep logs for ActionView::MissingTemplate\n\n\n\n### Expected behaviour\n\nno errors logged\n\n### Actual behaviour\n\nerrors logged\n\n### Detailed description\n\nError has been logged several times per day going back as far as I have logs (since July).\n\n```\nNov 19 07:25:00 daikon bundle[725370]: E, [2026-11-19T07:25:00.265067 #725370] ERROR -- : [7aba04e4-9ada-45c5-8aa9-c6d381711898]\nNov 19 07:25:00 daikon bundle[725370]: [7aba04e4-9ada-45c5-8aa9-c6d381711898] ActionView::MissingTemplate (Missing template redirects/show with {locale: [:en], formats: [:json], variants",
+      "expected": [
+        "config/routes.rb"
+      ]
+    },
+    {
+      "slug": "huginn/huginn",
+      "language": "ruby",
+      "repo": "https://github.com/huginn/huginn.git",
+      "license": "MIT",
+      "sha": "639c050b2bf4e14ef9983012af99dfc1dc68b334",
+      "issue": 3521,
+      "pullRequest": 3842,
+      "task": "Some emoji become mojibake in credentials\n\nSome emojis work fine after being saved in credentials, but some emojis turn into ? (question mark), for example `🐪🐐🐏🐑`",
+      "expected": [
+        "db/migrate/20261111000000_change_user_credential_values_to_utf8mb4.rb"
+      ]
+    },
+    {
+      "slug": "Homebrew/brew",
+      "language": "ruby",
+      "repo": "https://github.com/Homebrew/brew.git",
+      "license": "BSD-2-Clause",
+      "sha": "e40c695f619441e4c13b6cf51f8f0484ea091dd5",
+      "issue": 24725,
+      "pullRequest": 24728,
+      "task": "For commands that require package installation, if two or more characters are entered during the installation, the original progress bar remains visible on a new line while the entered characters persist.\n\n### `brew doctor` output\n\n```shell\nPlease note that these warnings are just used to help the Homebrew maintainers\nwith debugging if you file an issue. If everything you use Homebrew for is\nworking fine: please don't worry or file an issue; just ignore this. Thanks!\n\nWarning: Some installed formulae are deprecated or disabled.\nThe following formulae are installed as dependencies:\n\n  icu4c@78\n\nWarning: Unbrewed header files were found in /usr/local/include.\nIf you didn't put them there on purpose they could cause problems when\nbuilding Homebrew formulae and may need to be deleted.\n\nUnexpected he",
+      "expected": [
+        "Library/Homebrew/download_queue.rb",
+        "Library/Homebrew/utils/tty.rb"
+      ]
+    },
+    {
+      "slug": "coollabsio/coolify",
+      "language": "php",
+      "repo": "https://github.com/coollabsio/coolify.git",
+      "license": "Apache-2.0",
+      "sha": "b12d1386f3d458618b4c579babcd1e339c6c40b3",
+      "issue": 12255,
+      "pullRequest": 12257,
+      "task": "[Bug]: Prepare Coolify image for upcoming critical PHP security release (CVE-2026-109618 / CVE-2026-109619)\n\n### Description and Error Message\n\n## Summary\n\nPHP has announced an emergency security release scheduled for **21 October 2026 at 14:00 UTC** to address two critical vulnerabilities (both rated CVSS v4.0 9.2):\n\n- CVE-2026-109618\n- CVE-2026-109619\n\nThese are reported as remote code execution flaws in PHP core. Coolify itself runs on PHP (current image `coollabsio/coolify:4.4.6` contains PHP 8.4.23), so the Coolify container will be affected until a new image is built with the patched PHP.\n\nOfficial notice:  \nhttps://www.php.net/archive/2026.php#2026-10-20-1\n\n## Request\n\nPlease prepare a new Coo",
+      "expected": [
+        "app/Console/Commands/SyncCdn.php",
+        "config/constants.php"
+      ]
+    },
+    {
+      "slug": "nextcloud/server",
+      "language": "php",
+      "repo": "https://github.com/nextcloud/server.git",
+      "license": "AGPL-3.0",
+      "sha": "5cc43956c923fabb689fbe1acc3e9a1ad0d8e088",
+      "issue": 66001,
+      "pullRequest": 66002,
+      "task": "[Bug]: SFTPReadStream returns no data after seeking back from EOF (movie previews fail on SFTP storage)\n\n### ⚠️ This issue respects the following points: ⚠️\n\n- [x] This is **not** a troubleshooting question, general support matter, or webserver/proxy problem, but likely a bug.\n- [x] This issue is **not** already reported on Github OR solved at the Community Help Forum _(I've searched!)_.\n- [x] I'm using a maintained major version of Nextcloud Server **and** tested against the latest patch level.\n- [x] I agree to follow Nextcloud's Code of Conduct.\n- [x] I've tried my best to provide clear reproduction steps that someone unfamiliar with this bug could use to reproduce it.\n\n### Bug description\n\n`SF",
+      "expected": [
+        "apps/files_external/lib/Lib/Storage/SFTPReadStream.php"
+      ]
+    },
+    {
+      "slug": "laravel/framework",
+      "language": "php",
+      "repo": "https://github.com/laravel/framework.git",
+      "license": "MIT",
+      "sha": "b65b5e31522b8a3fcf2bcc7497fa6fb0e8f57ca1",
+      "issue": 62515,
+      "pullRequest": 62517,
+      "task": "[13.x] Regression after #61883: withCasts() on relations does not apply to Relation::create()\n\n### Laravel Version\n\n13.42.0\n\n### PHP Version\n\n8.4.27\n\n### Database Driver & Version\n\nMySQL 8.1\n\n### Description\n\n### Description\n\nPR #61883 introduced a regression in Eloquent relationships by cloning the model inside `Builder::withCasts()`.\n\nWhen `withCasts()` is called on a relationship, the underlying query builder receives a cloned model, but `Relation::$related` still references the original model.\n\nAs a result, methods such as `HasOneOrMany::create()`, which instantiate models using `$this->related->newInstance()`, do not receive the query-time casts.\n\nThis causes an `Array to string co",
+      "expected": [
+        "src/Illuminate/Database/Eloquent/Relations/Relation.php"
+      ]
+    },
+    {
+      "slug": "filamentphp/filament",
+      "language": "php",
+      "repo": "https://github.com/filamentphp/filament.git",
+      "license": "MIT",
+      "sha": "3191a1a12bc0f6103ca644d7c7fc99f1aa915dbb",
+      "issue": 21057,
+      "pullRequest": 21068,
+      "task": "Components sharing a key hide each other on PHP 8.6 (visibility cache + stateless closure caching)\n\n### Package\n\nfilament/schemas\n\n### Package Version\n\nv5.11.4\n\n### Laravel Version\n\nv13.43.0\n\n### Livewire Version\n\nv4.4.8\n\n### PHP Version\n\nPHP 8.6.0RC5\n\n### Problem description\n\nOn PHP 8.6, when two schema components share the same key and both use `hiddenWhenAllChildComponentsHidden()`, whichever one is evaluated first decides the visibility of all of them. In our app this happens to several `Section`s that write into the same nested array (`->statePath('extra')`) from different tabs. When the first section has only hidden children, the other sections are hidden too, even though they have vis",
+      "expected": [
+        "packages/schemas/src/Components/Concerns/CanBeHidden.php"
+      ]
+    },
+    {
+      "slug": "2dust/v2rayN",
+      "language": "dotnet",
+      "repo": "https://github.com/2dust/v2rayN.git",
+      "license": "GPL-3.0",
+      "sha": "f57b1bf47961f0d39c690887cf9a2e6941fb1276",
+      "issue": 10611,
+      "pullRequest": 10629,
+      "task": "[Bug]: Single instance check not working on Linux\n\n### 操作系统 / v2rayN / Core 版本\n\nopenSUSE / v2rayN V7.25.6 (v2rayN-linux-64.zip)\n\n### 预期情况\n\nLaunching v2rayN from its desktop shortcut while an instance is already running should not start a second instance.\n\n### 实际情况\n\nEach launch from the shortcut or executable file starts another v2rayN instance.\n\n### 复现方法\n\n1. Start v2rayN from the desktop shortcut.\n2. Start it again from the same shortcut.\n3. A second instance starts.\n\n### 软件日志\n\n-\n\n### 内核日志\n\n-\n\n### 额外信息\n\n### Suspected cause\n\nIn `v2rayN/v2rayN.Desktop/Program.cs`, the Linux/macOS branch creates a named mutex but immediately discards the referenc",
+      "expected": [
+        "v2rayN/v2rayN.Desktop/Program.cs"
+      ]
+    },
+    {
+      "slug": "shadowsocks/shadowsocks-windows",
+      "language": "dotnet",
+      "repo": "https://github.com/shadowsocks/shadowsocks-windows.git",
+      "license": "NOASSERTION",
+      "sha": "90d90f7cebfe7e07e077d061ef02f61316b001a6",
+      "issue": 2971,
+      "pullRequest": 2982,
+      "task": "Geosite包含大量国内地址，未来有改进计划吗？\n\n<!--\r\n- 影梭（Shadowsocks）是一个开源非盈利项目，不提供任何托管服务。如果你是从服务提供商购买的服务，请联系他们。\r\n- 如果你有非影梭Windows客户端相关的问题，请去 https://github.com/shadowsocks\r\n- 提问前请先阅读wiki https://github.com/shadowsocks/shadowsocks-windows/wiki/Troubleshooting.\r\n- 并在Issue Board中搜索 https://github.com/shadowsocks/shadowsocks-windows/issues?utf8=%E2%9C%93&q=is%3Aissue\r\n- 请按照以下格式描述你的问题，描述不清的问题将会被关闭。\r\n-->\r\n\r\n### 简要描述问题\r\n新版采用的geosite domain list中包含大量国内地址，自动生成pac时会被包含在规则内，导致不必要的代理。\r\n例如，所有暴雪/网易游戏相关的地址。目前可以用user-rule把所有相关的地址都单独拎出来设成例外，但是geosite里面包含的所有其他大陆地址对于国内用户来说也太不方便了吧，有什么改进计划吗？\r\n\r\n### 环境\r\n\r\n- Shadowsocks客户端版本：\r\n4.2.0.1\r\n- 操作系统版本：\r\nWindows 10\r\n-",
+      "expected": [
+        "shadowsocks-csharp/Controller/Service/GeositeUpdater.cs"
+      ]
+    },
+    {
+      "slug": "PowerShell/PowerShell",
+      "language": "dotnet",
+      "repo": "https://github.com/PowerShell/PowerShell.git",
+      "license": "MIT",
+      "sha": "25e80cefdb14d0c69eaa976314e31d035aeddd73",
+      "issue": 27253,
+      "pullRequest": 27266,
+      "task": "FileSystem PSDrives not mounted when PowerShell runs inside an AppContainer\n\n### Prerequisites\n\n- [x] Write a descriptive title.\n- [x] Make sure you are able to repro it on the [latest released version](https://github.com/PowerShell/PowerShell/releases)\n- [x] Search the existing issues.\n- [x] Refer to the [FAQ](https://github.com/PowerShell/PowerShell/blob/master/docs/FAQ.md).\n- [x] Refer to [Differences between Windows PowerShell 5.1 and PowerShell](https://learn.microsoft.com/powershell/scripting/whats-new/differences-from-windows-powershell).\n\n### Steps to reproduce\n\n1. Create a Windows AppContainer profile via `CreateAppContainerProfile`.\n2. Launch `pwsh.exe` insid",
+      "expected": [
+        "src/System.Management.Automation/engine/Modules/ModuleIntrinsics.cs",
+        "src/System.Management.Automation/namespaces/FileSystemProvider.cs"
+      ]
+    },
+    {
+      "slug": "files-community/Files",
+      "language": "dotnet",
+      "repo": "https://github.com/files-community/Files.git",
+      "license": "MIT",
+      "sha": "7b80f9b699a2d7576dea769b8f6501ccb8b1a616",
+      "issue": 19098,
+      "pullRequest": 19132,
+      "task": "Bug: Preview 4.3.2 never shows its window, Files.App.Server.exe crashes in combase.dll on start\n\n### Description\n\nLaunching Files Preview 4.3.2 shows nothing.\n`Files.exe` starts and creates its main window, but never shows it.\nOn each fresh start `Files.App.Server.exe` hits an access violation in `combase.dll`, at the same offset every time:\n\n```\nFaulting application name: Files.App.Server.exe, version: 1.0.0.0, time stamp: 0x6ae74a90\nFaulting module name: combase.dll, version: 10.0.19041.7802, time stamp: 0x267c8117\nException code: 0xc0000005\nFault offset: 0x00000000000c13fb\nFaulting application path: C:\\Program Files\\WindowsApps\\FilesPreview_4.3.2.0_x64__1y0xx7n9077q4\\Files.App.Server\\F",
+      "expected": [
+        "src/Files.App.Server/Contracts/RecycleBinChange.cs",
+        "src/Files.App.Server/Contracts/SettingsValue.cs"
+      ]
+    }
+  ],
+  "skipped": [
+    {
+      "slug": "anthropics/skills",
+      "language": "python",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "521xueweihan/HelloGitHub",
+      "language": "python",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "macrozheng/mall",
+      "language": "java",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "golang/go",
+      "language": "go",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "openai/codex",
+      "language": "rust",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    }
+  ]
+}

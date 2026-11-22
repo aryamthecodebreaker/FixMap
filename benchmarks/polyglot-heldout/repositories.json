@@ -1,0 +1,427 @@
+{
+  "status": "held-out",
+  "targetPerLanguage": 4,
+  "candidateRule": "For each language, GitHub repository search (language filter, sorted by stars, descending, first 40 results on 2026-11-22), skipping archived repositories, repositories already used by any earlier FixMap cohort, and repositories whose name or description matches /awesome|tutorial|interview|course|book|roadmap|list of|collection|cheat|guide|learn|resources|example|leetcode|algorithm|exercise|demo|sample|homework|free |projects|system design|prompts?|papers/i. The first 15 survivors per language are listed in star order.",
+  "repositories": [
+    {
+      "slug": "NousResearch/hermes-agent",
+      "language": "python"
+    },
+    {
+      "slug": "yt-dlp/yt-dlp",
+      "language": "python"
+    },
+    {
+      "slug": "anthropics/skills",
+      "language": "python"
+    },
+    {
+      "slug": "microsoft/markitdown",
+      "language": "python"
+    },
+    {
+      "slug": "521xueweihan/HelloGitHub",
+      "language": "python"
+    },
+    {
+      "slug": "Significant-Gravitas/AutoGPT",
+      "language": "python"
+    },
+    {
+      "slug": "huggingface/transformers",
+      "language": "python"
+    },
+    {
+      "slug": "AUTOMATIC1111/stable-diffusion-webui",
+      "language": "python"
+    },
+    {
+      "slug": "langgenius/dify",
+      "language": "python"
+    },
+    {
+      "slug": "langflow-ai/langflow",
+      "language": "python"
+    },
+    {
+      "slug": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "language": "python"
+    },
+    {
+      "slug": "Graphify-Labs/graphify",
+      "language": "python"
+    },
+    {
+      "slug": "github/spec-kit",
+      "language": "python"
+    },
+    {
+      "slug": "langchain-ai/langchain",
+      "language": "python"
+    },
+    {
+      "slug": "Comfy-Org/ComfyUI",
+      "language": "python"
+    },
+    {
+      "slug": "NationalSecurityAgency/ghidra",
+      "language": "java"
+    },
+    {
+      "slug": "iluwatar/java-design-patterns",
+      "language": "java"
+    },
+    {
+      "slug": "macrozheng/mall",
+      "language": "java"
+    },
+    {
+      "slug": "termux/termux-app",
+      "language": "java"
+    },
+    {
+      "slug": "skylot/jadx",
+      "language": "java"
+    },
+    {
+      "slug": "jeecgboot/JeecgBoot",
+      "language": "java"
+    },
+    {
+      "slug": "ReactiveX/RxJava",
+      "language": "java"
+    },
+    {
+      "slug": "lysine-dev/retrofit",
+      "language": "java"
+    },
+    {
+      "slug": "apache/dubbo",
+      "language": "java"
+    },
+    {
+      "slug": "TeamNewPipe/NewPipe",
+      "language": "java"
+    },
+    {
+      "slug": "YunaiV/ruoyi-vue-pro",
+      "language": "java"
+    },
+    {
+      "slug": "halo-dev/halo",
+      "language": "java"
+    },
+    {
+      "slug": "keycloak/keycloak",
+      "language": "java"
+    },
+    {
+      "slug": "alibaba/arthas",
+      "language": "java"
+    },
+    {
+      "slug": "yuliskov/SmartTube",
+      "language": "java"
+    },
+    {
+      "slug": "ollama/ollama",
+      "language": "go"
+    },
+    {
+      "slug": "golang/go",
+      "language": "go"
+    },
+    {
+      "slug": "kubernetes/kubernetes",
+      "language": "go"
+    },
+    {
+      "slug": "JuliusBrussee/caveman",
+      "language": "go"
+    },
+    {
+      "slug": "microsoft/TypeScript",
+      "language": "go"
+    },
+    {
+      "slug": "fatedier/frp",
+      "language": "go"
+    },
+    {
+      "slug": "infiniflow/ragflow",
+      "language": "go"
+    },
+    {
+      "slug": "syncthing/syncthing",
+      "language": "go"
+    },
+    {
+      "slug": "gohugoio/hugo",
+      "language": "go"
+    },
+    {
+      "slug": "junegunn/fzf",
+      "language": "go"
+    },
+    {
+      "slug": "jesseduffield/lazygit",
+      "language": "go"
+    },
+    {
+      "slug": "netdata/netdata",
+      "language": "go"
+    },
+    {
+      "slug": "caddyserver/caddy",
+      "language": "go"
+    },
+    {
+      "slug": "nektos/act",
+      "language": "go"
+    },
+    {
+      "slug": "moby/moby",
+      "language": "go"
+    },
+    {
+      "slug": "ultraworkers/claw-code",
+      "language": "rust"
+    },
+    {
+      "slug": "farion1231/cc-switch",
+      "language": "rust"
+    },
+    {
+      "slug": "openai/codex",
+      "language": "rust"
+    },
+    {
+      "slug": "rustdesk/rustdesk",
+      "language": "rust"
+    },
+    {
+      "slug": "rust-lang/rust",
+      "language": "rust"
+    },
+    {
+      "slug": "pbakaus/impeccable",
+      "language": "rust"
+    },
+    {
+      "slug": "tauri-apps/tauri",
+      "language": "rust"
+    },
+    {
+      "slug": "denoland/deno",
+      "language": "rust"
+    },
+    {
+      "slug": "ruvnet/RuView",
+      "language": "rust"
+    },
+    {
+      "slug": "oven-sh/bun",
+      "language": "rust"
+    },
+    {
+      "slug": "zed-industries/zed",
+      "language": "rust"
+    },
+    {
+      "slug": "astral-sh/uv",
+      "language": "rust"
+    },
+    {
+      "slug": "rtk-ai/rtk",
+      "language": "rust"
+    },
+    {
+      "slug": "storytold/photocraft",
+      "language": "rust"
+    },
+    {
+      "slug": "unionlabs/union",
+      "language": "rust"
+    },
+    {
+      "slug": "jekyll/jekyll",
+      "language": "ruby"
+    },
+    {
+      "slug": "mastodon/mastodon",
+      "language": "ruby"
+    },
+    {
+      "slug": "huginn/huginn",
+      "language": "ruby"
+    },
+    {
+      "slug": "Homebrew/brew",
+      "language": "ruby"
+    },
+    {
+      "slug": "fastlane/fastlane",
+      "language": "ruby"
+    },
+    {
+      "slug": "chatwoot/chatwoot",
+      "language": "ruby"
+    },
+    {
+      "slug": "freeCodeCamp/devdocs",
+      "language": "ruby"
+    },
+    {
+      "slug": "rapid7/metasploit-framework",
+      "language": "ruby"
+    },
+    {
+      "slug": "hashicorp/vagrant",
+      "language": "ruby"
+    },
+    {
+      "slug": "gitlabhq/gitlabhq",
+      "language": "ruby"
+    },
+    {
+      "slug": "heartcombo/devise",
+      "language": "ruby"
+    },
+    {
+      "slug": "ruby/ruby",
+      "language": "ruby"
+    },
+    {
+      "slug": "forem/forem",
+      "language": "ruby"
+    },
+    {
+      "slug": "Homebrew/homebrew-cask",
+      "language": "ruby"
+    },
+    {
+      "slug": "lewagon/setup",
+      "language": "ruby"
+    },
+    {
+      "slug": "coollabsio/coolify",
+      "language": "php"
+    },
+    {
+      "slug": "nextcloud/server",
+      "language": "php"
+    },
+    {
+      "slug": "laravel/framework",
+      "language": "php"
+    },
+    {
+      "slug": "filamentphp/filament",
+      "language": "php"
+    },
+    {
+      "slug": "bagisto/bagisto",
+      "language": "php"
+    },
+    {
+      "slug": "monicahq/monica",
+      "language": "php"
+    },
+    {
+      "slug": "firefly-iii/firefly-iii",
+      "language": "php"
+    },
+    {
+      "slug": "livewire/livewire",
+      "language": "php"
+    },
+    {
+      "slug": "PHPMailer/PHPMailer",
+      "language": "php"
+    },
+    {
+      "slug": "matomo-org/matomo",
+      "language": "php"
+    },
+    {
+      "slug": "WordPress/WordPress",
+      "language": "php"
+    },
+    {
+      "slug": "Seldaek/monolog",
+      "language": "php"
+    },
+    {
+      "slug": "fruitcake/laravel-debugbar",
+      "language": "php"
+    },
+    {
+      "slug": "easychen/howto-make-more-money",
+      "language": "php"
+    },
+    {
+      "slug": "bcit-ci/CodeIgniter",
+      "language": "php"
+    },
+    {
+      "slug": "2dust/v2rayN",
+      "language": "dotnet"
+    },
+    {
+      "slug": "shadowsocks/shadowsocks-windows",
+      "language": "dotnet"
+    },
+    {
+      "slug": "PowerShell/PowerShell",
+      "language": "dotnet"
+    },
+    {
+      "slug": "files-community/Files",
+      "language": "dotnet"
+    },
+    {
+      "slug": "huiyadanli/RevokeMsgPatcher",
+      "language": "dotnet"
+    },
+    {
+      "slug": "dotnet/aspnetcore",
+      "language": "dotnet"
+    },
+    {
+      "slug": "k1tbyte/Wand-Enhancer",
+      "language": "dotnet"
+    },
+    {
+      "slug": "iOfficeAI/OfficeCLI",
+      "language": "dotnet"
+    },
+    {
+      "slug": "DevToys-app/DevToys",
+      "language": "dotnet"
+    },
+    {
+      "slug": "AvaloniaUI/Avalonia",
+      "language": "dotnet"
+    },
+    {
+      "slug": "microsoft/calculator",
+      "language": "dotnet"
+    },
+    {
+      "slug": "KnifeLemon/Filee",
+      "language": "dotnet"
+    },
+    {
+      "slug": "microsoft/semantic-kernel",
+      "language": "dotnet"
+    },
+    {
+      "slug": "NickeManarin/ScreenToGif",
+      "language": "dotnet"
+    },
+    {
+      "slug": "BeyondDimension/SteamTools",
+      "language": "dotnet"
+    }
+  ]
+}
