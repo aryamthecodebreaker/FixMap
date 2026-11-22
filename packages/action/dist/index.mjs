@@ -6981,6 +6981,7 @@ var record = (value) => Boolean(value) && typeof value === "object" && !Array.is
 var term = (value) => typeof value === "string" && value.length > 0 && value.length <= 512 && !/[\x00-\x1f\x7f]/.test(value);
 var fields = (value, allowed) => Object.keys(value).every((key) => allowed.includes(key));
 var repoPath = (value) => typeof value === "string" && value.length > 0 && value.length <= 4096 && !/[\x00-\x1f\x7f\\:]/.test(value) && value.split("/").every((part) => part !== "" && part !== "." && part !== "..");
+var MAX_RECORDED_FAILURES = 200;
 function validImports(value) {
   return Array.isArray(value) && value.length <= 2e3 && value.every((entry) => record(entry) && fields(entry, ["specifier", "importedNames", "wildcard"]) && term(entry.specifier) && typeof entry.wildcard === "boolean" && Array.isArray(entry.importedNames) && entry.importedNames.length <= 200 && entry.importedNames.every(term));
 }
@@ -6989,7 +6990,22 @@ function validDefinitions(value, textLength) {
 }
 function createCustomLanguageContext(registry) {
   const cache = /* @__PURE__ */ new WeakMap();
+  const failures = /* @__PURE__ */ new Map();
+  let failureCount = 0;
+  const recordFailure = (failure) => {
+    const key = [failure.adapter, failure.path, failure.code].join("\0");
+    if (failures.has(key))
+      return;
+    failureCount += 1;
+    if (failures.size < MAX_RECORDED_FAILURES)
+      failures.set(key, failure);
+  };
   return Object.freeze({
+    /** Detached, sorted, bounded failures; total counts every distinct failure seen. */
+    failures() {
+      const entries = [...failures.values()].map((entry) => ({ ...entry })).sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : left.code < right.code ? -1 : left.code > right.code ? 1 : 0);
+      return { total: failureCount, entries };
+    },
     supports(extension) {
       return registry.customForExtension(extension) !== void 0;
     },
@@ -7014,6 +7030,8 @@ function createCustomLanguageContext(registry) {
           throw new Error();
         return { status: "ok", targets: [...new Set(proposed)].filter((target) => target !== fromPath).sort() };
       } catch {
+        if (repoPath(fromPath))
+          recordFailure({ adapter: adapter.id, path: fromPath, code: "adapter-resolution-failed" });
         return { status: "failed", adapter: adapter.id, code: "adapter-resolution-failed" };
       }
     },
@@ -7047,6 +7065,9 @@ function createCustomLanguageContext(registry) {
           result = { status: "failed", adapter: adapter.id, code: "adapter-extraction-failed" };
         }
       }
+      if (result.status === "failed" && repoPath(file.path)) {
+        recordFailure({ adapter: adapter.id, path: file.path, code: result.code });
+      }
       cache.set(file, { path: file.path, extension, text, result });
       return structuredClone(result);
     }
@@ -7071,6 +7092,7 @@ async function buildFixMapAnalysis(input) {
   const internalExclude = buildPathExcluder((input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern)));
   const exclude = combineExclusions(requestedExclude, internalExclude);
   const languageContext = input.languageRegistry ? createCustomLanguageContext(input.languageRegistry) : void 0;
+  const analyzedRepo = languageContext ? classifyCustomTests(repo, languageContext) : repo;
   const reportInput = {
     issueText: input.issueText,
     limit: input.limit,
@@ -7078,7 +7100,24 @@ async function buildFixMapAnalysis(input) {
     annotationAsOf: (/* @__PURE__ */ new Date()).toISOString(),
     ...languageContext ? { languageContext } : {}
   };
-  const report = input.embeddingProvider ? await buildHybridReportFromRepo(repo, { ...reportInput, embeddingProvider: input.embeddingProvider }) : buildReportFromRepo(repo, reportInput);
+  const report = input.embeddingProvider ? await buildHybridReportFromRepo(analyzedRepo, { ...reportInput, embeddingProvider: input.embeddingProvider }) : buildReportFromRepo(analyzedRepo, reportInput);
+  if (input.languageRegistry && languageContext) {
+    report.languageAdapters = input.languageRegistry.customAdapters.map((adapter) => ({
+      id: adapter.id,
+      version: adapter.version,
+      extensions: [...adapter.extensions]
+    }));
+    const { total, entries } = languageContext.failures();
+    if (total > 0) {
+      const shown = entries.slice(0, 8);
+      report.diagnostics.push({
+        code: "language-adapter-failed",
+        severity: "warning",
+        message: `${total} custom language adapter ${total === 1 ? "call" : "calls"} failed or returned invalid results, so ${total === 1 ? "that file was" : "those files were"} analyzed without custom facts: ` + shown.map((entry) => `${markdownCode(entry.path)} (${entry.adapter}, ${entry.code})`).join(", ") + `${total > shown.length ? ", ..." : ""}.`,
+        paths: shown.map((entry) => entry.path)
+      });
+    }
+  }
   if (generatedArtifacts.length > 0) {
     const described = generatedArtifacts.slice(0, 8).map((file) => `${markdownCode(file.path)} (${fixMapArtifactKind(file)})`);
     report.diagnostics.push({
@@ -7109,7 +7148,7 @@ async function buildFixMapAnalysis(input) {
       });
     }
   }
-  return { report, repo, exclusions: exclude };
+  return { report, repo: analyzedRepo, exclusions: exclude };
 }
 function combineExclusions(primary, internal) {
   if (internal.patterns.length === 0)
@@ -7145,6 +7184,19 @@ async function readIgnoreFile(repoRoot) {
   } catch {
     return [];
   }
+}
+function classifyCustomTests(repo, context) {
+  let changed = false;
+  const files = repo.files.map((file) => {
+    if (file.isTest || !context.supports(file.extension))
+      return file;
+    const extracted = context.extract(file);
+    if (extracted.status !== "ok" || !extracted.facts.isTest)
+      return file;
+    changed = true;
+    return { ...file, isTest: true };
+  });
+  return changed ? { ...repo, files } : repo;
 }
 
 // packages/core/dist/verify.js
@@ -7707,6 +7759,12 @@ function validateFixMapReport(candidate, label) {
   }
   if (!isRepositoryRelativePathArray(record3.changedFiles)) {
     return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
+  }
+  if (record3.languageAdapters !== void 0) {
+    const adapters = record3.languageAdapters;
+    if (!Array.isArray(adapters) || adapters.length > 32 || !adapters.every((adapter) => isRecord6(adapter) && Object.keys(adapter).every((key) => key === "id" || key === "version" || key === "extensions") && typeof adapter.id === "string" && /^custom:[a-z][a-z0-9-]{0,63}$/.test(adapter.id) && typeof adapter.version === "string" && /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(adapter.version) && Array.isArray(adapter.extensions) && adapter.extensions.length > 0 && adapter.extensions.length <= 32 && adapter.extensions.every((extension) => typeof extension === "string" && /^\.[a-z0-9][a-z0-9_-]{0,15}$/.test(extension)))) {
+      return { success: false, message: `${label} has invalid languageAdapters; each entry needs a custom: id, a version, and lowercase extensions.` };
+    }
   }
   if (record3.annotations !== void 0) {
     const annotations = record3.annotations;

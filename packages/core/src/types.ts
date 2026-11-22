@@ -93,6 +93,7 @@ export type ScanDiagnostic = {
     | "semantic-provider-failed"
     | "semantic-candidates-truncated"
     | "fixmap-artifact-excluded"
+    | "language-adapter-failed"
     | "annotation-store-invalid"
     | "annotation-source-incomplete"
     | "annotation-target-stale"
@@ -289,6 +290,14 @@ export type FixMapReport = {
   decisions?: DecisionRecord[];
   /** Repository-owned architecture policy findings with exact policy provenance. */
   policy?: ArchitecturePolicyResult;
+  /** Explicitly registered custom language adapters used for this report; callbacks are never serialized. */
+  languageAdapters?: ReportLanguageAdapter[];
+};
+
+export type ReportLanguageAdapter = {
+  id: `custom:${string}`;
+  version: string;
+  extensions: string[];
 };
 
 export type VerifyFinding = {

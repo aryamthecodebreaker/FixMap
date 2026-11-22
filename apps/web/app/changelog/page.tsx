@@ -44,9 +44,31 @@ type Release = {
 
 const releases: Release[] = [
   {
-    version: "0.9.2",
+    version: "0.9.3",
     date: "November 22, 2026",
     label: "Latest release",
+    summary: "Teach FixMap a new language from your own code, with broken plugins safely contained, plus live download numbers and a full feature list on this site.",
+    groups: [
+      {
+        label: "Added",
+        items: [
+          "Custom language adapters are public: register definitions, imports, import resolution, and test-file naming for your own file extensions, and FixMap ranks and maps them like its built-in languages.",
+          "A crashing or malformed adapter is contained and reported in one warning without leaking its error text, and reports record which adapters were used.",
+          "The feature catalog behind fixmap features is shared, so other tools and this site read one list."
+        ]
+      },
+      {
+        label: "Improved",
+        items: [
+          "The homepage shows live npm download counts and GitHub stars, labelled as downloads rather than users.",
+          "A new Features page lists all 36 features with the command for each, marking the 11 previews."
+        ]
+      }
+    ]
+  },
+  {
+    version: "0.9.2",
+    date: "November 22, 2026",
     summary: "Ships the v0.10 work built so far: thirteen fixes, team notes on code, design decisions in reports, and wider language support, with unfinished commands clearly marked as previews.",
     groups: [
       {

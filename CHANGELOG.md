@@ -6,6 +6,23 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.3 - 2026-11-22
+
+### Added
+
+- Custom language adapters are public. `createLanguageRegistry` is exported from `@aryam/fixmap-core`, and `buildFixMapAnalysis` / `buildFixMapReport` accept it as `languageRegistry`. An adapter supplies definitions, imports, import resolution, and test-file naming for its own extensions, and those facts drive ranking, grounding, impact, and test classification like the built-in languages.
+- A throwing or malformed adapter is contained: the file is analyzed without custom facts and the report gets one bounded `language-adapter-failed` warning naming the adapter, path, and failure code, never the plugin's own error text. Import targets outside the scanned repository are dropped. Reports record the adapters used as validated `languageAdapters` provenance, and concurrent analyses with different registries stay independent. The CLI, MCP server, and Action never load language plugins from a repository.
+- `FIXMAP_FEATURES`, the catalog behind `fixmap features`, is exported from Core so other tools read the same list.
+
+### Website
+
+- The homepage shows live npm download counts and GitHub stars, refreshed hourly and labelled as downloads rather than users. FixMap still sends no telemetry.
+- A new Features page lists all 36 features with the command for each, marking the 11 previews.
+
+### Roadmap
+
+- Enterprise access rules and the Helm chart move to v0.11, because both need a hosted FixMap service.
+
 ## 0.9.2 - 2026-11-22
 
 This release ships the work built toward v0.10.0 so far. Commands and options marked **preview** work and are tested, but their output and options may still change before v0.10.0. `fixmap --help`, `fixmap features`, and the MCP tool descriptions label them.
