@@ -7893,7 +7893,11 @@ function routeReviewers(repo, input) {
   addCodeOwners(repo, changedPaths, accumulated, diagnostics);
   addAnnotations(repo, changedPaths, input.now, accumulated, diagnostics);
   addPolicy(repo, changedPaths, accumulated, diagnostics);
-  addHistory(repo, changedPaths, accumulated);
+  if (input.includeHistoryAuthors === false) {
+    diagnostics.push({ source: "git-history", severity: "info", message: "Commit-author suggestions were turned off; only CODEOWNERS, annotations, and architecture policy were used." });
+  } else {
+    addHistory(repo, changedPaths, accumulated, diagnostics);
+  }
   const suggestions = [...accumulated].map(([reviewer, value]) => ({
     reviewer,
     confidence: value.confidence,
@@ -8008,7 +8012,12 @@ function addPolicy(repo, paths, accumulated, diagnostics) {
     diagnostics.push({ source: ".fixmap/policy.json", severity: "warning", message: `Policy reviewers were skipped: ${error instanceof Error ? error.message : String(error)}` });
   }
 }
-function addHistory(repo, paths, accumulated) {
+function addHistory(repo, paths, accumulated, diagnostics) {
+  if (repo.history?.shallow) {
+    diagnostics.push({ source: "git-history", severity: "warning", message: "Commit history is shallow, so commit-author suggestions only reflect the commits present in this clone." });
+  } else if (repo.history?.truncated) {
+    diagnostics.push({ source: "git-history", severity: "info", message: `Commit-author suggestions use only the newest ${Math.min(repo.history.inspectedCommits, MAX_HISTORY_COMMITS2).toLocaleString()} non-merge commits.` });
+  }
   for (const path of paths) {
     const counts = /* @__PURE__ */ new Map();
     for (const commit of (repo.history?.commits ?? []).slice(0, MAX_HISTORY_COMMITS2)) {
@@ -8039,8 +8048,9 @@ function add(accumulated, reviewer, confidence, path, evidence) {
   if (confidenceOrder(confidence) < confidenceOrder(existing.confidence))
     existing.confidence = confidence;
   existing.paths.add(path);
-  if (!existing.evidence.some((entry2) => evidenceKey(entry2) === evidenceKey(evidence)))
-    existing.evidence.push(evidence);
+  const routed = { ...evidence, changedPath: path };
+  if (!existing.evidence.some((entry2) => evidenceKey(entry2) === evidenceKey(routed)))
+    existing.evidence.push(routed);
   accumulated.set(identity, existing);
 }
 function normalizePaths(values) {
@@ -8057,10 +8067,10 @@ function validOwner(value) {
   return value.length <= 200 && (/^@[A-Za-z0-9][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9][A-Za-z0-9_.-]*)?$/.test(value) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
 }
 function evidenceKey(value) {
-  return `${value.kind}\0${value.sourceFingerprint}\0${value.path ?? ""}\0${value.line ?? ""}\0${value.detail}`;
+  return `${value.kind}\0${value.sourceFingerprint}\0${value.path ?? ""}\0${value.line ?? ""}\0${value.changedPath ?? ""}\0${value.detail}`;
 }
 function evidenceOrder(a, b) {
-  return a.kind.localeCompare(b.kind) || (a.path ?? "").localeCompare(b.path ?? "") || (a.line ?? 0) - (b.line ?? 0);
+  return a.kind.localeCompare(b.kind) || (a.changedPath ?? "").localeCompare(b.changedPath ?? "") || (a.path ?? "").localeCompare(b.path ?? "") || (a.line ?? 0) - (b.line ?? 0);
 }
 function confidenceOrder(value) {
   return value === "high" ? 0 : value === "medium" ? 1 : 2;
