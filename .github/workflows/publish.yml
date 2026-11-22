@@ -265,7 +265,7 @@ jobs:
               echo "::error::${package_name}@latest resolves to ${LATEST}, expected ${VERSION}."
               exit 1
             fi
-            if [[ "$HOMEPAGE" != "https://usefixmap.vercel.app" ]]; then
+            if [[ "$HOMEPAGE" != "https://fixmap.aryam.me" ]]; then
               echo "::error::${package_name}@${VERSION} homepage is ${HOMEPAGE}, expected the canonical site."
               exit 1
             fi

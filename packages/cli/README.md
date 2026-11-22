@@ -181,7 +181,7 @@ fixmap mcp             Run FixMap as an MCP server over stdio
 ## Links
 
 - [GitHub repository](https://github.com/aryamthecodebreaker/FixMap)
-- [Live demo](https://usefixmap.vercel.app)
+- [Live demo](https://fixmap.aryam.me)
 - [Changelog](https://github.com/aryamthecodebreaker/FixMap/blob/main/CHANGELOG.md)
 
 MIT © FixMap contributors.
