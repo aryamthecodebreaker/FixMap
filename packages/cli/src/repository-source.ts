@@ -7,8 +7,10 @@ import { promisify } from "node:util";
 import {
   buildFixMapReport,
   createLocalTransformersEmbeddingProvider,
+  readEvidenceProviderBundle,
   withPersistentEmbeddingCache,
   type FixMapReport,
+  type ReportEvidenceSource,
   type ScanDiagnostic
 } from "@aryam/fixmap-core";
 
@@ -36,6 +38,8 @@ export type RepositoryPlanInput = {
   exclude?: string[] | undefined;
   internalExclude?: string[] | undefined;
   semanticModelPath?: string | undefined;
+  /** Local evidence bundle files (data only, version-1 envelope). */
+  evidencePaths?: string[] | undefined;
 };
 
 export type ClonedRepository = {
@@ -540,6 +544,13 @@ export async function buildReportForRepository(
     };
   }
 
+  // Read bundles before any checkout so a bad file fails fast and paths resolve from the caller.
+  const evidenceSources: ReportEvidenceSource[] = [];
+  for (const path of input.evidencePaths ?? []) {
+    const bundle = await readEvidenceProviderBundle(path);
+    evidenceSources.push({ provider: bundle.provider, documentSha256: bundle.documentSha256 });
+  }
+
   return withRepositorySource(
     source,
     async (resolvedSource) => {
@@ -562,7 +573,8 @@ export async function buildReportForRepository(
         limit: input.limit,
         exclude: input.exclude,
         internalExclude: input.internalExclude,
-        embeddingProvider
+        embeddingProvider,
+        ...(evidenceSources.length > 0 ? { evidenceSources } : {})
       });
       reportProgress(`ranked ${report.contextFiles.length} context files`);
       const sourceDiagnostics = [issueDiagnostic, resolvedSource.diagnostic].filter(

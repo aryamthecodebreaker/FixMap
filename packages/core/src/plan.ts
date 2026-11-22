@@ -10,6 +10,7 @@ import { createCustomLanguageContext } from "./custom-language-context.js";
 import type { EmbeddingProvider } from "./semantic.js";
 import type { FixMapInput, FixMapReport } from "./types.js";
 import { fixMapArtifactKind, isFixMapArtifact } from "./artifacts.js";
+import { attachReportEvidence, type ReportEvidenceSource } from "./report-evidence.js";
 
 export async function buildFixMapReport(
   input: Pick<
@@ -22,6 +23,8 @@ export async function buildFixMapReport(
     internalExclude?: string[] | undefined;
     embeddingProvider?: EmbeddingProvider | undefined;
     languageRegistry?: LanguageRegistry;
+    /** Explicit evidence providers, typically imported bundles; collected without network or code execution. */
+    evidenceSources?: readonly ReportEvidenceSource[];
   }
 ): Promise<FixMapReport> {
   return (await buildFixMapAnalysis(input)).report;
@@ -42,6 +45,8 @@ export async function buildFixMapAnalysis(
     internalExclude?: string[] | undefined;
     embeddingProvider?: EmbeddingProvider | undefined;
     languageRegistry?: LanguageRegistry;
+    /** Explicit evidence providers, typically imported bundles; collected without network or code execution. */
+    evidenceSources?: readonly ReportEvidenceSource[];
   }
 ): Promise<{ report: FixMapReport; repo: Awaited<ReturnType<typeof scanRepo>>; exclusions: PathExcluder }> {
   const scannedRepo = await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
@@ -75,6 +80,10 @@ export async function buildFixMapAnalysis(
   const report = input.embeddingProvider
     ? await buildHybridReportFromRepo(analyzedRepo, { ...reportInput, embeddingProvider: input.embeddingProvider })
     : buildReportFromRepo(analyzedRepo, reportInput);
+
+  if (input.evidenceSources && input.evidenceSources.length > 0) {
+    report.evidence = await attachReportEvidence(report, analyzedRepo, input.evidenceSources, { issueText: input.issueText ?? "" });
+  }
 
   if (input.languageRegistry && languageContext) {
     report.languageAdapters = input.languageRegistry.customAdapters.map((adapter) => ({

@@ -862,6 +862,18 @@ export function renderMarkdownReport(report: FixMapReport): string {
         )
       ])
     ] : []),
+    ...(report.evidence ? [
+      "",
+      "## External Evidence",
+      "",
+      `Imported from ${report.evidence.sources.map((source) => `${markdownCode(source.provider)} ${inlineProse(source.version)}`).join(", ")}. Provider claims are shown as supplied; FixMap did not verify them.`,
+      "",
+      ...listOrEmpty(report.evidence.items.map((item) =>
+        `- **${item.confidence}** ${item.kind} (${markdownCode(item.provider.id)}): ${inlineProse(item.summary)} — ${item.subjects.map((subject) => "path" in subject && typeof subject.path === "string" ? markdownCode(subject.path) : subject.kind).join(", ")}`
+      )),
+      ...(report.evidence.omittedItems > 0 ? ["", `${report.evidence.omittedItems} further evidence item${report.evidence.omittedItems === 1 ? " was" : "s were"} not about files in this report.`] : []),
+      ...report.evidence.diagnostics.map((diagnostic) => `- **${diagnostic.severity}** ${markdownCode(diagnostic.provider)} ${diagnostic.code}: ${inlineProse(diagnostic.message)}`)
+    ] : []),
     ...(report.policy ? [
       "",
       "## Architecture Policy",

@@ -2,9 +2,11 @@ import {
   buildFixMapAnalysis,
   buildContextPack,
   createLocalTransformersEmbeddingProvider,
+  readEvidenceProviderBundle,
   withPersistentEmbeddingCache,
   type ContextPack,
   type FixMapReport,
+  type ReportEvidenceSource,
   type RepoMap,
   type ScanDiagnostic
 } from "@aryam/fixmap-core";
@@ -34,6 +36,8 @@ export type AnalysisSourceInput = {
   exclude?: string[] | undefined;
   internalExclude?: string[] | undefined;
   semanticModelPath?: string | undefined;
+  /** Local evidence bundle files (data only, version-1 envelope). */
+  evidencePaths?: string[] | undefined;
 };
 
 export type AnalyzedRepository = {
@@ -93,7 +97,13 @@ export async function analyzeRepository(
         { repositoryRoot: resolved.repoRoot }
       )
       : undefined;
+    const evidenceSources: ReportEvidenceSource[] = [];
+    for (const path of input.evidencePaths ?? []) {
+      const bundle = await readEvidenceProviderBundle(path);
+      evidenceSources.push({ provider: bundle.provider, documentSha256: bundle.documentSha256 });
+    }
     const { report, repo } = await buildFixMapAnalysis({
+      ...(evidenceSources.length > 0 ? { evidenceSources } : {}),
       repoRoot: resolved.repoRoot,
       issueText: task,
       diffSpec: input.diffSpec,

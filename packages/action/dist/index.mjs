@@ -5731,6 +5731,16 @@ function renderMarkdownReport(report) {
         ...(report.annotations?.entries ?? []).map((assessment) => `- **annotation ${assessment.status}** ${describeAnnotationScope(assessment)}: ${assessment.annotation.note}`)
       ])
     ] : [],
+    ...report.evidence ? [
+      "",
+      "## External Evidence",
+      "",
+      `Imported from ${report.evidence.sources.map((source) => `${markdownCode(source.provider)} ${inlineProse(source.version)}`).join(", ")}. Provider claims are shown as supplied; FixMap did not verify them.`,
+      "",
+      ...listOrEmpty(report.evidence.items.map((item) => `- **${item.confidence}** ${item.kind} (${markdownCode(item.provider.id)}): ${inlineProse(item.summary)} \u2014 ${item.subjects.map((subject) => "path" in subject && typeof subject.path === "string" ? markdownCode(subject.path) : subject.kind).join(", ")}`)),
+      ...report.evidence.omittedItems > 0 ? ["", `${report.evidence.omittedItems} further evidence item${report.evidence.omittedItems === 1 ? " was" : "s were"} not about files in this report.`] : [],
+      ...report.evidence.diagnostics.map((diagnostic) => `- **${diagnostic.severity}** ${markdownCode(diagnostic.provider)} ${diagnostic.code}: ${inlineProse(diagnostic.message)}`)
+    ] : [],
     ...report.policy ? [
       "",
       "## Architecture Policy",
@@ -7074,6 +7084,267 @@ function createCustomLanguageContext(registry) {
   });
 }
 
+// packages/core/dist/evidence.js
+var PROVIDER_ID2 = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+var LOCAL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
+var DEFAULT_MAX_ITEMS = 5e3;
+var DEFAULT_MAX_RELATIONSHIPS = 1e4;
+var DEFAULT_TIMEOUT_MS2 = 3e4;
+async function collectEvidence(providers, context, options = {}) {
+  const now = normalizeNow(options.now);
+  const diagnostics = [];
+  const items = [];
+  const relationships = [];
+  const seenProviders = /* @__PURE__ */ new Set();
+  for (const provider of [...providers].sort((a, b) => a.id.localeCompare(b.id))) {
+    const label = provider.id || "<unnamed>";
+    if (!PROVIDER_ID2.test(provider.id) || !provider.version.trim()) {
+      diagnostics.push({
+        provider: label,
+        severity: "error",
+        code: "provider-invalid",
+        message: `Evidence provider ${label} has an invalid ID or empty version.`
+      });
+      continue;
+    }
+    if (seenProviders.has(provider.id)) {
+      diagnostics.push({
+        provider: provider.id,
+        severity: "error",
+        code: "duplicate-provider",
+        message: `Evidence provider ${provider.id} was registered more than once; duplicate results were ignored.`
+      });
+      continue;
+    }
+    seenProviders.add(provider.id);
+    const networkDisallowed = provider.capabilities.network === "required" && options.allowNetwork !== true;
+    const executionDisallowed = provider.capabilities.executesCode && options.allowCodeExecution !== true;
+    if (networkDisallowed || executionDisallowed) {
+      const reasons = [networkDisallowed ? "network access" : "", executionDisallowed ? "code execution" : ""].filter(Boolean).join(" and ");
+      diagnostics.push({
+        provider: provider.id,
+        severity: "info",
+        code: "provider-disallowed",
+        message: `Evidence provider ${provider.id} was not run because it requires ${reasons}; opt in explicitly to allow it.`
+      });
+      continue;
+    }
+    const controller = new AbortController();
+    try {
+      const result = await withTimeout(Promise.resolve(provider.collect({
+        ...context,
+        permissions: {
+          network: options.allowNetwork === true,
+          codeExecution: options.allowCodeExecution === true
+        },
+        now,
+        signal: controller.signal
+      })), positiveInteger2(options.timeoutMs, DEFAULT_TIMEOUT_MS2), controller);
+      const validated = validateProviderResult(result);
+      if (!validated.success) {
+        diagnostics.push({
+          provider: provider.id,
+          severity: "error",
+          code: "provider-invalid",
+          message: `Evidence provider ${provider.id} returned invalid evidence: ${validated.message}`
+        });
+        continue;
+      }
+      const maxItems = positiveInteger2(options.maxItemsPerProvider, DEFAULT_MAX_ITEMS);
+      const maxRelationships = positiveInteger2(options.maxRelationshipsPerProvider, DEFAULT_MAX_RELATIONSHIPS);
+      const selectedItems = validated.items.slice(0, maxItems);
+      const selectedItemIds = new Set(selectedItems.map((item) => item.id));
+      const selectedRelationships = validated.relationships.filter((relationship) => selectedItemIds.has(relationship.from) && selectedItemIds.has(relationship.to)).slice(0, maxRelationships);
+      if (validated.items.length > selectedItems.length || validated.relationships.length > selectedRelationships.length) {
+        diagnostics.push({
+          provider: provider.id,
+          severity: "warning",
+          code: "provider-truncated",
+          message: `Evidence provider ${provider.id} was bounded to ${selectedItems.length.toLocaleString()} item(s) and ${selectedRelationships.length.toLocaleString()} relationship(s).`
+        });
+      }
+      const provenance = { id: provider.id, version: provider.version };
+      items.push(...selectedItems.map((item) => ({
+        ...item,
+        id: namespaceId(provider.id, item.id),
+        provider: provenance
+      })));
+      relationships.push(...selectedRelationships.map((relationship) => ({
+        ...relationship,
+        id: namespaceId(provider.id, relationship.id),
+        from: namespaceId(provider.id, relationship.from),
+        to: namespaceId(provider.id, relationship.to),
+        provider: provenance
+      })));
+    } catch (error) {
+      diagnostics.push({
+        provider: provider.id,
+        severity: "warning",
+        code: "provider-failed",
+        message: `Evidence provider ${provider.id} failed without aborting FixMap: ${error instanceof Error ? error.message : String(error)}`
+      });
+    } finally {
+      controller.abort();
+    }
+  }
+  return {
+    evidenceVersion: 1,
+    collectedAt: now,
+    items: items.sort((a, b) => a.id.localeCompare(b.id)),
+    relationships: relationships.sort((a, b) => a.id.localeCompare(b.id)),
+    diagnostics
+  };
+}
+function validateProviderResult(result) {
+  if (!isRecord6(result) || !Array.isArray(result.items) || !(result.relationships === void 0 || Array.isArray(result.relationships))) {
+    return { success: false, message: "expected { items, relationships? } arrays" };
+  }
+  const items = result.items;
+  const relationships = result.relationships ?? [];
+  const itemIds = /* @__PURE__ */ new Set();
+  for (const candidate of items) {
+    const message = validateEvidenceItem(candidate);
+    if (message)
+      return { success: false, message };
+    const item = candidate;
+    if (itemIds.has(item.id))
+      return { success: false, message: `duplicate item ID ${item.id}` };
+    itemIds.add(item.id);
+  }
+  const relationshipIds = /* @__PURE__ */ new Set();
+  for (const candidate of relationships) {
+    const message = validateRelationship(candidate, itemIds);
+    if (message)
+      return { success: false, message };
+    const relationship = candidate;
+    if (relationshipIds.has(relationship.id))
+      return { success: false, message: `duplicate relationship ID ${relationship.id}` };
+    relationshipIds.add(relationship.id);
+  }
+  return {
+    success: true,
+    items: items.map((item) => structuredClone(item)),
+    relationships: relationships.map((relationship) => structuredClone(relationship))
+  };
+}
+function validateEvidenceItem(candidate) {
+  if (!isRecord6(candidate) || typeof candidate.id !== "string" || !LOCAL_ID.test(candidate.id))
+    return "an item has an invalid ID";
+  if (!isEvidenceKind(candidate.kind))
+    return `item ${candidate.id} has an invalid kind`;
+  if (typeof candidate.summary !== "string" || !candidate.summary.trim() || candidate.summary.length > 1e3)
+    return `item ${candidate.id} has an invalid summary`;
+  if (!isConfidence(candidate.confidence))
+    return `item ${candidate.id} has invalid confidence`;
+  if (!Array.isArray(candidate.subjects) || candidate.subjects.length === 0 || candidate.subjects.length > 100 || !candidate.subjects.every(isEvidenceSubject))
+    return `item ${candidate.id} has invalid subjects`;
+  if (candidate.observedAt !== void 0 && (typeof candidate.observedAt !== "string" || !Number.isFinite(Date.parse(candidate.observedAt))))
+    return `item ${candidate.id} has an invalid observedAt timestamp`;
+  if (candidate.metadata !== void 0 && !isScalarMetadata(candidate.metadata))
+    return `item ${candidate.id} has invalid metadata`;
+  return void 0;
+}
+function validateRelationship(candidate, itemIds) {
+  if (!isRecord6(candidate) || typeof candidate.id !== "string" || !LOCAL_ID.test(candidate.id))
+    return "a relationship has an invalid ID";
+  if (typeof candidate.from !== "string" || !itemIds.has(candidate.from) || typeof candidate.to !== "string" || !itemIds.has(candidate.to))
+    return `relationship ${candidate.id} references an unknown item`;
+  if (typeof candidate.relation !== "string" || !candidate.relation.trim() || candidate.relation.length > 100)
+    return `relationship ${candidate.id} has an invalid relation`;
+  if (typeof candidate.reason !== "string" || !candidate.reason.trim() || candidate.reason.length > 1e3)
+    return `relationship ${candidate.id} has an invalid reason`;
+  if (!isConfidence(candidate.confidence))
+    return `relationship ${candidate.id} has invalid confidence`;
+  return void 0;
+}
+function isEvidenceSubject(candidate) {
+  if (!isRecord6(candidate))
+    return false;
+  if (candidate.kind === "repository")
+    return typeof candidate.repository === "string" && candidate.repository.trim().length > 0;
+  if (candidate.kind === "package")
+    return typeof candidate.name === "string" && candidate.name.trim().length > 0 && candidate.name.length <= 300 && (candidate.version === void 0 || typeof candidate.version === "string" && candidate.version.trim().length > 0 && candidate.version.length <= 300) && (candidate.purl === void 0 || typeof candidate.purl === "string" && candidate.purl.startsWith("pkg:") && candidate.purl.length <= 1e3);
+  if (candidate.kind === "file")
+    return typeof candidate.path === "string" && isSafeRelativePath(candidate.path);
+  if (candidate.kind === "symbol")
+    return typeof candidate.path === "string" && isSafeRelativePath(candidate.path) && typeof candidate.symbol === "string" && candidate.symbol.trim().length > 0;
+  if (candidate.kind === "contract")
+    return typeof candidate.name === "string" && candidate.name.trim().length > 0 && (candidate.path === void 0 || typeof candidate.path === "string" && isSafeRelativePath(candidate.path));
+  return candidate.kind === "runtime" && typeof candidate.name === "string" && candidate.name.trim().length > 0;
+}
+function isSafeRelativePath(path) {
+  if (!path.trim() || path.includes("\0") || /^[\\/]/.test(path) || /^[A-Za-z]:/.test(path))
+    return false;
+  return path.replace(/\\/g, "/").split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== "..");
+}
+function isScalarMetadata(candidate) {
+  if (!isRecord6(candidate) || Object.keys(candidate).length > 50)
+    return false;
+  return Object.entries(candidate).every(([key, value]) => key.length > 0 && key.length <= 100 && (typeof value === "string" && value.length <= 1e3 || typeof value === "boolean" || typeof value === "number" && Number.isFinite(value)));
+}
+function isEvidenceKind(candidate) {
+  return ["structure", "semantic", "history", "human-intent", "contract", "runtime", "security", "ownership", "custom"].includes(String(candidate));
+}
+function isConfidence(candidate) {
+  return candidate === "high" || candidate === "medium" || candidate === "low";
+}
+function namespaceId(provider, local) {
+  return `${provider}:${local}`;
+}
+function normalizeNow(now) {
+  if (now === void 0)
+    return (/* @__PURE__ */ new Date()).toISOString();
+  if (!Number.isFinite(Date.parse(now)))
+    throw new Error(`Invalid evidence collection timestamp: ${now}`);
+  return new Date(now).toISOString();
+}
+function positiveInteger2(value, fallback) {
+  return value !== void 0 && Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+function withTimeout(promise, timeoutMs, controller) {
+  return new Promise((resolve6, reject) => {
+    const timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`timed out after ${timeoutMs.toLocaleString()} ms`));
+    }, timeoutMs);
+    promise.then((value) => {
+      clearTimeout(timer);
+      resolve6(value);
+    }, (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+  });
+}
+function isRecord6(candidate) {
+  return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
+}
+
+// packages/core/dist/report-evidence.js
+var MAX_REPORT_EVIDENCE_ITEMS = 50;
+async function attachReportEvidence(report, repo, sources, context) {
+  const collected = await collectEvidence(sources.map((source) => source.provider), { repo, issueText: context.issueText, diffText: repo.diffText ?? "" }, { allowNetwork: false, allowCodeExecution: false, ...context.now ? { now: context.now } : {} });
+  const reportPaths = /* @__PURE__ */ new Set([
+    ...report.contextFiles.map((file) => file.path),
+    ...(report.impact?.files ?? []).map((file) => file.path),
+    ...report.changedFiles
+  ]);
+  const relevant = collected.items.filter((item) => item.subjects.some((subject) => (subject.kind === "file" || subject.kind === "symbol" || subject.kind === "contract") && "path" in subject && typeof subject.path === "string" && reportPaths.has(subject.path)));
+  const items = relevant.slice(0, MAX_REPORT_EVIDENCE_ITEMS);
+  return {
+    evidenceVersion: 1,
+    collectedAt: collected.collectedAt,
+    sources: sources.map((source) => ({
+      provider: source.provider.id,
+      version: source.provider.version,
+      ...source.documentSha256 ? { documentSha256: source.documentSha256 } : {}
+    })),
+    items,
+    omittedItems: collected.items.length - items.length,
+    diagnostics: collected.diagnostics
+  };
+}
+
 // packages/core/dist/plan.js
 async function buildFixMapReport(input) {
   return (await buildFixMapAnalysis(input)).report;
@@ -7101,6 +7372,9 @@ async function buildFixMapAnalysis(input) {
     ...languageContext ? { languageContext } : {}
   };
   const report = input.embeddingProvider ? await buildHybridReportFromRepo(analyzedRepo, { ...reportInput, embeddingProvider: input.embeddingProvider }) : buildReportFromRepo(analyzedRepo, reportInput);
+  if (input.evidenceSources && input.evidenceSources.length > 0) {
+    report.evidence = await attachReportEvidence(report, analyzedRepo, input.evidenceSources, { issueText: input.issueText ?? "" });
+  }
   if (input.languageRegistry && languageContext) {
     report.languageAdapters = input.languageRegistry.customAdapters.map((adapter) => ({
       id: adapter.id,
@@ -7653,7 +7927,7 @@ function validateFixMapReport(candidate, label) {
   }
   const versioned = record3.reportVersion === 1;
   const contextFiles = candidate.contextFiles;
-  const unsafeContextPath = contextFiles.findIndex((file) => isRecord6(file) && typeof file.path === "string" && file.path.trim().length > 0 && !isRepositoryRelativePath(file.path));
+  const unsafeContextPath = contextFiles.findIndex((file) => isRecord7(file) && typeof file.path === "string" && file.path.trim().length > 0 && !isRepositoryRelativePath(file.path));
   if (unsafeContextPath !== -1) {
     const path = contextFiles[unsafeContextPath].path;
     return {
@@ -7662,7 +7936,7 @@ function validateFixMapReport(candidate, label) {
     };
   }
   const invalid = contextFiles.findIndex((file) => {
-    if (!isRecord6(file))
+    if (!isRecord7(file))
       return true;
     const ranked = file;
     if (!isRepositoryRelativePath(ranked.path))
@@ -7705,7 +7979,7 @@ function validateFixMapReport(candidate, label) {
   }
   const testRoutes = record3.testRoutes;
   const invalidRoute = testRoutes.findIndex((route) => {
-    if (!isRecord6(route))
+    if (!isRecord7(route))
       return true;
     return typeof route.command !== "string" || !route.command.trim() || !isRepositoryRelativePathArray(route.relatedFiles) || (versioned || route.kind !== void 0) && route.kind !== "test" && route.kind !== "validation" || (versioned || route.reason !== void 0) && typeof route.reason !== "string";
   });
@@ -7717,7 +7991,7 @@ function validateFixMapReport(candidate, label) {
   }
   const risks = record3.risks;
   const invalidRisk = risks.findIndex((risk) => {
-    if (!isRecord6(risk))
+    if (!isRecord7(risk))
       return true;
     return typeof risk.area !== "string" || !risk.area.trim() || (versioned || risk.reason !== void 0) && typeof risk.reason !== "string" || (versioned || risk.severity !== void 0) && risk.severity !== "low" && risk.severity !== "medium" && risk.severity !== "high";
   });
@@ -7729,14 +8003,14 @@ function validateFixMapReport(candidate, label) {
   }
   if (record3.impact !== void 0) {
     const impact = record3.impact;
-    const history = isRecord6(impact) ? impact.history : void 0;
-    if (!isRecord6(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord6(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
+    const history = isRecord7(impact) ? impact.history : void 0;
+    if (!isRecord7(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord7(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
       return { success: false, message: `${label} has an invalid impact graph envelope.` };
     }
     const invalidImpact = impact.files.findIndex((file) => {
-      if (!isRecord6(file) || !isRepositoryRelativePath(file.path) || typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 || file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low" || !Array.isArray(file.evidence))
+      if (!isRecord7(file) || !isRepositoryRelativePath(file.path) || typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 || file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low" || !Array.isArray(file.evidence))
         return true;
-      return file.evidence.some((evidence) => !isRecord6(evidence) || !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) || !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() || evidence.occurrences !== void 0 && (!Number.isSafeInteger(evidence.occurrences) || evidence.occurrences < 0) || evidence.seedChanges !== void 0 && (!Number.isSafeInteger(evidence.seedChanges) || evidence.seedChanges < 0));
+      return file.evidence.some((evidence) => !isRecord7(evidence) || !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) || !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() || evidence.occurrences !== void 0 && (!Number.isSafeInteger(evidence.occurrences) || evidence.occurrences < 0) || evidence.seedChanges !== void 0 && (!Number.isSafeInteger(evidence.seedChanges) || evidence.seedChanges < 0));
     });
     if (invalidImpact !== -1) {
       return { success: false, message: `${label} has an invalid impact.files entry at index ${invalidImpact}.` };
@@ -7745,7 +8019,7 @@ function validateFixMapReport(candidate, label) {
       const primaryPaths = new Set(contextFiles.map((file) => file.path));
       const seenEdges = /* @__PURE__ */ new Set();
       if (!Array.isArray(impact.primaryImports) || impact.primaryImports.some((edge) => {
-        if (!isRecord6(edge) || !isRepositoryRelativePath(edge.from) || !isRepositoryRelativePath(edge.to) || edge.from === edge.to || !primaryPaths.has(edge.from) || !primaryPaths.has(edge.to))
+        if (!isRecord7(edge) || !isRepositoryRelativePath(edge.from) || !isRepositoryRelativePath(edge.to) || edge.from === edge.to || !primaryPaths.has(edge.from) || !primaryPaths.has(edge.to))
           return true;
         const key = JSON.stringify([edge.from, edge.to]);
         if (seenEdges.has(key))
@@ -7760,19 +8034,26 @@ function validateFixMapReport(candidate, label) {
   if (!isRepositoryRelativePathArray(record3.changedFiles)) {
     return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
   }
+  if (record3.evidence !== void 0) {
+    const evidence = record3.evidence;
+    const validSubject = (subject) => isRecord7(subject) && typeof subject.kind === "string" && (subject.path === void 0 || isRepositoryRelativePath(subject.path));
+    if (!isRecord7(evidence) || evidence.evidenceVersion !== 1 || typeof evidence.collectedAt !== "string" || !Array.isArray(evidence.sources) || !evidence.sources.every((source) => isRecord7(source) && typeof source.provider === "string" && typeof source.version === "string" && (source.documentSha256 === void 0 || typeof source.documentSha256 === "string" && /^[a-f0-9]{64}$/.test(source.documentSha256))) || !Array.isArray(evidence.items) || evidence.items.length > 50 || !evidence.items.every((item) => isRecord7(item) && typeof item.id === "string" && typeof item.summary === "string" && typeof item.kind === "string" && ["high", "medium", "low"].includes(String(item.confidence)) && isRecord7(item.provider) && Array.isArray(item.subjects) && item.subjects.length > 0 && item.subjects.every(validSubject)) || !Number.isSafeInteger(evidence.omittedItems) || evidence.omittedItems < 0 || !Array.isArray(evidence.diagnostics)) {
+      return { success: false, message: `${label} has invalid evidence; it needs evidenceVersion 1, sources, at most 50 items with safe repository-relative subjects, omittedItems, and diagnostics.` };
+    }
+  }
   if (record3.languageAdapters !== void 0) {
     const adapters = record3.languageAdapters;
-    if (!Array.isArray(adapters) || adapters.length > 32 || !adapters.every((adapter) => isRecord6(adapter) && Object.keys(adapter).every((key) => key === "id" || key === "version" || key === "extensions") && typeof adapter.id === "string" && /^custom:[a-z][a-z0-9-]{0,63}$/.test(adapter.id) && typeof adapter.version === "string" && /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(adapter.version) && Array.isArray(adapter.extensions) && adapter.extensions.length > 0 && adapter.extensions.length <= 32 && adapter.extensions.every((extension) => typeof extension === "string" && /^\.[a-z0-9][a-z0-9_-]{0,15}$/.test(extension)))) {
+    if (!Array.isArray(adapters) || adapters.length > 32 || !adapters.every((adapter) => isRecord7(adapter) && Object.keys(adapter).every((key) => key === "id" || key === "version" || key === "extensions") && typeof adapter.id === "string" && /^custom:[a-z][a-z0-9-]{0,63}$/.test(adapter.id) && typeof adapter.version === "string" && /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(adapter.version) && Array.isArray(adapter.extensions) && adapter.extensions.length > 0 && adapter.extensions.length <= 32 && adapter.extensions.every((extension) => typeof extension === "string" && /^\.[a-z0-9][a-z0-9_-]{0,15}$/.test(extension)))) {
       return { success: false, message: `${label} has invalid languageAdapters; each entry needs a custom: id, a version, and lowercase extensions.` };
     }
   }
   if (record3.annotations !== void 0) {
     const annotations = record3.annotations;
-    if (!isRecord6(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) || !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) || !Array.isArray(annotations.entries)) {
+    if (!isRecord7(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) || !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) || !Array.isArray(annotations.entries)) {
       return { success: false, message: `${label} has an invalid annotations envelope.` };
     }
     const invalidAnnotation = annotations.entries.findIndex((assessment) => {
-      if (!isRecord6(assessment) || !isRecord6(assessment.annotation) || typeof assessment.message !== "string" || !["active", "expired", "missing-target", "renamed-target"].includes(String(assessment.status)) || assessment.suggestedPath !== void 0 && !isRepositoryRelativePath(assessment.suggestedPath))
+      if (!isRecord7(assessment) || !isRecord7(assessment.annotation) || typeof assessment.message !== "string" || !["active", "expired", "missing-target", "renamed-target"].includes(String(assessment.status)) || assessment.suggestedPath !== void 0 && !isRepositoryRelativePath(assessment.suggestedPath))
         return true;
       try {
         validateAnnotationStore({ annotationStoreVersion: 1, annotations: [assessment.annotation] });
@@ -7789,12 +8070,12 @@ function validateFixMapReport(candidate, label) {
     if (!Array.isArray(record3.decisions))
       return { success: false, message: `${label} has invalid decisions; expected an array.` };
     const invalidDecision = record3.decisions.findIndex((decision) => {
-      if (!isRecord6(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.authoredStatus !== void 0 && (typeof decision.authoredStatus !== "string" || !decision.authoredStatus.trim() || decision.authoredStatus.length > 500 || decision.authoredStatus.includes("\0")) || decision.consequences !== void 0 && typeof decision.consequences !== "string")
+      if (!isRecord7(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.authoredStatus !== void 0 && (typeof decision.authoredStatus !== "string" || !decision.authoredStatus.trim() || decision.authoredStatus.length > 500 || decision.authoredStatus.includes("\0")) || decision.consequences !== void 0 && typeof decision.consequences !== "string")
         return true;
-      if (decision.source !== void 0 && (!isRecord6(decision.source) || decision.source.kind !== "pull-request" || decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url)))
+      if (decision.source !== void 0 && (!isRecord7(decision.source) || decision.source.kind !== "pull-request" || decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url)))
         return true;
       return decision.targets.some((target) => {
-        if (!isRecord6(target) || !["explicit", "literal-mention"].includes(String(target.evidence)))
+        if (!isRecord7(target) || !["explicit", "literal-mention"].includes(String(target.evidence)))
           return true;
         if (target.kind === "file")
           return !isRepositoryRelativePath(target.path);
@@ -7808,13 +8089,13 @@ function validateFixMapReport(candidate, label) {
   }
   if (record3.policy !== void 0) {
     const policy = record3.policy;
-    if (!isRecord6(policy) || typeof policy.policyFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
+    if (!isRecord7(policy) || typeof policy.policyFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
       return { success: false, message: `${label} has an invalid architecture policy envelope.` };
     }
     const invalidPolicyFinding = policy.findings.findIndex((finding) => {
-      if (!isRecord6(finding) || !["boundary-violation", "required-test-missing", "review-required", "breaking-contract"].includes(String(finding.code)) || !["info", "warning", "error"].includes(String(finding.severity)) || typeof finding.ruleId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(finding.ruleId) || typeof finding.message !== "string" || !finding.message.trim() || !isRepositoryRelativePathArray(finding.paths) || !Array.isArray(finding.evidence))
+      if (!isRecord7(finding) || !["boundary-violation", "required-test-missing", "review-required", "breaking-contract"].includes(String(finding.code)) || !["info", "warning", "error"].includes(String(finding.severity)) || typeof finding.ruleId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(finding.ruleId) || typeof finding.message !== "string" || !finding.message.trim() || !isRepositoryRelativePathArray(finding.paths) || !Array.isArray(finding.evidence))
         return true;
-      return finding.evidence.some((evidence) => !isRecord6(evidence) || !["import", "changed-file", "test-pattern", "reviewer", "contract-change", "decision-record"].includes(String(evidence.kind)) || typeof evidence.detail !== "string" || !evidence.detail.trim() || evidence.path !== void 0 && !isRepositoryRelativePath(evidence.path) || evidence.relatedPath !== void 0 && !isRepositoryRelativePath(evidence.relatedPath));
+      return finding.evidence.some((evidence) => !isRecord7(evidence) || !["import", "changed-file", "test-pattern", "reviewer", "contract-change", "decision-record"].includes(String(evidence.kind)) || typeof evidence.detail !== "string" || !evidence.detail.trim() || evidence.path !== void 0 && !isRepositoryRelativePath(evidence.path) || evidence.relatedPath !== void 0 && !isRepositoryRelativePath(evidence.relatedPath));
     });
     if (invalidPolicyFinding !== -1) {
       return { success: false, message: `${label} has an invalid architecture policy finding at index ${invalidPolicyFinding}.` };
@@ -7822,7 +8103,7 @@ function validateFixMapReport(candidate, label) {
   }
   const diagnostics = record3.diagnostics;
   const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
-    if (!isRecord6(diagnostic))
+    if (!isRecord7(diagnostic))
       return true;
     return typeof diagnostic.code !== "string" || !diagnostic.code.trim() || typeof diagnostic.message !== "string" || diagnostic.severity !== "info" && diagnostic.severity !== "warning" && diagnostic.severity !== "error" || diagnostic.paths !== void 0 && !isRepositoryRelativePathArray(diagnostic.paths);
   });
@@ -7834,21 +8115,21 @@ function validateFixMapReport(candidate, label) {
   }
   if (record3.analysis !== void 0) {
     const analysis = record3.analysis;
-    const grounding = isRecord6(analysis) ? analysis.grounding : void 0;
-    const specificity = isRecord6(grounding) ? grounding.specificity : void 0;
+    const grounding = isRecord7(analysis) ? analysis.grounding : void 0;
+    const specificity = isRecord7(grounding) ? grounding.specificity : void 0;
     if (specificity !== "anchored" && specificity !== "descriptive" && specificity !== "vague") {
       return {
         success: false,
         message: `${label} has invalid analysis.grounding.specificity; expected anchored, descriptive, or vague.`
       };
     }
-    if (!isRecord6(analysis) || !isRecord6(grounding) || !Array.isArray(grounding.identifiers) || !isStringArray(grounding.unresolvedIdentifiers) || !isStringArray(grounding.partiallyResolvedIdentifiers) || !isStringArray(grounding.unverifiedIdentifiers) || typeof grounding.scanComplete !== "boolean" || !isRecord6(analysis.ranking) || !isNullableFiniteNumber(analysis.ranking.topScore) || !isNullableFiniteNumber(analysis.ranking.runnerUpScore) || !isNullableFiniteNumber(analysis.ranking.topGap) || typeof analysis.ranking.clustered !== "boolean" || typeof analysis.nextAction !== "string") {
+    if (!isRecord7(analysis) || !isRecord7(grounding) || !Array.isArray(grounding.identifiers) || !isStringArray(grounding.unresolvedIdentifiers) || !isStringArray(grounding.partiallyResolvedIdentifiers) || !isStringArray(grounding.unverifiedIdentifiers) || typeof grounding.scanComplete !== "boolean" || !isRecord7(analysis.ranking) || !isNullableFiniteNumber(analysis.ranking.topScore) || !isNullableFiniteNumber(analysis.ranking.runnerUpScore) || !isNullableFiniteNumber(analysis.ranking.topGap) || typeof analysis.ranking.clustered !== "boolean" || typeof analysis.nextAction !== "string") {
       return {
         success: false,
         message: `${label} has incomplete or invalid analysis grounding, ranking, or nextAction fields.`
       };
     }
-    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord6(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isRepositoryRelativePathArray(identifier.matchedFiles));
+    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord7(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isRepositoryRelativePathArray(identifier.matchedFiles));
     if (invalidIdentifier !== -1) {
       return {
         success: false,
@@ -7857,15 +8138,15 @@ function validateFixMapReport(candidate, label) {
     }
     if (analysis.retrievalRanking !== void 0) {
       const retrievalRanking = analysis.retrievalRanking;
-      if (!isRecord6(retrievalRanking) || !isNullableFiniteNumber(retrievalRanking.topFusionScore) || !isNullableFiniteNumber(retrievalRanking.runnerUpFusionScore) || !isNullableFiniteNumber(retrievalRanking.topGap)) {
+      if (!isRecord7(retrievalRanking) || !isNullableFiniteNumber(retrievalRanking.topFusionScore) || !isNullableFiniteNumber(retrievalRanking.runnerUpFusionScore) || !isNullableFiniteNumber(retrievalRanking.topGap)) {
         return { success: false, message: `${label} has invalid analysis.retrievalRanking fields.` };
       }
     }
   }
   if (record3.retrieval !== void 0) {
     const retrieval = record3.retrieval;
-    const weights = isRecord6(retrieval) ? retrieval.weights : void 0;
-    if (!isRecord6(retrieval) || retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic" || !isRecord6(weights) || !isPositiveFiniteNumber(weights.structural) || !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) || !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
+    const weights = isRecord7(retrieval) ? retrieval.weights : void 0;
+    if (!isRecord7(retrieval) || retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic" || !isRecord7(weights) || !isPositiveFiniteNumber(weights.structural) || !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) || !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
       return { success: false, message: `${label} has an invalid retrieval envelope.` };
     }
     if (retrieval.mode === "structural-lexical-semantic" && !isSemanticProvenance(retrieval.semantic)) {
@@ -7877,7 +8158,7 @@ function validateFixMapReport(candidate, label) {
   }
   return { success: true, report: candidate };
 }
-function isRecord6(candidate) {
+function isRecord7(candidate) {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
 function isStringArray(candidate) {
@@ -7900,7 +8181,7 @@ function isIdentifierStatus(candidate) {
   return candidate === "exact-definition" || candidate === "exact-text" || candidate === "partial-definition" || candidate === "not-found" || candidate === "unverified";
 }
 function isRetrievalSignal(candidate) {
-  if (!isRecord6(candidate))
+  if (!isRecord7(candidate))
     return false;
   const ranks = [candidate.structuralRank, candidate.lexicalRank, candidate.semanticRank];
   if (ranks.every((rank) => rank === void 0))
@@ -7912,7 +8193,7 @@ function isRetrievalSignal(candidate) {
   return candidate.semanticSimilarity === void 0 || typeof candidate.semanticSimilarity === "number" && Number.isFinite(candidate.semanticSimilarity) && candidate.semanticSimilarity >= -1 && candidate.semanticSimilarity <= 1;
 }
 function isSemanticProvenance(candidate) {
-  if (!isRecord6(candidate))
+  if (!isRecord7(candidate))
     return false;
   return typeof candidate.id === "string" && candidate.id.trim().length > 0 && typeof candidate.version === "string" && candidate.version.trim().length > 0 && typeof candidate.model === "string" && candidate.model.trim().length > 0 && typeof candidate.artifactHash === "string" && /^[a-f0-9]{64}$/.test(candidate.artifactHash) && typeof candidate.runtime === "string" && candidate.runtime.trim().length > 0 && Number.isSafeInteger(candidate.dimensions) && Number(candidate.dimensions) > 0 && (candidate.normalization === "l2" || candidate.normalization === "none") && typeof candidate.local === "boolean" && typeof candidate.cacheKey === "string" && candidate.cacheKey.trim().length > 0 && Number.isSafeInteger(candidate.indexedFiles) && Number(candidate.indexedFiles) >= 0 && Number.isSafeInteger(candidate.truncatedFiles) && Number(candidate.truncatedFiles) >= 0;
 }

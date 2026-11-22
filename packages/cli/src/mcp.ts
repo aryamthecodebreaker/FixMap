@@ -72,6 +72,7 @@ type PlanArguments = {
   includeUntracked?: boolean;
   noCache?: boolean;
   semanticModel?: string;
+  evidence?: string[];
 };
 
 type ExplainArguments = {
@@ -171,6 +172,12 @@ const PLAN_TOOL = {
       semanticModel: {
         type: "string",
         description: "Existing local Transformers.js embedding model directory. Never downloads a model or uploads source."
+      },
+      evidence: {
+        type: "array",
+        items: { type: "string" },
+        maxItems: 8,
+        description: "Local version-1 evidence bundle files from other tools (data only, never executed). Relevant items are attached to the report."
       }
     },
     additionalProperties: false
@@ -983,7 +990,8 @@ export function createFixMapMcpServer(
         useCache: !args.noCache,
         limit: args.limit,
         exclude: args.exclude,
-        semanticModelPath: args.semanticModel
+        semanticModelPath: args.semanticModel,
+        ...(args.evidence ? { evidencePaths: args.evidence } : {})
       }, repositorySourceDependencies);
     } catch (error) {
       return {
@@ -1025,7 +1033,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel"]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return {
@@ -1079,6 +1087,13 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   if (record.includeUntracked === true) value.includeUntracked = true;
   if (record.noCache === true) value.noCache = true;
   if (typeof record.semanticModel === "string") value.semanticModel = record.semanticModel.trim();
+  if (record.evidence !== undefined) {
+    if (!Array.isArray(record.evidence) || record.evidence.length > 8 ||
+      !record.evidence.every((entry) => typeof entry === "string" && entry.trim().length > 0)) {
+      return { success: false, message: '"evidence" must be an array of at most 8 non-empty local file paths.' };
+    }
+    value.evidence = record.evidence.map((entry: string) => entry.trim());
+  }
   if (value.ref && !/^https?:\/\//i.test(value.repo ?? "") && !tryParseGitHubIssueSource(value.issue ?? "")) {
     return { success: false, message: '"ref" requires a remote GitHub "repo" or issue URL.' };
   }

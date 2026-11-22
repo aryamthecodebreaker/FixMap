@@ -177,6 +177,24 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
   }
 
+  if (record.evidence !== undefined) {
+    const evidence = record.evidence;
+    const validSubject = (subject: unknown) => isRecord(subject) && typeof subject.kind === "string" &&
+      (subject.path === undefined || isRepositoryRelativePath(subject.path));
+    if (!isRecord(evidence) || evidence.evidenceVersion !== 1 || typeof evidence.collectedAt !== "string" ||
+      !Array.isArray(evidence.sources) || !evidence.sources.every((source) => isRecord(source) &&
+        typeof source.provider === "string" && typeof source.version === "string" &&
+        (source.documentSha256 === undefined || (typeof source.documentSha256 === "string" && /^[a-f0-9]{64}$/.test(source.documentSha256)))) ||
+      !Array.isArray(evidence.items) || evidence.items.length > 50 || !evidence.items.every((item) => isRecord(item) &&
+        typeof item.id === "string" && typeof item.summary === "string" && typeof item.kind === "string" &&
+        ["high", "medium", "low"].includes(String(item.confidence)) && isRecord(item.provider) &&
+        Array.isArray(item.subjects) && item.subjects.length > 0 && item.subjects.every(validSubject)) ||
+      !Number.isSafeInteger(evidence.omittedItems) || (evidence.omittedItems as number) < 0 ||
+      !Array.isArray(evidence.diagnostics)) {
+      return { success: false, message: `${label} has invalid evidence; it needs evidenceVersion 1, sources, at most 50 items with safe repository-relative subjects, omittedItems, and diagnostics.` };
+    }
+  }
+
   if (record.languageAdapters !== undefined) {
     const adapters = record.languageAdapters;
     if (!Array.isArray(adapters) || adapters.length > 32 || !adapters.every((adapter) =>

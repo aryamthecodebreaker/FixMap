@@ -239,7 +239,7 @@ contract, decision, test-association, reviewer, and architecture evidence.
 
 ## Complete feature catalog
 
-> **Preview features.** `change-scope`, `capability` / `capabilities`, `workspace`, `ask`, `migrate`, `reverse-docs`, `history`, `supply-chain`, `runtime`, `sandbox`, `editor`, `--semantic-model`, and their MCP tools are previews: they work and are tested, but their output and options may change before v0.10.0. Language support beyond JavaScript and TypeScript is also preview quality while testing on unseen repositories continues. `fixmap features` lists which features are previews.
+> **Preview features.** `change-scope`, `capability` / `capabilities`, `workspace`, `ask`, `migrate`, `reverse-docs`, `history`, `supply-chain`, `runtime`, `sandbox`, `editor`, `--semantic-model`, `--evidence`, and their MCP tools are previews: they work and are tested, but their output and options may change before v0.10.0. Language support beyond JavaScript and TypeScript is also preview quality while testing on unseen repositories continues. `fixmap features` lists which features are previews.
 
 ### Inputs and repository mapping
 

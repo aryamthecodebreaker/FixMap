@@ -55,6 +55,7 @@ export type CliOptions = {
   includeUntracked: boolean;
   noCache: boolean;
   semanticModelPath?: string | undefined;
+  evidencePaths: string[];
   unknownArgs: string[];
   invalidValues: string[];
 };
@@ -158,6 +159,7 @@ Options:
   --include-untracked With --working-tree, also include untracked files
   --no-cache          Bypass the exact git-state repository scan cache
   --semantic-model <dir> Use an existing local embedding model; never downloads or uploads source
+  --evidence <file>   Attach a version-1 evidence bundle from another tool (repeatable; data only, never executed)
   --repo <source>     Local path or public GitHub HTTPS URL (defaults to current directory)
   --ref <branch|tag>  Branch or tag to scan when --repo is a remote GitHub URL
   --limit <n>         Maximum context files to report (default 8, max 20)
@@ -629,7 +631,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 1;
   }
   if (options.command === "verify") {
-    const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain", options.semanticModelPath && "--semantic-model"].filter(Boolean);
+    const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain", options.semanticModelPath && "--semantic-model", options.evidencePaths.length > 0 && "--evidence"].filter(Boolean);
     if (planOnly.length > 0) { stderr(`verify does not accept plan-only option(s): ${planOnly.join(", ")}.\n`); return 1; }
     const outputCollision = await describeOutputInputCollision(options);
     if (outputCollision) { stderr(`${outputCollision}\n`); return 1; }
@@ -779,7 +781,8 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       limit: options.limit,
       exclude: options.exclude,
       internalExclude: localPlanArtifactExclusions(options),
-      semanticModelPath: options.semanticModelPath
+      semanticModelPath: options.semanticModelPath,
+      evidencePaths: options.evidencePaths
     });
   } catch (error) {
     stderr(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -1025,6 +1028,7 @@ const SINGLE_VALUE_FLAGS = new Set([
   "--ref",
   "--repo",
   "--semantic-model",
+  "--evidence",
   "--format",
   "--report",
   "--explain",
@@ -1075,6 +1079,7 @@ export function parseArgs(args: string[]): CliOptions {
   let noCache = false;
   let semanticModelPath: string | undefined;
   const exclude: string[] = [];
+  const evidencePaths: string[] = [];
   const unknownArgs: string[] = [];
   const invalidValues: string[] = [];
   const flagCounts = new Map<string, number>();
@@ -1152,6 +1157,10 @@ export function parseArgs(args: string[]): CliOptions {
       consumeValue();
       if (value?.trim()) semanticModelPath = expandHomePath(value.trim());
       else invalidValues.push("--semantic-model requires a local model directory");
+    } else if (arg === "--evidence") {
+      consumeValue();
+      if (value?.trim()) evidencePaths.push(expandHomePath(value.trim()));
+      else invalidValues.push("--evidence requires a local evidence bundle file");
     } else if (arg === "--format") {
       consumeValue();
       const normalized = value?.trim().toLowerCase();
@@ -1237,6 +1246,7 @@ export function parseArgs(args: string[]): CliOptions {
     includeUntracked,
     noCache,
     semanticModelPath,
+    evidencePaths,
     unknownArgs,
     invalidValues
   };
