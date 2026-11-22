@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -226,6 +226,23 @@ describe("fixmap dossier", () => {
     expect(shown.out()).toContain("- pullRequest: https://github.com/o/r/pull/9");
     expect(await runDossierCommand(["remove", dossier.id, `--repo=${root}`], io().io)).toBe(0);
     expect(await readdir(join(root, ".fixmap", "dossiers"))).toEqual([]);
+  });
+
+  it("keeps the plan artifact path when the repository or report is reached through a link", async () => {
+    // Regression: the repository root is a realpath (macOS /var -> /private/var, Windows 8.3
+    // names), and a lexically resolved report path made the artifact look outside the repository.
+    const { root, reportPath } = await setup();
+    const aliasParent = await mkdtemp(join(tmpdir(), "fixmap-dossier-alias-"));
+    roots.push(aliasParent);
+    const alias = join(aliasParent, "repo");
+    await symlink(root, alias, process.platform === "win32" ? "junction" : "dir");
+    for (const [repo, plan] of [[alias, reportPath], [root, join(alias, "plan.json")]]) {
+      expect(await runDossierCommand(["create", `--repo=${repo}`, `--report=${plan}`, "--task=Fix"], io().io)).toBe(0);
+    }
+    const listed = io();
+    expect(await runDossierCommand(["list", `--repo=${root}`, "--format=json"], listed.io)).toBe(0);
+    const records = JSON.parse(listed.out()).records as Array<{ plan: { artifactPath?: string } }>;
+    expect(records.map((record) => record.plan.artifactPath)).toEqual(["plan.json", "plan.json"]);
   });
 
   it("redacts the task text and allows a dossier without a diff", async () => {

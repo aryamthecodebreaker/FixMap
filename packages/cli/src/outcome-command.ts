@@ -196,7 +196,8 @@ async function createDossier(repoRoot: string, parsed: Parsed, io: RecordCommand
       ...(change.diffSpec ? { base: change.diffSpec } : { base: "HEAD", head: "working-tree" })
     };
   }
-  const artifact = relative(repoRoot, resolve(reportPath!)).replace(/\\/g, "/");
+  // repoRoot is a realpath (macOS /private/var, Windows 8.3 names), so compare against the report's realpath too.
+  const artifact = relative(repoRoot, await realpath(resolve(reportPath!))).replace(/\\/g, "/");
   const dossier = buildChangeDossier({
     id: newId("dossier", new Date(now)),
     repositoryIdentity: repositoryIdentity(repoRoot),
