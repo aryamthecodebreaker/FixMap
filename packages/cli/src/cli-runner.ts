@@ -113,6 +113,7 @@ Usage:
   fixmap migrate --input migration.json --format markdown
   fixmap reverse-docs --input reverse-docs.json --format markdown
   fixmap history --repo . --from v0.9.0 --to HEAD
+  fixmap contracts diff v0.9.0..HEAD
   fixmap supply-chain --input supply-chain.json
   fixmap runtime --input runtime.json
   fixmap sandbox --request sandbox.json --execute-declared-command
@@ -139,6 +140,7 @@ Commands:
   migrate             Preview: Build a dependency-ordered, review-only migration plan
   reverse-docs        Preview: Draft review-only documentation from exact structural evidence
   history             Preview: Compare architecture at two committed Git refs without checkout
+  contracts           Preview: List API/schema contracts or diff them across Git refs without checkout
   supply-chain        Preview: Import normalized external scanner and SBOM evidence
   runtime             Preview: Map redaction-reviewed runtime evidence to exact files
   sandbox             Preview: Run one explicitly consented command in an isolated container
@@ -542,6 +544,15 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   if (args[0] === "history") {
     const { runHistoryCommand } = await import("./history-command.js");
     return runHistoryCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "contracts") {
+    const { runContractsCommand } = await import("./contracts-command.js");
+    return runContractsCommand(args.slice(1), {
       stdout,
       stderr,
       ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
