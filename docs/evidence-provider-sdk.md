@@ -3,7 +3,7 @@
 The v0.10 candidate exports `collectEvidence` and its TypeScript types from
 `@aryam/fixmap-core`. This API collects evidence from **trusted in-process code**.
 It is not a plugin sandbox, subprocess runner, or automatic CLI plugin loader.
-Calling it does not automatically attach its output to a Plan or Verify report.
+Calling it directly does not attach output to a report. To attach evidence to a plan, pass data-only bundles: `fixmap plan --evidence <bundle.json>` (repeatable), the MCP `fixmap_plan` `evidence` argument, or `evidenceSources` on `buildFixMapAnalysis`. Items whose file, symbol, or contract subjects are among the report's ranked, impact, or changed paths appear under `evidence` and in the Markdown "External Evidence" section (at most 50); the rest are counted in `omittedItems`. Collection runs with no network or code-execution grants.
 
 ## Minimal local provider
 

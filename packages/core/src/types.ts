@@ -1,6 +1,7 @@
 import type { AnnotationAssessment } from "./annotations.js";
 import type { DecisionRecord } from "./decisions.js";
 import type { ArchitecturePolicyResult } from "./architecture.js";
+import type { ReportEvidence } from "./report-evidence.js";
 
 export type FixMapInput = {
   repoRoot: string;
@@ -290,6 +291,8 @@ export type FixMapReport = {
   decisions?: DecisionRecord[];
   /** Repository-owned architecture policy findings with exact policy provenance. */
   policy?: ArchitecturePolicyResult;
+  /** Evidence from explicitly supplied providers about files in this report; never fetched or executed. */
+  evidence?: ReportEvidence;
   /** Explicitly registered custom language adapters used for this report; callbacks are never serialized. */
   languageAdapters?: ReportLanguageAdapter[];
 };

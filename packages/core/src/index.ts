@@ -32,6 +32,8 @@ export type {
 } from "./language-adapters.js";
 export { FIXMAP_FEATURES } from "./feature-catalog.js";
 export type { FixMapFeature } from "./feature-catalog.js";
+export { attachReportEvidence, MAX_REPORT_EVIDENCE_ITEMS } from "./report-evidence.js";
+export type { ReportEvidence, ReportEvidenceSource } from "./report-evidence.js";
 export { createLanguageRegistry } from "./language-registry.js";
 export type { CustomLanguageAdapter, LanguageRegistry } from "./language-registry.js";
 export { buildImpactMap } from "./impact.js";

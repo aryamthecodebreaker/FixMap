@@ -9,6 +9,7 @@ import { renderMarkdownReport } from "../src/report.js";
 import type { EmbeddingProvider } from "../src/semantic.js";
 import { createLanguageRegistry } from "../src/language-registry.js";
 import { validateFixMapReport } from "../src/validate.js";
+import { parseEvidenceProviderBundle } from "../src/evidence-bundle.js";
 
 const exec = promisify(execFile);
 
@@ -27,6 +28,42 @@ async function createAuthFixture(): Promise<string> {
 }
 
 describe("buildFixMapReport", () => {
+
+  it("attaches imported evidence about reported files and counts the rest", async () => {
+    const root = await createAuthFixture();
+    try {
+      const bundle = parseEvidenceProviderBundle(JSON.stringify({
+        bundleVersion: 1,
+        provider: { id: "acme-scanner", version: "2.1.0" },
+        result: { items: [
+          { id: "f1", kind: "security", summary: "Reset token compared without constant time.", confidence: "medium", subjects: [{ kind: "file", path: "src/auth/reset-password.ts" }] },
+          { id: "f2", kind: "security", summary: "Unrelated billing finding.", confidence: "low", subjects: [{ kind: "file", path: "src/billing.ts" }] },
+          { id: "f3", kind: "security", summary: "Outdated package.", confidence: "high", subjects: [{ kind: "package", name: "left-pad" }] }
+        ] }
+      }));
+      const { report } = await buildFixMapAnalysis({
+        repoRoot: root, issueText: "password reset email", limit: 1,
+        evidenceSources: [{ provider: bundle.provider, documentSha256: bundle.documentSha256 }]
+      });
+      expect(report.contextFiles.map((file) => file.path)).toEqual(["src/auth/reset-password.ts"]);
+      expect(report.evidence?.items.map((item) => item.id)).toEqual(["acme-scanner:f1"]);
+      expect(report.evidence?.omittedItems).toBe(2);
+      expect(report.evidence?.sources).toEqual([{ provider: "acme-scanner", version: "2.1.0", documentSha256: bundle.documentSha256 }]);
+      expect(renderMarkdownReport(report)).toContain("## External Evidence");
+      expect(validateFixMapReport(report, "evidence report")).toMatchObject({ success: true });
+      const { report: plain } = await buildFixMapAnalysis({ repoRoot: root, issueText: "password reset email" });
+      expect(plain.evidence).toBeUndefined();
+      for (const evidence of [
+        { ...report.evidence, evidenceVersion: 2 },
+        { ...report.evidence, items: [{ ...report.evidence!.items[0], subjects: [{ kind: "file", path: "../outside.ts" }] }] },
+        { ...report.evidence, omittedItems: -1 }
+      ]) {
+        expect(validateFixMapReport({ ...report, evidence }, "tampered")).toMatchObject({ success: false });
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it("scans and ranks a custom language through the top-level analysis entry point", async () => {
     const root = await mkdtemp(join(tmpdir(), 'fixmap-custom-plan-'));
     try {

@@ -165,6 +165,31 @@ describe("fixmap mcp server", () => {
     expect(delivered).toContainEqual({ jsonrpc: "2.0", id: 10, method: "tools/list" });
   });
 
+  it("attaches imported evidence to plans and rejects malformed evidence arguments", async () => {
+    const root = await createAuthFixture();
+    const bundleDir = await mkdtemp(join(tmpdir(), "fixmap-mcp-evidence-"));
+    const bundlePath = join(bundleDir, "scanner.json");
+    await writeFile(bundlePath, JSON.stringify({
+      bundleVersion: 1,
+      provider: { id: "acme-scanner", version: "2.1.0" },
+      result: { items: [{ id: "f1", kind: "security", summary: "Reset token compared without constant time.", confidence: "medium", subjects: [{ kind: "file", path: "src/auth/reset-password.ts" }] }] }
+    }));
+    const client = await connectClient();
+    try {
+      const planned = await client.callTool({ name: "fixmap_plan", arguments: { issue: "sendResetEmail fails", repo: root, format: "json", evidence: [bundlePath] } });
+      expect(planned.isError).toBeFalsy();
+      const report = JSON.parse((planned.content as Array<{ text: string }>)[0]!.text);
+      expect(report.evidence.items.map((item: { id: string }) => item.id)).toEqual(["acme-scanner:f1"]);
+      const invalid = await client.callTool({ name: "fixmap_plan", arguments: { issue: "x", repo: root, evidence: "scanner.json" } });
+      expect(invalid.isError).toBe(true);
+      expect((invalid.content as Array<{ text: string }>)[0]!.text).toContain("\"evidence\" must be an array");
+    } finally {
+      await client.close();
+      await rm(root, { recursive: true, force: true });
+      await rm(bundleDir, { recursive: true, force: true });
+    }
+  });
+
   it("labels every unfinished tool as a preview and leaves finished tools unlabeled", async () => {
     const client = await connectClient();
     const { tools } = await client.listTools();
@@ -377,7 +402,7 @@ describe("fixmap mcp server", () => {
     expect(plan).toBeDefined();
     expect(plan?.description).toContain("test commands");
     expect(Object.keys(plan?.inputSchema.properties ?? {}).sort()).toEqual(
-      ["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel"].sort()
+      ["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence"].sort()
     );
     expect(plan?.inputSchema.additionalProperties).toBe(false);
     expect(plan?.inputSchema.properties?.repo?.description).toContain("public GitHub HTTPS");

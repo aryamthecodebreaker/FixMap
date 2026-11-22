@@ -200,7 +200,7 @@ describe("CLI argument handling", () => {
     const features = (JSON.parse(catalog.stdout.join("")) as { features: Array<{ name: string; preview?: true }> }).features;
     expect(features.filter((feature) => feature.preview).map((feature) => feature.name)).toEqual([
       "Change scope", "Product capabilities", "Cross-repository workspace", "Repository Q&A", "Migration planning",
-      "Reverse documentation", "Architecture history", "Supply-chain evidence", "Runtime evidence", "Execution sandbox",
+      "Reverse documentation", "Architecture history", "Supply-chain evidence", "Runtime evidence", "Evidence import", "Execution sandbox",
       "Local hybrid retrieval"
     ]);
     expect(features.find((feature) => feature.name === "Plan")?.preview).toBeUndefined();
