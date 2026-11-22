@@ -3075,6 +3075,11 @@ function fixMapArtifactKind(file) {
   }
   if (candidate.capabilityListVersion === 1 && Array.isArray(candidate.capabilities))
     return "capability-list-json";
+  if (candidate.contractListVersion === 1 && isRecord2(candidate.inventory))
+    return "contract-list-json";
+  if (candidate.contractDiffVersion === 1 && isRecord2(candidate.from) && isRecord2(candidate.to) && isRecord2(candidate.comparison)) {
+    return "contract-diff-json";
+  }
   if ((candidate.reportVersion === void 0 || candidate.reportVersion === 1) && typeof candidate.summary === "string" && Array.isArray(candidate.contextFiles) && Array.isArray(candidate.testRoutes) && Array.isArray(candidate.risks) && Array.isArray(candidate.changedFiles) && Array.isArray(candidate.diagnostics))
     return "report-json";
   if (candidate.contextVersion === 1 && typeof candidate.task === "string" && typeof candidate.budgetTokens === "number" && candidate.tokenEstimate === "utf8-bytes-divided-by-4" && Array.isArray(candidate.snippets) && Array.isArray(candidate.omitted))
@@ -8211,6 +8216,14 @@ var exec3 = promisify3(execFile3);
 var MAX_TREE_BYTES = 32 * 1024 * 1024;
 var MAX_BATCH_BYTES = 64 * 1024 * 1024;
 var MAX_BATCH_OUTPUT_BYTES = MAX_BATCH_BYTES + 2 * 1024 * 1024;
+
+// packages/core/dist/contracts-repository.js
+import { execFile as execFile4 } from "node:child_process";
+import { promisify as promisify4 } from "node:util";
+var exec4 = promisify4(execFile4);
+var MAX_CONTRACT_BYTES = 2 * 1024 * 1024;
+var MAX_TREE_BYTES2 = 32 * 1024 * 1024;
+var MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 
 // packages/action/src/annotations.ts
 async function runAnnotationAction(input, repoRoot, allowWrite) {
