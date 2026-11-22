@@ -220,6 +220,23 @@ FixMap follows bounded imports and dependents, then joins existing tests, contra
 review ownership, and architecture policy. A missing `--add` path stays unresolved. FixMap does
 not interpret what "checkout" means, call an API or LLM, or require an account.
 
+Ask who could review a change:
+
+```bash
+fixmap reviewers --diff main...HEAD
+fixmap reviewers --working-tree --no-history-authors
+fixmap reviewers --report plan.json --format json
+```
+
+Each changed path lists suggested reviewers with the exact reason: the highest-precedence
+CODEOWNERS file (the last matching rule wins) with its line, active annotation owners,
+architecture-policy reviewers, and up to three frequent authors from the newest 250 non-merge
+commits. Commit authors are canonicalized through the repository's `.mailmap` when one exists.
+`--no-history-authors` leaves commit authors out entirely and reads no commit history. Names are
+printed without `@`, so pasting the output into a pull request notifies nobody, and FixMap never
+requests reviews. A name is not evidence of identity, employment, or current availability. The
+MCP tool `fixmap_reviewers` takes the same inputs and is read-only.
+
 Persist a reviewed product-to-implementation map without persisting generated conclusions:
 
 ```bash
@@ -239,7 +256,7 @@ contract, decision, test-association, reviewer, and architecture evidence.
 
 ## Complete feature catalog
 
-> **Preview features.** `change-scope`, `capability` / `capabilities`, `workspace`, `ask`, `migrate`, `reverse-docs`, `history`, `supply-chain`, `runtime`, `sandbox`, `editor`, `--semantic-model`, `--evidence`, and their MCP tools are previews: they work and are tested, but their output and options may change before v0.10.0. Language support beyond JavaScript and TypeScript is also preview quality while testing on unseen repositories continues. `fixmap features` lists which features are previews.
+> **Preview features.** `change-scope`, `reviewers`, `capability` / `capabilities`, `workspace`, `ask`, `migrate`, `reverse-docs`, `history`, `supply-chain`, `runtime`, `sandbox`, `editor`, `--semantic-model`, `--evidence`, and their MCP tools are previews: they work and are tested, but their output and options may change before v0.10.0. Language support beyond JavaScript and TypeScript is also preview quality while testing on unseen repositories continues. `fixmap features` lists which features are previews.
 
 ### Inputs and repository mapping
 
@@ -376,6 +393,7 @@ Architecture rules live in a reviewed `.fixmap/policy.json` file. Every rule has
 - Its public API also exposes Explain, Compare, and Verify builders and result types, so another tool can compose the same workflow without shelling out to the CLI.
 - `fixmap annotate` writes a versioned `.fixmap/annotations.json` with stable content identities, file/symbol/service/contract scopes, optional owner and expiry, and rename/missing-target checks. Relevant notes retain the store fingerprint in Markdown, JSON, and compact agent reports. See the [candidate annotation guide](docs/annotations.md) for workflows, ownership boundaries, and interrupted-lock recovery.
 - The candidate MCP tool `fixmap_annotate` shares that store and its locking/validation. It requires an explicit `action`: `add` accepts `target`/`symbol` or `service`/`contract`, `note`, optional `owner`/`expires`, and local `repo`; `list` accepts `repo` and `format`; `remove` requires the exact annotation `id` and optional `repo`. Only add/remove writes files. The tool advertises mutation/destructive hints; those hints are not authorization, and agents must obtain the user's request before changing notes. Invalid or action-inapplicable fields fail before mutation. This candidate tool is not a claim that the published npm release already supports it.
+- Preview: `fixmap outcome record|list|show|remove|calibrate|prune` and `fixmap dossier create|list|show|remove` save predicted-versus-edited outcomes and fingerprinted change dossiers under `.fixmap/outcomes/` and `.fixmap/dossiers/` with atomic writes, link refusal, `--redact` (free text stored as SHA-256), and age-based pruning. Calibration is report-only (`automaticWeightChanges: false`). The read-only MCP tools `fixmap_outcomes` and `fixmap_dossier` list and show them. See [outcomes and change dossiers](docs/outcomes-and-dossiers.md).
 - `.fixmap/policy.json` defines bounded, repository-owned dependency boundaries, required test changes, reviewer routing, and breaking-contract rules. Plan and Verify use the same evaluator and retain the exact policy fingerprint; Core can also compare deterministic architecture snapshots for new edges, cyclic components, boundary violations, and coupling growth.
 - Historical Core APIs resolve refs to immutable commits and compare exact Git-blob architecture snapshots without checking out a branch, moving `HEAD`, or writing into the worktree.
 - The opt-in local sensitive-data evidence provider emits provenance-marked credential/token/PII/payment indicators and structural proximity to logging/network/storage/analytics sinks. It never copies detected values or snippets and explicitly labels every result as low-confidence, incomplete evidence rather than a taint or security proof.
@@ -451,7 +469,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: aryamthecodebreaker/FixMap@v0.9.4
+      - uses: aryamthecodebreaker/FixMap@v0.9.5
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```

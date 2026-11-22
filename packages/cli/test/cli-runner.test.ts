@@ -199,8 +199,8 @@ describe("CLI argument handling", () => {
     expect(await runCli(["features", "--format", "json"], catalog.dependencies)).toBe(0);
     const features = (JSON.parse(catalog.stdout.join("")) as { features: Array<{ name: string; preview?: true }> }).features;
     expect(features.filter((feature) => feature.preview).map((feature) => feature.name)).toEqual([
-      "Change scope", "Product capabilities", "Cross-repository workspace", "Repository Q&A", "Migration planning",
-      "Reverse documentation", "Architecture history", "Supply-chain evidence", "Runtime evidence", "Evidence import", "Execution sandbox",
+      "Change scope", "Reviewer suggestions", "Product capabilities", "Cross-repository workspace", "Repository Q&A", "Migration planning",
+      "Reverse documentation", "Architecture history", "Historical plans", "Contract Guardian", "Supply-chain evidence", "Runtime evidence", "Evidence import", "Outcome feedback loop", "Change dossier", "Execution sandbox",
       "Local hybrid retrieval"
     ]);
     expect(features.find((feature) => feature.name === "Plan")?.preview).toBeUndefined();
@@ -208,7 +208,7 @@ describe("CLI argument handling", () => {
     const help = capture();
     expect(await runCli(["--help"], help.dependencies)).toBe(0);
     const commands = help.stdout.join("").split("Commands:")[1]?.split("Options:")[0] ?? "";
-    for (const command of ["change-scope", "editor", "capability", "capabilities", "workspace", "ask", "migrate", "reverse-docs", "history", "supply-chain", "runtime", "sandbox"]) {
+    for (const command of ["change-scope", "reviewers", "editor", "capability", "capabilities", "workspace", "ask", "migrate", "reverse-docs", "history", "contracts", "supply-chain", "runtime", "sandbox"]) {
       expect(commands).toMatch(new RegExp(`\\n  ${command} +Preview: `));
     }
     for (const command of ["plan", "verify", "context", "graph", "annotate", "watch"]) {

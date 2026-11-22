@@ -163,12 +163,14 @@ For long task text, use `--issue-file task.md`, pipe it directly to `fixmap plan
 - **Context Pack** — use `fixmap context` to package deterministic line ranges from primary and impact files within an estimated source-token budget. Markdown is readable by people and agents; JSON preserves roles, reasons, line ranges, truncation, and omitted-file diagnostics.
 - **Graph export** — use `fixmap graph` to export the evidence-backed Impact Graph as portable Mermaid or versioned JSON while preserving relationship direction.
 - **Change scope** — use `fixmap change-scope --touch <path> [--add <path>]` to expand only caller-selected product work surfaces over bounded dependencies/dependents, then join existing tests, contracts, decisions, reviewers, and policy evidence. Missing additions remain unresolved; no product semantics are inferred.
+- **Reviewer suggestions** (preview) — use `fixmap reviewers --diff <spec> | --working-tree | --report <plan.json>` to list suggested reviewers per changed path from CODEOWNERS (last matching rule wins, with the source line), annotation owners, architecture policy, and `.mailmap`-canonical commit authors. `--no-history-authors` drops commit authors. Names print without `@` so nobody is notified; FixMap never requests reviews or infers availability. MCP: `fixmap_reviewers`.
 - **Product capabilities** — use `fixmap capability create|update|remove` to maintain a locked, atomic `.fixmap/capabilities.json` of human names, explicit anchors, and bounds; use `fixmap capability <id>` or `fixmap capabilities` to rebuild/show current evidence. `fixmap capability diff <id> <from>..<to>` compares exact immutable Git objects without checkout mutation. Generated conclusions are never stored.
 - **Cross-repository workspace** — use `fixmap workspace --config <file> --seed <repository-id>` to resolve local Node, Python, and Maven package providers and trace downstream consumers with versioned identity, manifest, import, and submodule evidence.
 - **Repository Q&A** — use `fixmap ask --report <plan.json> --question <text>` to answer structural context, impact, test, risk, policy, ADR, and annotation questions from bounded report evidence with citations and explicit unknowns.
 - **Migration planner** — use `fixmap migrate --input <migration.json>` to validate and render dependency phases, blast radius, compatibility, verification, and rollback without executing or applying the plan.
 - **Reverse documentation** — use `fixmap reverse-docs --input <reverse-docs.json>` to create review-only module or architecture drafts from exact structural evidence without writing the requested destination.
-- **Architecture history** — use `fixmap history --repo . --from <ref> --to <ref>` to compare immutable committed snapshots without checkout or worktree mutation.
+- **Architecture history** — use `fixmap history --repo . --from <ref> --to <ref>` to compare immutable committed snapshots without checkout or worktree mutation. It also reports decision disagreements: edges at `--to` that break an import rule stated by an accepted decision record in `fixmap-deny-imports` frontmatter (one `from-pattern -> denied-pattern` per item). Snapshots are cached per exact commit outside the repository; `--no-cache` rebuilds them.
+- **Historical plans (preview)** — `fixmap plan --issue <task> --at <ref>` ranks against the repository as it was at that commit, read from Git objects without checking out or changing the worktree.
 - **Supply-chain evidence** — use `fixmap supply-chain --input <bundle.json>` to validate normalized package/security/license evidence without executing a scanner or inventing advisory truth.
 - **Runtime evidence** — use `fixmap runtime --input <runtime.json>` to map redaction-reviewed traces and profiles only through exact repository paths and fingerprints.
 - **Execution sandbox** — use `fixmap sandbox --request <sandbox.json> --execute-declared-command` to run one exact reviewed command with a pinned local image, network off, read-only source/root, and resource limits.
@@ -230,6 +232,7 @@ fixmap supply-chain    Import normalized external scanner and SBOM evidence
 fixmap runtime         Map redaction-reviewed runtime evidence to exact files
 fixmap sandbox         Run one explicitly consented command in an isolated container
 fixmap change-scope    Expand explicit planned paths into structural consequences
+fixmap reviewers       Suggest reviewers per changed path without notifying anyone
 fixmap capability      Create, update, remove, or show one product capability
 fixmap capabilities    List persistent product capability definitions
 fixmap verify          Compare a saved plan with the diff that followed

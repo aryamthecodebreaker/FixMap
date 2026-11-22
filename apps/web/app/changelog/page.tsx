@@ -44,9 +44,31 @@ type Release = {
 
 const releases: Release[] = [
   {
-    version: "0.9.4",
+    version: "0.9.5",
     date: "November 22, 2026",
     label: "Latest release",
+    summary: "Six previews: other tools' findings in plans, API contract checks, architecture drift and historical plans, reviewer suggestions, saved outcomes and dossiers, and new GitHub Action sections.",
+    groups: [
+      {
+        label: "Added",
+        items: [
+          "fixmap plan --evidence attaches findings from scanners, CI, or monitoring tools to the files in a plan, labelled as the tool's claim and never executed.",
+          "fixmap contracts lists API and schema contracts and classifies changes between two Git refs as compatible, breaking, or unknown.",
+          "fixmap history reports architecture drift and broken architecture decisions between two commits, and fixmap plan --at ranks against an older commit.",
+          "fixmap reviewers suggests reviewers from CODEOWNERS, notes, policy, and history without notifying anyone.",
+          "fixmap outcome and fixmap dossier save what a plan predicted against what changed, locally and with optional redaction.",
+          "The GitHub Action can add change-scope and capability-map sections to pull request comments."
+        ]
+      },
+      {
+        label: "Improved",
+        items: ["All six are previews: they work and are tested, but may change before v0.10.0."]
+      }
+    ]
+  },
+  {
+    version: "0.9.4",
+    date: "November 22, 2026",
     summary: "Local semantic search now finishes on large repositories, and an honest test on 28 never-seen projects keeps language support in preview because Java missed.",
     groups: [
       {

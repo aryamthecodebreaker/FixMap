@@ -196,8 +196,147 @@ describe("Contract Guardian", () => {
     const previous = inventoryContracts([source("schema.graphql", "type Query { ok: Boolean }", "before")]);
     const current = inventoryContracts([source("schema.graphql", "this is not GraphQL SDL", "after")]);
     const result = compareContractInventories(previous, current);
-    expect(result.changes).toEqual([]);
+    expect(result.changes).toEqual([expect.objectContaining({
+      change: "contract-unavailable",
+      compatibility: "unknown",
+      evidence: { beforeFingerprint: "content:before0000000000" }
+    })]);
+    expect(result.changes.some((change) => change.change === "contract-removed")).toBe(false);
     expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "contract-parse-failed" }));
+  });
+
+  it("produces identical surfaces and deltas for equivalent OpenAPI JSON and YAML", () => {
+    const beforeJson = {
+      openapi: "3.1.0",
+      info: { title: "Users" },
+      paths: {
+        "/users/{id}": {
+          get: { parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }] },
+          delete: {}
+        }
+      },
+      components: { schemas: { User: { type: "object", required: ["id"], properties: { id: { type: "string" }, email: { type: "string", format: "email" } } } } }
+    };
+    const afterJson = {
+      openapi: "3.1.0",
+      info: { title: "Users" },
+      paths: {
+        "/users/{id}": {
+          get: { parameters: [
+            { name: "id", in: "path", required: true, schema: { type: "integer" } },
+            { name: "expand", in: "query", required: false, schema: { type: "string" } }
+          ] }
+        }
+      },
+      components: { schemas: { User: { type: "object", required: ["id", "email"], properties: { id: { type: "string" }, email: { type: "string", format: "email" } } } } }
+    };
+    const beforeYaml = [
+      "# Users API",
+      "openapi: 3.1.0",
+      "info:",
+      "  title: Users",
+      "  description: |",
+      "    Multi-line text with a # that is not a comment",
+      "    and: a colon.",
+      "paths:",
+      "  '/users/{id}':",
+      "    get:",
+      "      parameters:",
+      "        - name: id",
+      "          in: path",
+      "          required: true",
+      "          schema: { type: string }",
+      "    delete: {}",
+      "components:",
+      "  schemas:",
+      "    User:",
+      "      type: object",
+      "      required: [id]",
+      "      properties:",
+      "        id:",
+      "          type: string  # inline comment",
+      "        email:",
+      "          type: string",
+      "          format: email",
+      ""
+    ].join("\n");
+    const afterYaml = [
+      "openapi: \"3.1.0\"",
+      "info: { title: Users }",
+      "paths:",
+      "  /users/{id}:",
+      "    get:",
+      "      parameters:",
+      "      - name: id",
+      "        in: path",
+      "        required: true",
+      "        schema:",
+      "          type: integer",
+      "      - {name: expand, in: query, required: false, schema: {type: string}}",
+      "components:",
+      "  schemas:",
+      "    User:",
+      "      type: object",
+      "      required:",
+      "        - id",
+      "        - email",
+      "      properties:",
+      "        id: { type: string }",
+      "        email: { type: string, format: email }",
+      ""
+    ].join("\n");
+    const jsonBefore = inventoryContracts([source("api/openapi.json", JSON.stringify(beforeJson), "before")]);
+    const yamlBefore = inventoryContracts([source("api/openapi.json", beforeYaml, "before")].map((value) => ({ ...value, path: "api/openapi.yaml" })));
+    expect(yamlBefore.diagnostics).toEqual([]);
+    expect(yamlBefore.surfaces[0]).toMatchObject({ kind: "openapi", version: "3.1.0", name: "Users" });
+    expect(yamlBefore.surfaces[0]!.entries).toEqual(jsonBefore.surfaces[0]!.entries);
+
+    const strip = (comparison: ReturnType<typeof compareContractInventories>) =>
+      comparison.changes.map(({ compatibility, change, entry, before, after, reason }) => ({ compatibility, change, entry, before, after, reason }));
+    const jsonDelta = compare("api/openapi.json", JSON.stringify(beforeJson), JSON.stringify(afterJson));
+    const yamlDelta = compare("api/openapi.yaml", beforeYaml, afterYaml);
+    expect(strip(yamlDelta)).toEqual(strip(jsonDelta));
+    expect(yamlDelta.changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ entry: "operation:DELETE /users/{id}", compatibility: "breaking" }),
+      expect.objectContaining({ entry: "argument:GET /users/{id}:path:id", change: "entry-changed", compatibility: "breaking" }),
+      expect.objectContaining({ entry: "argument:GET /users/{id}:query:expand", compatibility: "compatible" }),
+      expect.objectContaining({ entry: "field:User.email", compatibility: "breaking" })
+    ]));
+  });
+
+  it("produces identical AsyncAPI deltas for JSON and YAML", () => {
+    const before = { asyncapi: "2.6.0", info: { title: "Events" }, channels: { "user.created": { publish: { message: {} } }, "user.deleted": { subscribe: {} } } };
+    const after = { asyncapi: "2.6.0", info: { title: "Events" }, channels: { "user.created": { publish: { message: {} } } } };
+    const beforeYaml = "asyncapi: 2.6.0\ninfo:\n  title: Events\nchannels:\n  user.created:\n    publish:\n      message: {}\n  user.deleted:\n    subscribe: {}\n";
+    const afterYaml = "asyncapi: 2.6.0\ninfo:\n  title: Events\nchannels:\n  user.created:\n    publish:\n      message: {}\n";
+    const json = compare("asyncapi.json", JSON.stringify(before), JSON.stringify(after));
+    const yaml = compare("asyncapi.yml", beforeYaml, afterYaml);
+    expect(yaml.changes.map((change) => [change.entry, change.compatibility])).toEqual(json.changes.map((change) => [change.entry, change.compatibility]));
+    expect(yaml.changes).toEqual([expect.objectContaining({ entry: "operation:subscribe:user.deleted", compatibility: "breaking" })]);
+  });
+
+  it("reports unsupported or malformed YAML as an unparseable contract instead of guessing", () => {
+    for (const content of [
+      "openapi: 3.1.0\ncomponents:\n  schemas:\n    Base: &base\n      type: object\n    User: *base\n",
+      "openapi: 3.1.0\npaths:\n  /a:\n    get: {}\n  /a:\n    post: {}\n",
+      "openapi: 3.1.0\npaths: {unterminated\n",
+      "openapi: 3.1.0\n---\nopenapi: 3.0.0\n"
+    ]) {
+      const inventory = inventoryContracts([source("openapi.yaml", content, "bad")]);
+      expect(inventory.surfaces).toEqual([]);
+      expect(inventory.diagnostics).toEqual([expect.objectContaining({ code: "contract-parse-failed", path: "openapi.yaml" })]);
+    }
+  });
+
+  it("records declared specification versions", () => {
+    const inventory = inventoryContracts([
+      source("a.proto", "syntax = \"proto3\";\nmessage A { string id = 1; }", "a"),
+      source("openapi.yaml", "openapi: 3.0\npaths: {}\n", "b"),
+      source("schema.graphql", "type Query { ok: Boolean }", "c")
+    ]);
+    expect(inventory.surfaces.map((surface) => [surface.kind, surface.version])).toEqual([
+      ["graphql", undefined], ["openapi", "3.0"], ["protobuf", "proto3"]
+    ]);
   });
 
   it("fails closed on duplicate paths and invalid source paths", () => {

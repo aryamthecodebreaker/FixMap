@@ -11,6 +11,10 @@ export type FixMapArtifactKind =
   | "change-scope-json"
   | "change-scope-markdown"
   | "context-json"
+  | "contract-diff-json"
+  | "contract-diff-markdown"
+  | "contract-list-json"
+  | "contract-list-markdown"
   | "context-markdown"
   | "report-json"
   | "report-markdown"
@@ -60,6 +64,10 @@ export function fixMapArtifactKind(file: Pick<RepoFile, "path" | "textSample" | 
     return "capability-history-json";
   }
   if (candidate.capabilityListVersion === 1 && Array.isArray(candidate.capabilities)) return "capability-list-json";
+  if (candidate.contractListVersion === 1 && isRecord(candidate.inventory)) return "contract-list-json";
+  if (candidate.contractDiffVersion === 1 && isRecord(candidate.from) && isRecord(candidate.to) && isRecord(candidate.comparison)) {
+    return "contract-diff-json";
+  }
   if (
     (candidate.reportVersion === undefined || candidate.reportVersion === 1) &&
     typeof candidate.summary === "string" &&

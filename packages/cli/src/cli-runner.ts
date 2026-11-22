@@ -43,6 +43,7 @@ export type CliOptions = {
   baseRef?: string | undefined;
   headRef?: string | undefined;
   checkoutRef?: string | undefined;
+  atRef?: string | undefined;
   format: "markdown" | "json" | "agent";
   output?: string | undefined;
   explainPath?: string | undefined;
@@ -95,6 +96,7 @@ Usage:
   fixmap plan --issue "Fix login" --format agent
   fixmap plan --issue "Fix login in auth middleware" --compare plan.json
   fixmap plan --base main --head HEAD --format json
+  fixmap plan --issue "Fix login" --at v0.9.0
   fixmap verify --report plan.json --diff main...HEAD
   fixmap verify --report plan.json --working-tree
   fixmap verify --report plan.json --working-tree --fail-on warning
@@ -102,6 +104,7 @@ Usage:
   fixmap validate plan.json
   fixmap benchmark --repo . --last 50
   fixmap change-scope --touch src/auth --touch packages/api --add db/migrations
+  fixmap reviewers --diff main...HEAD --no-history-authors
   fixmap editor --issue "Investigate authentication" --repo .
   fixmap capability create checkout --touch src/routes/checkout.ts --touch packages/payments
   fixmap capability checkout
@@ -113,11 +116,14 @@ Usage:
   fixmap migrate --input migration.json --format markdown
   fixmap reverse-docs --input reverse-docs.json --format markdown
   fixmap history --repo . --from v0.9.0 --to HEAD
+  fixmap contracts diff v0.9.0..HEAD
   fixmap supply-chain --input supply-chain.json
   fixmap runtime --input runtime.json
   fixmap sandbox --request sandbox.json --execute-declared-command
   fixmap watch --report plan.json --repo .
   fixmap annotate src/auth/token.ts --note "Do not refactor; external contract"
+  fixmap outcome record --report plan.json --working-tree --assessment agent --status succeeded
+  fixmap dossier create --report plan.json --task "Fix login" --diff main...HEAD --pr <url>
   fixmap features
   fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>]
   fixmap mcp [--repo <path>]
@@ -129,6 +135,7 @@ Commands:
   validate            Validate a saved FixMap JSON report
   benchmark           Backtest BM25, FixMap, and Impact Graph on pre-change snapshots
   change-scope        Preview: Expand explicit planned paths into bounded structural consequences
+  reviewers           Preview: Suggest reviewers per changed path from CODEOWNERS, owners, policy, and history
   editor              Preview: Serve a local read-only NDJSON editor session
   capability          Preview: Create, update, remove, or show a persistent product capability
   capabilities        Preview: List persistent product capabilities declared by the repository
@@ -139,10 +146,13 @@ Commands:
   migrate             Preview: Build a dependency-ordered, review-only migration plan
   reverse-docs        Preview: Draft review-only documentation from exact structural evidence
   history             Preview: Compare architecture at two committed Git refs without checkout
+  contracts           Preview: List API/schema contracts or diff them across Git refs without checkout
   supply-chain        Preview: Import normalized external scanner and SBOM evidence
   runtime             Preview: Map redaction-reviewed runtime evidence to exact files
   sandbox             Preview: Run one explicitly consented command in an isolated container
   watch               Recheck working-tree drift and impact whenever edits change
+  outcome             Preview: Save predicted-versus-edited outcomes locally and calibrate them
+  dossier             Preview: Save a fingerprinted change dossier for a finished change
   annotate            Attach reviewable tribal knowledge to files, symbols, services, or contracts
   features            List every FixMap capability and its command
   setup               Preview workflows, or explicitly install /fixmap for coding agents
@@ -162,6 +172,7 @@ Options:
   --evidence <file>   Attach a version-1 evidence bundle from another tool (repeatable; data only, never executed)
   --repo <source>     Local path or public GitHub HTTPS URL (defaults to current directory)
   --ref <branch|tag>  Branch or tag to scan when --repo is a remote GitHub URL
+  --at <git-ref>      Preview: Rank against a local committed ref, read from Git objects without checkout
   --limit <n>         Maximum context files to report (default 8, max 20)
   --exclude <glob>    Path pattern to leave out of ranking (repeatable)
   --format <fmt>      Output format: markdown (default), json, or compact agent
@@ -236,6 +247,11 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     });
     await runMcpServer(defaultRepo);
     return 0;
+  }
+
+  if (args[0] === "outcome" || args[0] === "dossier") {
+    const module = await import("./outcome-command.js");
+    return (args[0] === "outcome" ? module.runOutcomeCommand : module.runDossierCommand)(args.slice(1), { stdout, stderr });
   }
 
   if (args[0] === "annotate") {
@@ -462,6 +478,15 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     });
   }
 
+  if (args[0] === "reviewers") {
+    const { runReviewersCommand } = await import("./reviewers-command.js");
+    return runReviewersCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
   if (args[0] === "change-scope") {
     const { runChangeScopeCommand } = await import("./change-scope-command.js");
     return runChangeScopeCommand(args.slice(1), {
@@ -542,6 +567,15 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   if (args[0] === "history") {
     const { runHistoryCommand } = await import("./history-command.js");
     return runHistoryCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "contracts") {
+    const { runContractsCommand } = await import("./contracts-command.js");
+    return runContractsCommand(args.slice(1), {
       stdout,
       stderr,
       ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
@@ -631,7 +665,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 1;
   }
   if (options.command === "verify") {
-    const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain", options.semanticModelPath && "--semantic-model", options.evidencePaths.length > 0 && "--evidence"].filter(Boolean);
+    const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain", options.semanticModelPath && "--semantic-model", options.evidencePaths.length > 0 && "--evidence", options.atRef && "--at"].filter(Boolean);
     if (planOnly.length > 0) { stderr(`verify does not accept plan-only option(s): ${planOnly.join(", ")}.\n`); return 1; }
     const outputCollision = await describeOutputInputCollision(options);
     if (outputCollision) { stderr(`${outputCollision}\n`); return 1; }
@@ -698,6 +732,22 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   if (options.checkoutRef && !remoteRepository) {
     stderr("--ref only applies when --repo is a remote GitHub URL or the issue URL infers one.\n");
     return 1;
+  }
+  if (options.atRef) {
+    const conflicting = [
+      (options.diffSpec || options.baseRef || options.headRef) && "--diff/--base/--head",
+      options.workingTree && "--working-tree",
+      options.explainPath && "--explain",
+      remoteRepository && "a remote repository"
+    ].filter(Boolean);
+    if (conflicting.length > 0) {
+      stderr(`--at ranks one local committed state and cannot be combined with ${conflicting.join(", ")}.\n`);
+      return 1;
+    }
+    if (!options.issueText) {
+      stderr("--at needs --issue or --issue-file so there is a task to rank against.\n");
+      return 1;
+    }
   }
   const unsupportedTaskUrl = describeUnsupportedTaskUrl(options.issueText);
   if (unsupportedTaskUrl) { stderr(`${unsupportedTaskUrl}\n`); return 1; }
@@ -775,6 +825,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       baseRef: options.baseRef,
       headRef: options.headRef,
       checkoutRef: options.checkoutRef,
+      ...(options.atRef ? { atRef: options.atRef } : {}),
       workingTree: options.workingTree,
       includeUntracked: options.includeUntracked,
       useCache: !options.noCache,
@@ -1026,6 +1077,7 @@ const SINGLE_VALUE_FLAGS = new Set([
   "--base",
   "--head",
   "--ref",
+  "--at",
   "--repo",
   "--semantic-model",
   "--evidence",
@@ -1067,6 +1119,7 @@ export function parseArgs(args: string[]): CliOptions {
   let baseRef: string | undefined;
   let headRef: string | undefined;
   let checkoutRef: string | undefined;
+  let atRef: string | undefined;
   let format: "markdown" | "json" | "agent" = "markdown";
   let output: string | undefined;
   let explainPath: string | undefined;
@@ -1149,6 +1202,11 @@ export function parseArgs(args: string[]): CliOptions {
       } else {
         invalidValues.push("--ref requires a safe branch or tag name");
       }
+    } else if (arg === "--at") {
+      consumeValue();
+      const trimmed = value?.trim();
+      if (trimmed && trimmed.length <= 500 && !/[\0\r\n]/.test(trimmed) && !trimmed.startsWith("-")) atRef = trimmed;
+      else invalidValues.push("--at requires a bounded single-line Git ref");
     } else if (arg === "--repo") {
       consumeValue();
       if (value?.trim()) repo = expandHomePath(value.trim());
@@ -1234,6 +1292,7 @@ export function parseArgs(args: string[]): CliOptions {
     baseRef,
     headRef,
     checkoutRef,
+    atRef,
     format,
     output,
     explainPath,

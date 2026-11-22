@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { ANNOTATION_TOOL, runAnnotationTool } from "./annotation-tool.js";
+import { DOSSIER_TOOL, OUTCOMES_TOOL, runDossierTool, runOutcomesTool } from "./record-tools.js";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -48,7 +49,9 @@ import { buildSupplyChainReport, renderSupplyChainMarkdown } from "./supply-chai
 import { parseRuntimeInput, renderRuntimeMarkdown } from "./runtime-command.js";
 import { runWorkspaceCommand } from "./workspace-command.js";
 import { runChangeScopeCommand } from "./change-scope-command.js";
+import { runReviewersCommand } from "./reviewers-command.js";
 import { runCapabilitiesCommand, runCapabilityCommand } from "./capability-command.js";
+import { runContractsCommand } from "./contracts-command.js";
 import {
   buildReportForRepository,
   isSafeGitRefName,
@@ -65,6 +68,7 @@ type PlanArguments = {
   head?: string;
   repo?: string;
   ref?: string;
+  at?: string;
   format?: "markdown" | "json" | "agent";
   limit?: number;
   exclude?: string[];
@@ -149,6 +153,12 @@ const PLAN_TOOL = {
           "GitHub URLs support issue-only analysis and are removed after scanning."
       },
       ref: { type: "string", description: "Branch or tag to scan when repo is a remote GitHub URL" },
+      at: {
+        type: "string",
+        description:
+          "Preview (may change before v0.10.0): Rank against this committed Git ref of a local repo, read from Git objects " +
+          "without checking out or changing the worktree. Needs issue; cannot be combined with diff, base/head, workingTree, or a remote repo."
+      },
       format: {
         type: "string",
         description: "Output format: markdown (default), json, or compact agent, case-insensitive"
@@ -304,6 +314,28 @@ const CHANGE_SCOPE_TOOL = {
   }
 };
 
+const REVIEWERS_TOOL = {
+  name: "fixmap_reviewers",
+  title: "FixMap reviewer suggestions",
+  description:
+    "Preview (may change before v0.10.0): Suggest reviewers per changed path from the highest-precedence CODEOWNERS file (last matching rule wins), active annotation owners, architecture-policy reviewers, and bounded .mailmap-canonical commit authors. " +
+    "Read-only: it never requests reviews or notifies anyone, prints names without @, and does not treat a name as evidence of identity, employment, or availability. Provide exactly one of report, diff, or workingTree.",
+  annotations: { readOnlyHint: true, openWorldHint: false },
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      report: { type: "string", description: "Path to a saved FixMap JSON plan; its changed files (or ranked context files) are routed" },
+      diff: { type: "string", description: "Git diff spec whose changed files are routed, such as main...HEAD" },
+      workingTree: { type: "boolean", description: "Route staged and unstaged changes against HEAD" },
+      noHistoryAuthors: { type: "boolean", description: "Leave out commit-author suggestions" },
+      repo: { type: "string", description: "Local checkout path (defaults to the MCP server repository)" },
+      format: { type: "string", description: "Output format: markdown (default) or json" },
+      noCache: { type: "boolean", description: "Bypass repository scan caches" }
+    },
+    additionalProperties: false
+  }
+};
+
 const CAPABILITY_TOOL = {
   name: "fixmap_capability",
   title: "FixMap capability",
@@ -391,7 +423,9 @@ const HISTORY_TOOL = {
   title: "FixMap history",
   description:
     "Preview (may change before v0.10.0): Compare architecture at two exact committed Git refs without checking out either ref or changing the worktree. " +
-    "Returns immutable commit IDs plus added/removed edges, cycle and boundary drift, and coupling growth.",
+    "Returns immutable commit IDs plus added/removed edges, cycle and boundary drift, coupling growth, and decision disagreements: " +
+    "edges at the later ref that break a fixmap-deny-imports rule stated by an accepted decision record. " +
+    "Snapshots are cached per exact commit outside the repository.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -400,9 +434,31 @@ const HISTORY_TOOL = {
       to: { type: "string", description: "Later committed Git ref" },
       couplingDelta: { type: "integer", minimum: 1, maximum: 10000, description: "Minimum coupling growth to report (default 2)" },
       applyPolicy: { type: "boolean", description: "Apply the repository architecture policy when present (default true)" },
+      noCache: { type: "boolean", description: "Rebuild both snapshots instead of reusing the per-commit cache" },
       format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
     },
     required: ["from", "to"],
+    additionalProperties: false
+  }
+};
+
+const CONTRACTS_TOOL = {
+  name: "fixmap_contracts",
+  title: "FixMap contracts",
+  description:
+    "Preview (may change before v0.10.0): List OpenAPI, AsyncAPI, GraphQL, Protobuf, JSON Schema, and SQL migration contracts in the working tree (action list), " +
+    "or compare them at two exact Git refs through Git objects without checking out either ref or changing the worktree (action diff). " +
+    "Each change is breaking, unknown, or compatible with before/after fingerprints; unparseable contracts are reported as diagnostics.",
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      action: { type: "string", enum: ["list", "diff"], description: "list (default) inventories the working tree; diff compares from..to" },
+      from: { type: "string", description: "Earlier exact Git ref; required for diff" },
+      to: { type: "string", description: "Later exact Git ref; required for diff" },
+      repo: { type: "string", description: "Local checkout path (defaults to the MCP server repository)" },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
     additionalProperties: false
   }
 };
@@ -516,11 +572,13 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL, ANNOTATION_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, REVIEWERS_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, CONTRACTS_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL, ANNOTATION_TOOL, OUTCOMES_TOOL, DOSSIER_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name === ANNOTATION_TOOL.name) return runAnnotationTool(request.params.arguments, defaultRepo);
+    if (request.params.name === OUTCOMES_TOOL.name) return runOutcomesTool(request.params.arguments, defaultRepo);
+    if (request.params.name === DOSSIER_TOOL.name) return runDossierTool(request.params.arguments, defaultRepo);
     if (request.params.name === CONTEXT_TOOL.name || request.params.name === GRAPH_TOOL.name) {
       const kind = request.params.name === CONTEXT_TOOL.name ? "context" : "graph";
       const parsed = parseAnalysisToolArguments(request.params.arguments ?? {}, kind);
@@ -588,6 +646,33 @@ export function createFixMapMcpServer(
       if (typeof record?.repository === "string") commandArgs.push("--repository", record.repository.trim());
       if (record?.noCache === true) commandArgs.push("--no-cache");
       const exitCode = await runChangeScopeCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
+      return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }] };
+    }
+    if (request.params.name === REVIEWERS_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const invalid = (text: string) => ({ isError: true, content: [{ type: "text", text: `Invalid arguments: ${text}` }] });
+      const unknown = Object.keys(record ?? {}).filter((key) => !["report", "diff", "workingTree", "noHistoryAuthors", "repo", "format", "noCache"].includes(key));
+      if (unknown.length > 0) return invalid(`unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`);
+      for (const key of ["report", "diff", "repo"] as const) {
+        if (record?.[key] !== undefined && (typeof record[key] !== "string" || !record[key].trim())) return invalid(`"${key}" must be a non-empty string.`);
+      }
+      for (const key of ["workingTree", "noHistoryAuthors", "noCache"] as const) {
+        if (record?.[key] !== undefined && typeof record[key] !== "boolean") return invalid(`"${key}" must be a boolean.`);
+      }
+      if (record?.repo && /^https?:\/\//i.test(String(record.repo))) return invalid('"repo" must be a local checkout.');
+      const sources = Number(record?.report !== undefined) + Number(record?.diff !== undefined) + Number(record?.workingTree === true);
+      if (sources !== 1) return invalid('provide exactly one of "report", "diff", or "workingTree": true.');
+      const format = normalizeFormat(record?.format);
+      if (!format.success) return invalid(format.message);
+      const commandArgs = ["--repo", typeof record?.repo === "string" ? record.repo.trim() : defaultRepo, "--format", format.value ?? "markdown"];
+      if (typeof record?.report === "string") commandArgs.push("--report", record.report.trim());
+      if (typeof record?.diff === "string") commandArgs.push("--diff", record.diff.trim());
+      if (record?.workingTree === true) commandArgs.push("--working-tree");
+      if (record?.noHistoryAuthors === true) commandArgs.push("--no-history-authors");
+      if (record?.noCache === true) commandArgs.push("--no-cache");
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const exitCode = await runReviewersCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
       return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }] };
     }
     if (request.params.name === CAPABILITY_TOOL.name) {
@@ -749,7 +834,7 @@ export function createFixMapMcpServer(
     }
     if (request.params.name === HISTORY_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;
-      const unknown = Object.keys(record ?? {}).filter((key) => !["repo", "from", "to", "couplingDelta", "applyPolicy", "format"].includes(key));
+      const unknown = Object.keys(record ?? {}).filter((key) => !["repo", "from", "to", "couplingDelta", "applyPolicy", "noCache", "format"].includes(key));
       if (unknown.length > 0) {
         return { isError: true, content: [{ type: "text", text: `Invalid arguments: unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` }] };
       }
@@ -763,8 +848,10 @@ export function createFixMapMcpServer(
       if (record.couplingDelta !== undefined && (!Number.isSafeInteger(record.couplingDelta) || Number(record.couplingDelta) < 1 || Number(record.couplingDelta) > 10_000)) {
         return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "couplingDelta" must be an integer from 1 to 10000.' }] };
       }
-      if (record.applyPolicy !== undefined && typeof record.applyPolicy !== "boolean") {
-        return { isError: true, content: [{ type: "text", text: 'Invalid arguments: "applyPolicy" must be a boolean.' }] };
+      for (const name of ["applyPolicy", "noCache"] as const) {
+        if (record[name] !== undefined && typeof record[name] !== "boolean") {
+          return { isError: true, content: [{ type: "text", text: `Invalid arguments: "${name}" must be a boolean.` }] };
+        }
       }
       const format = normalizeFormat(record.format);
       if (!format.success) return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${format.message}` }] };
@@ -775,7 +862,8 @@ export function createFixMapMcpServer(
           fromRef: record.from.trim(),
           toRef: record.to.trim(),
           couplingDelta: record.couplingDelta === undefined ? 2 : Number(record.couplingDelta),
-          applyRepositoryPolicy: record.applyPolicy === undefined ? true : record.applyPolicy
+          applyRepositoryPolicy: record.applyPolicy !== false,
+          useCache: record.noCache !== true
         });
         return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(result, null, 2)}\n` : renderHistoryMarkdown(result) }] };
       } catch (error) {
@@ -784,6 +872,37 @@ export function createFixMapMcpServer(
           ? `Could not resolve one of the requested Git refs in "${repoRoot}". Confirm both refs exist and the path is a Git checkout.`
           : `Could not compare historical architecture in "${repoRoot}".` }] };
       }
+    }
+    if (request.params.name === CONTRACTS_TOOL.name) {
+      const record = (request.params.arguments ?? {}) as Record<string, unknown>;
+      const invalid = (text: string) => ({ isError: true, content: [{ type: "text", text: `Invalid arguments: ${text}` }] });
+      const unknown = Object.keys(record).filter((key) => !["action", "from", "to", "repo", "format"].includes(key));
+      if (unknown.length > 0) return invalid(`unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`);
+      if (record.action !== undefined && record.action !== "list" && record.action !== "diff") return invalid('"action" must be "list" or "diff".');
+      const action = record.action ?? "list";
+      for (const key of ["from", "to"] as const) {
+        const value = record[key];
+        if (value !== undefined && (typeof value !== "string" || !value.trim() || value.length > 500 || /[\0\r\n]/.test(value) || value.includes("..") || value.trim().startsWith("-"))) {
+          return invalid(`"${key}" must be a bounded single-line Git ref.`);
+        }
+      }
+      if (action === "diff" && (record.from === undefined || record.to === undefined)) return invalid('action "diff" requires both "from" and "to".');
+      if (action === "list" && (record.from !== undefined || record.to !== undefined)) return invalid('"from" and "to" apply only to action "diff".');
+      if (record.repo !== undefined && (typeof record.repo !== "string" || !record.repo.trim() || /[\0\r\n]/.test(record.repo))) {
+        return invalid('"repo" must be a non-empty local path.');
+      }
+      if (typeof record.repo === "string" && /^[a-z][a-z0-9+.-]*:\/\//i.test(record.repo.trim())) return invalid('"repo" must be a local checkout.');
+      const format = normalizeFormat(record.format);
+      if (!format.success) return invalid(format.message);
+      const commandArgs = [
+        ...(action === "diff" ? ["diff", `${String(record.from).trim()}..${String(record.to).trim()}`] : []),
+        "--repo", typeof record.repo === "string" ? record.repo.trim() : defaultRepo,
+        "--format", format.value ?? "markdown"
+      ];
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const exitCode = await runContractsCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
+      return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("").trim() }] };
     }
     if (request.params.name === SUPPLY_CHAIN_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;
@@ -981,6 +1100,7 @@ export function createFixMapMcpServer(
       report = await buildReportForRepository({
         repo: args.repo ?? (tryParseGitHubIssueSource(args.issue ?? "") ? undefined : defaultRepo),
         checkoutRef: args.ref,
+        ...(args.at ? { atRef: args.at } : {}),
         issueText: args.issue,
         diffSpec: args.diff,
         baseRef: args.base,
@@ -1033,7 +1153,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence"]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence", "at"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return {
@@ -1101,6 +1221,17 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
     return { success: false, message: '"ref" must be a safe branch or tag name.' };
   }
   if (value.issue && /^https?:\/\/\S+$/i.test(value.issue) && !tryParseGitHubIssueSource(value.issue)) return { success: false, message: '"issue" URL must be a canonical public GitHub issue or pull request URL.' };
+  if (record.at !== undefined) {
+    if (typeof record.at !== "string" || !record.at.trim() || record.at.length > 500 || /[\0\r\n]/.test(record.at) || record.at.trim().startsWith("-")) {
+      return { success: false, message: '"at" must be a bounded single-line Git ref.' };
+    }
+    if (value.diff || value.base || value.head || value.workingTree) return { success: false, message: '"at" cannot be combined with diff, base/head, or workingTree.' };
+    if (/^https?:\/\//i.test(value.repo ?? "") || (!value.repo && tryParseGitHubIssueSource(value.issue ?? ""))) {
+      return { success: false, message: '"at" needs a local repository, not a remote GitHub URL.' };
+    }
+    if (!value.issue) return { success: false, message: '"at" needs "issue" so there is a task to rank against.' };
+    value.at = record.at.trim();
+  }
   return { success: true, value };
 }
 

@@ -61,6 +61,7 @@ export type ScanDiagnostic = {
     | "remote-pull-fetched"
     | "remote-repo-fetched"
     | "remote-checkout-cleanup-failed"
+    | "historical-plan"
     | "no-task-terms"
     | "no-context-match"
     | "unresolved-identifier"

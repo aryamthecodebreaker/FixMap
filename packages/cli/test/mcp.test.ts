@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -190,13 +190,38 @@ describe("fixmap mcp server", () => {
     }
   });
 
+  it("suggests reviewers read-only and validates fixmap_reviewers arguments", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-mcp-reviewers-"));
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, ".github"), { recursive: true });
+    await writeFile(join(root, ".github", "CODEOWNERS"), "/src/** @src-team\n");
+    await writeFile(join(root, "src", "a.js"), "export const a = 1;\n");
+    execFileSync("git", ["add", "-A"], { cwd: root });
+    execFileSync("git", ["-c", "user.name=Tester", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], { cwd: root });
+    await writeFile(join(root, "src", "a.js"), "export const a = 2;\n");
+    const client = await connectClient();
+    const { tools } = await client.listTools();
+    expect(tools.find((tool) => tool.name === "fixmap_reviewers")?.annotations?.readOnlyHint).toBe(true);
+    const result = await client.callTool({ name: "fixmap_reviewers", arguments: { workingTree: true, repo: root, noHistoryAuthors: true, noCache: true } });
+    expect(result.isError).toBeFalsy();
+    const text = (result.content as Array<{ text: string }>)[0]?.text ?? "";
+    expect(text).toContain("- `src-team` (high)");
+    expect(text).not.toMatch(/(^|[^A-Za-z0-9_.+-])@[A-Za-z0-9]/m);
+    const invalid = await client.callTool({ name: "fixmap_reviewers", arguments: { workingTree: true, diff: "HEAD", repo: root } });
+    expect(invalid.isError).toBe(true);
+    expect((invalid.content as Array<{ text: string }>)[0]?.text).toContain("exactly one");
+    const unknown = await client.callTool({ name: "fixmap_reviewers", arguments: { workingTree: true, requestReviews: true } });
+    expect((unknown.content as Array<{ text: string }>)[0]?.text).toContain("unknown argument");
+  });
+
   it("labels every unfinished tool as a preview and leaves finished tools unlabeled", async () => {
     const client = await connectClient();
     const { tools } = await client.listTools();
     const preview = tools.filter((tool) => tool.description?.startsWith("Preview (may change before v0.10.0): ")).map((tool) => tool.name).sort();
     expect(preview).toEqual([
-      "fixmap_ask", "fixmap_capability", "fixmap_change_scope", "fixmap_history", "fixmap_migrate",
-      "fixmap_reverse_docs", "fixmap_runtime", "fixmap_supply_chain", "fixmap_workspace"
+      "fixmap_ask", "fixmap_capability", "fixmap_change_scope", "fixmap_contracts", "fixmap_dossier", "fixmap_history", "fixmap_migrate",
+      "fixmap_outcomes", "fixmap_reverse_docs", "fixmap_reviewers", "fixmap_runtime", "fixmap_supply_chain", "fixmap_workspace"
     ]);
     for (const finished of ["fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"]) {
       expect(preview).not.toContain(finished);
@@ -393,7 +418,7 @@ describe("fixmap mcp server", () => {
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_change_scope", "fixmap_capability", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor", "fixmap_annotate"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_change_scope", "fixmap_reviewers", "fixmap_capability", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_contracts", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor", "fixmap_annotate", "fixmap_outcomes", "fixmap_dossier"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
@@ -402,7 +427,7 @@ describe("fixmap mcp server", () => {
     expect(plan).toBeDefined();
     expect(plan?.description).toContain("test commands");
     expect(Object.keys(plan?.inputSchema.properties ?? {}).sort()).toEqual(
-      ["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence"].sort()
+      ["issue", "diff", "base", "head", "repo", "ref", "at", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence"].sort()
     );
     expect(plan?.inputSchema.additionalProperties).toBe(false);
     expect(plan?.inputSchema.properties?.repo?.description).toContain("public GitHub HTTPS");
@@ -439,7 +464,7 @@ describe("fixmap mcp server", () => {
     expect(reverseDocs?.inputSchema.required).toEqual(["input"]);
     expect(reverseDocs?.inputSchema.additionalProperties).toBe(false);
     const history = tools.tools.find((tool) => tool.name === "fixmap_history");
-    expect(Object.keys(history?.inputSchema.properties ?? {}).sort()).toEqual(["repo", "from", "to", "couplingDelta", "applyPolicy", "format"].sort());
+    expect(Object.keys(history?.inputSchema.properties ?? {}).sort()).toEqual(["repo", "from", "to", "couplingDelta", "applyPolicy", "noCache", "format"].sort());
     expect(history?.inputSchema.required).toEqual(["from", "to"]);
     expect(history?.inputSchema.additionalProperties).toBe(false);
     const supplyChain = tools.tools.find((tool) => tool.name === "fixmap_supply_chain");
@@ -652,6 +677,73 @@ describe("fixmap mcp server", () => {
     expect(comparison.to.commit).toBe(after);
     expect(comparison.drift.addedEdges).toContainEqual({ from: "a.ts", to: "b.ts" });
   }, 20_000);
+
+  it("lists and diffs contracts through a read-only MCP tool without checkout", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-mcp-contracts-"));
+    const git = async (...args: string[]) => (await promisify(execFile)("git", args, { cwd: root })).stdout;
+    try {
+      await git("init", "--quiet");
+      await git("config", "user.email", "fixmap@example.test");
+      await git("config", "user.name", "FixMap Test");
+      await writeFile(join(root, "openapi.yaml"), "openapi: 3.1.0\npaths:\n  /users:\n    get: {}\n    post: {}\n", "utf8");
+      await git("add", "-A");
+      await git("commit", "--quiet", "-m", "before");
+      const before = (await git("rev-parse", "HEAD")).trim();
+      await writeFile(join(root, "openapi.yaml"), "openapi: 3.1.0\npaths:\n  /users:\n    post: {}\n  /health:\n    get: {}\n", "utf8");
+      await git("add", "-A");
+      await git("commit", "--quiet", "-m", "after");
+      const after = (await git("rev-parse", "HEAD")).trim();
+      const statusBefore = await git("status", "--porcelain=v1");
+
+      const client = await connectClient();
+      const tool = (await client.listTools()).tools.find((candidate) => candidate.name === "fixmap_contracts");
+      expect(tool?.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
+      expect(Object.keys(tool?.inputSchema.properties ?? {}).sort()).toEqual(["action", "format", "from", "repo", "to"]);
+      expect(tool?.inputSchema.additionalProperties).toBe(false);
+
+      const listed = await client.callTool({ name: "fixmap_contracts", arguments: { repo: root, format: "JSON" } });
+      expect(listed.isError).toBeFalsy();
+      const list = JSON.parse((listed.content as Array<{ text: string }>)[0]!.text);
+      expect(list.inventory.surfaces).toEqual([expect.objectContaining({ kind: "openapi", path: "openapi.yaml", version: "3.1.0" })]);
+
+      const diffed = await client.callTool({ name: "fixmap_contracts", arguments: { action: "diff", repo: root, from: before, to: after, format: "json" } });
+      expect(diffed.isError).toBeFalsy();
+      const diff = JSON.parse((diffed.content as Array<{ text: string }>)[0]!.text);
+      expect(diff.from.commit).toBe(before);
+      expect(diff.comparison.changes).toEqual([
+        expect.objectContaining({ entry: "operation:GET /users", compatibility: "breaking" }),
+        expect.objectContaining({ entry: "operation:GET /health", compatibility: "compatible" })
+      ]);
+      const markdown = await client.callTool({ name: "fixmap_contracts", arguments: { action: "diff", repo: root, from: before, to: after } });
+      expect((markdown.content as Array<{ text: string }>)[0]!.text).toMatch(/^# FixMap Contract Diff\n/);
+      expect(await git("status", "--porcelain=v1")).toBe(statusBefore);
+      expect((await git("rev-parse", "HEAD")).trim()).toBe(after);
+
+      const missing = await client.callTool({ name: "fixmap_contracts", arguments: { action: "diff", repo: root, from: before, to: "no-such-ref" } });
+      expect(missing.isError).toBe(true);
+      expect((missing.content as Array<{ text: string }>)[0]!.text).toContain("Could not resolve one of the requested Git refs");
+
+      const invalid: Array<[Record<string, unknown>, string]> = [
+        [{ action: "remove" }, '"action" must be "list" or "diff"'],
+        [{ action: "diff", from: before }, 'requires both "from" and "to"'],
+        [{ from: before, to: after }, 'apply only to action "diff"'],
+        [{ action: "diff", from: "a..b", to: after }, '"from" must be a bounded single-line Git ref'],
+        [{ action: "diff", from: "--output=x", to: after }, '"from" must be a bounded single-line Git ref'],
+        [{ action: "diff", from: before, to: 7 }, '"to" must be a bounded single-line Git ref'],
+        [{ repo: "https://example.com/repo.git" }, '"repo" must be a local checkout'],
+        [{ repo: "" }, '"repo" must be a non-empty local path'],
+        [{ format: "xml" }, '"format" must be either'],
+        [{ noCache: true }, "unknown argument: noCache"]
+      ];
+      for (const [args, expected] of invalid) {
+        const result = await client.callTool({ name: "fixmap_contracts", arguments: args });
+        expect(result.isError).toBe(true);
+        expect((result.content as Array<{ text: string }>)[0]!.text).toContain(expected);
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    }
+  }, 30_000);
 
   it("imports normalized supply-chain evidence through MCP", async () => {
     const client = await connectClient();

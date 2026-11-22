@@ -50,8 +50,13 @@ export { addOutcomeRecord, createOutcomeRecord, emptyOutcomeStore, removeOutcome
 export type { OutcomeCalibration, OutcomeRecord, OutcomeStore, TestOutcomeStatus } from "./outcomes.js";
 export { buildChangeDossier, validateChangeDossier } from "./dossier.js";
 export type { ChangeDossier, ChangeDossierInput, DossierAssumption } from "./dossier.js";
-export { routeReviewers } from "./ownership.js";
-export type { ReviewEvidence, ReviewRoutingResult, ReviewSuggestion } from "./ownership.js";
+export { renderReviewRoutingMarkdown, reviewRoutingWithoutMentions, routeReviewers, withoutMentions } from "./ownership.js";
+export type { ReviewEvidence, ReviewRoutingInput, ReviewRoutingResult, ReviewSuggestion } from "./ownership.js";
+export {
+  deleteStoredDossier, deleteStoredOutcome, isStoredRecordId, pruneStoredOutcomes, readStoredDossier, readStoredDossiers,
+  readStoredOutcome, readStoredOutcomes, saveStoredDossier, saveStoredOutcome
+} from "./record-store.js";
+export type { StoredRecordProblem, StoredRecords } from "./record-store.js";
 export { buildSandboxInvocation, runSandbox } from "./sandbox.js";
 export type { SandboxInvocation, SandboxLimits, SandboxProcessAdapter, SandboxRawResult, SandboxRequest, SandboxResult } from "./sandbox.js";
 export { analyzeTestReliability, assessReliableCoverage, validateTestHistoryBundle } from "./test-reliability.js";
@@ -224,9 +229,16 @@ export type {
   ArchitectureSnapshot
 } from "./architecture.js";
 export { buildArchitectureSnapshotAtRef, compareArchitectureRefs, scanRepoAtRef } from "./architecture-history.js";
-export type { HistoricalArchitectureSnapshot, HistoricalRepoMap } from "./architecture-history.js";
+export type {
+  ArchitectureRefComparison,
+  DecisionDisagreement,
+  HistoricalArchitectureSnapshot,
+  HistoricalDecisionRule,
+  HistoricalRepoMap
+} from "./architecture-history.js";
 export { inventoryDecisionRecords, parseDecisionRecord, selectDecisionRecords } from "./decisions.js";
 export type {
+  DecisionDependencyRule,
   DecisionDiagnostic,
   DecisionInventory,
   DecisionRecord,
@@ -270,6 +282,8 @@ export type {
   ContractSource,
   ContractSurface
 } from "./contracts.js";
+export { compareContractRefs, inventoryContractsAtRef, inventoryWorkingTreeContracts } from "./contracts-repository.js";
+export type { ContractInventoryAtRef, ContractRefComparison } from "./contracts-repository.js";
 export type {
   FixMapInput,
   FixMapReport,

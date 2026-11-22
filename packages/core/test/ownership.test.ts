@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addAnnotation, createAnnotation, emptyAnnotationStore } from "../src/annotations.js";
-import { routeReviewers } from "../src/ownership.js";
+import { renderReviewRoutingMarkdown, reviewRoutingWithoutMentions, routeReviewers, withoutMentions } from "../src/ownership.js";
 import type { RepoFile, RepoMap } from "../src/types.js";
 
 function file(path: string, textSample: string, fingerprint = `worktree:${"a".repeat(64)}`): RepoFile {
@@ -89,5 +89,37 @@ describe("review routing", () => {
     expect(routeReviewers(current, { now: "2026-08-21T00:00:00Z" }).diagnostics[0]?.message).toContain("routing was skipped");
     expect(() => routeReviewers(current, { changedPaths: ["../outside"], now: "2026-08-21T00:00:00Z" }))
       .toThrow("Invalid review-routing path");
+  });
+
+  it("drops commit authors on request and diagnoses shallow history", () => {
+    const current = repo([file("src/auth.ts", "code"), file(".github/CODEOWNERS", "/src/** @src\n")]);
+    const without = routeReviewers(current, { now: "2026-08-21T00:00:00Z", includeHistoryAuthors: false });
+    expect(without.suggestions.map((entry) => entry.reviewer)).toEqual(["@src"]);
+    expect(without.diagnostics[0]?.message).toContain("turned off");
+
+    current.history!.shallow = true;
+    const shallow = routeReviewers(current, { now: "2026-08-21T00:00:00Z" });
+    expect(shallow.suggestions.map((entry) => entry.reviewer)).toEqual(["@src", "Alice Example", "Bob Example"]);
+    expect(shallow.diagnostics).toContainEqual(expect.objectContaining({ severity: "warning", message: expect.stringContaining("shallow") }));
+  });
+
+  it("records which changed path each piece of evidence routes", () => {
+    const current = repo([file("src/a.ts", "a"), file("src/b.ts", "b"), file(".github/CODEOWNERS", "/src/** @src\n")]);
+    current.history = undefined;
+    const result = routeReviewers(current, { changedPaths: ["src/b.ts", "src/a.ts"], now: "2026-08-21T00:00:00Z" });
+    expect(result.suggestions[0]?.evidence.map((entry) => entry.changedPath)).toEqual(["src/a.ts", "src/b.ts"]);
+  });
+
+  it("strips handle mentions but keeps e-mail addresses", () => {
+    expect(withoutMentions("@security and @org/team, (@x) dev@example.com @@twice")).toBe("security and org/team, (x) dev@example.com twice");
+    const current = repo([file("src/auth.ts", "code"), file(".github/CODEOWNERS", "/src/** @src ops@example.com\n")]);
+    const result = routeReviewers(current, { now: "2026-08-21T00:00:00Z" });
+    const safe = reviewRoutingWithoutMentions(result);
+    expect(safe.suggestions.map((entry) => entry.reviewer)).toEqual(["ops@example.com", "src", "Alice Example", "Bob Example"]);
+    const markdown = renderReviewRoutingMarkdown(result);
+    expect(markdown).toContain("- `src` (high)");
+    expect(markdown).toContain("CODEOWNERS `.github/CODEOWNERS:1`");
+    expect(markdown).not.toMatch(/(^|[^A-Za-z0-9_.+-])@[A-Za-z0-9]/m);
+    expect(renderReviewRoutingMarkdown({ ...result, changedPaths: [], suggestions: [] })).toContain("No changed paths");
   });
 });
