@@ -98,8 +98,8 @@ export { addOutcomeRecord, createOutcomeRecord, emptyOutcomeStore, removeOutcome
 export type { OutcomeCalibration, OutcomeRecord, OutcomeStore, TestOutcomeStatus } from "./outcomes.js";
 export { buildChangeDossier, validateChangeDossier } from "./dossier.js";
 export type { ChangeDossier, ChangeDossierInput, DossierAssumption } from "./dossier.js";
-export { routeReviewers } from "./ownership.js";
-export type { ReviewEvidence, ReviewRoutingResult, ReviewSuggestion } from "./ownership.js";
+export { renderReviewRoutingMarkdown, reviewRoutingWithoutMentions, routeReviewers, withoutMentions } from "./ownership.js";
+export type { ReviewEvidence, ReviewRoutingInput, ReviewRoutingResult, ReviewSuggestion } from "./ownership.js";
 export { analyzeTestReliability, assessReliableCoverage, validateTestHistoryBundle } from "./test-reliability.js";
 export type { ReliableCoverageResult, TestHistoryBundle, TestObservationStatus, TestReliabilityAssessment } from "./test-reliability.js";
 export { selectCIMatrix } from "./ci-matrix.js";

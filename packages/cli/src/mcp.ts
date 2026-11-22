@@ -48,6 +48,7 @@ import { buildSupplyChainReport, renderSupplyChainMarkdown } from "./supply-chai
 import { parseRuntimeInput, renderRuntimeMarkdown } from "./runtime-command.js";
 import { runWorkspaceCommand } from "./workspace-command.js";
 import { runChangeScopeCommand } from "./change-scope-command.js";
+import { runReviewersCommand } from "./reviewers-command.js";
 import { runCapabilitiesCommand, runCapabilityCommand } from "./capability-command.js";
 import {
   buildReportForRepository,
@@ -304,6 +305,28 @@ const CHANGE_SCOPE_TOOL = {
   }
 };
 
+const REVIEWERS_TOOL = {
+  name: "fixmap_reviewers",
+  title: "FixMap reviewer suggestions",
+  description:
+    "Preview (may change before v0.10.0): Suggest reviewers per changed path from the highest-precedence CODEOWNERS file (last matching rule wins), active annotation owners, architecture-policy reviewers, and bounded .mailmap-canonical commit authors. " +
+    "Read-only: it never requests reviews or notifies anyone, prints names without @, and does not treat a name as evidence of identity, employment, or availability. Provide exactly one of report, diff, or workingTree.",
+  annotations: { readOnlyHint: true, openWorldHint: false },
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      report: { type: "string", description: "Path to a saved FixMap JSON plan; its changed files (or ranked context files) are routed" },
+      diff: { type: "string", description: "Git diff spec whose changed files are routed, such as main...HEAD" },
+      workingTree: { type: "boolean", description: "Route staged and unstaged changes against HEAD" },
+      noHistoryAuthors: { type: "boolean", description: "Leave out commit-author suggestions" },
+      repo: { type: "string", description: "Local checkout path (defaults to the MCP server repository)" },
+      format: { type: "string", description: "Output format: markdown (default) or json" },
+      noCache: { type: "boolean", description: "Bypass repository scan caches" }
+    },
+    additionalProperties: false
+  }
+};
+
 const CAPABILITY_TOOL = {
   name: "fixmap_capability",
   title: "FixMap capability",
@@ -516,7 +539,7 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL, ANNOTATION_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, REVIEWERS_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL, ANNOTATION_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -588,6 +611,33 @@ export function createFixMapMcpServer(
       if (typeof record?.repository === "string") commandArgs.push("--repository", record.repository.trim());
       if (record?.noCache === true) commandArgs.push("--no-cache");
       const exitCode = await runChangeScopeCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
+      return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }] };
+    }
+    if (request.params.name === REVIEWERS_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const invalid = (text: string) => ({ isError: true, content: [{ type: "text", text: `Invalid arguments: ${text}` }] });
+      const unknown = Object.keys(record ?? {}).filter((key) => !["report", "diff", "workingTree", "noHistoryAuthors", "repo", "format", "noCache"].includes(key));
+      if (unknown.length > 0) return invalid(`unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`);
+      for (const key of ["report", "diff", "repo"] as const) {
+        if (record?.[key] !== undefined && (typeof record[key] !== "string" || !record[key].trim())) return invalid(`"${key}" must be a non-empty string.`);
+      }
+      for (const key of ["workingTree", "noHistoryAuthors", "noCache"] as const) {
+        if (record?.[key] !== undefined && typeof record[key] !== "boolean") return invalid(`"${key}" must be a boolean.`);
+      }
+      if (record?.repo && /^https?:\/\//i.test(String(record.repo))) return invalid('"repo" must be a local checkout.');
+      const sources = Number(record?.report !== undefined) + Number(record?.diff !== undefined) + Number(record?.workingTree === true);
+      if (sources !== 1) return invalid('provide exactly one of "report", "diff", or "workingTree": true.');
+      const format = normalizeFormat(record?.format);
+      if (!format.success) return invalid(format.message);
+      const commandArgs = ["--repo", typeof record?.repo === "string" ? record.repo.trim() : defaultRepo, "--format", format.value ?? "markdown"];
+      if (typeof record?.report === "string") commandArgs.push("--report", record.report.trim());
+      if (typeof record?.diff === "string") commandArgs.push("--diff", record.diff.trim());
+      if (record?.workingTree === true) commandArgs.push("--working-tree");
+      if (record?.noHistoryAuthors === true) commandArgs.push("--no-history-authors");
+      if (record?.noCache === true) commandArgs.push("--no-cache");
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const exitCode = await runReviewersCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
       return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }] };
     }
     if (request.params.name === CAPABILITY_TOOL.name) {

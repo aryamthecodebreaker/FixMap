@@ -1,6 +1,7 @@
 import { architecturePolicyFromRepo, evaluateArchitecturePolicy } from "./architecture.js";
 import { assessAnnotations, validateAnnotationStore } from "./annotations.js";
 import { buildPathExcluder } from "./exclude.js";
+import { markdownCode } from "./markdown.js";
 import type { RepoMap } from "./types.js";
 
 export type ReviewEvidence = {
@@ -9,6 +10,8 @@ export type ReviewEvidence = {
   detail: string;
   path?: string;
   line?: number;
+  /** The changed path this evidence routes a reviewer for. */
+  changedPath?: string;
 };
 
 export type ReviewSuggestion = {
@@ -31,7 +34,14 @@ const CODEOWNERS_PATHS = [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"]
 const MAX_RULES = 10_000;
 const MAX_HISTORY_COMMITS = 250;
 
-export function routeReviewers(repo: RepoMap, input: { changedPaths?: readonly string[]; now: string }): ReviewRoutingResult {
+export type ReviewRoutingInput = {
+  changedPaths?: readonly string[];
+  now: string;
+  /** Set false to drop commit-author suggestions and keep only CODEOWNERS, annotations, and policy. */
+  includeHistoryAuthors?: boolean;
+};
+
+export function routeReviewers(repo: RepoMap, input: ReviewRoutingInput): ReviewRoutingResult {
   if (!Number.isFinite(Date.parse(input.now))) throw new Error("Review routing requires a valid assessment time.");
   const changedPaths = normalizePaths(input.changedPaths ?? repo.changedFiles);
   const diagnostics: ReviewRoutingResult["diagnostics"] = [];
@@ -39,7 +49,11 @@ export function routeReviewers(repo: RepoMap, input: { changedPaths?: readonly s
   addCodeOwners(repo, changedPaths, accumulated, diagnostics);
   addAnnotations(repo, changedPaths, input.now, accumulated, diagnostics);
   addPolicy(repo, changedPaths, accumulated, diagnostics);
-  addHistory(repo, changedPaths, accumulated);
+  if (input.includeHistoryAuthors === false) {
+    diagnostics.push({ source: "git-history", severity: "info", message: "Commit-author suggestions were turned off; only CODEOWNERS, annotations, and architecture policy were used." });
+  } else {
+    addHistory(repo, changedPaths, accumulated, diagnostics);
+  }
   const suggestions = [...accumulated].map(([reviewer, value]): ReviewSuggestion => ({
     reviewer,
     confidence: value.confidence,
@@ -169,7 +183,17 @@ function addPolicy(
   }
 }
 
-function addHistory(repo: RepoMap, paths: readonly string[], accumulated: Map<string, Accumulated>): void {
+function addHistory(
+  repo: RepoMap,
+  paths: readonly string[],
+  accumulated: Map<string, Accumulated>,
+  diagnostics: ReviewRoutingResult["diagnostics"]
+): void {
+  if (repo.history?.shallow) {
+    diagnostics.push({ source: "git-history", severity: "warning", message: "Commit history is shallow, so commit-author suggestions only reflect the commits present in this clone." });
+  } else if (repo.history?.truncated) {
+    diagnostics.push({ source: "git-history", severity: "info", message: `Commit-author suggestions use only the newest ${Math.min(repo.history.inspectedCommits, MAX_HISTORY_COMMITS).toLocaleString()} non-merge commits.` });
+  }
   for (const path of paths) {
     const counts = new Map<string, { count: number; latest: number; hash: string }>();
     for (const commit of (repo.history?.commits ?? []).slice(0, MAX_HISTORY_COMMITS)) {
@@ -205,7 +229,8 @@ function add(
   const existing = accumulated.get(identity) ?? { confidence, paths: new Set<string>(), evidence: [] };
   if (confidenceOrder(confidence) < confidenceOrder(existing.confidence)) existing.confidence = confidence;
   existing.paths.add(path);
-  if (!existing.evidence.some((entry) => evidenceKey(entry) === evidenceKey(evidence))) existing.evidence.push(evidence);
+  const routed = { ...evidence, changedPath: path };
+  if (!existing.evidence.some((entry) => evidenceKey(entry) === evidenceKey(routed))) existing.evidence.push(routed);
   accumulated.set(identity, existing);
 }
 function normalizePaths(values: readonly string[]): string[] {
@@ -222,6 +247,72 @@ function validOwner(value: string): boolean {
   return value.length <= 200 && (/^@[A-Za-z0-9][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9][A-Za-z0-9_.-]*)?$/.test(value) ||
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
 }
-function evidenceKey(value: ReviewEvidence): string { return `${value.kind}\0${value.sourceFingerprint}\0${value.path ?? ""}\0${value.line ?? ""}\0${value.detail}`; }
-function evidenceOrder(a: ReviewEvidence, b: ReviewEvidence): number { return a.kind.localeCompare(b.kind) || (a.path ?? "").localeCompare(b.path ?? "") || (a.line ?? 0) - (b.line ?? 0); }
+function evidenceKey(value: ReviewEvidence): string { return `${value.kind}\0${value.sourceFingerprint}\0${value.path ?? ""}\0${value.line ?? ""}\0${value.changedPath ?? ""}\0${value.detail}`; }
+function evidenceOrder(a: ReviewEvidence, b: ReviewEvidence): number {
+  return a.kind.localeCompare(b.kind) || (a.changedPath ?? "").localeCompare(b.changedPath ?? "") ||
+    (a.path ?? "").localeCompare(b.path ?? "") || (a.line ?? 0) - (b.line ?? 0);
+}
 function confidenceOrder(value: ReviewSuggestion["confidence"]): number { return value === "high" ? 0 : value === "medium" ? 1 : 2; }
+
+/**
+ * GitHub notifies anyone written as `@name`. Reviewer output is only a suggestion, so every
+ * handle-style mention loses its `@`; e-mail addresses (a word character before `@`) stay.
+ */
+export function withoutMentions(value: string): string {
+  return value.replace(/(^|[^A-Za-z0-9_.+-])@+(?=[A-Za-z0-9])/g, "$1");
+}
+
+/** A copy of the routing result that is safe to print or post where `@name` would notify someone. */
+export function reviewRoutingWithoutMentions(result: ReviewRoutingResult): ReviewRoutingResult {
+  return {
+    ...result,
+    suggestions: result.suggestions.map((suggestion) => ({
+      ...suggestion,
+      reviewer: withoutMentions(suggestion.reviewer),
+      evidence: suggestion.evidence.map((entry) => ({ ...entry, detail: withoutMentions(entry.detail) }))
+    })).sort((a, b) => confidenceOrder(a.confidence) - confidenceOrder(b.confidence) || a.reviewer.localeCompare(b.reviewer)),
+    diagnostics: result.diagnostics.map((entry) => ({ ...entry, message: withoutMentions(entry.message) }))
+  };
+}
+
+const EVIDENCE_LABEL: Record<ReviewEvidence["kind"], string> = {
+  codeowners: "CODEOWNERS",
+  annotation: "annotation",
+  "architecture-policy": "architecture policy",
+  "git-history": "commit history"
+};
+
+/** Markdown grouped by changed path. Names are code spans without `@`, so nobody is notified. */
+export function renderReviewRoutingMarkdown(input: ReviewRoutingResult): string {
+  const result = reviewRoutingWithoutMentions(input);
+  const lines = [
+    "# FixMap reviewer suggestions (preview)",
+    "",
+    "Suggestions only. FixMap does not request reviews or notify anyone, and a name is not evidence of identity, employment, or current availability.",
+    ""
+  ];
+  if (result.changedPaths.length === 0) lines.push("No changed paths, so there is nothing to route.", "");
+  for (const path of result.changedPaths) {
+    lines.push(`## ${markdownCode(path)}`, "");
+    const rows = result.suggestions
+      .map((suggestion) => ({ suggestion, evidence: suggestion.evidence.filter((entry) => entry.changedPath === path) }))
+      .filter((row) => row.evidence.length > 0);
+    if (rows.length === 0) lines.push("- No reviewer evidence for this path.");
+    for (const { suggestion, evidence } of rows) {
+      lines.push(`- ${markdownCode(suggestion.reviewer)} (${suggestion.confidence})`);
+      for (const entry of evidence) {
+        const source = entry.kind !== "git-history" && entry.path
+          ? ` ${markdownCode(entry.line === undefined ? entry.path : `${entry.path}:${entry.line}`)}`
+          : "";
+        lines.push(`  - ${EVIDENCE_LABEL[entry.kind]}${source}: ${entry.detail}`);
+      }
+    }
+    lines.push("");
+  }
+  if (result.diagnostics.length > 0) {
+    lines.push("## Diagnostics", "");
+    for (const entry of result.diagnostics) lines.push(`- ${entry.severity} (${markdownCode(entry.source)}): ${entry.message}`);
+    lines.push("");
+  }
+  return `${lines.join("\n").trimEnd()}\n`;
+}

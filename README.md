@@ -220,6 +220,23 @@ FixMap follows bounded imports and dependents, then joins existing tests, contra
 review ownership, and architecture policy. A missing `--add` path stays unresolved. FixMap does
 not interpret what "checkout" means, call an API or LLM, or require an account.
 
+Ask who could review a change:
+
+```bash
+fixmap reviewers --diff main...HEAD
+fixmap reviewers --working-tree --no-history-authors
+fixmap reviewers --report plan.json --format json
+```
+
+Each changed path lists suggested reviewers with the exact reason: the highest-precedence
+CODEOWNERS file (the last matching rule wins) with its line, active annotation owners,
+architecture-policy reviewers, and up to three frequent authors from the newest 250 non-merge
+commits. Commit authors are canonicalized through the repository's `.mailmap` when one exists.
+`--no-history-authors` leaves commit authors out entirely and reads no commit history. Names are
+printed without `@`, so pasting the output into a pull request notifies nobody, and FixMap never
+requests reviews. A name is not evidence of identity, employment, or current availability. The
+MCP tool `fixmap_reviewers` takes the same inputs and is read-only.
+
 Persist a reviewed product-to-implementation map without persisting generated conclusions:
 
 ```bash
@@ -239,7 +256,7 @@ contract, decision, test-association, reviewer, and architecture evidence.
 
 ## Complete feature catalog
 
-> **Preview features.** `change-scope`, `capability` / `capabilities`, `workspace`, `ask`, `migrate`, `reverse-docs`, `history`, `supply-chain`, `runtime`, `sandbox`, `editor`, `--semantic-model`, `--evidence`, and their MCP tools are previews: they work and are tested, but their output and options may change before v0.10.0. Language support beyond JavaScript and TypeScript is also preview quality while testing on unseen repositories continues. `fixmap features` lists which features are previews.
+> **Preview features.** `change-scope`, `reviewers`, `capability` / `capabilities`, `workspace`, `ask`, `migrate`, `reverse-docs`, `history`, `supply-chain`, `runtime`, `sandbox`, `editor`, `--semantic-model`, `--evidence`, and their MCP tools are previews: they work and are tested, but their output and options may change before v0.10.0. Language support beyond JavaScript and TypeScript is also preview quality while testing on unseen repositories continues. `fixmap features` lists which features are previews.
 
 ### Inputs and repository mapping
 

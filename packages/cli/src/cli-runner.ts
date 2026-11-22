@@ -102,6 +102,7 @@ Usage:
   fixmap validate plan.json
   fixmap benchmark --repo . --last 50
   fixmap change-scope --touch src/auth --touch packages/api --add db/migrations
+  fixmap reviewers --diff main...HEAD --no-history-authors
   fixmap editor --issue "Investigate authentication" --repo .
   fixmap capability create checkout --touch src/routes/checkout.ts --touch packages/payments
   fixmap capability checkout
@@ -129,6 +130,7 @@ Commands:
   validate            Validate a saved FixMap JSON report
   benchmark           Backtest BM25, FixMap, and Impact Graph on pre-change snapshots
   change-scope        Preview: Expand explicit planned paths into bounded structural consequences
+  reviewers           Preview: Suggest reviewers per changed path from CODEOWNERS, owners, policy, and history
   editor              Preview: Serve a local read-only NDJSON editor session
   capability          Preview: Create, update, remove, or show a persistent product capability
   capabilities        Preview: List persistent product capabilities declared by the repository
@@ -456,6 +458,15 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   if (args[0] === "context") {
     const { runContextCommand } = await import("./analysis-commands.js");
     return runContextCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "reviewers") {
+    const { runReviewersCommand } = await import("./reviewers-command.js");
+    return runReviewersCommand(args.slice(1), {
       stdout,
       stderr,
       ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
