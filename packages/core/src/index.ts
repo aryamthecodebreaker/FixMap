@@ -52,6 +52,11 @@ export { buildChangeDossier, validateChangeDossier } from "./dossier.js";
 export type { ChangeDossier, ChangeDossierInput, DossierAssumption } from "./dossier.js";
 export { renderReviewRoutingMarkdown, reviewRoutingWithoutMentions, routeReviewers, withoutMentions } from "./ownership.js";
 export type { ReviewEvidence, ReviewRoutingInput, ReviewRoutingResult, ReviewSuggestion } from "./ownership.js";
+export {
+  deleteStoredDossier, deleteStoredOutcome, isStoredRecordId, pruneStoredOutcomes, readStoredDossier, readStoredDossiers,
+  readStoredOutcome, readStoredOutcomes, saveStoredDossier, saveStoredOutcome
+} from "./record-store.js";
+export type { StoredRecordProblem, StoredRecords } from "./record-store.js";
 export { buildSandboxInvocation, runSandbox } from "./sandbox.js";
 export type { SandboxInvocation, SandboxLimits, SandboxProcessAdapter, SandboxRawResult, SandboxRequest, SandboxResult } from "./sandbox.js";
 export { analyzeTestReliability, assessReliableCoverage, validateTestHistoryBundle } from "./test-reliability.js";

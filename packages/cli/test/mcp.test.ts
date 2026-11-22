@@ -220,8 +220,8 @@ describe("fixmap mcp server", () => {
     const { tools } = await client.listTools();
     const preview = tools.filter((tool) => tool.description?.startsWith("Preview (may change before v0.10.0): ")).map((tool) => tool.name).sort();
     expect(preview).toEqual([
-      "fixmap_ask", "fixmap_capability", "fixmap_change_scope", "fixmap_history", "fixmap_migrate",
-      "fixmap_reverse_docs", "fixmap_reviewers", "fixmap_runtime", "fixmap_supply_chain", "fixmap_workspace"
+      "fixmap_ask", "fixmap_capability", "fixmap_change_scope", "fixmap_dossier", "fixmap_history", "fixmap_migrate",
+      "fixmap_outcomes", "fixmap_reverse_docs", "fixmap_reviewers", "fixmap_runtime", "fixmap_supply_chain", "fixmap_workspace"
     ]);
     for (const finished of ["fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"]) {
       expect(preview).not.toContain(finished);
@@ -418,7 +418,7 @@ describe("fixmap mcp server", () => {
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_change_scope", "fixmap_reviewers", "fixmap_capability", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor", "fixmap_annotate"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_change_scope", "fixmap_reviewers", "fixmap_capability", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor", "fixmap_annotate", "fixmap_outcomes", "fixmap_dossier"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
