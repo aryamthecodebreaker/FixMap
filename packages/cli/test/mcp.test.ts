@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -190,13 +190,38 @@ describe("fixmap mcp server", () => {
     }
   });
 
+  it("suggests reviewers read-only and validates fixmap_reviewers arguments", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-mcp-reviewers-"));
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, ".github"), { recursive: true });
+    await writeFile(join(root, ".github", "CODEOWNERS"), "/src/** @src-team\n");
+    await writeFile(join(root, "src", "a.js"), "export const a = 1;\n");
+    execFileSync("git", ["add", "-A"], { cwd: root });
+    execFileSync("git", ["-c", "user.name=Tester", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], { cwd: root });
+    await writeFile(join(root, "src", "a.js"), "export const a = 2;\n");
+    const client = await connectClient();
+    const { tools } = await client.listTools();
+    expect(tools.find((tool) => tool.name === "fixmap_reviewers")?.annotations?.readOnlyHint).toBe(true);
+    const result = await client.callTool({ name: "fixmap_reviewers", arguments: { workingTree: true, repo: root, noHistoryAuthors: true, noCache: true } });
+    expect(result.isError).toBeFalsy();
+    const text = (result.content as Array<{ text: string }>)[0]?.text ?? "";
+    expect(text).toContain("- `src-team` (high)");
+    expect(text).not.toMatch(/(^|[^A-Za-z0-9_.+-])@[A-Za-z0-9]/m);
+    const invalid = await client.callTool({ name: "fixmap_reviewers", arguments: { workingTree: true, diff: "HEAD", repo: root } });
+    expect(invalid.isError).toBe(true);
+    expect((invalid.content as Array<{ text: string }>)[0]?.text).toContain("exactly one");
+    const unknown = await client.callTool({ name: "fixmap_reviewers", arguments: { workingTree: true, requestReviews: true } });
+    expect((unknown.content as Array<{ text: string }>)[0]?.text).toContain("unknown argument");
+  });
+
   it("labels every unfinished tool as a preview and leaves finished tools unlabeled", async () => {
     const client = await connectClient();
     const { tools } = await client.listTools();
     const preview = tools.filter((tool) => tool.description?.startsWith("Preview (may change before v0.10.0): ")).map((tool) => tool.name).sort();
     expect(preview).toEqual([
       "fixmap_ask", "fixmap_capability", "fixmap_change_scope", "fixmap_history", "fixmap_migrate",
-      "fixmap_reverse_docs", "fixmap_runtime", "fixmap_supply_chain", "fixmap_workspace"
+      "fixmap_reverse_docs", "fixmap_reviewers", "fixmap_runtime", "fixmap_supply_chain", "fixmap_workspace"
     ]);
     for (const finished of ["fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"]) {
       expect(preview).not.toContain(finished);
@@ -393,7 +418,7 @@ describe("fixmap mcp server", () => {
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_change_scope", "fixmap_capability", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor", "fixmap_annotate"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_change_scope", "fixmap_reviewers", "fixmap_capability", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor", "fixmap_annotate"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
