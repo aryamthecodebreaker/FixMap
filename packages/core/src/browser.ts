@@ -5,6 +5,8 @@
 // explanation, and verification the CLI runs — only the scanner is missing,
 // because a browser has no repository to scan.
 export { explainFile } from "./explain.js";
+export { FIXMAP_FEATURES } from "./feature-catalog.js";
+export type { FixMapFeature } from "./feature-catalog.js";
 export { buildPathExcluder, NO_EXCLUSIONS, parseIgnoreFile } from "./exclude.js";
 export { compareReports, renderComparisonMarkdown } from "./compare.js";
 export { quoteCliValue } from "./cli-quote.js";
