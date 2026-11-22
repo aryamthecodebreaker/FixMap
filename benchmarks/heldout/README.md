@@ -77,6 +77,8 @@ node scripts/evaluate-baseline.mjs --suite heldout
 node scripts/evaluate-baseline.mjs --suite heldout --check-recorded
 ```
 
+The baseline command prints scan, ranking, and end-to-end timings, but committed results omit those machine-dependent values and checkout-specific candidate counts. `--check-recorded` compares deterministic rankings, hit outcomes, and evidence only.
+
 ## Rules for this suite
 
 1. **Never tune against these cases.** The moment a ranking change is made because one of them missed, this suite becomes a second regression suite and stops measuring generalization. Move the case into `benchmarks/external/` and select a fresh replacement.

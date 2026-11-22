@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { runAnnotationAction } from "./annotations.js";
 import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -53,6 +54,27 @@ export async function runAction(
   const appendFile = dependencies.appendFile ?? ((path, contents) => appendFileSync(path, contents));
   const readFile = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
   const stdout = dependencies.stdout ?? ((text) => process.stdout.write(text));
+  if (readInput("mode", env)?.toLowerCase() === "annotate") {
+    const incompatible = ["issue", "diff", "base", "head", "limit", "exclude", "report-path", "comment-author"].filter((name) => readInput(name, env));
+    for (const name of ["working-tree", "include-untracked", "no-cache"]) {
+      if (parseBooleanInput(name, readInput(name, env))) incompatible.push(name);
+    }
+    if (parseFailOn(readInput("fail-on", env)) !== "error") incompatible.push("fail-on");
+    if (incompatible.length) throw new Error(`annotate mode does not accept analysis inputs: ${incompatible.join(", ")}.`);
+    const request = readInput("annotation-request", env);
+    if (!request) throw new Error("annotate mode requires annotation-request.");
+    const allowWrite = parseBooleanInput("allow-annotation-write", readInput("allow-annotation-write", env));
+    const output = await runAnnotationAction(request, (dependencies.cwd ?? process.cwd)(), allowWrite);
+    if (Buffer.byteLength(output, "utf8") > ACTION_OUTPUT_REPORT_LIMIT_BYTES) throw new Error("Annotation listing exceeds the Action output limit; read the local store directly.");
+    stdout(output);
+    if (env.GITHUB_STEP_SUMMARY) appendBoundedStepSummary(env.GITHUB_STEP_SUMMARY, withJsonDetails("# FixMap annotations\n\nLocal checkout operation only; no commit, push, or GitHub comment was made.", output), dependencies, appendFile, stdout);
+    if (env.GITHUB_OUTPUT) {
+      const delimiter = `fixmap_${(dependencies.uuid ?? randomUUID)().replace(/-/g, "")}`;
+      appendFile(env.GITHUB_OUTPUT, `report<<${delimiter}\n${output}\n${delimiter}\n`);
+    }
+    return;
+  }
+  if (readInput("annotation-request", env) || readInput("allow-annotation-write", env) === "true") throw new Error("Annotation inputs require mode: annotate.");
   const event = readEvent(env.GITHUB_EVENT_PATH, readFile);
   const rawIssue = readInput("issue", env) || buildPullRequestIssueText(event);
   const diffSpec = readInput("diff", env);

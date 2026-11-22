@@ -44,9 +44,40 @@ type Release = {
 
 const releases: Release[] = [
   {
-    version: "0.9.1",
+    version: "0.9.2",
     date: "November 22, 2026",
     label: "Latest release",
+    summary: "Ships the v0.10 work built so far: thirteen fixes, team notes on code, design decisions in reports, and wider language support, with unfinished commands clearly marked as previews.",
+    groups: [
+      {
+        label: "Fixed",
+        items: [
+          "The MCP server returns the correct errors for requests sent before initialization and for malformed JSON.",
+          "Reports keep direct imports between primary files, and context ranges no longer run one line past the end of a file.",
+          "Earlier FixMap reports and setup files no longer compete with your code in ranking, and routed tests are tied to the file they actually import.",
+          "Doctor recognizes Windows npm launchers as one installation, and long task text is directed to --issue-file instead of failing on Windows.",
+          "Ten further correctness fixes from an external audit, plus history scoping for scans inside a larger Git checkout."
+        ]
+      },
+      {
+        label: "Added",
+        items: [
+          "fixmap annotate records reviewable notes with an owner and expiry on files, symbols, services, or contracts, and Plan reports show the active ones.",
+          "Architecture decision records and pull-request rationale in the repository appear in reports as authored decisions.",
+          "Plan reads imports, definitions, and test layouts for Python, Java, Go, Rust, Ruby, PHP, and .NET (preview quality while testing on unseen repositories continues)."
+        ]
+      },
+      {
+        label: "Improved",
+        items: [
+          "Change scope, capability maps, cross-repository workspaces, ask, migrate, reverse docs, history, supply-chain and runtime evidence, the sandbox, the editor protocol, and local semantic search are available as previews. They work and are tested, but may change before v0.10.0."
+        ]
+      }
+    ]
+  },
+  {
+    version: "0.9.1",
+    date: "November 22, 2026",
     summary: "A security release: the MCP server's SDK and every flagged dependency are updated, with no change to ranking, reports, or commands.",
     groups: [
       {

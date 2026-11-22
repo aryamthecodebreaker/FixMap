@@ -37,6 +37,14 @@ export function buildFixMapGraph(report: FixMapReport): FixMapGraph {
       });
     }
   }
+  for (const edge of report.impact?.primaryImports ?? []) {
+    if (!primary.has(edge.from) || !primary.has(edge.to)) continue;
+    const from = idByPath.get(edge.from)!;
+    const to = idByPath.get(edge.to)!;
+    if (!edges.some((existing) => existing.from === from && existing.to === to && existing.label === "imports")) {
+      edges.push({ from, to, kind: "imports", label: "imports" });
+    }
+  }
   return { graphVersion: 1, nodes, edges };
 }
 

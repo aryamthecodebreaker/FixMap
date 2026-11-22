@@ -1,0 +1,15 @@
+{
+  "kind": "external-workflow-not-heldout-ranking",
+  "candidateSource": "926478f",
+  "manifestCommit": "b9354ba",
+  "firstRun": {
+    "allThreeCasesFailed": true,
+    "reason": "Evaluator expected annotations.entries.length === 0 after removal; the report contract omits empty annotations. All cases reached this last assertion.",
+    "correction": "Assert persisted store annotations is empty and accept absent or empty report annotations. No product implementation or frozen case changed."
+  },
+  "results": [
+    { "slug": "expressjs/express", "sha": "ba006766fb964571723138708eacaba0f55759cd", "passed": true },
+    { "slug": "axios/axios", "sha": "ff60b43277c32a5b2f7589c917db16d8e043c0d4", "passed": true },
+    { "slug": "debug-js/debug", "sha": "d1616622e4d404863c5a98443f755b4006e971dc", "passed": true }
+  ]
+}

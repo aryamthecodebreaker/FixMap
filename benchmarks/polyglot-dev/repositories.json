@@ -1,0 +1,24 @@
+{
+  "repositories": [
+    { "slug": "gin-gonic/gin", "language": "go" },
+    { "slug": "prometheus/prometheus", "language": "go" },
+    { "slug": "go-gorm/gorm", "language": "go" },
+    { "slug": "spf13/cobra", "language": "go" },
+    { "slug": "tokio-rs/tokio", "language": "rust" },
+    { "slug": "clap-rs/clap", "language": "rust" },
+    { "slug": "serde-rs/serde", "language": "rust" },
+    { "slug": "rust-lang/cargo", "language": "rust" },
+    { "slug": "rails/rails", "language": "ruby" },
+    { "slug": "rubocop/rubocop", "language": "ruby" },
+    { "slug": "rspec/rspec-core", "language": "ruby" },
+    { "slug": "sidekiq/sidekiq", "language": "ruby" },
+    { "slug": "symfony/symfony", "language": "php" },
+    { "slug": "composer/composer", "language": "php" },
+    { "slug": "sebastianbergmann/phpunit", "language": "php" },
+    { "slug": "guzzle/guzzle", "language": "php" },
+    { "slug": "dotnet/runtime", "language": "dotnet" },
+    { "slug": "AutoMapper/AutoMapper", "language": "dotnet" },
+    { "slug": "serilog/serilog", "language": "dotnet" },
+    { "slug": "JamesNK/Newtonsoft.Json", "language": "dotnet" }
+  ]
+}

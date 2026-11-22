@@ -1,0 +1,11 @@
+{
+  "selectionCommit": "181bfed",
+  "implementationCommit": "0a9d6ab",
+  "repository": "npryce/adr-tools",
+  "sha": "b3279baf9be2207d1a4f4bbd608fd0b591c72aee",
+  "parsed": 2,
+  "fieldsMatched": 2,
+  "parserChangesAfterSelection": false,
+  "fingerprints": ["worktree:067199e53f3ccd2f647aa978547e7c132ec423c236b38532f1eb9e031c80f4d3", "worktree:95f913198d04cec0d3453be4ebe32ae5e823c67705be91e02ca78cf10780c3c7"],
+  "scope": "New documents within the same repository and Nygard convention; not independent repository or broad ranking evidence. Reviewed title, full status section, normalized status, date, context, decision, and consequences."
+}

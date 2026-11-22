@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { runDoctorChecks } from "../src/doctor.js";
+import { collapseEquivalentWindowsShims, runDoctorChecks } from "../src/doctor.js";
 
 function dependencies(runningVersion: string, requestedPackage: string | undefined) {
   return {
@@ -68,6 +68,32 @@ describe("runDoctorChecks", () => {
       value: "C:/npm/fixmap.cmd; D:/tools/fixmap.cmd",
       ok: false
     }));
+  });
+
+  it("treats npm's same-directory Windows launchers as one installation", async () => {
+    const report = await runDoctorChecks({
+      ...dependencies("0.9.0", undefined),
+      resolveBinaries: async () => [
+        "C:\\Users\\arya\\AppData\\Roaming\\npm\\fixmap",
+        "C:\\Users\\arya\\AppData\\Roaming\\npm\\fixmap.cmd",
+        "C:\\Users\\arya\\AppData\\Roaming\\npm\\fixmap.ps1"
+      ]
+    });
+
+    expect(report.healthy).toBe(true);
+    expect(report.findings).toContainEqual(expect.objectContaining({
+      label: "fixmap on PATH",
+      value: "C:\\Users\\arya\\AppData\\Roaming\\npm\\fixmap",
+      ok: true
+    }));
+  });
+
+  it("keeps same-named launchers in different directories distinct", () => {
+    expect(collapseEquivalentWindowsShims([
+      "C:/npm/fixmap.cmd",
+      "C:/npm/fixmap.ps1",
+      "D:/tools/fixmap.cmd"
+    ])).toEqual(["C:/npm/fixmap.cmd", "D:/tools/fixmap.cmd"]);
   });
 
   it("flags a stale project-local package that can shadow the running version", async () => {

@@ -1,8 +1,8 @@
-import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { stripByteOrderMark, validateFixMapReport, type FixMapReport } from "@aryam/fixmap-core";
-import { renderWatchUpdate, watchRepository, type WatchRepositoryInput, type WatchUpdate } from "./watch.js";
+import { validateFixMapReport, type FixMapReport } from "@aryam/fixmap-core";
+import { describeInputReadError, readDecodedTextFile } from "./decode-input.js";
+import { renderWatchUpdate, validateWatchRepository, watchRepository, type WatchRepositoryInput, type WatchUpdate } from "./watch.js";
 
 const USAGE = `Usage: fixmap watch --report <plan.json> [--repo <local-path>] [--interval <250-60000>] [--include-untracked] [--format markdown|json] [--fail-on error|warning] [--once]\n\nWatches a local Git working tree, verifies each changed state against the saved plan, and recalculates impact without executing repository code. Press Ctrl+C to stop.\n`;
 
@@ -74,6 +74,7 @@ export async function runWatchCommand(args: string[], dependencies: {
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
   try {
+    if (!dependencies.watchRepository) await validateWatchRepository(repoRoot);
     dependencies.stderr(once ? "Checking the current working tree once.\n" : `Watching ${resolve(repoRoot)} every ${intervalMs}ms. Press Ctrl+C to stop.\n`);
     const last = await (dependencies.watchRepository ?? watchRepository)({
       repoRoot,
@@ -99,12 +100,12 @@ export async function runWatchCommand(args: string[], dependencies: {
 
 function readReport(path: string, stderr: (text: string) => void): FixMapReport | undefined {
   try {
-    const parsed = JSON.parse(stripByteOrderMark(readFileSync(path, "utf8"))) as unknown;
+    const parsed = JSON.parse(readDecodedTextFile(path)) as unknown;
     const loaded = validateFixMapReport(parsed, `"${path}"`);
     if (!loaded.success) { stderr(`${loaded.message}\n`); return undefined; }
     return loaded.report;
   } catch (error) {
-    stderr(`Could not read watch report "${path}": ${error instanceof Error ? error.message : String(error)}\n`);
+    stderr(`Could not read watch report "${path}": ${describeInputReadError(path, error)}\n`);
     return undefined;
   }
 }

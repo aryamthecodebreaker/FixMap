@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "benchmarks/**"
+      - "packages/core/**"
+      - "scripts/evaluate-external.mjs"
       - "scripts/evaluate-baseline.mjs"
       - "scripts/lib/**"
       - ".github/workflows/external-eval.yml"

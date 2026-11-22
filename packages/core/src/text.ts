@@ -16,5 +16,10 @@ export function stripByteOrderMark(value: string): string {
 }
 
 export function truncateForDiagnostic(value: string, limit: number): string {
-  return value.length <= limit ? value : `${value.slice(0, limit)}…`;
+  if (value.length <= limit) return value;
+  let end = Math.max(0, limit);
+  const last = value.charCodeAt(end - 1);
+  const next = value.charCodeAt(end);
+  if (last >= 0xd800 && last <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) end -= 1;
+  return `${value.slice(0, end)}…`;
 }

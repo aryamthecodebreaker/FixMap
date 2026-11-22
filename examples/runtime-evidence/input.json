@@ -1,0 +1,47 @@
+{
+  "runtimeInputVersion": 1,
+  "bundle": {
+    "runtimeEvidenceBundleVersion": 1,
+    "source": {
+      "format": "opentelemetry",
+      "tool": "otel-collector",
+      "version": "0.130.0",
+      "documentFingerprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "capturedFrom": "2026-08-21T09:00:00Z",
+      "capturedTo": "2026-08-21T10:00:00Z",
+      "redactionReviewed": true,
+      "redactionSummary": "Sensitive attributes removed before export."
+    },
+    "records": [
+      {
+        "kind": "span",
+        "id": "span-1",
+        "traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "spanId": "bbbbbbbbbbbbbbbb",
+        "name": "POST /login",
+        "serviceName": "auth",
+        "startedAt": "2026-08-21T09:01:00Z",
+        "durationMs": 24.5,
+        "status": "ok",
+        "code": {
+          "repositoryId": "repo:auth",
+          "path": "src/auth.ts",
+          "symbol": "authenticate",
+          "line": 42,
+          "evidenceReference": "span.attr.code.filepath"
+        }
+      }
+    ]
+  },
+  "snapshots": [
+    {
+      "repositoryId": "repo:auth",
+      "files": [
+        {
+          "path": "src/auth.ts",
+          "contentFingerprint": "git:abc123"
+        }
+      ]
+    }
+  ]
+}

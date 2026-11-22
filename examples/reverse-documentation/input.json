@@ -1,0 +1,71 @@
+{
+  "reverseDocumentationInputVersion": 1,
+  "repo": {
+    "files": [
+      {
+        "path": "src/auth.ts",
+        "extension": ".ts",
+        "sizeBytes": 42,
+        "isSource": true,
+        "isTest": false,
+        "kind": "code",
+        "textSample": "export function authenticate() {}",
+        "contentFingerprint": "git:example-auth"
+      },
+      {
+        "path": "src/session.ts",
+        "extension": ".ts",
+        "sizeBytes": 45,
+        "isSource": true,
+        "isTest": false,
+        "kind": "code",
+        "textSample": "import { authenticate } from './auth';",
+        "contentFingerprint": "git:example-session"
+      }
+    ]
+  },
+  "architecture": {
+    "architectureSnapshotVersion": 1,
+    "fingerprint": "architecture:example-auth-v1",
+    "sourceFingerprint": "repository:example-v1",
+    "edges": [
+      {
+        "from": "src/session.ts",
+        "to": "src/auth.ts"
+      }
+    ],
+    "cycles": [],
+    "coupling": [
+      {
+        "path": "src/auth.ts",
+        "incoming": 1,
+        "outgoing": 0,
+        "total": 1
+      },
+      {
+        "path": "src/session.ts",
+        "incoming": 0,
+        "outgoing": 1,
+        "total": 1
+      }
+    ],
+    "boundaryViolations": [],
+    "truncated": {
+      "files": 0,
+      "edges": 0
+    }
+  },
+  "decisions": [],
+  "targets": [
+    {
+      "id": "authentication-module",
+      "title": "Authentication module",
+      "kind": "module",
+      "paths": [
+        "src/auth.ts",
+        "src/session.ts"
+      ],
+      "requestedPath": "docs/generated/authentication.md"
+    }
+  ]
+}

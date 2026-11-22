@@ -1,0 +1,14 @@
+{
+  "workspaceConfigVersion": 1,
+  "workspace": "fixmap-example",
+  "repositories": [
+    {
+      "id": "auth",
+      "path": "auth-service"
+    },
+    {
+      "id": "payments",
+      "path": "payments-service"
+    }
+  ]
+}

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import type { FixMapReport, RepoMap } from "@aryam/fixmap-core";
-import { fingerprintWorkingTree, renderWatchUpdate, watchRepository } from "../src/watch.js";
+import { fingerprintWorkingTree, renderWatchUpdate, validateWatchRepository, watchRepository } from "../src/watch.js";
 
 const exec = promisify(execFile);
 
@@ -74,5 +74,35 @@ describe("working-tree watch", () => {
     await writeFile(join(root, "draft.ts"), "export const state = 'two';\n");
     const second = await fingerprintWorkingTree(root, true);
     expect(second).not.toBe(first);
+  }, 15_000);
+
+  it("rejects a non-git directory without leaking the child command or raw stderr", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-watch-not-git-"));
+
+    await expect(validateWatchRepository(root)).rejects.toThrow(`Watch needs a local Git checkout; ${root} is not a Git repository.`);
+    await expect(fingerprintWorkingTree(root, false)).rejects.toThrow(`Watch needs a local Git checkout; ${root} is not a Git repository.`);
+    try {
+      await fingerprintWorkingTree(root, false);
+    } catch (error) {
+      expect(String(error)).not.toMatch(/git status|fatal:|porcelain|Command failed/i);
+    }
+  });
+
+  it("stops before emitting when the saved report belongs to another repository", async () => {
+    const foreign: FixMapReport = {
+      ...report,
+      contextFiles: [{ ...report.contextFiles[0]!, path: "services/foreign.ts" }]
+    };
+    const onUpdate = vi.fn();
+
+    await expect(watchRepository({
+      repoRoot: "/repo",
+      report: foreign,
+      once: true,
+      fingerprint: async () => "one",
+      scan: async () => repo(["src/a.ts"]),
+      onUpdate
+    })).rejects.toThrow("belongs to a different repository");
+    expect(onUpdate).not.toHaveBeenCalled();
   });
 });

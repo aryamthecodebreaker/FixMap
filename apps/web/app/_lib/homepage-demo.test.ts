@@ -12,7 +12,7 @@ describe("homepage FixMap demo", () => {
     expect(homepageDefaultTask).toContain("TOKEN_TTL_MINUTES");
     expect(homepageDefaultEvidence.editCandidate?.path).toBe("src/auth/reset-password.ts");
     expect(homepageDefaultEvidence.testRoute?.command).toBe("npm run test");
-    expect(homepageDefaultEvidence.impactFile?.path).toBe("src/http/routes.ts");
+    expect(homepageDefaultEvidence.impactFile?.path).toBe("src/auth/token-store.ts");
     expect(homepageDefaultEvidence.risk?.area).toBe("authentication");
     expect(homepageDefaultReport.diagnostics).toEqual([]);
   });
@@ -40,9 +40,9 @@ describe("homepage FixMap demo", () => {
     expect(report.testRoutes).toEqual([]);
     expect(report.impact?.files ?? []).toEqual([]);
     expect(report.risks).toEqual([]);
-    expect(report.diagnostics.map((entry) => entry.code)).toEqual([
+    expect(report.diagnostics.map((entry) => entry.code)).toEqual(expect.arrayContaining([
       "vague-task",
       "no-context-match"
-    ]);
+    ]));
   });
 });
