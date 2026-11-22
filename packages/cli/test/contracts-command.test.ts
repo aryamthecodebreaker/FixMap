@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -328,5 +328,32 @@ describe("contracts command", () => {
       expect(await runCli(["contracts", "--repo", root, "--format", "json", "--output", target], io.dependencies)).toBe(0);
     }
     expect(JSON.parse(await readFile(target, "utf8")).contractListVersion).toBe(1);
+  }, GIT_TEST_TIMEOUT);
+
+  it("refuses repository overwrites through a realpath-aliased directory", async () => {
+    // macOS tmpdir is /var/... while realpath is /private/var/...; a directory link reproduces
+    // that alias on every platform (a junction on Windows needs no extra privilege).
+    const root = await repository();
+    await commit(root, { "schema.graphql": "type Query { ok: Boolean }\n", "docs/notes.md": "keep me\n" }, "only");
+    const aliasParent = await mkdtemp(join(tmpdir(), "fixmap-contracts-alias-"));
+    roots.push(aliasParent);
+    const alias = join(aliasParent, "repo-alias");
+    await symlink(root, alias, process.platform === "win32" ? "junction" : "dir");
+
+    for (const [repoArg, outputArg] of [
+      [root, join(alias, "docs", "notes.md")],
+      [alias, join(root, "docs", "notes.md")],
+      [alias, join(alias, "docs", "notes.md")]
+    ] as const) {
+      const io = capture();
+      expect(await runCli(["contracts", "--repo", repoArg, "--output", outputArg], io.dependencies)).toBe(1);
+      expect(io.stderr.join("")).toContain("--output refuses to overwrite repository file docs/notes.md");
+    }
+    expect(await readFile(join(root, "docs", "notes.md"), "utf8")).toBe("keep me\n");
+
+    // A new file under a not-yet-existing directory inside the aliased repository is allowed.
+    const fresh = capture();
+    expect(await runCli(["contracts", "--repo", root, "--output", join(alias, "out", "contracts.md")], { ...fresh.dependencies, writeReport: async () => {} })).toBe(0);
+    expect(fresh.stderr).toEqual([]);
   }, GIT_TEST_TIMEOUT);
 });

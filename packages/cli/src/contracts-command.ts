@@ -1,6 +1,6 @@
 import { lstat, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import {
   compareContractRefs,
   inventoryWorkingTreeContracts,
@@ -201,7 +201,11 @@ async function repositoryRoot(input: string): Promise<string> {
 
 /** Refuses to overwrite a repository file unless it is a prior FixMap artifact. */
 async function assertOutputSafe(repoRoot: string, output: string): Promise<void> {
-  const absolute = resolve(output);
+  // repoRoot is a real path, so the output must be too: otherwise an alias such as macOS
+  // /var -> /private/var, a symlinked directory, or a Windows junction looks "outside".
+  // Only the directory is resolved, so a symlinked output file itself is still refused below.
+  const requested = resolve(output);
+  const absolute = resolve(await realOutputPath(dirname(requested)), basename(requested));
   const outputRelative = relative(repoRoot, absolute);
   if (!outputRelative || outputRelative === ".." || outputRelative.startsWith(`..${sep}`) || isAbsolute(outputRelative)) return;
   const info = await lstat(absolute).catch(() => undefined);
@@ -210,6 +214,22 @@ async function assertOutputSafe(repoRoot: string, output: string): Promise<void>
   if (!info.isFile() || info.isSymbolicLink() || info.nlink > 1 || info.size > 4 * 1024 * 1024 ||
     !isFixMapArtifact({ path, textSample: await readFile(absolute, "utf8"), textSampleComplete: true })) {
     throw new Error(`--output refuses to overwrite repository file ${path}; choose a new path or a prior FixMap contracts artifact.`);
+  }
+}
+
+/** Resolves the nearest existing ancestor through realpath and keeps the not-yet-existing tail. */
+async function realOutputPath(absolute: string): Promise<string> {
+  const tail: string[] = [];
+  let current = absolute;
+  for (;;) {
+    try {
+      return resolve(await realpath(current), ...tail.reverse());
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) return absolute;
+      tail.push(basename(current));
+      current = parent;
+    }
   }
 }
 
