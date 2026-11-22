@@ -6,6 +6,19 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.5 - 2026-11-22
+
+Every addition in this release is a preview: it works and is tested, but its output and options may change before v0.10.0.
+
+### Added
+
+- `fixmap plan --evidence <bundle.json>` (and MCP `fixmap_plan` `evidence`) attaches findings from other tools to the files in a plan. Bundles are data only and never executed; claims are labelled as unverified and unrelated items are counted rather than dropped silently.
+- `fixmap contracts` and `fixmap contracts diff <from>..<to>` list OpenAPI, AsyncAPI, GraphQL, Protobuf, JSON Schema, and SQL migration contracts and classify changes between two exact Git refs as compatible, breaking, or unknown, without a checkout. YAML specs behave like JSON. MCP: `fixmap_contracts`.
+- `fixmap history` now reports architecture drift between two refs (added and removed imports, cycles, policy violations, coupling growth) and decision disagreements where an accepted architecture decision record's explicit rule is broken. Snapshots are cached per commit. `fixmap plan --at <ref>` ranks against the repository as it was at a commit.
+- `fixmap reviewers` suggests reviewers from CODEOWNERS, annotation owners, architecture policy, and history, with `.mailmap` support and `--no-history-authors`. Names are never written with `@`, so nobody is notified. MCP: `fixmap_reviewers`.
+- `fixmap outcome` and `fixmap dossier` save prediction outcomes and change dossiers under `.fixmap/` with atomic writes, `--redact`, pruning, and calibration that never changes ranking weights. MCP: `fixmap_outcomes`, `fixmap_dossier`.
+- The GitHub Action accepts `change-scope-touch`, `change-scope-add`, and `capability` to add change-scope and capability-map sections to its pull request comment.
+
 ## 0.9.4 - 2026-11-22
 
 ### Fixed

@@ -469,7 +469,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: aryamthecodebreaker/FixMap@v0.9.4
+      - uses: aryamthecodebreaker/FixMap@v0.9.5
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
