@@ -77,6 +77,27 @@ inputs:
   comment-author:
     description: Optional GitHub login used to disambiguate prior FixMap comments when multiple marked comments exist.
     required: false
+  change-scope-touch:
+    description: >-
+      Preview. Plan mode only. Newline- or comma-separated repository files or directories you
+      intend to change. FixMap expands them over repository import edges with the same Core
+      engine as fixmap change-scope and adds a bounded "Change scope" section (selected,
+      affected, unresolved, and truncated counts plus the top affected paths) to the readable
+      report and pull request comment. The JSON report is unchanged.
+    required: false
+  change-scope-add:
+    description: >-
+      Preview. Plan mode only. Newline- or comma-separated paths you plan to add. Missing paths
+      stay unresolved anchors rather than invented evidence. Combines with change-scope-touch.
+    required: false
+  capability:
+    description: >-
+      Preview. Plan mode only. One capability id from .fixmap/capabilities.json. FixMap rebuilds
+      that capability's current map and adds a "Capability" section; on pull requests with both
+      refs fetched it also compares the base and head maps from Git objects without a checkout.
+      A missing or invalid store degrades to a warning. Read-only: the Action never writes the
+      store.
+    required: false
 outputs:
   report:
     description: The bounded FixMap report, or verification, in the selected format.
@@ -88,6 +109,8 @@ outputs:
     description: Number of verification findings raised. Verify mode only.
   changed-file-count:
     description: Number of changed files compared against the plan. Verify mode only.
+  change-scope-affected-count:
+    description: Preview. Number of affected paths in the change scope. Set only when change-scope-touch or change-scope-add is used.
 branding:
   icon: map
   color: green

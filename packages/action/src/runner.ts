@@ -7,6 +7,7 @@ import {
   renderJsonReport,
   renderMarkdownReport,
   renderVerifyMarkdown,
+  compareCapabilityRefs,
   scanRepo,
   stripByteOrderMark,
   validateFixMapReport,
@@ -20,6 +21,13 @@ import {
   isPermissionDeniedError,
   type PullRequestEvent
 } from "./github.js";
+import {
+  buildScopeSections,
+  hasScopeSections,
+  parseCapabilityInput,
+  splitPathListInput,
+  type ScopeSectionRequest
+} from "./scope-sections.js";
 import {
   fetchActionIssue,
   parseActionIssueSource,
@@ -45,7 +53,11 @@ export type ActionDependencies = {
   uuid?: () => string;
   fetchIssue?: (source: ActionIssueSource) => Promise<ActionIssue>;
   scanRepo?: typeof scanRepo;
+  compareCapabilityRefs?: typeof compareCapabilityRefs;
+  now?: () => string;
 };
+
+const SCOPE_INPUTS = ["change-scope-touch", "change-scope-add", "capability"] as const;
 
 export async function runAction(
   env: NodeJS.ProcessEnv = process.env,
@@ -55,7 +67,7 @@ export async function runAction(
   const readFile = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
   const stdout = dependencies.stdout ?? ((text) => process.stdout.write(text));
   if (readInput("mode", env)?.toLowerCase() === "annotate") {
-    const incompatible = ["issue", "diff", "base", "head", "limit", "exclude", "report-path", "comment-author"].filter((name) => readInput(name, env));
+    const incompatible = ["issue", "diff", "base", "head", "limit", "exclude", "report-path", "comment-author", ...SCOPE_INPUTS].filter((name) => readInput(name, env));
     for (const name of ["working-tree", "include-untracked", "no-cache"]) {
       if (parseBooleanInput(name, readInput(name, env))) incompatible.push(name);
     }
@@ -101,7 +113,8 @@ export async function runAction(
     const planOnly = [
       readInput("limit", env) ? "limit" : "",
       readInput("exclude", env) ? "exclude" : "",
-      readInput("issue", env) ? "issue" : ""
+      readInput("issue", env) ? "issue" : "",
+      ...SCOPE_INPUTS.filter((name) => readInput(name, env))
     ].filter(Boolean);
     if (planOnly.length > 0) {
       throw new Error(
@@ -128,12 +141,20 @@ export async function runAction(
     ? [fetchedIssue.title, fetchedIssue.body].filter(Boolean).join("\n\n")
     : rawIssue;
 
+  // Parse before any scan so a malformed capability id fails fast as a workflow error.
+  const scopeRequest: ScopeSectionRequest = {
+    touch: splitPathListInput(readInput("change-scope-touch", env)),
+    add: splitPathListInput(readInput("change-scope-add", env)),
+    capability: parseCapabilityInput(readInput("capability", env))
+  };
+
   if (!issue && !diffSpec && !baseRef && !workingTree) {
     throw new Error("FixMap needs a pull_request event, an issue input, or a diff/base input to build a useful report.");
   }
 
+  const repoRoot = (dependencies.cwd ?? process.cwd)();
   const report = await (dependencies.buildReport ?? buildFixMapReport)({
-    repoRoot: (dependencies.cwd ?? process.cwd)(),
+    repoRoot,
     issueText: issue,
     diffSpec,
     baseRef,
@@ -153,7 +174,21 @@ export async function runAction(
         (fetchedIssue?.truncated ? "; the body was truncated to 20,000 characters, so later text did not inform the ranking." : ".")
     });
   }
-  const markdown = renderMarkdownReport(report);
+  const scopeSections = hasScopeSections(scopeRequest)
+    ? await buildScopeSections(scopeRequest, {
+        repoRoot,
+        useCache: !noCache,
+        asOf: (dependencies.now ?? (() => new Date().toISOString()))(),
+        ...(event?.pull_request?.number && baseRef && headRef ? { diffRefs: { baseRef, headRef } } : {}),
+        ...(dependencies.scanRepo ? { scanRepo: dependencies.scanRepo } : {}),
+        ...(dependencies.compareCapabilityRefs ? { compareCapabilityRefs: dependencies.compareCapabilityRefs } : {})
+      })
+    : undefined;
+  for (const warning of scopeSections?.warnings ?? []) stdout(`::warning::${warning}\n`);
+  const planMarkdown = renderMarkdownReport(report);
+  // The preview sections join the readable report only; the JSON report keeps the FixMapReport
+  // contract that verify mode and downstream tools validate.
+  const markdown = scopeSections ? `${planMarkdown.trimEnd()}\n\n${scopeSections.markdown}` : planMarkdown;
   const output = format === "json" ? renderJsonReport(report) : markdown;
 
   stdout(output);
@@ -166,14 +201,17 @@ export async function runAction(
   }
 
   if (env.GITHUB_OUTPUT) {
-    appendFile(env.GITHUB_OUTPUT, renderActionOutputs(output, report, dependencies.uuid ?? randomUUID));
+    appendFile(env.GITHUB_OUTPUT, renderActionOutputs(output, report, dependencies.uuid ?? randomUUID) +
+      (scopeSections?.changeScopeAffectedCount !== undefined ? `change-scope-affected-count=${scopeSections.changeScopeAffectedCount}\n` : ""));
   }
 
   const token = readInput("github-token", env) || env.GITHUB_TOKEN;
   const commentAuthor = readInput("comment-author", env);
   if (token) {
     try {
-      const comment = format === "json" ? `\`\`\`json\n${output.trimEnd()}\n\`\`\`\n` : markdown;
+      const comment = format === "json"
+        ? `\`\`\`json\n${output.trimEnd()}\n\`\`\`\n${scopeSections ? `\n${scopeSections.markdown}` : ""}`
+        : markdown;
       await upsertPullRequestComment(token, event, comment, commentAuthor, env, dependencies.createClient);
     } catch (error) {
       if (!isPermissionDeniedError(error)) {
