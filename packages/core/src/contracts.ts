@@ -2,6 +2,7 @@ import type { RepoMap } from "./types.js";
 import { createGraphIdentity } from "./identity-graph.js";
 import type { IdentityGraphNode } from "./identity-graph.js";
 import { markdownCode } from "./markdown.js";
+import { parseYamlSubset, YamlSubsetError } from "./yaml-subset.js";
 
 export type ContractKind = "openapi" | "asyncapi" | "graphql" | "protobuf" | "json-schema" | "migration";
 export type ContractEntryRole = "operation" | "type" | "field" | "argument" | "required-field" | "migration";
@@ -24,6 +25,8 @@ export type ContractSurface = {
   kind: ContractKind;
   path: string;
   name: string;
+  /** Declared specification or syntax version (for example OpenAPI 3.1.0 or proto3), when the source states one. */
+  version?: string;
   sourceFingerprint: string;
   entries: ContractEntry[];
 };
@@ -48,7 +51,7 @@ export type ContractChange = {
   contractId: string;
   contractKind: ContractKind;
   path: string;
-  change: "contract-added" | "contract-removed" | "entry-added" | "entry-removed" | "entry-changed";
+  change: "contract-added" | "contract-removed" | "contract-unavailable" | "entry-added" | "entry-removed" | "entry-changed";
   compatibility: ContractCompatibility;
   reason: string;
   entry?: string;
@@ -75,14 +78,16 @@ export type ContractGraphOptions = {
 };
 
 const HTTP_METHODS = new Set(["get", "put", "post", "delete", "options", "head", "patch", "trace"]);
-const CONTRACT_PATH = /(?:^|\/)(?:openapi|swagger|asyncapi)(?:\.[^/]+)?\.(?:json|ya?ml)$|\.(?:graphql|gql|proto)$|(?:^|\/)migrations?\/.*\.sql$|\.schema\.json$/i;
+export const CONTRACT_PATH = /(?:^|\/)(?:openapi|swagger|asyncapi)(?:\.[^/]+)?\.(?:json|ya?ml)$|\.(?:graphql|gql|proto)$|(?:^|\/)migrations?\/.*\.sql$|\.schema\.json$/i;
 
 /** Converts a scanned repository into bounded contract sources without pretending omitted content was parsed. */
 export function contractSourcesFromRepo(repo: RepoMap): { sources: ContractSource[]; diagnostics: ContractDiagnostic[] } {
   const sources: ContractSource[] = [];
   const diagnostics: ContractDiagnostic[] = [];
   for (const file of repo.files.filter((candidate) => isContractCandidate(candidate.path, candidate.textSample))) {
-    if (file.textSampleComplete === false || !file.contentFingerprint) {
+    // Files outside the scanner's text extensions (GraphQL, Protobuf, SQL) carry an empty
+    // sample; parsing that would report an empty surface instead of an unread one.
+    if (file.textSampleComplete === false || !file.contentFingerprint || !file.isSource) {
       diagnostics.push({
         code: "contract-source-incomplete",
         severity: "warning",
@@ -135,7 +140,11 @@ export function compareContractInventories(
   for (const [id, before] of beforeById) {
     const after = afterById.get(id);
     if (!after) {
-      if (unavailableAfter.has(before.path)) continue;
+      if (unavailableAfter.has(before.path)) {
+        changes.push(contractChange(before, undefined, "contract-unavailable", "unknown",
+          `${before.kind} contract ${before.name} could not be read on the later side, so its compatibility is unknown.`));
+        continue;
+      }
       changes.push(contractChange(before, undefined, "contract-removed", "breaking", `Removed ${before.kind} contract ${before.name}.`));
       continue;
     }
@@ -143,7 +152,11 @@ export function compareContractInventories(
   }
   for (const [id, after] of afterById) {
     if (!beforeById.has(id)) {
-      if (unavailableBefore.has(after.path)) continue;
+      if (unavailableBefore.has(after.path)) {
+        changes.push(contractChange(undefined, after, "contract-unavailable", "unknown",
+          `${after.kind} contract ${after.name} could not be read on the earlier side, so its compatibility is unknown.`));
+        continue;
+      }
       changes.push(contractChange(undefined, after, "contract-added", "compatible", `Added ${after.kind} contract ${after.name}.`));
     }
   }
@@ -298,17 +311,34 @@ function parseContract(source: ContractSource): { surface?: ContractSurface; dia
     }
     return parsed(source, "graphql", graphql);
   }
-  if (lower.endsWith(".proto")) return parsed(source, "protobuf", parseProtobuf(source.content));
+  if (lower.endsWith(".proto")) {
+    const syntax = /^\s*(?:syntax|edition)\s*=\s*["']([^"']+)["']/m.exec(source.content.replace(/\/\/[^\r\n]*/g, ""))?.[1];
+    return parsed(source, "protobuf", { ...parseProtobuf(source.content), ...(syntax ? { version: syntax } : {}) });
+  }
   if (/(?:^|\/)migrations?\/.*\.sql$/i.test(source.path)) return parsed(source, "migration", parseMigration(source.content));
 
   const json = parseJson(source.content);
-  if (json) {
-    if (typeof json.openapi === "string" || typeof json.swagger === "string") return parsed(source, "openapi", parseOpenApiJson(json));
-    if (typeof json.asyncapi === "string") return parsed(source, "asyncapi", parseAsyncApiJson(json));
-    if (typeof json.$schema === "string" || isRecord(json.properties)) return parsed(source, "json-schema", parseJsonSchema(json));
+  if (json) return parsedStructured(source, json);
+  const yamlLike = /\.ya?ml$/i.test(source.path) || /^\s*(?:openapi|swagger|asyncapi)\s*:/m.test(source.content);
+  if (yamlLike) {
+    let document: unknown;
+    try {
+      document = parseYamlSubset(source.content);
+    } catch (error) {
+      if (!(error instanceof YamlSubsetError)) throw error;
+      return parseFailed(source, `YAML ${error.message}.`);
+    }
+    if (isRecord(document)) {
+      // YAML reads an unquoted "3.0" as a number; keep the version text the author wrote.
+      for (const key of ["openapi", "swagger", "asyncapi"]) {
+        if (typeof document[key] !== "number") continue;
+        const written = new RegExp(`^${key}\\s*:\\s*([^\\s#]+)`, "m").exec(source.content)?.[1];
+        if (written) document[key] = written;
+      }
+      const structured = parsedStructured(source, document);
+      if (structured.surface || structured.diagnostic) return structured;
+    }
   }
-  if (/^\s*(?:openapi|swagger)\s*:/m.test(source.content)) return parsed(source, "openapi", parseOpenApiYaml(source.content));
-  if (/^\s*asyncapi\s*:/m.test(source.content)) return parsed(source, "asyncapi", parseAsyncApiYaml(source.content));
   if (CONTRACT_PATH.test(source.path)) {
     return {
       diagnostic: {
@@ -322,6 +352,30 @@ function parseContract(source: ContractSource): { surface?: ContractSurface; dia
   return {};
 }
 
+/** JSON and YAML documents share one decoder, so both spellings produce identical surfaces. */
+function parsedStructured(source: ContractSource, document: Record<string, unknown>): { surface?: ContractSurface; diagnostic?: ContractDiagnostic } {
+  const openapi = specVersion(document.openapi) ?? specVersion(document.swagger);
+  if (openapi) return parsed(source, "openapi", { ...parseOpenApiJson(document), version: openapi });
+  const asyncapi = specVersion(document.asyncapi);
+  if (asyncapi) return parsed(source, "asyncapi", { ...parseAsyncApiJson(document), version: asyncapi });
+  if (typeof document.$schema === "string" || isRecord(document.properties)) {
+    return parsed(source, "json-schema", {
+      ...parseJsonSchema(document),
+      ...(typeof document.$schema === "string" ? { version: document.$schema } : {})
+    });
+  }
+  if (CONTRACT_PATH.test(source.path)) {
+    return parseFailed(source, "the document has no openapi, swagger, asyncapi, $schema, or properties marker.");
+  }
+  return {};
+}
+
+function specVersion(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return undefined;
+}
+
 function parseFailed(source: ContractSource, detail: string): { diagnostic: ContractDiagnostic } {
   return {
     diagnostic: {
@@ -333,13 +387,14 @@ function parseFailed(source: ContractSource, detail: string): { diagnostic: Cont
   };
 }
 
-function parsed(source: ContractSource, kind: ContractKind, parsedSurface: { name?: string; entries: ContractEntry[] }): { surface: ContractSurface } {
+function parsed(source: ContractSource, kind: ContractKind, parsedSurface: { name?: string; version?: string; entries: ContractEntry[] }): { surface: ContractSurface } {
   return {
     surface: {
       id: `contract:${kind}:${source.path.replace(/\\/g, "/")}`,
       kind,
       path: source.path.replace(/\\/g, "/"),
       name: parsedSurface.name ?? source.path.split(/[\\/]/).at(-1) ?? source.path,
+      ...(parsedSurface.version ? { version: parsedSurface.version } : {}),
       sourceFingerprint: source.fingerprint,
       entries: normalizeEntries(parsedSurface.entries)
     }
@@ -480,49 +535,6 @@ function parseMigration(content: string): { entries: ContractEntry[] } {
   return { entries };
 }
 
-function parseOpenApiYaml(content: string): { name?: string; entries: ContractEntry[] } {
-  return parseChannelYaml(content, "paths", HTTP_METHODS);
-}
-
-function parseAsyncApiYaml(content: string): { name?: string; entries: ContractEntry[] } {
-  return parseChannelYaml(content, "channels", new Set(["publish", "subscribe"]));
-}
-
-function parseChannelYaml(content: string, sectionName: string, operations: Set<string>): { name?: string; entries: ContractEntry[] } {
-  const entries: ContractEntry[] = [];
-  const lines = content.split(/\r?\n/);
-  let inSection = false;
-  let sectionIndent = -1;
-  let currentPath: string | undefined;
-  let pathIndent = -1;
-  for (const raw of lines) {
-    const withoutComment = raw.replace(/\s+#.*$/, "");
-    const trimmed = withoutComment.trim();
-    if (!trimmed) continue;
-    const indent = withoutComment.length - withoutComment.trimStart().length;
-    if (!inSection && trimmed === `${sectionName}:`) {
-      inSection = true;
-      sectionIndent = indent;
-      continue;
-    }
-    if (!inSection) continue;
-    if (indent <= sectionIndent) break;
-    const key = /^([^:]+):\s*$/.exec(trimmed)?.[1]?.trim();
-    if (!key) continue;
-    if (indent > sectionIndent && (currentPath === undefined || indent <= pathIndent)) {
-      currentPath = unquote(key);
-      pathIndent = indent;
-      continue;
-    }
-    if (currentPath && indent > pathIndent && operations.has(key.toLowerCase())) {
-      const operation = sectionName === "paths" ? `${key.toUpperCase()} ${currentPath}` : `${key.toLowerCase()} ${currentPath}`;
-      entries.push(entry(`operation:${sectionName === "paths" ? operation : `${key.toLowerCase()}:${currentPath}`}`, "operation", operation));
-    }
-  }
-  const title = content.match(/^\s*title\s*:\s*["']?([^\r\n"']+)/m)?.[1]?.trim();
-  return { ...(title ? { name: title } : {}), entries };
-}
-
 function entry(key: string, role: ContractEntryRole, signature: string, required = false): ContractEntry {
   return { key, role, signature: signature.trim(), required };
 }
@@ -572,7 +584,7 @@ function validateContractSource(source: ContractSource): void {
   }
 }
 
-function isContractCandidate(path: string, content: string): boolean {
+export function isContractCandidate(path: string, content: string): boolean {
   return CONTRACT_PATH.test(path.replace(/\\/g, "/")) ||
     /^\s*(?:openapi|swagger|asyncapi)\s*:/m.test(content) ||
     /^\s*\{[\s\S]*?"(?:openapi|swagger|asyncapi|\$schema)"\s*:/m.test(content);
@@ -606,10 +618,6 @@ function parseJson(content: string): Record<string, unknown> | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function unquote(value: string): string {
-  return value.replace(/^["']|["']$/g, "");
 }
 
 function severityOrder(value: ContractCompatibility): number {

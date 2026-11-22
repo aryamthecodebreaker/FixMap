@@ -282,6 +282,8 @@ export type {
   ContractSource,
   ContractSurface
 } from "./contracts.js";
+export { compareContractRefs, inventoryContractsAtRef, inventoryWorkingTreeContracts } from "./contracts-repository.js";
+export type { ContractInventoryAtRef, ContractRefComparison } from "./contracts-repository.js";
 export type {
   FixMapInput,
   FixMapReport,

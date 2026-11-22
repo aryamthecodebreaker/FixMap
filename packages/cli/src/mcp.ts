@@ -51,6 +51,7 @@ import { runWorkspaceCommand } from "./workspace-command.js";
 import { runChangeScopeCommand } from "./change-scope-command.js";
 import { runReviewersCommand } from "./reviewers-command.js";
 import { runCapabilitiesCommand, runCapabilityCommand } from "./capability-command.js";
+import { runContractsCommand } from "./contracts-command.js";
 import {
   buildReportForRepository,
   isSafeGitRefName,
@@ -441,6 +442,27 @@ const HISTORY_TOOL = {
   }
 };
 
+const CONTRACTS_TOOL = {
+  name: "fixmap_contracts",
+  title: "FixMap contracts",
+  description:
+    "Preview (may change before v0.10.0): List OpenAPI, AsyncAPI, GraphQL, Protobuf, JSON Schema, and SQL migration contracts in the working tree (action list), " +
+    "or compare them at two exact Git refs through Git objects without checking out either ref or changing the worktree (action diff). " +
+    "Each change is breaking, unknown, or compatible with before/after fingerprints; unparseable contracts are reported as diagnostics.",
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      action: { type: "string", enum: ["list", "diff"], description: "list (default) inventories the working tree; diff compares from..to" },
+      from: { type: "string", description: "Earlier exact Git ref; required for diff" },
+      to: { type: "string", description: "Later exact Git ref; required for diff" },
+      repo: { type: "string", description: "Local checkout path (defaults to the MCP server repository)" },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    additionalProperties: false
+  }
+};
+
 const SUPPLY_CHAIN_TOOL = {
   name: "fixmap_supply_chain",
   title: "FixMap supply chain",
@@ -550,7 +572,7 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, REVIEWERS_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL, ANNOTATION_TOOL, OUTCOMES_TOOL, DOSSIER_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, REVIEWERS_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, CONTRACTS_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL, ANNOTATION_TOOL, OUTCOMES_TOOL, DOSSIER_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -850,6 +872,37 @@ export function createFixMapMcpServer(
           ? `Could not resolve one of the requested Git refs in "${repoRoot}". Confirm both refs exist and the path is a Git checkout.`
           : `Could not compare historical architecture in "${repoRoot}".` }] };
       }
+    }
+    if (request.params.name === CONTRACTS_TOOL.name) {
+      const record = (request.params.arguments ?? {}) as Record<string, unknown>;
+      const invalid = (text: string) => ({ isError: true, content: [{ type: "text", text: `Invalid arguments: ${text}` }] });
+      const unknown = Object.keys(record).filter((key) => !["action", "from", "to", "repo", "format"].includes(key));
+      if (unknown.length > 0) return invalid(`unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`);
+      if (record.action !== undefined && record.action !== "list" && record.action !== "diff") return invalid('"action" must be "list" or "diff".');
+      const action = record.action ?? "list";
+      for (const key of ["from", "to"] as const) {
+        const value = record[key];
+        if (value !== undefined && (typeof value !== "string" || !value.trim() || value.length > 500 || /[\0\r\n]/.test(value) || value.includes("..") || value.trim().startsWith("-"))) {
+          return invalid(`"${key}" must be a bounded single-line Git ref.`);
+        }
+      }
+      if (action === "diff" && (record.from === undefined || record.to === undefined)) return invalid('action "diff" requires both "from" and "to".');
+      if (action === "list" && (record.from !== undefined || record.to !== undefined)) return invalid('"from" and "to" apply only to action "diff".');
+      if (record.repo !== undefined && (typeof record.repo !== "string" || !record.repo.trim() || /[\0\r\n]/.test(record.repo))) {
+        return invalid('"repo" must be a non-empty local path.');
+      }
+      if (typeof record.repo === "string" && /^[a-z][a-z0-9+.-]*:\/\//i.test(record.repo.trim())) return invalid('"repo" must be a local checkout.');
+      const format = normalizeFormat(record.format);
+      if (!format.success) return invalid(format.message);
+      const commandArgs = [
+        ...(action === "diff" ? ["diff", `${String(record.from).trim()}..${String(record.to).trim()}`] : []),
+        "--repo", typeof record.repo === "string" ? record.repo.trim() : defaultRepo,
+        "--format", format.value ?? "markdown"
+      ];
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const exitCode = await runContractsCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
+      return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("").trim() }] };
     }
     if (request.params.name === SUPPLY_CHAIN_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;

@@ -27,7 +27,7 @@ const ARCHITECTURE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const ARCHITECTURE_CACHE_FILE = /^architecture-v\d+-[a-f0-9]{40,64}-(?:policy|no-policy)\.json$/;
 const ARCHITECTURE_CACHE_TEMP_FILE = /^architecture-v\d+-[a-f0-9]{40,64}-(?:policy|no-policy)\.json\.\d+-[0-9a-f-]{36}\.tmp$/;
 
-type TreeEntry = { mode: string; oid: string; size: number; path: string };
+export type TreeEntry = { mode: string; oid: string; size: number; path: string };
 
 export type HistoricalRepoMap = {
   requestedRef: string;
@@ -319,13 +319,13 @@ function historicalPackageScripts(files: readonly RepoFile[], diagnostics: ScanD
   });
 }
 
-function validateRef(value: string): string {
+export function validateRef(value: string): string {
   const ref = value.trim();
   if (!ref || ref.length > MAX_REF_LENGTH || /[\0\r\n]/.test(ref)) throw new Error("Git ref must be a bounded single-line value.");
   return ref;
 }
 
-async function resolveCommit(repoRoot: string, ref: string): Promise<string> {
+export async function resolveCommit(repoRoot: string, ref: string): Promise<string> {
   try {
     const { stdout } = await exec("git", ["rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`], {
       cwd: repoRoot,
@@ -340,7 +340,7 @@ async function resolveCommit(repoRoot: string, ref: string): Promise<string> {
   }
 }
 
-function parseTree(value: string): TreeEntry[] {
+export function parseTree(value: string): TreeEntry[] {
   return value.split("\0").flatMap((record): TreeEntry[] => {
     if (!record) return [];
     const tab = record.indexOf("\t");
@@ -352,7 +352,7 @@ function parseTree(value: string): TreeEntry[] {
   });
 }
 
-async function readBlobs(repoRoot: string, entries: readonly TreeEntry[]): Promise<Map<string, Buffer>> {
+export async function readBlobs(repoRoot: string, entries: readonly TreeEntry[]): Promise<Map<string, Buffer>> {
   if (entries.length === 0) return new Map();
   const uniqueOids = [...new Set(entries.map((entry) => entry.oid))];
   const child = spawn("git", ["cat-file", "--batch"], { cwd: repoRoot, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });

@@ -1244,7 +1244,7 @@ function isVagueTaskText(issueText) {
   return residual.size <= MAX_RESIDUAL_TOKENS_FOR_VAGUE;
 }
 function removeIdentifiers(text, identifiers) {
-  return identifiers.reduce((current, identifier) => current.replace(new RegExp(escapeRegExp(identifier), "g"), " "), text);
+  return identifiers.reduce((current2, identifier) => current2.replace(new RegExp(escapeRegExp(identifier), "g"), " "), text);
 }
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1309,11 +1309,11 @@ function composerDependencyClosure(projects, projectPath) {
   const reachable = /* @__PURE__ */ new Set();
   const pending = [projectPath];
   while (pending.length > 0) {
-    const current = pending.shift();
-    if (reachable.has(current))
+    const current2 = pending.shift();
+    if (reachable.has(current2))
       continue;
-    reachable.add(current);
-    for (const dependency of byPath.get(current)?.pathDependencies ?? []) {
+    reachable.add(current2);
+    for (const dependency of byPath.get(current2)?.pathDependencies ?? []) {
       if (!reachable.has(dependency.projectPath))
         pending.push(dependency.projectPath);
     }
@@ -1580,11 +1580,11 @@ function dotnetReferenceClosure(projects, projectPath) {
   const reachable = /* @__PURE__ */ new Set();
   const pending = [projectPath];
   while (pending.length > 0) {
-    const current = pending.shift();
-    if (reachable.has(current))
+    const current2 = pending.shift();
+    if (reachable.has(current2))
       continue;
-    reachable.add(current);
-    for (const reference of byPath.get(current)?.references ?? []) {
+    reachable.add(current2);
+    for (const reference of byPath.get(current2)?.references ?? []) {
       if (!reachable.has(reference))
         pending.push(reference);
     }
@@ -2874,11 +2874,11 @@ function dotnetReferenceClosureFromIndex(projectsByPath, projectPath) {
   const reachable = /* @__PURE__ */ new Set();
   const pending = [projectPath];
   while (pending.length > 0) {
-    const current = pending.shift();
-    if (reachable.has(current))
+    const current2 = pending.shift();
+    if (reachable.has(current2))
       continue;
-    reachable.add(current);
-    for (const reference of projectsByPath.get(current)?.references ?? []) {
+    reachable.add(current2);
+    for (const reference of projectsByPath.get(current2)?.references ?? []) {
       if (!reachable.has(reference))
         pending.push(reference);
     }
@@ -3075,6 +3075,11 @@ function fixMapArtifactKind(file) {
   }
   if (candidate.capabilityListVersion === 1 && Array.isArray(candidate.capabilities))
     return "capability-list-json";
+  if (candidate.contractListVersion === 1 && isRecord2(candidate.inventory))
+    return "contract-list-json";
+  if (candidate.contractDiffVersion === 1 && isRecord2(candidate.from) && isRecord2(candidate.to) && isRecord2(candidate.comparison)) {
+    return "contract-diff-json";
+  }
   if ((candidate.reportVersion === void 0 || candidate.reportVersion === 1) && typeof candidate.summary === "string" && Array.isArray(candidate.contextFiles) && Array.isArray(candidate.testRoutes) && Array.isArray(candidate.risks) && Array.isArray(candidate.changedFiles) && Array.isArray(candidate.diagnostics))
     return "report-json";
   if (candidate.contextVersion === 1 && typeof candidate.task === "string" && typeof candidate.budgetTokens === "number" && candidate.tokenEstimate === "utf8-bytes-divided-by-4" && Array.isArray(candidate.snippets) && Array.isArray(candidate.omitted))
@@ -3102,12 +3107,12 @@ function buildImpactMap(repo, requestedSeeds, testRoutes = [], limit = DEFAULT_I
   const addEvidence = (path, score, evidence) => {
     if (seedSet.has(path) || !repositoryPaths.has(path) || isGeneratedPath(path) || isBackupPath(path))
       return;
-    const current = candidates.get(path) ?? { path, score: 0, evidence: [] };
-    if (!current.evidence.some((entry2) => entry2.kind === evidence.kind && entry2.seed === evidence.seed)) {
-      current.evidence.push(evidence);
-      current.score += score;
+    const current2 = candidates.get(path) ?? { path, score: 0, evidence: [] };
+    if (!current2.evidence.some((entry2) => entry2.kind === evidence.kind && entry2.seed === evidence.seed)) {
+      current2.evidence.push(evidence);
+      current2.score += score;
     }
-    candidates.set(path, current);
+    candidates.set(path, current2);
   };
   const graph = buildImportGraph(repo.files, languageContext);
   const primarySet = new Set(primaryPaths.filter((path) => repositoryPaths.has(path)));
@@ -6464,10 +6469,10 @@ function reportEscapedLinks(diagnostics, paths) {
     paths: unique.slice(0, 8)
   });
 }
-async function walkFiles(root, current, diagnostics, state, internalCacheRoot, internalPaths, languageRegistry) {
+async function walkFiles(root, current2, diagnostics, state, internalCacheRoot, internalPaths, languageRegistry) {
   let entries;
   try {
-    entries = await readdir(current, { withFileTypes: true });
+    entries = await readdir(current2, { withFileTypes: true });
   } catch {
     return [];
   }
@@ -6481,14 +6486,14 @@ async function walkFiles(root, current, diagnostics, state, internalCacheRoot, i
       break;
     }
     if (entry2.isSymbolicLink()) {
-      state.linkedPaths.push(normalizePath3(relative(root, join(current, entry2.name))));
+      state.linkedPaths.push(normalizePath3(relative(root, join(current2, entry2.name))));
       continue;
     }
     if (entry2.isDirectory()) {
       if (WALK_IGNORED_DIRS.has(entry2.name)) {
         continue;
       }
-      const directory = join(current, entry2.name);
+      const directory = join(current2, entry2.name);
       if (internalCacheRoot && sameFilesystemPath(directory, internalCacheRoot))
         continue;
       results.push(...await walkFiles(root, directory, diagnostics, state, internalCacheRoot, internalPaths, languageRegistry));
@@ -6497,7 +6502,7 @@ async function walkFiles(root, current, diagnostics, state, internalCacheRoot, i
     if (!entry2.isFile()) {
       continue;
     }
-    const absolutePath = join(current, entry2.name);
+    const absolutePath = join(current2, entry2.name);
     const relativePath = normalizePath3(relative(root, absolutePath));
     if (hasInternalPath(internalPaths, relativePath) || isInternalCachePath(root, relativePath, internalCacheRoot))
       continue;
@@ -6680,19 +6685,19 @@ function sampleDiffText(diffText, diagnostics) {
   if (diffText.length <= MAX_DIFF_TEXT_CHARS)
     return diffText;
   const groups = [];
-  let current;
+  let current2;
   for (const line of diffText.split(/\r?\n/)) {
     if (line.startsWith("diff --git ")) {
-      current = [];
-      groups.push(current);
+      current2 = [];
+      groups.push(current2);
       continue;
     }
     if (line.startsWith("+") && !line.startsWith("+++")) {
-      if (!current) {
-        current = [];
-        groups.push(current);
+      if (!current2) {
+        current2 = [];
+        groups.push(current2);
       }
-      current.push(line);
+      current2.push(line);
     }
   }
   const queues = groups.filter((group) => group.length > 0);
@@ -8135,6 +8140,435 @@ function encodePart(value) {
   return value.split("/").map(encodeURIComponent).join("/");
 }
 
+// packages/core/dist/yaml-subset.js
+var YamlSubsetError = class extends Error {
+};
+var MAX_DEPTH = 64;
+function parseYamlSubset(content) {
+  const lines = toLines(content);
+  if (lines.length === 0)
+    return null;
+  const state = { lines, index: 0 };
+  const value = parseNode(state, lines[0].indent, 0);
+  if (state.index < lines.length)
+    fail(lines[state.index], "unexpected content after the document");
+  return value;
+}
+function toLines(content) {
+  const rawLines = content.replace(/^\uFEFF/, "").split(/\r?\n/);
+  const lines = [];
+  let started = false;
+  for (let index = 0; index < rawLines.length; index += 1) {
+    const raw = rawLines[index];
+    if (/^%/.test(raw) && !started)
+      continue;
+    if (/^---(?:\s|$)/.test(raw)) {
+      if (started || lines.length > 0)
+        throw new YamlSubsetError(`line ${index + 1}: multiple YAML documents are not supported`);
+      started = true;
+      if (raw.slice(3).trim() && !raw.slice(3).trim().startsWith("#")) {
+        throw new YamlSubsetError(`line ${index + 1}: content on the document marker is not supported`);
+      }
+      continue;
+    }
+    if (/^\.\.\.(?:\s|$)/.test(raw)) {
+      if (rawLines.slice(index + 1).some((rest) => rest.trim() && !rest.trim().startsWith("#"))) {
+        throw new YamlSubsetError(`line ${index + 1}: multiple YAML documents are not supported`);
+      }
+      break;
+    }
+    const leading = /^[ \t]*/.exec(raw)[0];
+    const text = stripComment(raw.slice(leading.length)).trimEnd();
+    if (!text) {
+      lines.push({ number: index + 1, indent: -1, text: "", raw });
+      continue;
+    }
+    if (leading.includes("	"))
+      throw new YamlSubsetError(`line ${index + 1}: tab indentation is not supported`);
+    lines.push({ number: index + 1, indent: leading.length, text, raw });
+  }
+  return lines;
+}
+function stripComment(text) {
+  if (text.startsWith("#"))
+    return "";
+  let quote;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (quote) {
+      if (quote === '"' && char === "\\")
+        index += 1;
+      else if (char === quote)
+        quote = void 0;
+      continue;
+    }
+    if ((char === '"' || char === "'") && (index === 0 || /[\s:\[\]{},-]/.test(text[index - 1])))
+      quote = char;
+    else if (char === "#" && /\s/.test(text[index - 1] ?? ""))
+      return text.slice(0, index);
+  }
+  return text;
+}
+function current(state) {
+  while (state.index < state.lines.length && state.lines[state.index].indent < 0)
+    state.index += 1;
+  return state.lines[state.index];
+}
+function parseNode(state, indent, depth5) {
+  if (depth5 > MAX_DEPTH)
+    throw new YamlSubsetError("YAML nesting is deeper than FixMap reads");
+  const line = current(state);
+  if (!line || line.indent < indent)
+    return null;
+  if (isSequenceItem(line.text))
+    return parseSequence(state, line.indent, depth5);
+  if (splitKey(line.text))
+    return parseMapping(state, line.indent, depth5);
+  state.index += 1;
+  return parseInlineValue(line, line.text, state, line.indent, depth5);
+}
+function isSequenceItem(text) {
+  return text === "-" || text.startsWith("- ");
+}
+function parseSequence(state, indent, depth5) {
+  const values = [];
+  for (let line = current(state); line && line.indent === indent && isSequenceItem(line.text); line = current(state)) {
+    const rest = line.text.slice(1).trimStart();
+    if (!rest) {
+      state.index += 1;
+      const next = current(state);
+      values.push(next && next.indent > indent ? parseNode(state, next.indent, depth5 + 1) : null);
+      continue;
+    }
+    const column = indent + (line.text.length - rest.length);
+    state.lines[state.index] = { ...line, indent: column, text: rest };
+    if (isSequenceItem(rest) || splitKey(rest))
+      values.push(parseNode(state, column, depth5 + 1));
+    else {
+      state.index += 1;
+      values.push(parseInlineValue(line, rest, state, indent, depth5));
+    }
+  }
+  const after = current(state);
+  if (after && after.indent > indent)
+    fail(after, "unexpected indentation in a sequence");
+  return values;
+}
+function parseMapping(state, indent, depth5) {
+  const result = {};
+  for (let line = current(state); line && line.indent === indent; line = current(state)) {
+    const split = splitKey(line.text);
+    if (!split)
+      fail(line, "expected a mapping key");
+    const key = parseKey(line, split.key);
+    if (key === "<<")
+      fail(line, "merge keys are not supported");
+    if (Object.prototype.hasOwnProperty.call(result, key))
+      fail(line, `duplicate key ${JSON.stringify(key)}`);
+    state.index += 1;
+    if (!split.value) {
+      const next = current(state);
+      if (next && (next.indent > indent || next.indent === indent && isSequenceItem(next.text))) {
+        result[key] = parseNode(state, next.indent, depth5 + 1);
+      } else {
+        result[key] = null;
+      }
+    } else {
+      result[key] = parseInlineValue(line, split.value, state, indent, depth5);
+    }
+  }
+  const after = current(state);
+  if (after && after.indent > indent)
+    fail(after, "unexpected indentation in a mapping");
+  return result;
+}
+function splitKey(text) {
+  if (isSequenceItem(text) || text.startsWith("{") || text.startsWith("["))
+    return void 0;
+  let index = 0;
+  if (text.startsWith('"') || text.startsWith("'")) {
+    const end = closingQuote(text, 0);
+    if (end === -1)
+      return void 0;
+    index = end + 1;
+    const rest = text.slice(index);
+    const match = /^\s*:(?:\s|$)/.exec(rest);
+    if (!match)
+      return void 0;
+    return { key: text.slice(0, index), value: rest.slice(match[0].length).trim() };
+  }
+  for (; index < text.length; index += 1) {
+    if (text[index] === ":" && (index + 1 === text.length || /\s/.test(text[index + 1]))) {
+      return { key: text.slice(0, index).trimEnd(), value: text.slice(index + 1).trim() };
+    }
+  }
+  return void 0;
+}
+function parseKey(line, raw) {
+  if (raw.startsWith("? "))
+    fail(line, "complex mapping keys are not supported");
+  if (raw.startsWith('"') || raw.startsWith("'"))
+    return parseQuoted(line, raw);
+  if (/^[&*!]/.test(raw))
+    fail(line, "anchors, aliases, and tags are not supported");
+  return raw;
+}
+function parseInlineValue(line, value, state, parentIndent, depth5) {
+  if (/^[&*!]/.test(value))
+    fail(line, "anchors, aliases, and tags are not supported");
+  if (/^[|>]/.test(value))
+    return parseBlockScalar(line, value, state, parentIndent);
+  if (value.startsWith("{") || value.startsWith("[")) {
+    let text2 = value;
+    while (!flowBalanced(text2)) {
+      const next = current(state);
+      if (!next || next.indent <= parentIndent)
+        fail(line, "unterminated flow collection");
+      text2 += ` ${next.text}`;
+      state.index += 1;
+    }
+    const parser = { text: text2, index: 0, line };
+    const result = parseFlowValue(parser, depth5);
+    skipSpace(parser);
+    if (parser.index !== text2.length)
+      fail(line, "unexpected content after a flow collection");
+    return result;
+  }
+  if (value.startsWith('"') || value.startsWith("'")) {
+    let text2 = value;
+    while (closingQuote(text2, 0) === -1) {
+      const next = current(state);
+      if (!next)
+        fail(line, "unterminated quoted scalar");
+      text2 += ` ${next.raw.trim()}`;
+      state.index += 1;
+    }
+    const end = closingQuote(text2, 0);
+    if (text2.slice(end + 1).trim())
+      fail(line, "unexpected content after a quoted scalar");
+    return parseQuoted(line, text2);
+  }
+  let text = value;
+  for (let next = current(state); next && next.indent > parentIndent; next = current(state)) {
+    if (splitKey(next.text) || isSequenceItem(next.text))
+      fail(next, "a scalar value cannot also open a nested block");
+    text += ` ${next.text}`;
+    state.index += 1;
+  }
+  return resolvePlain(text);
+}
+function parseBlockScalar(line, header, state, parentIndent) {
+  const match = /^([|>])([+-]?)(\d?)([+-]?)$/.exec(header.trim());
+  if (!match)
+    fail(line, "unsupported block scalar header");
+  const folded = match[1] === ">";
+  const chomping = match[2] || match[4];
+  const explicit = match[3] ? Number(match[3]) : void 0;
+  const collected = [];
+  let contentIndent = explicit !== void 0 ? parentIndent + explicit : void 0;
+  while (state.index < state.lines.length) {
+    const next = state.lines[state.index];
+    const blank = next.raw.trim() === "";
+    const leading = /^ */.exec(next.raw)[0].length;
+    if (!blank && leading <= parentIndent)
+      break;
+    if (!blank) {
+      contentIndent ??= leading;
+      if (leading < contentIndent)
+        fail(next, "block scalar line is less indented than its first line");
+    }
+    collected.push(blank ? "" : next.raw.slice(contentIndent));
+    state.index += 1;
+  }
+  while (collected.length > 0 && collected.at(-1) === "" && chomping !== "+")
+    collected.pop();
+  let text = folded ? foldLines(collected) : collected.join("\n");
+  if (chomping !== "-" && collected.length > 0)
+    text += "\n";
+  return text;
+}
+function foldLines(lines) {
+  let result = "";
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (index === 0) {
+      result = line;
+      continue;
+    }
+    const previous = lines[index - 1];
+    if (line === "")
+      result += "\n";
+    else if (previous === "" || /^\s/.test(line) || /^\s/.test(previous))
+      result += (previous === "" ? "" : "\n") + line;
+    else
+      result += ` ${line}`;
+  }
+  return result;
+}
+function resolvePlain(text) {
+  const value = text.trim();
+  if (value === "" || value === "~" || /^(?:null|Null|NULL)$/.test(value))
+    return null;
+  if (/^(?:true|True|TRUE)$/.test(value))
+    return true;
+  if (/^(?:false|False|FALSE)$/.test(value))
+    return false;
+  if (/^[-+]?(?:0|[1-9][0-9]*)$/.test(value)) {
+    const numeric = Number(value);
+    return Number.isSafeInteger(numeric) ? numeric : value;
+  }
+  if (/^[-+]?(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][-+]?[0-9]+)?$/.test(value) || /^[-+]?[0-9]+[eE][-+]?[0-9]+$/.test(value))
+    return Number(value);
+  return value;
+}
+function closingQuote(text, start) {
+  const quote = text[start];
+  for (let index = start + 1; index < text.length; index += 1) {
+    if (quote === '"' && text[index] === "\\") {
+      index += 1;
+      continue;
+    }
+    if (text[index] === quote) {
+      if (quote === "'" && text[index + 1] === "'") {
+        index += 1;
+        continue;
+      }
+      return index;
+    }
+  }
+  return -1;
+}
+function parseQuoted(line, text) {
+  const end = closingQuote(text, 0);
+  if (end === -1)
+    fail(line, "unterminated quoted scalar");
+  const body = text.slice(1, end);
+  if (text[0] === "'")
+    return body.replace(/''/g, "'");
+  return body.replace(/\\(u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)/g, (_, escape) => {
+    if (escape.length > 1)
+      return String.fromCharCode(parseInt(escape.slice(1), 16));
+    const simple = { n: "\n", t: "	", r: "\r", "0": "\0", '"': '"', "\\": "\\", "/": "/", " ": " ", b: "\b", f: "\f" };
+    if (!(escape in simple))
+      fail(line, `unsupported escape \\${escape}`);
+    return simple[escape];
+  });
+}
+function flowBalanced(text) {
+  let depth5 = 0;
+  let quote;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (quote) {
+      if (quote === '"' && char === "\\")
+        index += 1;
+      else if (char === quote)
+        quote = void 0;
+    } else if (char === '"' || char === "'")
+      quote = char;
+    else if (char === "{" || char === "[")
+      depth5 += 1;
+    else if (char === "}" || char === "]")
+      depth5 -= 1;
+  }
+  return depth5 <= 0 && !quote;
+}
+function skipSpace(parser) {
+  while (parser.index < parser.text.length && /\s/.test(parser.text[parser.index]))
+    parser.index += 1;
+}
+function parseFlowValue(parser, depth5) {
+  if (depth5 > MAX_DEPTH)
+    throw new YamlSubsetError("YAML nesting is deeper than FixMap reads");
+  skipSpace(parser);
+  const char = parser.text[parser.index];
+  if (char === "{")
+    return parseFlowMapping(parser, depth5 + 1);
+  if (char === "[")
+    return parseFlowSequence(parser, depth5 + 1);
+  if (char === '"' || char === "'") {
+    const end = closingQuote(parser.text, parser.index);
+    if (end === -1)
+      fail(parser.line, "unterminated quoted scalar");
+    const value = parseQuoted(parser.line, parser.text.slice(parser.index, end + 1));
+    parser.index = end + 1;
+    return value;
+  }
+  if (char !== void 0 && /[&*!]/.test(char))
+    fail(parser.line, "anchors, aliases, and tags are not supported");
+  const start = parser.index;
+  while (parser.index < parser.text.length && !/[,\]}]/.test(parser.text[parser.index]) && !(parser.text[parser.index] === ":" && /[\s,\]}]/.test(parser.text[parser.index + 1] ?? " ")))
+    parser.index += 1;
+  return resolvePlain(parser.text.slice(start, parser.index));
+}
+function parseFlowSequence(parser, depth5) {
+  parser.index += 1;
+  const values = [];
+  skipSpace(parser);
+  if (parser.text[parser.index] === "]") {
+    parser.index += 1;
+    return values;
+  }
+  for (; ; ) {
+    values.push(parseFlowValue(parser, depth5));
+    skipSpace(parser);
+    const char = parser.text[parser.index];
+    parser.index += 1;
+    if (char === "]")
+      return values;
+    if (char !== ",")
+      fail(parser.line, "expected , or ] in a flow sequence");
+    skipSpace(parser);
+    if (parser.text[parser.index] === "]") {
+      parser.index += 1;
+      return values;
+    }
+  }
+}
+function parseFlowMapping(parser, depth5) {
+  parser.index += 1;
+  const result = {};
+  skipSpace(parser);
+  if (parser.text[parser.index] === "}") {
+    parser.index += 1;
+    return result;
+  }
+  for (; ; ) {
+    const keyValue = parseFlowValue(parser, depth5);
+    if (keyValue !== null && typeof keyValue === "object")
+      fail(parser.line, "complex mapping keys are not supported");
+    const key = keyValue === null ? "" : String(keyValue);
+    if (key === "<<")
+      fail(parser.line, "merge keys are not supported");
+    if (Object.prototype.hasOwnProperty.call(result, key))
+      fail(parser.line, `duplicate key ${JSON.stringify(key)}`);
+    skipSpace(parser);
+    if (parser.text[parser.index] === ":") {
+      parser.index += 1;
+      skipSpace(parser);
+      const next = parser.text[parser.index];
+      result[key] = next === "," || next === "}" ? null : parseFlowValue(parser, depth5);
+    } else {
+      result[key] = null;
+    }
+    skipSpace(parser);
+    const char = parser.text[parser.index];
+    parser.index += 1;
+    if (char === "}")
+      return result;
+    if (char !== ",")
+      fail(parser.line, "expected , or } in a flow mapping");
+    skipSpace(parser);
+    if (parser.text[parser.index] === "}") {
+      parser.index += 1;
+      return result;
+    }
+  }
+}
+function fail(line, message2) {
+  throw new YamlSubsetError(`line ${line.number}: ${message2}`);
+}
+
 // packages/core/dist/contracts.js
 var HTTP_METHODS = /* @__PURE__ */ new Set(["get", "put", "post", "delete", "options", "head", "patch", "trace"]);
 var CONTRACT_PATH = /(?:^|\/)(?:openapi|swagger|asyncapi)(?:\.[^/]+)?\.(?:json|ya?ml)$|\.(?:graphql|gql|proto)$|(?:^|\/)migrations?\/.*\.sql$|\.schema\.json$/i;
@@ -8142,7 +8576,7 @@ function contractSourcesFromRepo(repo) {
   const sources = [];
   const diagnostics = [];
   for (const file of repo.files.filter((candidate) => isContractCandidate(candidate.path, candidate.textSample))) {
-    if (file.textSampleComplete === false || !file.contentFingerprint) {
+    if (file.textSampleComplete === false || !file.contentFingerprint || !file.isSource) {
       diagnostics.push({
         code: "contract-source-incomplete",
         severity: "warning",
@@ -8185,23 +8619,38 @@ function parseContract(source) {
     }
     return parsed(source, "graphql", graphql);
   }
-  if (lower.endsWith(".proto"))
-    return parsed(source, "protobuf", parseProtobuf(source.content));
+  if (lower.endsWith(".proto")) {
+    const syntax = /^\s*(?:syntax|edition)\s*=\s*["']([^"']+)["']/m.exec(source.content.replace(/\/\/[^\r\n]*/g, ""))?.[1];
+    return parsed(source, "protobuf", { ...parseProtobuf(source.content), ...syntax ? { version: syntax } : {} });
+  }
   if (/(?:^|\/)migrations?\/.*\.sql$/i.test(source.path))
     return parsed(source, "migration", parseMigration(source.content));
   const json = parseJson(source.content);
-  if (json) {
-    if (typeof json.openapi === "string" || typeof json.swagger === "string")
-      return parsed(source, "openapi", parseOpenApiJson(json));
-    if (typeof json.asyncapi === "string")
-      return parsed(source, "asyncapi", parseAsyncApiJson(json));
-    if (typeof json.$schema === "string" || isRecord7(json.properties))
-      return parsed(source, "json-schema", parseJsonSchema(json));
+  if (json)
+    return parsedStructured(source, json);
+  const yamlLike = /\.ya?ml$/i.test(source.path) || /^\s*(?:openapi|swagger|asyncapi)\s*:/m.test(source.content);
+  if (yamlLike) {
+    let document;
+    try {
+      document = parseYamlSubset(source.content);
+    } catch (error) {
+      if (!(error instanceof YamlSubsetError))
+        throw error;
+      return parseFailed(source, `YAML ${error.message}.`);
+    }
+    if (isRecord7(document)) {
+      for (const key of ["openapi", "swagger", "asyncapi"]) {
+        if (typeof document[key] !== "number")
+          continue;
+        const written = new RegExp(`^${key}\\s*:\\s*([^\\s#]+)`, "m").exec(source.content)?.[1];
+        if (written)
+          document[key] = written;
+      }
+      const structured = parsedStructured(source, document);
+      if (structured.surface || structured.diagnostic)
+        return structured;
+    }
   }
-  if (/^\s*(?:openapi|swagger)\s*:/m.test(source.content))
-    return parsed(source, "openapi", parseOpenApiYaml(source.content));
-  if (/^\s*asyncapi\s*:/m.test(source.content))
-    return parsed(source, "asyncapi", parseAsyncApiYaml(source.content));
   if (CONTRACT_PATH.test(source.path)) {
     return {
       diagnostic: {
@@ -8213,6 +8662,31 @@ function parseContract(source) {
     };
   }
   return {};
+}
+function parsedStructured(source, document) {
+  const openapi = specVersion(document.openapi) ?? specVersion(document.swagger);
+  if (openapi)
+    return parsed(source, "openapi", { ...parseOpenApiJson(document), version: openapi });
+  const asyncapi = specVersion(document.asyncapi);
+  if (asyncapi)
+    return parsed(source, "asyncapi", { ...parseAsyncApiJson(document), version: asyncapi });
+  if (typeof document.$schema === "string" || isRecord7(document.properties)) {
+    return parsed(source, "json-schema", {
+      ...parseJsonSchema(document),
+      ...typeof document.$schema === "string" ? { version: document.$schema } : {}
+    });
+  }
+  if (CONTRACT_PATH.test(source.path)) {
+    return parseFailed(source, "the document has no openapi, swagger, asyncapi, $schema, or properties marker.");
+  }
+  return {};
+}
+function specVersion(value) {
+  if (typeof value === "string" && value.trim())
+    return value.trim();
+  if (typeof value === "number" && Number.isFinite(value))
+    return String(value);
+  return void 0;
 }
 function parseFailed(source, detail) {
   return {
@@ -8231,6 +8705,7 @@ function parsed(source, kind, parsedSurface) {
       kind,
       path: source.path.replace(/\\/g, "/"),
       name: parsedSurface.name ?? source.path.split(/[\\/]/).at(-1) ?? source.path,
+      ...parsedSurface.version ? { version: parsedSurface.version } : {},
       sourceFingerprint: source.fingerprint,
       entries: normalizeEntries(parsedSurface.entries)
     }
@@ -8366,50 +8841,6 @@ function parseMigration(content) {
   }
   return { entries };
 }
-function parseOpenApiYaml(content) {
-  return parseChannelYaml(content, "paths", HTTP_METHODS);
-}
-function parseAsyncApiYaml(content) {
-  return parseChannelYaml(content, "channels", /* @__PURE__ */ new Set(["publish", "subscribe"]));
-}
-function parseChannelYaml(content, sectionName, operations) {
-  const entries = [];
-  const lines = content.split(/\r?\n/);
-  let inSection = false;
-  let sectionIndent = -1;
-  let currentPath;
-  let pathIndent = -1;
-  for (const raw of lines) {
-    const withoutComment = raw.replace(/\s+#.*$/, "");
-    const trimmed = withoutComment.trim();
-    if (!trimmed)
-      continue;
-    const indent = withoutComment.length - withoutComment.trimStart().length;
-    if (!inSection && trimmed === `${sectionName}:`) {
-      inSection = true;
-      sectionIndent = indent;
-      continue;
-    }
-    if (!inSection)
-      continue;
-    if (indent <= sectionIndent)
-      break;
-    const key = /^([^:]+):\s*$/.exec(trimmed)?.[1]?.trim();
-    if (!key)
-      continue;
-    if (indent > sectionIndent && (currentPath === void 0 || indent <= pathIndent)) {
-      currentPath = unquote2(key);
-      pathIndent = indent;
-      continue;
-    }
-    if (currentPath && indent > pathIndent && operations.has(key.toLowerCase())) {
-      const operation = sectionName === "paths" ? `${key.toUpperCase()} ${currentPath}` : `${key.toLowerCase()} ${currentPath}`;
-      entries.push(entry(`operation:${sectionName === "paths" ? operation : `${key.toLowerCase()}:${currentPath}`}`, "operation", operation));
-    }
-  }
-  const title = content.match(/^\s*title\s*:\s*["']?([^\r\n"']+)/m)?.[1]?.trim();
-  return { ...title ? { name: title } : {}, entries };
-}
 function entry(key, role, signature, required = false) {
   return { key, role, signature: signature.trim(), required };
 }
@@ -8461,9 +8892,6 @@ function parseJson(content) {
 function isRecord7(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function unquote2(value) {
-  return value.replace(/^["']|["']$/g, "");
-}
 function stableHash3(value) {
   let hash = 0xcbf29ce484222325n;
   for (const byte of new TextEncoder().encode(value)) {
@@ -8475,7 +8903,7 @@ function stableHash3(value) {
 
 // packages/core/dist/change-scope.js
 var MAX_ANCHORS = 64;
-var MAX_DEPTH = 8;
+var MAX_DEPTH2 = 8;
 var MAX_NODES = 2e3;
 function buildChangeScope(repo, input) {
   if (!Number.isFinite(Date.parse(input.asOf)))
@@ -8537,13 +8965,13 @@ function buildChangeScope(repo, input) {
   const visited = new Set(selectedPaths.keys());
   const queue = [...selectedPaths.keys()].map((path) => ({ path, distance: 0 }));
   while (queue.length > 0) {
-    const current = queue.shift();
-    if (current.distance >= traversal.maxDepth)
+    const current2 = queue.shift();
+    if (current2.distance >= traversal.maxDepth)
       continue;
-    for (const neighbor of scopeNeighbors(graph, current.path, traversal.direction)) {
+    for (const neighbor of scopeNeighbors(graph, current2.path, traversal.direction)) {
       if (visited.has(neighbor.path)) {
         const existing = affected.get(neighbor.path);
-        if (existing && current.distance + 1 <= existing.distance && !existing.evidence.some((entry2) => evidenceKey2(entry2) === evidenceKey2(neighbor.evidence))) {
+        if (existing && current2.distance + 1 <= existing.distance && !existing.evidence.some((entry2) => evidenceKey2(entry2) === evidenceKey2(neighbor.evidence))) {
           existing.evidence.push(neighbor.evidence);
           existing.evidence.sort((left, right) => left.kind.localeCompare(right.kind) || left.reason.localeCompare(right.reason));
         }
@@ -8554,7 +8982,7 @@ function buildChangeScope(repo, input) {
         continue;
       }
       visited.add(neighbor.path);
-      const distance = current.distance + 1;
+      const distance = current2.distance + 1;
       affected.set(neighbor.path, { distance, evidence: [neighbor.evidence] });
       queue.push({ path: neighbor.path, distance });
     }
@@ -8645,8 +9073,8 @@ function normalizeTraversal(input) {
   }
   const maxDepth = input.maxDepth ?? 2;
   const maxNodes = input.maxNodes ?? 200;
-  if (!Number.isSafeInteger(maxDepth) || maxDepth < 0 || maxDepth > MAX_DEPTH) {
-    throw new Error(`Change-scope maxDepth must be an integer from 0 to ${MAX_DEPTH}.`);
+  if (!Number.isSafeInteger(maxDepth) || maxDepth < 0 || maxDepth > MAX_DEPTH2) {
+    throw new Error(`Change-scope maxDepth must be an integer from 0 to ${MAX_DEPTH2}.`);
   }
   if (!Number.isSafeInteger(maxNodes) || maxNodes < 1 || maxNodes > MAX_NODES) {
     throw new Error(`Change-scope maxNodes must be an integer from 1 to ${MAX_NODES}.`);
@@ -9437,21 +9865,21 @@ function capabilitySnapshot(historical, id, asOf) {
     testAssociations
   };
 }
-function comparePaths(previous, current) {
-  return compareMaps(new Map(previous.map((entry2) => [entry2.path, entry2.sourceFingerprint ?? "unknown"])), new Map(current.map((entry2) => [entry2.path, entry2.sourceFingerprint ?? "unknown"])));
+function comparePaths(previous, current2) {
+  return compareMaps(new Map(previous.map((entry2) => [entry2.path, entry2.sourceFingerprint ?? "unknown"])), new Map(current2.map((entry2) => [entry2.path, entry2.sourceFingerprint ?? "unknown"])));
 }
-function compareEntities(previous, current) {
-  return compareMaps(new Map(previous.map((entry2) => [entry2.id, entry2.fingerprint])), new Map(current.map((entry2) => [entry2.id, entry2.fingerprint])));
+function compareEntities(previous, current2) {
+  return compareMaps(new Map(previous.map((entry2) => [entry2.id, entry2.fingerprint])), new Map(current2.map((entry2) => [entry2.id, entry2.fingerprint])));
 }
-function compareMaps(previous, current) {
-  const keys = [.../* @__PURE__ */ new Set([...previous.keys(), ...current.keys()])].sort();
+function compareMaps(previous, current2) {
+  const keys = [.../* @__PURE__ */ new Set([...previous.keys(), ...current2.keys()])].sort();
   const result = { added: [], removed: [], modified: [], unchanged: [] };
   for (const key of keys) {
     if (!previous.has(key))
       result.added.push(key);
-    else if (!current.has(key))
+    else if (!current2.has(key))
       result.removed.push(key);
-    else if (previous.get(key) !== current.get(key))
+    else if (previous.get(key) !== current2.get(key))
       result.modified.push(key);
     else
       result.unchanged.push(key);
@@ -9478,6 +9906,14 @@ function canonicalize2(value) {
   }
   return JSON.stringify(value);
 }
+
+// packages/core/dist/contracts-repository.js
+import { execFile as execFile4 } from "node:child_process";
+import { promisify as promisify4 } from "node:util";
+var exec4 = promisify4(execFile4);
+var MAX_CONTRACT_BYTES = 2 * 1024 * 1024;
+var MAX_TREE_BYTES2 = 32 * 1024 * 1024;
+var MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 
 // packages/action/src/annotations.ts
 async function runAnnotationAction(input, repoRoot, allowWrite) {
@@ -10281,19 +10717,19 @@ function trimToBoundary(text) {
 }
 function splitExcludeInput(raw) {
   const patterns2 = [];
-  let current = "";
+  let current2 = "";
   let depth5 = 0;
   for (const character of raw) {
     if (character === "{") depth5 += 1;
     else if (character === "}") depth5 = Math.max(0, depth5 - 1);
     if (character === "\n" || character === "\r" || character === "," && depth5 === 0) {
-      patterns2.push(current);
-      current = "";
+      patterns2.push(current2);
+      current2 = "";
       continue;
     }
-    current += character;
+    current2 += character;
   }
-  patterns2.push(current);
+  patterns2.push(current2);
   return patterns2.map((pattern) => pattern.trim()).filter(Boolean);
 }
 function fitStepSummary(markdown, limitBytes = STEP_SUMMARY_LIMIT_BYTES) {
