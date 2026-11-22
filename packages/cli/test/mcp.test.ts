@@ -165,6 +165,19 @@ describe("fixmap mcp server", () => {
     expect(delivered).toContainEqual({ jsonrpc: "2.0", id: 10, method: "tools/list" });
   });
 
+  it("labels every unfinished tool as a preview and leaves finished tools unlabeled", async () => {
+    const client = await connectClient();
+    const { tools } = await client.listTools();
+    const preview = tools.filter((tool) => tool.description?.startsWith("Preview (may change before v0.10.0): ")).map((tool) => tool.name).sort();
+    expect(preview).toEqual([
+      "fixmap_ask", "fixmap_capability", "fixmap_change_scope", "fixmap_history", "fixmap_migrate",
+      "fixmap_reverse_docs", "fixmap_runtime", "fixmap_supply_chain", "fixmap_workspace"
+    ]);
+    for (const finished of ["fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"]) {
+      expect(preview).not.toContain(finished);
+    }
+  });
+
   it("exposes deterministic change scope and persistent capability maps without semantic input", { timeout: 30_000 }, async () => {
     const root = await createAuthFixture();
     await mkdir(join(root, ".fixmap"), { recursive: true });

@@ -253,7 +253,7 @@ const WORKSPACE_TOOL = {
   name: "fixmap_workspace",
   title: "FixMap workspace",
   description:
-    "Build a versioned package and impact graph across 1-32 local repository checkouts from a reviewed JSON config. " +
+    "Preview (may change before v0.10.0): Build a versioned package and impact graph across 1-32 local repository checkouts from a reviewed JSON config. " +
     "Resolves Node, Python, and Maven package versions plus manifest/import/submodule evidence without executing repository code. " +
     "Use seeds to trace provider-to-consumer impact.",
   inputSchema: {
@@ -277,7 +277,7 @@ const CHANGE_SCOPE_TOOL = {
   name: "fixmap_change_scope",
   title: "FixMap change scope",
   description:
-    "Expand explicit planned files/directories over bounded import and dependent evidence, then join tests, contracts, ADRs, owners, and architecture policy. " +
+    "Preview (may change before v0.10.0): Expand explicit planned files/directories over bounded import and dependent evidence, then join tests, contracts, ADRs, owners, and architecture policy. " +
     "The caller supplies every starting anchor; FixMap does not interpret product requirements, call an API or LLM, or require an account.",
   inputSchema: {
     type: "object" as const,
@@ -301,7 +301,7 @@ const CAPABILITY_TOOL = {
   name: "fixmap_capability",
   title: "FixMap capability",
   description:
-    "List human-owned product capabilities, rebuild one current capability map, or compare it across exact Git refs from .fixmap/capabilities.json. " +
+    "Preview (may change before v0.10.0): List human-owned product capabilities, rebuild one current capability map, or compare it across exact Git refs from .fixmap/capabilities.json. " +
     "The store contains explicit names, anchors, and bounds only; no generated conclusions, API, LLM, semantic inference, or account.",
   inputSchema: {
     type: "object" as const,
@@ -321,7 +321,7 @@ const ASK_TOOL = {
   name: "fixmap_ask",
   title: "FixMap ask",
   description:
-    "Answer structural questions from a saved FixMap report using ranked context, impact, tests, risks, diagnostics, annotations, ADRs, and architecture policy. " +
+    "Preview (may change before v0.10.0): Answer structural questions from a saved FixMap report using ranked context, impact, tests, risks, diagnostics, annotations, ADRs, and architecture policy. " +
     "Deterministic mode reads no source content, calls no model, cites report evidence, and preserves unknowns instead of guessing.",
   inputSchema: {
     type: "object" as const,
@@ -342,7 +342,7 @@ const MIGRATION_TOOL = {
   name: "fixmap_migrate",
   title: "FixMap migrate",
   description:
-    "Build dependency-ordered, review-only migration phases against one exact identity graph. " +
+    "Preview (may change before v0.10.0): Build dependency-ordered, review-only migration phases against one exact identity graph. " +
     "Every explicit step must declare edits, compatibility, tests, and rollback; cycles, unknown identities, and unsafe parallel overlap fail closed. " +
     "This tool never executes commands or applies changes.",
   inputSchema: {
@@ -363,7 +363,7 @@ const REVERSE_DOCS_TOOL = {
   name: "fixmap_reverse_docs",
   title: "FixMap reverse docs",
   description:
-    "Build deterministic, review-only module or architecture documentation drafts from exact file fingerprints, structural edges, and authored decisions. " +
+    "Preview (may change before v0.10.0): Build deterministic, review-only module or architecture documentation drafts from exact file fingerprints, structural edges, and authored decisions. " +
     "Observations, inferences, and unknowns remain separate; this tool never writes or overwrites repository files.",
   inputSchema: {
     type: "object" as const,
@@ -383,7 +383,7 @@ const HISTORY_TOOL = {
   name: "fixmap_history",
   title: "FixMap history",
   description:
-    "Compare architecture at two exact committed Git refs without checking out either ref or changing the worktree. " +
+    "Preview (may change before v0.10.0): Compare architecture at two exact committed Git refs without checking out either ref or changing the worktree. " +
     "Returns immutable commit IDs plus added/removed edges, cycle and boundary drift, and coupling growth.",
   inputSchema: {
     type: "object" as const,
@@ -404,7 +404,7 @@ const SUPPLY_CHAIN_TOOL = {
   name: "fixmap_supply_chain",
   title: "FixMap supply chain",
   description:
-    "Validate and render a version-1 normalized external scanner or SBOM bundle with package-aware vulnerability, outdated-version, and license-policy evidence. " +
+    "Preview (may change before v0.10.0): Validate and render a version-1 normalized external scanner or SBOM bundle with package-aware vulnerability, outdated-version, and license-policy evidence. " +
     "FixMap never fetches advisory data, maintains no vulnerability corpus, executes no scanner, and authorizes no remediation.",
   inputSchema: {
     type: "object" as const,
@@ -424,7 +424,7 @@ const RUNTIME_TOOL = {
   name: "fixmap_runtime",
   title: "FixMap runtime",
   description:
-    "Map a redaction-reviewed OpenTelemetry, normalized APM, Speedscope, or pprof bundle only through explicit repository IDs, paths, and exact file fingerprints. " +
+    "Preview (may change before v0.10.0): Map a redaction-reviewed OpenTelemetry, normalized APM, Speedscope, or pprof bundle only through explicit repository IDs, paths, and exact file fingerprints. " +
     "Labels and symbols never establish identity; correlation never establishes causality.",
   inputSchema: {
     type: "object" as const,

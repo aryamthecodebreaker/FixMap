@@ -194,6 +194,28 @@ describe("CLI argument handling", () => {
     expect(io.stdout.join("")).toContain("fixmap setup");
   });
 
+  it("marks unfinished features as previews in the catalog and help", async () => {
+    const catalog = capture();
+    expect(await runCli(["features", "--format", "json"], catalog.dependencies)).toBe(0);
+    const features = (JSON.parse(catalog.stdout.join("")) as { features: Array<{ name: string; preview?: true }> }).features;
+    expect(features.filter((feature) => feature.preview).map((feature) => feature.name)).toEqual([
+      "Change scope", "Product capabilities", "Cross-repository workspace", "Repository Q&A", "Migration planning",
+      "Reverse documentation", "Architecture history", "Supply-chain evidence", "Runtime evidence", "Execution sandbox",
+      "Local hybrid retrieval"
+    ]);
+    expect(features.find((feature) => feature.name === "Plan")?.preview).toBeUndefined();
+
+    const help = capture();
+    expect(await runCli(["--help"], help.dependencies)).toBe(0);
+    const commands = help.stdout.join("").split("Commands:")[1]?.split("Options:")[0] ?? "";
+    for (const command of ["change-scope", "editor", "capability", "capabilities", "workspace", "ask", "migrate", "reverse-docs", "history", "supply-chain", "runtime", "sandbox"]) {
+      expect(commands).toMatch(new RegExp(`\\n  ${command} +Preview: `));
+    }
+    for (const command of ["plan", "verify", "context", "graph", "annotate", "watch"]) {
+      expect(commands).not.toMatch(new RegExp(`\\n  ${command} +Preview: `));
+    }
+  });
+
   it("documents the features subcommand directly", async () => {
     const io = capture();
     expect(await runCli(["features", "--help"], io.dependencies)).toBe(0);

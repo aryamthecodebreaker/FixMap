@@ -239,6 +239,8 @@ contract, decision, test-association, reviewer, and architecture evidence.
 
 ## Complete feature catalog
 
+> **Preview features.** `change-scope`, `capability` / `capabilities`, `workspace`, `ask`, `migrate`, `reverse-docs`, `history`, `supply-chain`, `runtime`, `sandbox`, `editor`, `--semantic-model`, and their MCP tools are previews: they work and are tested, but their output and options may change before v0.10.0. Language support beyond JavaScript and TypeScript is also preview quality while testing on unseen repositories continues. `fixmap features` lists which features are previews.
+
 ### Inputs and repository mapping
 
 - Accepts a public GitHub issue or pull-request URL, plain task text, a UTF-8 or UTF-16 `--issue-file` (including common BOM-less Windows UTF-16 files), bare piped task text, or explicit stdin through `--issue-file -` / `--issue -`. Very long task text should use a file or stdin because an inline `--issue` can exceed Windows' process command-line limit before FixMap starts.
@@ -449,7 +451,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: aryamthecodebreaker/FixMap@v0.9.1
+      - uses: aryamthecodebreaker/FixMap@v0.9.2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```

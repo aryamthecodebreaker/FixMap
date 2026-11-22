@@ -1,6 +1,6 @@
 {
   "name": "fixmap-workspace",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "private": true,
   "description": "Local-first repo intelligence for coding agents: ranked context, likely impact, test routes, risks, and repository benchmarks.",
   "license": "MIT",

@@ -6,6 +6,40 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.2 - 2026-11-22
+
+This release ships the work built toward v0.10.0 so far. Commands and options marked **preview** work and are tested, but their output and options may still change before v0.10.0. `fixmap --help`, `fixmap features`, and the MCP tool descriptions label them.
+
+### Fixed
+
+- Report validation names the exact `contextFiles[index].path` and quotes a rejected traversal or absolute path (#635).
+- CLI help directs long task text to `--issue-file` or stdin, because Windows can reject very long command lines before FixMap starts (#636).
+- The MCP server answers requests sent before initialization with JSON-RPC `-32002` and malformed JSON with `-32700` (#637).
+- The website package can be started in production mode, and the smoke gate checks the built site (#638).
+- Action documentation names the real `plan --explain` and `plan --compare` forms (#639).
+- Earlier FixMap reports, context packs, and setup files no longer compete with repository files in ranking (#640).
+- A routed test is attributed to the source file it imports before path proximity is considered (#641).
+- `fixmap doctor` treats the `.cmd`, `.ps1`, and extensionless npm launchers in one directory as one installation on Windows (#642).
+- Reports keep direct imports between primary files, so graph exports no longer drop those edges (#643).
+- Context ranges no longer extend one line past the end of a file (#644).
+- Ten further correctness fixes from an external audit, including UTF-16-safe diagnostic truncation, `sk-` secret redaction, SHA-256 Git object IDs, and explicit single-ref diffs no longer absorbing untracked files.
+- A scan rooted inside a larger Git checkout reads only its own history.
+- A raw NUL byte in one CLI source file made FixMap's own scanner treat it as binary.
+
+### Added
+
+- `fixmap annotate` (CLI, MCP, and Action) records reviewable notes on files, symbols, services, or contracts, with optional owner and expiry. Active notes appear in Plan reports.
+- Architecture decision records and exported pull-request rationale in the repository appear in reports as authored decisions, with their status and supersession.
+- Plan understands imports, definitions, and test layouts for Python, Java, Go, Rust, Ruby, PHP, and .NET alongside JavaScript and TypeScript. This language support is preview quality: testing on unseen repositories is still in progress.
+
+### Preview
+
+- `fixmap change-scope`, `fixmap capability` / `capabilities`, `fixmap workspace`, `fixmap ask`, `fixmap migrate`, `fixmap reverse-docs`, `fixmap history`, `fixmap supply-chain`, `fixmap runtime`, `fixmap sandbox`, `fixmap editor`, and `--semantic-model`, plus the matching MCP tools.
+
+### Release engineering
+
+- The publish workflow waits up to five minutes for npm and the MCP Registry to show a new version, instead of one minute.
+
 ## 0.9.1 - 2026-11-22
 
 ### Security

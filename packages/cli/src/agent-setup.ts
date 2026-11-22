@@ -5,21 +5,21 @@ import { setTimeout as delay } from "node:timers/promises";
 
 export type AgentTarget = "claude" | "cursor" | "copilot" | "agents";
 
-export const FIXMAP_FEATURES = [
+export const FIXMAP_FEATURES: ReadonlyArray<{ readonly name: string; readonly command: string; readonly detail: string; readonly preview?: true }> = [
   { name: "Plan", command: "fixmap plan", detail: "Rank context files, test routes, risks, changed files, and uncertainty from a task, issue URL, diff, or working tree." },
   { name: "Impact Graph", command: "fixmap plan", detail: "Map likely dependents, dependencies, tests, and repeated Git co-change relationships around the primary context, with explicit evidence." },
   { name: "Context Pack", command: "fixmap context --issue <task> --budget 10000", detail: "Select task-aware source ranges from primary and impact files within a deterministic token budget." },
   { name: "Graph export", command: "fixmap graph --issue <task> --format mermaid", detail: "Export imports, reverse dependents, routed tests, and co-change evidence as Mermaid or JSON." },
-  { name: "Change scope", command: "fixmap change-scope --touch <path> [--add <path>]", detail: "Expand explicit planned code surfaces into bounded dependencies, dependents, tests, contracts, decisions, reviewers, and policy evidence without interpreting product requirements." },
-  { name: "Product capabilities", command: "fixmap capability <id>", detail: "Persist human-named product capabilities as reviewed path anchors, rebuild their current implementation map, or diff exact Git refs without checkout; generated conclusions never enter the store." },
-  { name: "Cross-repository workspace", command: "fixmap workspace --config .fixmap/workspace.json --seed <repository-id>", detail: "Resolve Node, Python, and Maven package identities across local checkouts, then trace provider-to-consumer impact with manifest and import evidence." },
-  { name: "Repository Q&A", command: "fixmap ask --report <plan.json> --question <text>", detail: "Answer structural context, impact, test, risk, and rationale questions from report evidence only, with citations and explicit unknowns." },
-  { name: "Migration planning", command: "fixmap migrate --input <migration.json>", detail: "Validate an exact identity graph and explicit steps, then order compatibility windows, tests, rollback points, and blast radius without applying changes." },
-  { name: "Reverse documentation", command: "fixmap reverse-docs --input <reverse-docs.json>", detail: "Draft review-only module or architecture Markdown from exact file fingerprints, structural edges, and authored decisions without writing repository files." },
-  { name: "Architecture history", command: "fixmap history --repo . --from <ref> --to <ref>", detail: "Compare exact committed architecture snapshots without checking out either ref or changing the worktree." },
-  { name: "Supply-chain evidence", command: "fixmap supply-chain --input <bundle.json>", detail: "Validate normalized external scanner or SBOM evidence with exact tool, database, document, advisory, version, and license provenance." },
-  { name: "Runtime evidence", command: "fixmap runtime --input <runtime.json>", detail: "Map redaction-reviewed OpenTelemetry, APM, Speedscope, or pprof observations only through exact repository paths and file fingerprints." },
-  { name: "Execution sandbox", command: "fixmap sandbox --request <sandbox.json> --execute-declared-command", detail: "Run exactly one reviewed command in an already-present digest-pinned Docker image with network off and source/root read-only by default." },
+  { name: "Change scope", preview: true, command: "fixmap change-scope --touch <path> [--add <path>]", detail: "Expand explicit planned code surfaces into bounded dependencies, dependents, tests, contracts, decisions, reviewers, and policy evidence without interpreting product requirements." },
+  { name: "Product capabilities", preview: true, command: "fixmap capability <id>", detail: "Persist human-named product capabilities as reviewed path anchors, rebuild their current implementation map, or diff exact Git refs without checkout; generated conclusions never enter the store." },
+  { name: "Cross-repository workspace", preview: true, command: "fixmap workspace --config .fixmap/workspace.json --seed <repository-id>", detail: "Resolve Node, Python, and Maven package identities across local checkouts, then trace provider-to-consumer impact with manifest and import evidence." },
+  { name: "Repository Q&A", preview: true, command: "fixmap ask --report <plan.json> --question <text>", detail: "Answer structural context, impact, test, risk, and rationale questions from report evidence only, with citations and explicit unknowns." },
+  { name: "Migration planning", preview: true, command: "fixmap migrate --input <migration.json>", detail: "Validate an exact identity graph and explicit steps, then order compatibility windows, tests, rollback points, and blast radius without applying changes." },
+  { name: "Reverse documentation", preview: true, command: "fixmap reverse-docs --input <reverse-docs.json>", detail: "Draft review-only module or architecture Markdown from exact file fingerprints, structural edges, and authored decisions without writing repository files." },
+  { name: "Architecture history", preview: true, command: "fixmap history --repo . --from <ref> --to <ref>", detail: "Compare exact committed architecture snapshots without checking out either ref or changing the worktree." },
+  { name: "Supply-chain evidence", preview: true, command: "fixmap supply-chain --input <bundle.json>", detail: "Validate normalized external scanner or SBOM evidence with exact tool, database, document, advisory, version, and license provenance." },
+  { name: "Runtime evidence", preview: true, command: "fixmap runtime --input <runtime.json>", detail: "Map redaction-reviewed OpenTelemetry, APM, Speedscope, or pprof observations only through exact repository paths and file fingerprints." },
+  { name: "Execution sandbox", preview: true, command: "fixmap sandbox --request <sandbox.json> --execute-declared-command", detail: "Run exactly one reviewed command in an already-present digest-pinned Docker image with network off and source/root read-only by default." },
   { name: "Explain", command: "fixmap plan --explain <path>", detail: "Show whether a path ranked, tied below the limit, was excluded, or was never scanned." },
   { name: "Compare", command: "fixmap plan --compare <report.json>", detail: "Compare a refined task and current plan with an earlier JSON report." },
   { name: "Verify", command: "fixmap verify --report <report.json>", detail: "Compare the completed diff or working tree with the saved plan; add --fail-on warning for a strict CI gate." },
@@ -32,7 +32,7 @@ export const FIXMAP_FEATURES = [
   { name: "Focus", command: "--limit, --exclude, .fixmapignore", detail: "Narrow ranking without changing the repository." },
   { name: "Live changes", command: "--working-tree --include-untracked", detail: "Map staged, unstaged, and optionally untracked work against HEAD." },
   { name: "Fresh scan", command: "--no-cache", detail: "Bypass the exact git-state cache with CLI --no-cache, MCP noCache: true, or Action no-cache: true, and report that a fresh scan was used." },
-  { name: "Local hybrid retrieval", command: "--semantic-model <dir>", detail: "Opt into structural + BM25 + local embedding rank fusion with a pre-existing model directory; model loading is local-files-only and source is never uploaded." },
+  { name: "Local hybrid retrieval", preview: true, command: "--semantic-model <dir>", detail: "Opt into structural + BM25 + local embedding rank fusion with a pre-existing model directory; model loading is local-files-only and source is never uploaded." },
   { name: "Machine output", command: "--format json --output <file>", detail: "Emit a versioned JSON contract or readable Markdown without executing repository code." },
   { name: "Compact agent output", command: "--format agent", detail: "Emit EDIT CANDIDATE, INSPECT, TEST, RISK, AVOID, and UNCERTAINTY sections for a small context window." },
   { name: "Repository benchmark", command: "fixmap benchmark --repo . --last 50", detail: "Backtest BM25, FixMap, and Impact Graph on historical parent snapshots with history cut off before each target change." },
@@ -42,7 +42,7 @@ export const FIXMAP_FEATURES = [
   { name: "Risk and diagnostics", command: "fixmap plan", detail: "Report bounded risk areas, grounding quality, unread content, scan limits, package-manager conflicts, and unresolved diffs." },
   { name: "GitHub Action", command: "uses: aryamthecodebreaker/FixMap@<version>", detail: "Plan or verify pull requests with bounded summaries, outputs, and one updated comment." },
   { name: "Agent setup", command: "fixmap setup --agent <name|all>", detail: "Explicitly install the discoverable /fixmap command for Claude Code, Cursor, GitHub Copilot, or Agent Skills; bare setup is preview-only." }
-] as const;
+];
 
 export function renderFeatureCatalog(format: "markdown" | "json" = "markdown"): string {
   if (format === "json") return `${JSON.stringify({ features: FIXMAP_FEATURES }, null, 2)}\n`;
@@ -50,9 +50,11 @@ export function renderFeatureCatalog(format: "markdown" | "json" = "markdown"): 
     "# FixMap features",
     "",
     ...FIXMAP_FEATURES.flatMap((feature) => [
-      `- **${feature.name}** — \`${feature.command}\``,
+      `- **${feature.name}**${feature.preview ? " (preview)" : ""} — \`${feature.command}\``,
       `  ${feature.detail}`
     ]),
+    "",
+    "Preview features work and are tested, but their output and options may still change before v0.10.0.",
     "",
     "Run `fixmap setup --agent all` to install `/fixmap` discovery for supported coding agents; bare `fixmap setup` is preview-only.",
     ""

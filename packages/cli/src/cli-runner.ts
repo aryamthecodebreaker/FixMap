@@ -127,20 +127,20 @@ Commands:
   doctor              Check the FixMap install for stale global or npx shadows
   validate            Validate a saved FixMap JSON report
   benchmark           Backtest BM25, FixMap, and Impact Graph on pre-change snapshots
-  change-scope        Expand explicit planned paths into bounded structural consequences
-  editor              Serve a local read-only NDJSON editor session
-  capability          Create, update, remove, or show a persistent product capability
-  capabilities        List persistent product capabilities declared by the repository
+  change-scope        Preview: Expand explicit planned paths into bounded structural consequences
+  editor              Preview: Serve a local read-only NDJSON editor session
+  capability          Preview: Create, update, remove, or show a persistent product capability
+  capabilities        Preview: List persistent product capabilities declared by the repository
   context             Package the highest-value source ranges within a token budget
   graph               Export the evidence-backed Impact Graph as Mermaid or JSON
-  workspace           Map package dependencies and impact across local repositories
-  ask                 Answer structural questions from a saved report with citations
-  migrate             Build a dependency-ordered, review-only migration plan
-  reverse-docs        Draft review-only documentation from exact structural evidence
-  history             Compare architecture at two committed Git refs without checkout
-  supply-chain        Import normalized external scanner and SBOM evidence
-  runtime             Map redaction-reviewed runtime evidence to exact files
-  sandbox             Run one explicitly consented command in an isolated container
+  workspace           Preview: Map package dependencies and impact across local repositories
+  ask                 Preview: Answer structural questions from a saved report with citations
+  migrate             Preview: Build a dependency-ordered, review-only migration plan
+  reverse-docs        Preview: Draft review-only documentation from exact structural evidence
+  history             Preview: Compare architecture at two committed Git refs without checkout
+  supply-chain        Preview: Import normalized external scanner and SBOM evidence
+  runtime             Preview: Map redaction-reviewed runtime evidence to exact files
+  sandbox             Preview: Run one explicitly consented command in an isolated container
   watch               Recheck working-tree drift and impact whenever edits change
   annotate            Attach reviewable tribal knowledge to files, symbols, services, or contracts
   features            List every FixMap capability and its command
