@@ -12,15 +12,15 @@ Describe what is broken. FixMap checks the project and gives tools like Codex, C
 [![Marketplace](https://img.shields.io/badge/GitHub_Marketplace-FixMap-2ea44f?logo=github)](https://github.com/marketplace/actions/fixmap)
 [![MIT](https://img.shields.io/badge/license-MIT-74f0ba)](LICENSE)
 
-[Website](https://usefixmap.vercel.app) · [Use cases](https://usefixmap.vercel.app/use-cases) · [Live demo](https://usefixmap.vercel.app/demo) · [Documentation](https://usefixmap.vercel.app/docs) · [Evidence](https://usefixmap.vercel.app/evidence) · [Changelog](CHANGELOG.md)
+[Website](https://fixmap.aryam.me) · [Use cases](https://fixmap.aryam.me/use-cases) · [Live demo](https://fixmap.aryam.me/demo) · [Documentation](https://fixmap.aryam.me/docs) · [Evidence](https://fixmap.aryam.me/evidence) · [Changelog](CHANGELOG.md)
 
 </div>
 
-[![FixMap workflow video opening frame: req.fresh returns false for QUERY requests, so 304 Not Modified is never set](apps/web/public/fixmap-launch-poster.jpg)](https://usefixmap.vercel.app/fixmap-launch.mp4)
+[![FixMap workflow video opening frame: req.fresh returns false for QUERY requests, so 304 Not Modified is never set](apps/web/public/fixmap-launch-poster.jpg)](https://fixmap.aryam.me/fixmap-launch.mp4)
 
-<p align="center"><a href="https://usefixmap.vercel.app/fixmap-launch.mp4">Watch the 31-second FixMap workflow video with sound</a></p>
+<p align="center"><a href="https://fixmap.aryam.me/fixmap-launch.mp4">Watch the 31-second FixMap workflow video with sound</a></p>
 
-Try a task in the [homepage sample](https://usefixmap.vercel.app). It runs the real FixMap Plan engine in the tab against the bundled `sample-api` project. It does not inspect your repository or upload the task text. Use [Get started](https://usefixmap.vercel.app/get-started) for your own repository, or open the [full browser demo](https://usefixmap.vercel.app/demo) for advanced workflows.
+Try a task in the [homepage sample](https://fixmap.aryam.me). It runs the real FixMap Plan engine in the tab against the bundled `sample-api` project. It does not inspect your repository or upload the task text. Use [Get started](https://fixmap.aryam.me/get-started) for your own repository, or open the [full browser demo](https://fixmap.aryam.me/demo) for advanced workflows.
 
 ![A generated FixMap CLI report showing ranked context files, test routes, risks, analysis, and diagnostics](docs/assets/fixmap-cli-demo.svg)
 
@@ -223,7 +223,7 @@ Example client configuration:
 }
 ```
 
-See the [MCP setup guide](https://usefixmap.vercel.app/get-started#mcp) for client-specific instructions.
+See the [MCP setup guide](https://fixmap.aryam.me/get-started#mcp) for client-specific instructions.
 
 ## GitHub Action
 
@@ -243,7 +243,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: aryamthecodebreaker/FixMap@v0.9.0
+      - uses: aryamthecodebreaker/FixMap@v0.9.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -256,7 +256,7 @@ New plans include `"reportVersion": 1`. Within a report version, fields may be a
 
 ## Evidence
 
-The [evidence page](https://usefixmap.vercel.app/evidence) is generated from the checked-in held-out, regression, baseline, performance, and adversarial records. It publishes misses and confidence intervals alongside hits. CI rejects empty evaluation files, stale rendered artifacts, adversarial regressions, Action bundle drift, and benchmark drift.
+The [evidence page](https://fixmap.aryam.me/evidence) is generated from the checked-in held-out, regression, baseline, performance, and adversarial records. It publishes misses and confidence intervals alongside hits. CI rejects empty evaluation files, stale rendered artifacts, adversarial regressions, Action bundle drift, and benchmark drift.
 
 ## Safety boundary
 
@@ -271,11 +271,11 @@ npm ci
 npm run ci
 ```
 
-The workspace contains the deterministic core, CLI/MCP server, GitHub Action, Next.js website, benchmarks, examples, and release scripts. Start with [CONTRIBUTING.md](CONTRIBUTING.md); architecture and full usage details live in the [documentation site](https://usefixmap.vercel.app/docs).
+The workspace contains the deterministic core, CLI/MCP server, GitHub Action, Next.js website, benchmarks, examples, and release scripts. Start with [CONTRIBUTING.md](CONTRIBUTING.md); architecture and full usage details live in the [documentation site](https://fixmap.aryam.me/docs).
 
 ## Releases
 
-Release notes live in [CHANGELOG.md](CHANGELOG.md) and on the generated [website changelog](https://usefixmap.vercel.app/changelog). The publish workflow verifies internal versions, npm packages, MCP Registry metadata, Action metadata and bundle, the GitHub release, and a clean installed CLI before a release is complete.
+Release notes live in [CHANGELOG.md](CHANGELOG.md) and on the generated [website changelog](https://fixmap.aryam.me/changelog). The publish workflow verifies internal versions, npm packages, MCP Registry metadata, Action metadata and bundle, the GitHub release, and a clean installed CLI before a release is complete.
 
 ## License
 

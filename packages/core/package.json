@@ -1,6 +1,6 @@
 {
   "name": "@aryam/fixmap-core",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Deterministic local-first repository scanner, context ranker, Impact Graph, and report renderer for coding agents.",
   "license": "MIT",
   "repository": {
@@ -8,7 +8,7 @@
     "url": "git+https://github.com/aryamthecodebreaker/FixMap.git",
     "directory": "packages/core"
   },
-  "homepage": "https://usefixmap.vercel.app",
+  "homepage": "https://fixmap.aryam.me",
   "bugs": {
     "url": "https://github.com/aryamthecodebreaker/FixMap/issues"
   },

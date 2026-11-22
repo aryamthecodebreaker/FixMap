@@ -44,9 +44,27 @@ type Release = {
 
 const releases: Release[] = [
   {
+    version: "0.9.1",
+    date: "November 22, 2026",
+    label: "Latest release",
+    summary: "A security release: the MCP server's SDK and every flagged dependency are updated, with no change to ranking, reports, or commands.",
+    groups: [
+      {
+        label: "Security",
+        items: [
+          "The CLI and MCP server now depend on @modelcontextprotocol/sdk 1.32.0, resolving six SDK security advisories.",
+          "Every open advisory in FixMap's dependency tree is resolved, including the MCP transport stack and the website toolchain; npm audit reports zero vulnerabilities and every package has a verified registry signature."
+        ]
+      },
+      {
+        label: "Improved",
+        items: ["Package metadata, the README, and the npm page point to the canonical site at fixmap.aryam.me."]
+      }
+    ]
+  },
+  {
     version: "0.9.0",
     date: "August 13, 2026",
-    label: "Latest release",
     summary: "Impact Graph, budgeted Context Packs, portable graph export, continuous Watch, compact agent output, and honest repository-local benchmarking form FixMap's first feature release.",
     groups: [
       {
