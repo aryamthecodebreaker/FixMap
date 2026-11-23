@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from "node:child_process";
-import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, readFile, symlink } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -220,7 +220,7 @@ describe("fixmap mcp server", () => {
     const { tools } = await client.listTools();
     const preview = tools.filter((tool) => tool.description?.startsWith("Preview (may change before v0.10.0): ")).map((tool) => tool.name).sort();
     expect(preview).toEqual([
-      "fixmap_ask", "fixmap_capability", "fixmap_change_scope", "fixmap_contracts", "fixmap_dossier", "fixmap_history", "fixmap_migrate",
+      "fixmap_alternatives", "fixmap_ask", "fixmap_capability", "fixmap_change_scope", "fixmap_contracts", "fixmap_dossier", "fixmap_history", "fixmap_migrate",
       "fixmap_outcomes", "fixmap_reverse_docs", "fixmap_reviewers", "fixmap_runtime", "fixmap_supply_chain", "fixmap_workspace"
     ]);
     for (const finished of ["fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor"]) {
@@ -418,7 +418,7 @@ describe("fixmap mcp server", () => {
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_change_scope", "fixmap_reviewers", "fixmap_capability", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_reverse_docs", "fixmap_history", "fixmap_contracts", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor", "fixmap_annotate", "fixmap_outcomes", "fixmap_dossier"
+      "fixmap_plan", "fixmap_context", "fixmap_graph", "fixmap_change_scope", "fixmap_reviewers", "fixmap_capability", "fixmap_workspace", "fixmap_ask", "fixmap_migrate", "fixmap_alternatives", "fixmap_reverse_docs", "fixmap_history", "fixmap_contracts", "fixmap_supply_chain", "fixmap_runtime", "fixmap_verify", "fixmap_explain", "fixmap_compare", "fixmap_doctor", "fixmap_annotate", "fixmap_outcomes", "fixmap_dossier"
     ]);
     const plan = tools.tools.find((tool) => tool.name === "fixmap_plan");
     const verify = tools.tools.find((tool) => tool.name === "fixmap_verify");
@@ -445,7 +445,13 @@ describe("fixmap mcp server", () => {
     expect(changeScope?.description).toContain("does not interpret product requirements");
     expect(changeScope?.inputSchema.additionalProperties).toBe(false);
     const capability = tools.tools.find((tool) => tool.name === "fixmap_capability");
-    expect(Object.keys(capability?.inputSchema.properties ?? {}).sort()).toEqual(["id", "from", "to", "repo", "format", "noCache"].sort());
+    expect(Object.keys(capability?.inputSchema.properties ?? {}).sort()).toEqual([
+      "action", "id", "name", "touch", "add", "direction", "depth", "maxNodes", "workspace", "repository", "from", "to", "repo", "format", "noCache"
+    ].sort());
+    expect(capability?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true, openWorldHint: false });
+    const alternatives = tools.tools.find((tool) => tool.name === "fixmap_alternatives");
+    expect(Object.keys(alternatives?.inputSchema.properties ?? {}).sort()).toEqual(["input", "reports", "graphFingerprint", "format"].sort());
+    expect(alternatives?.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, openWorldHint: false });
     expect(capability?.inputSchema.additionalProperties).toBe(false);
     const workspace = tools.tools.find((tool) => tool.name === "fixmap_workspace");
     expect(Object.keys(workspace?.inputSchema.properties ?? {}).sort()).toEqual(["config", "seeds", "format", "noCache"].sort());
@@ -1323,5 +1329,126 @@ describe("MCP surface parity", () => {
     expect(() => parsePlanArguments({ issue: "https://github.com/o/r/issues/274?plain=1" })).not.toThrow();
     expect(parsePlanArguments({ issue: "https://github.com/o/r/issues/274?plain=1" }).success).toBe(true);
     expect(parsePlanArguments({ issue: "https://github.com/o/r/pull/158.patch" }).success).toBe(false);
+  });
+});
+
+describe("fixmap mcp alternatives and capability editing", () => {
+  const text = (result: { content?: unknown }) => (result.content as Array<{ text: string }>)[0]!.text;
+  const identity = (path: string) => createGraphIdentity({ workspace: "local", kind: "file", key: path });
+  const alternative = (id: string, graphFingerprint = "graph:abcdef") => ({
+    planAlternativeVersion: 1, id, graphFingerprint,
+    edits: [identity(`src/${id}.ts`)], impacts: [], contracts: [], policyFindings: [],
+    tests: [{ command: "npm test", covers: [identity(`src/${id}.ts`)], reason: "unit" }],
+    reversibility: { mode: "full", reason: "source only", rollbackSteps: ["git revert"] }, uncertainties: []
+  });
+
+  it("compares alternatives from an input object and from saved plans, rejecting mismatched graphs", { timeout: 30_000 }, async () => {
+    const root = await createAuthFixture();
+    const client = await connectClient();
+    try {
+      const compared = await client.callTool({ name: "fixmap_alternatives", arguments: {
+        input: { alternativesInputVersion: 1, alternatives: [alternative("a"), alternative("b")] }, format: "json"
+      } });
+      expect(compared.isError).toBeFalsy();
+      expect(JSON.parse(text(compared))).toMatchObject({ alternativePlanComparisonVersion: 1, nonDominatedAlternatives: ["a", "b"] });
+
+      const mismatched = await client.callTool({ name: "fixmap_alternatives", arguments: {
+        input: { alternativesInputVersion: 1, alternatives: [alternative("a"), alternative("b", "graph:other1")] }
+      } });
+      expect(mismatched.isError).toBe(true);
+      expect(text(mismatched)).toContain("same exact graph fingerprint");
+
+      const planned = await client.callTool({ name: "fixmap_plan", arguments: { issue: "sendResetEmail fails", repo: root, format: "json" } });
+      await writeFile(join(root, "plan-a.json"), text(planned));
+      await writeFile(join(root, "plan-b.json"), text(planned));
+      const fromReports = await client.callTool({ name: "fixmap_alternatives", arguments: {
+        reports: [join(root, "plan-a.json"), join(root, "plan-b.json")], graphFingerprint: "commit:0123456789"
+      } });
+      expect(fromReports.isError).toBeFalsy();
+      expect(text(fromReports)).toContain("`plan-a` and `plan-b` are equal on every compared axis.");
+      const withoutGraph = await client.callTool({ name: "fixmap_alternatives", arguments: { reports: [join(root, "plan-a.json"), join(root, "plan-b.json")] } });
+      expect(withoutGraph.isError).toBe(true);
+      expect(text(withoutGraph)).toContain("requires a graph fingerprint");
+    } finally {
+      await client.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("creates, updates, and removes capabilities through the CLI write path", { timeout: 30_000 }, async () => {
+    const root = await createAuthFixture();
+    const client = await connectClient();
+    const store = async () => JSON.parse(await readFile(join(root, ".fixmap", "capabilities.json"), "utf8"));
+    try {
+      const created = await client.callTool({ name: "fixmap_capability", arguments: {
+        action: "create", id: "password-recovery", name: "Password recovery", touch: ["src/auth/reset-password.ts"], repo: root
+      } });
+      expect(created.isError).toBeFalsy();
+      expect(text(created)).toContain("Created capability password-recovery in .fixmap/capabilities.json.");
+      expect((await store()).capabilities).toEqual([{
+        id: "password-recovery", name: "Password recovery", anchors: [{ operation: "touch", path: "src/auth/reset-password.ts" }]
+      }]);
+
+      const updated = await client.callTool({ name: "fixmap_capability", arguments: {
+        action: "update", id: "password-recovery", name: "Account recovery", depth: 1, repo: root, format: "json"
+      } });
+      expect(updated.isError).toBeFalsy();
+      expect(JSON.parse(text(updated)).capabilities[0]).toMatchObject({ name: "Account recovery", traversal: { maxDepth: 1 } });
+
+      const duplicate = await client.callTool({ name: "fixmap_capability", arguments: {
+        action: "create", id: "password-recovery", touch: ["src/auth/reset-password.ts"], repo: root
+      } });
+      expect(duplicate.isError).toBe(true);
+      expect(text(duplicate)).toContain("already exists; use capability update");
+
+      const removeWithAnchors = await client.callTool({ name: "fixmap_capability", arguments: {
+        action: "remove", id: "password-recovery", touch: ["src/auth/reset-password.ts"], repo: root
+      } });
+      expect(removeWithAnchors.isError).toBe(true);
+      expect(text(removeWithAnchors)).toContain("not allowed for remove: touch");
+
+      const removed = await client.callTool({ name: "fixmap_capability", arguments: { action: "remove", id: "password-recovery", repo: root } });
+      expect(removed.isError).toBeFalsy();
+      expect(text(removed)).toContain("Removed capability password-recovery");
+      expect((await store()).capabilities).toEqual([]);
+    } finally {
+      await client.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses capability writes under a lock, with traversal anchors, or through a linked .fixmap", { timeout: 30_000 }, async () => {
+    const root = await createAuthFixture();
+    const outside = await mkdtemp(join(tmpdir(), "fixmap-mcp-capability-outside-"));
+    const client = await connectClient();
+    try {
+      const traversal = await client.callTool({ name: "fixmap_capability", arguments: {
+        action: "create", id: "escape", touch: ["../outside.ts"], repo: root
+      } });
+      expect(traversal.isError).toBe(true);
+      expect(text(traversal)).toContain("Invalid capability anchor path: ../outside.ts");
+
+      await mkdir(join(root, ".fixmap"), { recursive: true });
+      await writeFile(join(root, ".fixmap", "capabilities.lock"), "busy\n");
+      const locked = await client.callTool({ name: "fixmap_capability", arguments: {
+        action: "create", id: "password-recovery", touch: ["src/auth/reset-password.ts"], repo: root
+      } });
+      expect(locked.isError).toBe(true);
+      expect(text(locked)).toContain("Another FixMap capability update is in progress");
+      await expect(readFile(join(root, ".fixmap", "capabilities.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+      await rm(join(root, ".fixmap"), { recursive: true, force: true });
+      await symlink(outside, join(root, ".fixmap"), process.platform === "win32" ? "junction" : "dir");
+      const linked = await client.callTool({ name: "fixmap_capability", arguments: {
+        action: "create", id: "password-recovery", touch: ["src/auth/reset-password.ts"], repo: root
+      } });
+      expect(linked.isError).toBe(true);
+      expect(text(linked)).toContain("resolves outside the repository");
+      await expect(readFile(join(outside, "capabilities.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await client.close();
+      await rm(root, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
+    }
   });
 });
