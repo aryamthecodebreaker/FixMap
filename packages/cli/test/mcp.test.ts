@@ -552,7 +552,7 @@ describe("fixmap mcp server", () => {
     expect(runtime?.inputSchema.additionalProperties).toBe(false);
     expect(verify).toBeDefined();
     expect(Object.keys(verify?.inputSchema.properties ?? {}).sort()).toEqual(
-      ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache", "sensitiveData"].sort()
+      ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache", "sensitiveData", "workspace"].sort()
     );
     expect(verify?.inputSchema.required).toEqual(["report"]);
     expect(verify?.inputSchema.additionalProperties).toBe(false);

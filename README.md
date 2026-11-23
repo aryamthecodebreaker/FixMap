@@ -207,6 +207,8 @@ Run the checked-in two-service example with `fixmap workspace --config examples/
 
 Repeat `--seed` to trace downstream provider-to-consumer impact from multiple repositories. Duplicate IDs, duplicate real checkout paths, unknown seeds, remote URLs, invalid submodule parents, and ambiguous package providers are rejected or diagnosed instead of silently merged.
 
+Preview: when a consumer declares a package under a different name than the provider publishes, add a reviewed `aliases` entry such as `{ "consumer": "payments", "ecosystem": "node", "package": "acme-auth", "provider": "auth", "providerPackage": "@acme/auth-sdk", "reason": "internal registry name" }`. Only these entries link differently named packages; matching names never create aliases. `fixmap verify --workspace .fixmap/workspace.json` (MCP `fixmap_verify` `workspace`, Action `workspace` input) then adds statements naming the other checkouts that consume a package the diff changes, each citing the changed file and the consumer manifest or import.
+
 Plan a product change from code surfaces you choose explicitly:
 
 ```bash

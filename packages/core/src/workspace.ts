@@ -6,7 +6,7 @@ import {
   createGraphIdentity
 } from "./identity-graph.js";
 import type { GraphDerivation, GraphSourceDerivation, IdentityGraph, IdentityGraphEdge, IdentityGraphNode } from "./identity-graph.js";
-import type { RepoFile, RepoMap } from "./types.js";
+import type { RepoFile, RepoMap, VerifyNarrativeStatement } from "./types.js";
 
 export type WorkspaceRepositoryInput = {
   id: string;
@@ -51,10 +51,25 @@ export type WorkspaceDependency = {
   ecosystem: WorkspacePackage["ecosystem"];
   requestedVersion?: string;
   evidence: WorkspaceDependencyEvidence[];
+  /** Present when the link exists only because of a reviewed workspace alias. */
+  alias?: { declaredPackage: string; reason: string };
+};
+
+/**
+ * A reviewed, explicit link: `consumer` declares `package`, which is really `providerPackage` from
+ * `provider`. Matching names never create aliases; only these entries do.
+ */
+export type WorkspaceAlias = {
+  consumer: string;
+  ecosystem: "node" | "python" | "maven";
+  package: string;
+  provider: string;
+  providerPackage: string;
+  reason: string;
 };
 
 export type WorkspaceDiagnostic = {
-  code: "duplicate-package" | "unresolved-dependency" | "invalid-submodule-parent" | "decision-unresolved-target" | "decision-source-invalid";
+  code: "duplicate-package" | "unresolved-dependency" | "alias-unresolved" | "invalid-submodule-parent" | "decision-unresolved-target" | "decision-source-invalid";
   severity: "info" | "warning";
   message: string;
   repositories: string[];
@@ -77,6 +92,8 @@ export type WorkspaceMapOptions = {
   identityNodes?: readonly IdentityGraphNode[];
   /** Explicit alias/equivalence and other reviewed relationships. */
   identityEdges?: readonly IdentityGraphEdge[];
+  /** Reviewed links between a consumer's declared package name and a provider package with another name. */
+  aliases?: readonly WorkspaceAlias[];
 };
 
 export type WorkspaceImpact = {
@@ -143,10 +160,13 @@ export function buildWorkspaceMap(
     }
   }
 
+  const aliases = resolveAliases(options.aliases ?? [], repositoryIds, packages, diagnostics);
   const edges = new Map<string, WorkspaceDependencyDraft>();
   for (const input of ordered) {
     for (const declaration of extractManifestDependencies(input)) {
-      linkDependency(edges, diagnostics, packageIndex, input.id, declaration);
+      const alias = aliases.get(aliasKey(input.id, declaration.ecosystem, declaration.package));
+      if (alias) linkAliasedDependency(edges, input.id, declaration, alias);
+      else linkDependency(edges, diagnostics, packageIndex, input.id, declaration);
     }
     for (const declaration of extractImportDependencies(input, packages)) {
       linkDependency(edges, diagnostics, packageIndex, input.id, declaration);
@@ -211,6 +231,132 @@ export function buildWorkspaceImpact(workspace: WorkspaceMap, seedRepositories: 
     seeds,
     repositories: impacted.sort((a, b) => a.distance - b.distance || a.repository.localeCompare(b.repository))
   };
+}
+
+type ResolvedAlias = { alias: WorkspaceAlias; provider: WorkspacePackage };
+
+function aliasKey(consumer: string, ecosystem: WorkspacePackage["ecosystem"], name: string): string {
+  return `${consumer}\0${ecosystem}\0${ecosystem === "python" ? normalizePythonName(name) : name}`;
+}
+
+function resolveAliases(
+  aliases: readonly WorkspaceAlias[],
+  repositoryIds: ReadonlySet<string>,
+  packages: readonly WorkspacePackage[],
+  diagnostics: WorkspaceDiagnostic[]
+): Map<string, ResolvedAlias> {
+  const resolved = new Map<string, ResolvedAlias>();
+  for (const alias of aliases) {
+    if (!repositoryIds.has(alias.consumer) || !repositoryIds.has(alias.provider) || alias.consumer === alias.provider) {
+      throw new Error(`Workspace alias for ${alias.consumer} ${alias.ecosystem}:${alias.package} must link two repositories in this workspace.`);
+    }
+    const key = aliasKey(alias.consumer, alias.ecosystem, alias.package);
+    if (resolved.has(key)) throw new Error(`Workspace alias for ${alias.consumer} ${alias.ecosystem}:${alias.package} is declared more than once.`);
+    const wanted = alias.ecosystem === "python" ? normalizePythonName(alias.providerPackage) : alias.providerPackage;
+    const provider = packages.find((pkg) => pkg.repository === alias.provider && pkg.ecosystem === alias.ecosystem &&
+      (pkg.ecosystem === "python" ? normalizePythonName(pkg.name) : pkg.name) === wanted);
+    if (!provider) {
+      diagnostics.push({
+        code: "alias-unresolved",
+        severity: "warning",
+        message: `Alias for ${alias.consumer} ${alias.package} names ${alias.ecosystem} package ${alias.providerPackage}, which ${alias.provider} does not provide; no link was made.`,
+        repositories: [alias.consumer, alias.provider].sort()
+      });
+      continue;
+    }
+    resolved.set(key, { alias, provider });
+  }
+  return resolved;
+}
+
+function linkAliasedDependency(
+  edges: Map<string, WorkspaceDependencyDraft>,
+  consumerRepository: string,
+  declaration: DependencyDeclaration,
+  resolved: ResolvedAlias
+): void {
+  const provider = resolved.provider;
+  const evidence: WorkspaceDependencyEvidence = {
+    ...declaration.evidence,
+    detail: `${declaration.evidence.detail}; reviewed alias to ${provider.name} from ${provider.repository}: ${resolved.alias.reason}`
+  };
+  const key = `${consumerRepository}\0${provider.repository}\0${provider.ecosystem}\0${provider.name}`;
+  const existing = edges.get(key);
+  if (existing) {
+    existing.evidence.push(evidence);
+    existing.alias ??= { declaredPackage: declaration.package, reason: resolved.alias.reason };
+    return;
+  }
+  edges.set(key, {
+    consumerRepository,
+    providerRepository: provider.repository,
+    package: provider.name,
+    ecosystem: provider.ecosystem,
+    ...(declaration.requestedVersion ? { requestedVersion: declaration.requestedVersion } : {}),
+    evidence: [evidence],
+    alias: { declaredPackage: declaration.package, reason: resolved.alias.reason }
+  });
+}
+
+const MAX_WORKSPACE_STATEMENTS = 8;
+
+/**
+ * Plain-English Verify statements for a diff in one workspace repository: which other checkouts
+ * depend on a package whose files the diff changed. Every statement cites the changed file and the
+ * consumer's manifest or import evidence; nothing is said without an edge.
+ */
+export function buildWorkspaceVerifyNarrative(
+  workspace: WorkspaceMap,
+  repository: string,
+  changedPaths: readonly string[]
+): VerifyNarrativeStatement[] {
+  const owned = workspace.packages.filter((pkg) => pkg.repository === repository);
+  const changedByPackage = new Map<string, string[]>();
+  for (const path of changedPaths) {
+    const owner = owned
+      .filter((pkg) => containsPath(manifestDirectory(pkg.manifestPath), path))
+      .sort((a, b) => manifestDirectory(b.manifestPath).length - manifestDirectory(a.manifestPath).length)[0];
+    if (!owner) continue;
+    changedByPackage.set(owner.id, [...changedByPackage.get(owner.id) ?? [], path]);
+  }
+  const statements: VerifyNarrativeStatement[] = [];
+  const direct = new Set<string>();
+  for (const pkg of owned) {
+    const changed = changedByPackage.get(pkg.id);
+    if (!changed) continue;
+    for (const dependency of workspace.dependencies.filter((entry) =>
+      entry.providerRepository === repository && entry.package === pkg.name && entry.ecosystem === pkg.ecosystem)) {
+      direct.add(dependency.consumerRepository);
+      const consumerEvidence = dependency.evidence[0]!;
+      const shown = changed.slice(0, 4);
+      statements.push({
+        classification: dependency.evidence.some((entry) => entry.kind === "manifest") ? "observation" : "inference",
+        text: `${dependency.consumerRepository} depends on ${pkg.name}${dependency.alias ? ` (declared as ${dependency.alias.declaredPackage})` : ""}, and this diff changes ${changed.length} file${changed.length === 1 ? "" : "s"} in it: ${shown.join(", ")}${changed.length > shown.length ? ", ..." : ""}.`,
+        evidence: [
+          ...shown.map((path) => ({ kind: "changed-file" as const, path, detail: `Inside ${pkg.name} (${pkg.manifestPath}) in ${repository}.` })),
+          { kind: "cross-repository" as const, path: consumerEvidence.path, detail: `${dependency.consumerRepository}: ${consumerEvidence.detail}` }
+        ]
+      });
+    }
+  }
+  if (direct.size > 0) {
+    const transitive = buildWorkspaceImpact(workspace, [...direct]).repositories
+      .filter((entry) => entry.repository !== repository && !direct.has(entry.repository));
+    for (const entry of transitive) statements.push({
+      classification: "inference",
+      text: `${entry.repository} may also be affected indirectly: ${entry.via}.`,
+      evidence: entry.evidence.slice(0, 2).map((evidence) => ({
+        kind: "cross-repository" as const,
+        path: evidence.path,
+        detail: `${entry.repository}: ${evidence.detail}`
+      }))
+    });
+  }
+  return statements.slice(0, MAX_WORKSPACE_STATEMENTS);
+}
+
+function containsPath(directory: string, path: string): boolean {
+  return directory === "" || path === directory || path.startsWith(`${directory}/`);
 }
 
 type DependencyDeclaration = {

@@ -352,7 +352,7 @@ export type VerifyResult = {
 };
 
 export type VerifyNarrativeEvidence = {
-  kind: "changed-file" | "impact-relationship" | "test-route" | "risk-rule" | "annotation" | "decision-record" | "architecture-policy";
+  kind: "changed-file" | "impact-relationship" | "test-route" | "risk-rule" | "annotation" | "decision-record" | "architecture-policy" | "cross-repository";
   path?: string;
   relatedPath?: string;
   detail: string;

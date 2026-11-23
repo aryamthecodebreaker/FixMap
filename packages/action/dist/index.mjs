@@ -3,9 +3,8 @@ import { createRequire as __fixmapCreateRequire } from 'module'; const require =
 // packages/action/src/runner.ts
 import { randomUUID as randomUUID4 } from "node:crypto";
 
-// packages/action/src/annotations.ts
-import { realpath as realpath3, stat as stat4 } from "node:fs/promises";
-import { isAbsolute as isAbsolute3, relative as relative4, resolve as resolve6 } from "node:path";
+// packages/action/src/workspace-section.ts
+import { isAbsolute as isAbsolute4, relative as relative4, resolve as resolve7 } from "node:path";
 
 // packages/core/dist/plan.js
 import { readFile as readFile3 } from "node:fs/promises";
@@ -164,7 +163,7 @@ function maskPythonNonCode(text2) {
       continue;
     }
     const delimiter = text2.startsWith(quote.repeat(3), index) ? quote.repeat(3) : quote;
-    for (let count2 = 0; count2 < delimiter.length; count2++)
+    for (let count3 = 0; count3 < delimiter.length; count3++)
       hide(index++);
     while (index < text2.length) {
       if (text2[index] === "\\") {
@@ -176,7 +175,7 @@ function maskPythonNonCode(text2) {
             hide(index++);
         }
       } else if (text2.startsWith(delimiter, index)) {
-        for (let count2 = 0; count2 < delimiter.length; count2++)
+        for (let count3 = 0; count3 < delimiter.length; count3++)
           hide(index++);
         break;
       } else {
@@ -1303,11 +1302,11 @@ function buildComposerProjects(files) {
   });
   for (const project of projects) {
     const dependencies = [];
-    for (const packageName of project.requiredPackages) {
-      const candidates = projects.filter((candidate) => candidate.path !== project.path && candidate.name === packageName && project.pathRepositoryPatterns.some((pattern) => matchesRepositoryPattern(pattern, candidate.root)));
+    for (const packageName2 of project.requiredPackages) {
+      const candidates = projects.filter((candidate) => candidate.path !== project.path && candidate.name === packageName2 && project.pathRepositoryPatterns.some((pattern) => matchesRepositoryPattern(pattern, candidate.root)));
       if (candidates.length === 1) {
         const target = candidates[0];
-        dependencies.push({ package: packageName, projectPath: target.path, root: target.root });
+        dependencies.push({ package: packageName2, projectPath: target.path, root: target.root });
       }
     }
     project.pathDependencies = dependencies.sort((left, right) => left.package.localeCompare(right.package) || left.projectPath.localeCompare(right.projectPath));
@@ -1343,11 +1342,11 @@ function resolveComposerSymbol(project, symbol, repoPaths, suffixPaths) {
   for (const mapping of project.psr4) {
     if (!symbol.startsWith(mapping.prefix))
       continue;
-    const relative5 = symbol.slice(mapping.prefix.length).replace(/\\/g, "/");
-    if (!relative5)
+    const relative6 = symbol.slice(mapping.prefix.length).replace(/\\/g, "/");
+    if (!relative6)
       continue;
     for (const root of mapping.roots) {
-      const candidate = [root, `${relative5}.php`].filter(Boolean).join("/");
+      const candidate = [root, `${relative6}.php`].filter(Boolean).join("/");
       if (repoPaths.has(candidate))
         targets.add(candidate);
     }
@@ -1647,23 +1646,23 @@ function buildRubyProjects(files) {
     if (/^\s*gem\s*(?:\(|\s)\s*["']rails["']/im.test(manifest.textSample))
       railsEvidence.add(manifest.path);
     for (const file of scoped) {
-      const relative5 = root ? file.path.slice(root.length + 1) : file.path;
-      if (relative5.toLowerCase() === ".rspec" || /(?:^|\/)spec\/(?:spec_helper|rails_helper)\.rb$/i.test(relative5) || /_spec\.rb$/i.test(relative5)) {
+      const relative6 = root ? file.path.slice(root.length + 1) : file.path;
+      if (relative6.toLowerCase() === ".rspec" || /(?:^|\/)spec\/(?:spec_helper|rails_helper)\.rb$/i.test(relative6) || /_spec\.rb$/i.test(relative6)) {
         rspecEvidence.add(file.path);
       }
-      if (/(?:^|\/)test\/test_helper\.rb$/i.test(relative5) || /_test\.rb$/i.test(relative5) || /^(?:\s*require\s*\(?\s*["']minitest|\s*class\s+[^\n<]+<\s*(?:Minitest::Test|MiniTest::Unit)\b)/m.test(file.textSample)) {
+      if (/(?:^|\/)test\/test_helper\.rb$/i.test(relative6) || /_test\.rb$/i.test(relative6) || /^(?:\s*require\s*\(?\s*["']minitest|\s*class\s+[^\n<]+<\s*(?:Minitest::Test|MiniTest::Unit)\b)/m.test(file.textSample)) {
         minitestEvidence.add(file.path);
       }
     }
     const application = scoped.find((file) => {
-      const relative5 = root ? file.path.slice(root.length + 1) : file.path;
-      return relative5.toLowerCase() === "config/application.rb" && /\bclass\s+Application\s*<\s*Rails::Application\b/.test(file.textSample);
+      const relative6 = root ? file.path.slice(root.length + 1) : file.path;
+      return relative6.toLowerCase() === "config/application.rb" && /\bclass\s+Application\s*<\s*Rails::Application\b/.test(file.textSample);
     });
     if (application)
       railsEvidence.add(application.path);
     const autoloadFiles = railsEvidence.size === 2 ? scoped.filter((file) => {
-      const relative5 = root ? file.path.slice(root.length + 1) : file.path;
-      return /^app\/(?!assets(?:\/|$)|javascript(?:\/|$)|views(?:\/|$))[^/]+\/.+\.rb$/i.test(relative5);
+      const relative6 = root ? file.path.slice(root.length + 1) : file.path;
+      return /^app\/(?!assets(?:\/|$)|javascript(?:\/|$)|views(?:\/|$))[^/]+\/.+\.rb$/i.test(relative6);
     }).map((file) => file.path).sort((left, right) => left.localeCompare(right)) : [];
     const rakefile = scoped.find((file) => file.path.split("/").pop()?.toLowerCase() === "rakefile");
     const rakeTestPath = rakefile && /\b(?:Rake::TestTask|task\s*(?:\(|\s)\s*:test\b)/.test(rakefile.textSample) ? rakefile.path : void 0;
@@ -1711,9 +1710,9 @@ function rubyTestCommandForProject(project, relatedTests = []) {
     const testPath = relatedMinitest[0] ?? project.minitestEvidence.find((path) => /_test\.rb$/i.test(path));
     if (!testPath)
       return void 0;
-    const relative5 = project.root ? testPath.slice(project.root.length + 1) : testPath;
+    const relative6 = project.root ? testPath.slice(project.root.length + 1) : testPath;
     return {
-      command: scopedBundleCommand(project.root, `ruby -Itest ${relative5}`),
+      command: scopedBundleCommand(project.root, `ruby -Itest ${relative6}`),
       reason: `${testPath} provides executable Minitest evidence for ${project.path}`,
       scopeDir: project.root
     };
@@ -1777,7 +1776,7 @@ function detectPrimaryLanguage(repo) {
   if (!leader || leader.count === 0) {
     return { language: "unknown", evidence: "no root manifest and no recognizable source files" };
   }
-  const total = [...shares.values()].reduce((sum, count2) => sum + count2, 0);
+  const total = [...shares.values()].reduce((sum, count3) => sum + count3, 0);
   const share = Math.round(leader.count / total * 100);
   const manifest = manifests.get(leader.language);
   if (manifest) {
@@ -2245,7 +2244,7 @@ function parseManifest(file, manifestRoots) {
       continue;
     const alias = rustIdentifier(match[1]);
     const fields2 = match[2];
-    const packageName = /(?:^|,)\s*package\s*=\s*["']([^"']+)["']/.exec(fields2)?.[1]?.trim();
+    const packageName2 = /(?:^|,)\s*package\s*=\s*["']([^"']+)["']/.exec(fields2)?.[1]?.trim();
     const rawPath = /(?:^|,)\s*path\s*=\s*["']([^"']+)["']/.exec(fields2)?.[1]?.trim();
     if (rawPath) {
       const targetRoot = normalizeRelativeRoot2(root, rawPath);
@@ -2253,7 +2252,7 @@ function parseManifest(file, manifestRoots) {
         continue;
       const dependency = {
         alias,
-        ...packageName ? { package: packageName } : {},
+        ...packageName2 ? { package: packageName2 } : {},
         root: targetRoot,
         evidencePath: file.path
       };
@@ -4082,7 +4081,7 @@ function findCommonTokens(contentTokensByPath) {
       frequency.set(token, (frequency.get(token) ?? 0) + 1);
     }
   }
-  return new Set([...frequency].filter(([, count2]) => count2 >= threshold).map(([token]) => token));
+  return new Set([...frequency].filter(([, count3]) => count3 >= threshold).map(([token]) => token));
 }
 function isNearbyChangedFile(path, changedFiles) {
   const folder = path.split("/").slice(0, -1).join("/");
@@ -6262,7 +6261,7 @@ function packageProximity(packageDir, contextPaths) {
   const matches = contextPaths.filter((path) => path === packageDir || path.startsWith(`${packageDir}/`));
   return matches.length > 0 ? 10 + packageDir.split("/").length : -1;
 }
-function formatScriptCommand(manager, packageDir, script, packageName) {
+function formatScriptCommand(manager, packageDir, script, packageName2) {
   if (!packageDir)
     return `${manager} run ${script}`;
   if (manager === "npm")
@@ -6270,7 +6269,7 @@ function formatScriptCommand(manager, packageDir, script, packageName) {
   if (manager === "pnpm")
     return `pnpm --dir ${packageDir} run ${script}`;
   if (manager === "yarn") {
-    return packageName ? `yarn workspace ${packageName} run ${script}` : `yarn --cwd ${packageDir} ${script}`;
+    return packageName2 ? `yarn workspace ${packageName2} run ${script}` : `yarn --cwd ${packageDir} ${script}`;
   }
   return `bun --cwd ${packageDir} run ${script}`;
 }
@@ -7187,7 +7186,7 @@ function summarizeSkippedScope(paths) {
     const scope = path.includes("/") && head ? `${head}/` : "the repository root";
     counts.set(scope, (counts.get(scope) ?? 0) + 1);
   }
-  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3).map(([scope, count2]) => `${scope} (${count2.toLocaleString()})`).join(", ");
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3).map(([scope, count3]) => `${scope} (${count3.toLocaleString()})`).join(", ");
 }
 async function readPackageScripts(root, files, diagnostics) {
   const manifests = files.filter((file) => file.path === "package.json" || file.path.endsWith("/package.json"));
@@ -7210,12 +7209,12 @@ async function readPackageScripts(root, files, diagnostics) {
       decoded = decodeManifest(bytes);
       const parsed2 = JSON.parse(decoded.text);
       const packageDir = normalizePath3(dirname(manifest.path));
-      const packageName = typeof parsed2.name === "string" && parsed2.name.trim() ? parsed2.name.trim() : void 0;
+      const packageName2 = typeof parsed2.name === "string" && parsed2.name.trim() ? parsed2.name.trim() : void 0;
       scripts.push(...Object.entries(parsed2.scripts ?? {}).map(([name, command]) => ({
         name,
         command,
         packageDir: packageDir === "." ? "" : packageDir,
-        ...packageName ? { packageName } : {}
+        ...packageName2 ? { packageName: packageName2 } : {}
       })));
     } catch {
       diagnostics.push({
@@ -7793,9 +7792,9 @@ function historicalPackageScripts(files, diagnostics) {
     try {
       const parsed2 = JSON.parse(manifest.textSample.replace(/^﻿/, ""));
       const packageDir = manifest.path.includes("/") ? manifest.path.slice(0, manifest.path.lastIndexOf("/")) : "";
-      const packageName = typeof parsed2.name === "string" && parsed2.name.trim() ? parsed2.name.trim() : void 0;
+      const packageName2 = typeof parsed2.name === "string" && parsed2.name.trim() ? parsed2.name.trim() : void 0;
       const scripts = isRecord8(parsed2.scripts) ? parsed2.scripts : {};
-      return Object.entries(scripts).flatMap(([name, command]) => typeof command === "string" ? [{ name, command, packageDir, ...packageName ? { packageName } : {} }] : []);
+      return Object.entries(scripts).flatMap(([name, command]) => typeof command === "string" ? [{ name, command, packageDir, ...packageName2 ? { packageName: packageName2 } : {} }] : []);
     } catch {
       diagnostics.push({
         code: "package-json-invalid",
@@ -8266,14 +8265,14 @@ function positiveInteger2(value, fallback) {
   return value !== void 0 && Number.isSafeInteger(value) && value > 0 ? value : fallback;
 }
 function withTimeout(promise, timeoutMs, controller) {
-  return new Promise((resolve8, reject) => {
+  return new Promise((resolve10, reject) => {
     const timer = setTimeout(() => {
       controller.abort();
       reject(new Error(`timed out after ${timeoutMs.toLocaleString()} ms`));
     }, timeoutMs);
     promise.then((value) => {
       clearTimeout(timer);
-      resolve8(value);
+      resolve10(value);
     }, (error) => {
       clearTimeout(timer);
       reject(error);
@@ -8462,6 +8461,850 @@ function classifyCustomTests(repo, context) {
   return changed ? { ...repo, files } : repo;
 }
 
+// packages/core/dist/identity-graph.js
+var ID_SCOPE = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/;
+var FINGERPRINT = /^[A-Za-z0-9][A-Za-z0-9._:-]{5,255}$/;
+var ENTITY_KINDS = /* @__PURE__ */ new Set([
+  "repository",
+  "service",
+  "package",
+  "module",
+  "file",
+  "symbol",
+  "contract",
+  "runtime-component",
+  "deployment"
+]);
+var RELATIONSHIP_KINDS = /* @__PURE__ */ new Set([
+  "contains",
+  "depends-on",
+  "rationale-for",
+  "mentions",
+  "imports",
+  "implements",
+  "publishes",
+  "observed-as",
+  "deployed-as",
+  "aliases",
+  "equivalent-to"
+]);
+function createGraphIdentity(input) {
+  if (!ENTITY_KINDS.has(input.kind))
+    throw new Error(`Invalid graph entity kind: ${String(input.kind)}`);
+  validateIdentityScope(input.workspace, "workspace");
+  validateIdentityKey(input.key, "key");
+  if (input.repository)
+    validateIdentityScope(input.repository, "repository");
+  if (input.parent && !input.parent.startsWith("fixmap://"))
+    throw new Error("Graph identity parent must be a FixMap identity.");
+  const base = `fixmap://workspace/${encodePart(input.workspace)}`;
+  if (input.kind === "repository")
+    return `${base}/repository/${encodePart(input.key)}`;
+  const scope = input.parent ? input.parent : input.repository ? `${base}/repository/${encodePart(input.repository)}` : base;
+  return `${scope}/${input.kind}/${encodePart(input.key)}`;
+}
+function createGraphEdgeIdentity(kind, from, to) {
+  if (!RELATIONSHIP_KINDS.has(kind))
+    throw new Error(`Invalid graph relationship kind: ${String(kind)}`);
+  if (!from.startsWith("fixmap://") || !to.startsWith("fixmap://"))
+    throw new Error("Graph edges require FixMap node identities.");
+  const [left, right] = kind === "aliases" || kind === "equivalent-to" ? [from, to].sort() : [from, to];
+  return `fixmap-edge:${kind}:${stableHash4(`${left}\0${right}`)}`;
+}
+function buildIdentityGraph(input) {
+  validateIdentityScope(input.workspace, "workspace");
+  const nodes = [...input.nodes].map(copyNode).sort((a, b) => a.id.localeCompare(b.id));
+  const edges = [...input.edges].map(copyEdge).sort((a, b) => a.id.localeCompare(b.id));
+  validateGraphElements(input.workspace, nodes, edges);
+  const fingerprint = stableHash4(canonicalize3({ workspace: input.workspace, nodes, edges }));
+  return {
+    identityGraphVersion: 1,
+    workspace: input.workspace,
+    version: {
+      sequence: input.sequence ?? 1,
+      fingerprint,
+      ...input.parentFingerprint ? { parentFingerprint: input.parentFingerprint } : {}
+    },
+    nodes,
+    edges
+  };
+}
+function validateGraphElements(workspace, nodes, edges) {
+  const workspacePrefix = `fixmap://workspace/${encodePart(workspace)}/`;
+  const nodeIds = /* @__PURE__ */ new Set();
+  const repositoryKeys = /* @__PURE__ */ new Set();
+  for (const node of nodes) {
+    if (!node.id.startsWith(workspacePrefix))
+      throw new Error(`Graph node identity does not belong to workspace ${workspace}: ${node.id}`);
+    const canonicalId = createGraphIdentity({
+      workspace,
+      kind: node.kind,
+      key: node.key,
+      ...node.repository ? { repository: node.repository } : {},
+      ...node.parent ? { parent: node.parent } : {}
+    });
+    if (node.id !== canonicalId)
+      throw new Error(`Graph node ${node.id} is not canonically identified.`);
+    if (node.kind === "repository" && node.parent)
+      throw new Error(`Repository node ${node.id} cannot have a parent.`);
+    if (node.kind !== "repository" && !node.parent)
+      throw new Error(`Graph node ${node.id} requires a hierarchical parent.`);
+    if (node.kind === "repository")
+      repositoryKeys.add(node.key);
+    if (nodeIds.has(node.id))
+      throw new Error(`Duplicate graph node identity: ${node.id}`);
+    nodeIds.add(node.id);
+    validateDerivations(node.derivedFrom);
+  }
+  const edgeIds = /* @__PURE__ */ new Set();
+  for (const edge of edges) {
+    if (!RELATIONSHIP_KINDS.has(edge.kind))
+      throw new Error(`Invalid graph relationship kind: ${String(edge.kind)}`);
+    if (!["high", "medium", "low"].includes(edge.confidence)) {
+      throw new Error(`Graph edge ${edge.id} has invalid confidence.`);
+    }
+    if (edge.id !== createGraphEdgeIdentity(edge.kind, edge.from, edge.to))
+      throw new Error(`Graph edge ${edge.id} is not canonically identified.`);
+    if (edgeIds.has(edge.id))
+      throw new Error(`Duplicate graph edge identity: ${edge.id}`);
+    if (!nodeIds.has(edge.from) || !nodeIds.has(edge.to))
+      throw new Error(`Graph edge ${edge.id} references an unknown node.`);
+    if (!edge.reason.trim())
+      throw new Error(`Graph edge ${edge.id} needs a reason.`);
+    validateDerivations(edge.derivedFrom);
+    edgeIds.add(edge.id);
+  }
+  for (const node of nodes) {
+    if (node.parent && !nodeIds.has(node.parent))
+      throw new Error(`Graph node ${node.id} references an unknown parent.`);
+    for (const derivation of node.derivedFrom)
+      validateDerivationReference(derivation, nodeIds, edgeIds, repositoryKeys);
+  }
+  for (const edge of edges) {
+    for (const derivation of edge.derivedFrom)
+      validateDerivationReference(derivation, nodeIds, edgeIds, repositoryKeys);
+  }
+}
+function validateDerivationReference(derivation, nodes, edges, repositories) {
+  if (derivation.kind === "source" && !repositories.has(derivation.repository)) {
+    throw new Error(`Graph derivation references unknown repository ${derivation.repository}.`);
+  }
+  if (derivation.kind === "node" && !nodes.has(derivation.id))
+    throw new Error(`Graph derivation references unknown node ${derivation.id}.`);
+  if (derivation.kind === "edge" && !edges.has(derivation.id))
+    throw new Error(`Graph derivation references unknown edge ${derivation.id}.`);
+}
+function validateDerivations(derivations) {
+  for (const derivation of derivations) {
+    if (derivation.kind === "source") {
+      validateIdentityScope(derivation.repository, "source repository");
+      validateSourcePath(derivation.path);
+      if (!FINGERPRINT.test(derivation.fingerprint))
+        throw new Error(`Invalid graph source fingerprint for ${derivation.path}.`);
+    } else if (!derivation.id.trim()) {
+      throw new Error("Graph element derivation needs an identity.");
+    }
+  }
+}
+function validateSourcePath(path) {
+  if (!path.trim() || path.includes("\0") || /^[\\/]/.test(path) || /^[A-Za-z]:/.test(path) || path.replace(/\\/g, "/").split("/").some((segment) => !segment || segment === "." || segment === "..")) {
+    throw new Error(`Invalid graph source path: ${path}`);
+  }
+}
+function validateIdentityScope(value, label) {
+  if (!ID_SCOPE.test(value) || value === "." || value === "..")
+    throw new Error(`Invalid graph identity ${label}: ${value}`);
+}
+function validateIdentityKey(value, label) {
+  const segments = value.split("/");
+  if (!value.trim() || value !== value.trim() || value.length > 512 || /[\0-\x1f\x7f]/.test(value) || segments.some((segment) => !segment || segment === "." || segment === "..")) {
+    throw new Error(`Invalid graph identity ${label}: ${value}`);
+  }
+}
+function encodePart(value) {
+  return value.split("/").map(encodeURIComponent).join("/");
+}
+function copyNode(node) {
+  return {
+    ...node,
+    ...node.attributes ? { attributes: { ...node.attributes } } : {},
+    derivedFrom: normalizeDerivations(node.derivedFrom)
+  };
+}
+function copyEdge(edge) {
+  return { ...edge, derivedFrom: normalizeDerivations(edge.derivedFrom) };
+}
+function normalizeDerivations(derivations) {
+  const byIdentity = /* @__PURE__ */ new Map();
+  for (const derivation of derivations)
+    byIdentity.set(canonicalize3(derivation), { ...derivation });
+  return [...byIdentity.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([, derivation]) => derivation);
+}
+function canonicalize3(value) {
+  if (Array.isArray(value))
+    return `[${value.map(canonicalize3).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value).filter(([, entry2]) => entry2 !== void 0).sort(([left], [right]) => left.localeCompare(right)).map(([key2, entry2]) => `${JSON.stringify(key2)}:${canonicalize3(entry2)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+function stableHash4(value) {
+  let hash = 0xcbf29ce484222325n;
+  for (const byte of new TextEncoder().encode(value)) {
+    hash ^= BigInt(byte);
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return hash.toString(16).padStart(16, "0");
+}
+
+// packages/core/dist/workspace.js
+var REPOSITORY_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+function buildWorkspaceMap(inputs, options) {
+  validateRepositoryInputs(inputs);
+  const ordered = [...inputs].sort((a, b) => a.id.localeCompare(b.id));
+  const repositories = ordered.map((input) => ({
+    id: input.id,
+    identity: createGraphIdentity({ workspace: options.workspace, kind: "repository", key: input.id }),
+    root: input.repo.root,
+    ...input.revision ? { revision: input.revision } : {},
+    ...input.remote ? { remote: input.remote } : {},
+    relationship: input.relationship ?? { kind: "checkout" },
+    fileCount: input.repo.files.length
+  }));
+  const diagnostics = [];
+  const repositoryIds = new Set(repositories.map((repository) => repository.id));
+  for (const repository of repositories) {
+    if (repository.relationship.kind === "submodule" && (!repository.relationship.parentRepository || !repositoryIds.has(repository.relationship.parentRepository))) {
+      diagnostics.push({
+        code: "invalid-submodule-parent",
+        severity: "warning",
+        message: `Submodule repository ${repository.id} names a parent that is not in this workspace.`,
+        repositories: [repository.id]
+      });
+    }
+  }
+  const packages = ordered.flatMap((input) => extractRepositoryPackages(input, options.workspace)).sort((a, b) => a.id.localeCompare(b.id));
+  const packageIndex = /* @__PURE__ */ new Map();
+  for (const pkg of packages) {
+    for (const namespace of packageLookupKeys(pkg)) {
+      const existing = packageIndex.get(namespace) ?? [];
+      existing.push(pkg);
+      packageIndex.set(namespace, existing);
+    }
+  }
+  for (const [key2, candidates] of packageIndex) {
+    const repositoriesForPackage = [...new Set(candidates.map((candidate) => candidate.repository))];
+    if (repositoriesForPackage.length > 1 && key2.startsWith(`${candidates[0]?.ecosystem}:`)) {
+      diagnostics.push({
+        code: "duplicate-package",
+        severity: "warning",
+        message: `Workspace package identity ${key2} is provided by multiple repositories; automatic links remain unresolved.`,
+        repositories: repositoriesForPackage.sort()
+      });
+    }
+  }
+  const aliases = resolveAliases(options.aliases ?? [], repositoryIds, packages, diagnostics);
+  const edges = /* @__PURE__ */ new Map();
+  for (const input of ordered) {
+    for (const declaration of extractManifestDependencies(input)) {
+      const alias = aliases.get(aliasKey(input.id, declaration.ecosystem, declaration.package));
+      if (alias)
+        linkAliasedDependency(edges, input.id, declaration, alias);
+      else
+        linkDependency(edges, diagnostics, packageIndex, input.id, declaration);
+    }
+    for (const declaration of extractImportDependencies(input, packages)) {
+      linkDependency(edges, diagnostics, packageIndex, input.id, declaration);
+    }
+  }
+  const repositoryIdentityById = new Map(repositories.map((repository) => [repository.id, repository.identity]));
+  const packageIdentityByProvider = new Map(packages.map((pkg) => [
+    `${pkg.repository}\0${pkg.ecosystem}\0${pkg.name}`,
+    pkg.identity
+  ]));
+  const dependencies = [...edges.values()].map((dependency) => {
+    const consumer = repositoryIdentityById.get(dependency.consumerRepository);
+    const provider = packageIdentityByProvider.get(`${dependency.providerRepository}\0${dependency.ecosystem}\0${dependency.package}`);
+    return {
+      ...dependency,
+      identity: createGraphEdgeIdentity("depends-on", consumer, provider),
+      evidence: dependency.evidence.sort((a, b) => a.kind.localeCompare(b.kind) || a.path.localeCompare(b.path))
+    };
+  }).sort((a, b) => a.consumerRepository.localeCompare(b.consumerRepository) || a.providerRepository.localeCompare(b.providerRepository) || a.package.localeCompare(b.package));
+  const identityGraph = buildWorkspaceIdentityGraph(options, ordered, repositories, packages, dependencies, diagnostics);
+  return {
+    workspaceVersion: 1,
+    workspace: options.workspace,
+    repositories,
+    packages,
+    dependencies,
+    identityGraph,
+    diagnostics: deduplicateDiagnostics(diagnostics)
+  };
+}
+function buildWorkspaceImpact(workspace, seedRepositories) {
+  const known = new Set(workspace.repositories.map((repository) => repository.id));
+  const seeds = [...new Set(seedRepositories)].filter((seed) => known.has(seed)).sort();
+  const queue = seeds.map((repository) => ({ repository, distance: 0 }));
+  const visited = new Set(seeds);
+  const impacted = [];
+  while (queue.length > 0) {
+    const current2 = queue.shift();
+    for (const edge of workspace.dependencies.filter((candidate) => candidate.providerRepository === current2.repository)) {
+      if (visited.has(edge.consumerRepository))
+        continue;
+      visited.add(edge.consumerRepository);
+      const distance = current2.distance + 1;
+      impacted.push({
+        repository: edge.consumerRepository,
+        distance,
+        via: `${edge.consumerRepository} depends on ${edge.package} from ${edge.providerRepository}`,
+        evidence: edge.evidence
+      });
+      queue.push({ repository: edge.consumerRepository, distance });
+    }
+  }
+  return {
+    seeds,
+    repositories: impacted.sort((a, b) => a.distance - b.distance || a.repository.localeCompare(b.repository))
+  };
+}
+function aliasKey(consumer, ecosystem, name) {
+  return `${consumer}\0${ecosystem}\0${ecosystem === "python" ? normalizePythonName(name) : name}`;
+}
+function resolveAliases(aliases, repositoryIds, packages, diagnostics) {
+  const resolved = /* @__PURE__ */ new Map();
+  for (const alias of aliases) {
+    if (!repositoryIds.has(alias.consumer) || !repositoryIds.has(alias.provider) || alias.consumer === alias.provider) {
+      throw new Error(`Workspace alias for ${alias.consumer} ${alias.ecosystem}:${alias.package} must link two repositories in this workspace.`);
+    }
+    const key2 = aliasKey(alias.consumer, alias.ecosystem, alias.package);
+    if (resolved.has(key2))
+      throw new Error(`Workspace alias for ${alias.consumer} ${alias.ecosystem}:${alias.package} is declared more than once.`);
+    const wanted = alias.ecosystem === "python" ? normalizePythonName(alias.providerPackage) : alias.providerPackage;
+    const provider = packages.find((pkg) => pkg.repository === alias.provider && pkg.ecosystem === alias.ecosystem && (pkg.ecosystem === "python" ? normalizePythonName(pkg.name) : pkg.name) === wanted);
+    if (!provider) {
+      diagnostics.push({
+        code: "alias-unresolved",
+        severity: "warning",
+        message: `Alias for ${alias.consumer} ${alias.package} names ${alias.ecosystem} package ${alias.providerPackage}, which ${alias.provider} does not provide; no link was made.`,
+        repositories: [alias.consumer, alias.provider].sort()
+      });
+      continue;
+    }
+    resolved.set(key2, { alias, provider });
+  }
+  return resolved;
+}
+function linkAliasedDependency(edges, consumerRepository, declaration, resolved) {
+  const provider = resolved.provider;
+  const evidence = {
+    ...declaration.evidence,
+    detail: `${declaration.evidence.detail}; reviewed alias to ${provider.name} from ${provider.repository}: ${resolved.alias.reason}`
+  };
+  const key2 = `${consumerRepository}\0${provider.repository}\0${provider.ecosystem}\0${provider.name}`;
+  const existing = edges.get(key2);
+  if (existing) {
+    existing.evidence.push(evidence);
+    existing.alias ??= { declaredPackage: declaration.package, reason: resolved.alias.reason };
+    return;
+  }
+  edges.set(key2, {
+    consumerRepository,
+    providerRepository: provider.repository,
+    package: provider.name,
+    ecosystem: provider.ecosystem,
+    ...declaration.requestedVersion ? { requestedVersion: declaration.requestedVersion } : {},
+    evidence: [evidence],
+    alias: { declaredPackage: declaration.package, reason: resolved.alias.reason }
+  });
+}
+var MAX_WORKSPACE_STATEMENTS = 8;
+function buildWorkspaceVerifyNarrative(workspace, repository, changedPaths) {
+  const owned = workspace.packages.filter((pkg) => pkg.repository === repository);
+  const changedByPackage = /* @__PURE__ */ new Map();
+  for (const path of changedPaths) {
+    const owner = owned.filter((pkg) => containsPath(manifestDirectory(pkg.manifestPath), path)).sort((a, b) => manifestDirectory(b.manifestPath).length - manifestDirectory(a.manifestPath).length)[0];
+    if (!owner)
+      continue;
+    changedByPackage.set(owner.id, [...changedByPackage.get(owner.id) ?? [], path]);
+  }
+  const statements = [];
+  const direct = /* @__PURE__ */ new Set();
+  for (const pkg of owned) {
+    const changed = changedByPackage.get(pkg.id);
+    if (!changed)
+      continue;
+    for (const dependency of workspace.dependencies.filter((entry2) => entry2.providerRepository === repository && entry2.package === pkg.name && entry2.ecosystem === pkg.ecosystem)) {
+      direct.add(dependency.consumerRepository);
+      const consumerEvidence = dependency.evidence[0];
+      const shown = changed.slice(0, 4);
+      statements.push({
+        classification: dependency.evidence.some((entry2) => entry2.kind === "manifest") ? "observation" : "inference",
+        text: `${dependency.consumerRepository} depends on ${pkg.name}${dependency.alias ? ` (declared as ${dependency.alias.declaredPackage})` : ""}, and this diff changes ${changed.length} file${changed.length === 1 ? "" : "s"} in it: ${shown.join(", ")}${changed.length > shown.length ? ", ..." : ""}.`,
+        evidence: [
+          ...shown.map((path) => ({ kind: "changed-file", path, detail: `Inside ${pkg.name} (${pkg.manifestPath}) in ${repository}.` })),
+          { kind: "cross-repository", path: consumerEvidence.path, detail: `${dependency.consumerRepository}: ${consumerEvidence.detail}` }
+        ]
+      });
+    }
+  }
+  if (direct.size > 0) {
+    const transitive = buildWorkspaceImpact(workspace, [...direct]).repositories.filter((entry2) => entry2.repository !== repository && !direct.has(entry2.repository));
+    for (const entry2 of transitive)
+      statements.push({
+        classification: "inference",
+        text: `${entry2.repository} may also be affected indirectly: ${entry2.via}.`,
+        evidence: entry2.evidence.slice(0, 2).map((evidence) => ({
+          kind: "cross-repository",
+          path: evidence.path,
+          detail: `${entry2.repository}: ${evidence.detail}`
+        }))
+      });
+  }
+  return statements.slice(0, MAX_WORKSPACE_STATEMENTS);
+}
+function containsPath(directory, path) {
+  return directory === "" || path === directory || path.startsWith(`${directory}/`);
+}
+function extractRepositoryPackages(input, workspace) {
+  const packages = [];
+  for (const file of input.repo.files) {
+    const name = file.path.split("/").at(-1)?.toLowerCase() ?? "";
+    if (name === "package.json") {
+      const manifest = parseJson(file.textSample);
+      if (manifest && typeof manifest.name === "string" && manifest.name.trim()) {
+        packages.push(workspacePackage(workspace, input.id, "node", manifest.name.trim(), stringValue(manifest.version), file.path, [manifest.name.trim()]));
+      }
+    } else if (name === "pyproject.toml") {
+      const project = tomlProject(file.textSample);
+      if (project.name) {
+        const namespaces = pythonNamespaces(input.repo.files, manifestDirectory(file.path));
+        packages.push(workspacePackage(workspace, input.id, "python", project.name, project.version, file.path, namespaces.length > 0 ? namespaces : [normalizePythonName(project.name)]));
+      }
+    } else if (name === "pom.xml") {
+      const project = mavenProject(file.textSample);
+      if (project.artifactId) {
+        const identity = project.groupId ? `${project.groupId}:${project.artifactId}` : project.artifactId;
+        packages.push(workspacePackage(workspace, input.id, "maven", identity, project.version, file.path, javaPackages(input.repo.files, manifestDirectory(file.path))));
+      }
+    }
+  }
+  return packages;
+}
+function workspacePackage(workspace, repository, ecosystem, name, version, manifestPath, importNamespaces) {
+  const repositoryIdentity = createGraphIdentity({ workspace, kind: "repository", key: repository });
+  return {
+    id: `${repository}:${ecosystem}:${name}`,
+    identity: createGraphIdentity({
+      workspace,
+      kind: "package",
+      key: `${ecosystem}:${name}`,
+      repository,
+      parent: repositoryIdentity
+    }),
+    repository,
+    ecosystem,
+    name,
+    ...version ? { version } : {},
+    manifestPath,
+    importNamespaces: [...new Set(importNamespaces)].sort()
+  };
+}
+function extractManifestDependencies(input) {
+  const declarations = [];
+  for (const file of input.repo.files) {
+    const name = file.path.split("/").at(-1)?.toLowerCase() ?? "";
+    if (name === "package.json") {
+      const manifest = parseJson(file.textSample);
+      for (const section2 of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
+        const dependencies = manifest?.[section2];
+        if (!isRecord10(dependencies))
+          continue;
+        for (const [dependency, version] of Object.entries(dependencies)) {
+          if (typeof version !== "string")
+            continue;
+          declarations.push({
+            ecosystem: "node",
+            lookup: `node:${dependency}`,
+            package: dependency,
+            requestedVersion: version,
+            evidence: { kind: "manifest", path: file.path, detail: `${section2} declares ${dependency}@${version}` }
+          });
+        }
+      }
+    } else if (name === "pyproject.toml") {
+      for (const dependency of tomlDependencies(file.textSample))
+        declarations.push({
+          ecosystem: "python",
+          lookup: `python:${normalizePythonName(dependency.name)}`,
+          package: dependency.name,
+          ...dependency.version ? { requestedVersion: dependency.version } : {},
+          evidence: { kind: "manifest", path: file.path, detail: `pyproject declares ${dependency.raw}` }
+        });
+    } else if (name === "pom.xml") {
+      for (const dependency of mavenDependencies(file.textSample))
+        declarations.push({
+          ecosystem: "maven",
+          lookup: `maven:${dependency.groupId}:${dependency.artifactId}`,
+          package: `${dependency.groupId}:${dependency.artifactId}`,
+          ...dependency.version ? { requestedVersion: dependency.version } : {},
+          evidence: { kind: "manifest", path: file.path, detail: `pom dependency declares ${dependency.groupId}:${dependency.artifactId}${dependency.version ? `:${dependency.version}` : ""}` }
+        });
+    }
+  }
+  return declarations;
+}
+function extractImportDependencies(input, packages) {
+  const declarations = [];
+  for (const file of input.repo.files.filter((candidate) => candidate.isSource && candidate.kind === "code")) {
+    for (const imported of extractLanguageImports(file)) {
+      if (imported.specifier.startsWith("."))
+        continue;
+      for (const pkg of packages.filter((candidate) => candidate.repository !== input.id)) {
+        const namespace = pkg.importNamespaces.find((candidate) => importMatches(pkg.ecosystem, imported.specifier, candidate));
+        if (!namespace)
+          continue;
+        declarations.push({
+          ecosystem: pkg.ecosystem,
+          lookup: `${pkg.ecosystem}:${pkg.ecosystem === "python" ? normalizePythonName(namespace) : namespace}`,
+          package: pkg.name,
+          evidence: { kind: "import", path: file.path, detail: `${file.path} imports ${imported.specifier}` }
+        });
+      }
+    }
+  }
+  return declarations;
+}
+function linkDependency(edges, diagnostics, packageIndex, consumerRepository, declaration) {
+  const candidates = (packageIndex.get(declaration.lookup) ?? []).filter((candidate) => candidate.repository !== consumerRepository);
+  const providers = [...new Map(candidates.map((candidate) => [candidate.repository, candidate])).values()];
+  if (providers.length !== 1) {
+    if (declaration.evidence.kind === "manifest")
+      diagnostics.push({
+        code: "unresolved-dependency",
+        severity: "info",
+        message: providers.length === 0 ? `${consumerRepository} declares ${declaration.package}, but no workspace repository provides it.` : `${consumerRepository} declares ${declaration.package}, but multiple workspace repositories provide it.`,
+        repositories: [consumerRepository, ...providers.map((provider2) => provider2.repository)].sort()
+      });
+    return;
+  }
+  const provider = providers[0];
+  const key2 = `${consumerRepository}\0${provider.repository}\0${provider.ecosystem}\0${provider.name}`;
+  const existing = edges.get(key2);
+  if (existing) {
+    if (!existing.evidence.some((evidence) => evidence.kind === declaration.evidence.kind && evidence.path === declaration.evidence.path && evidence.detail === declaration.evidence.detail)) {
+      existing.evidence.push(declaration.evidence);
+    }
+    if (!existing.requestedVersion && declaration.requestedVersion)
+      existing.requestedVersion = declaration.requestedVersion;
+    return;
+  }
+  edges.set(key2, {
+    consumerRepository,
+    providerRepository: provider.repository,
+    package: provider.name,
+    ecosystem: provider.ecosystem,
+    ...declaration.requestedVersion ? { requestedVersion: declaration.requestedVersion } : {},
+    evidence: [declaration.evidence]
+  });
+}
+function buildWorkspaceIdentityGraph(options, inputs, repositories, packages, dependencies, diagnostics) {
+  const repositoryById = new Map(repositories.map((repository) => [repository.id, repository]));
+  const inputById = new Map(inputs.map((input) => [input.id, input]));
+  const packageByProvider = new Map(packages.map((pkg) => [`${pkg.repository}\0${pkg.ecosystem}\0${pkg.name}`, pkg]));
+  const nodes = repositories.map((repository) => ({
+    id: repository.identity,
+    kind: "repository",
+    key: repository.id,
+    repository: repository.id,
+    attributes: {
+      ...repository.revision ? { revision: repository.revision } : {},
+      ...repository.remote ? { remote: repository.remote } : {},
+      relationship: repository.relationship.kind
+    },
+    derivedFrom: []
+  }));
+  const graphEdges = [];
+  for (const pkg of packages) {
+    const input = inputById.get(pkg.repository);
+    const source = workspaceSource(input, pkg.manifestPath);
+    nodes.push({
+      id: pkg.identity,
+      kind: "package",
+      key: `${pkg.ecosystem}:${pkg.name}`,
+      repository: pkg.repository,
+      parent: repositoryById.get(pkg.repository).identity,
+      label: pkg.name,
+      attributes: { ecosystem: pkg.ecosystem, ...pkg.version ? { version: pkg.version } : {} },
+      derivedFrom: [source]
+    });
+    graphEdges.push({
+      id: createGraphEdgeIdentity("contains", repositoryById.get(pkg.repository).identity, pkg.identity),
+      kind: "contains",
+      from: repositoryById.get(pkg.repository).identity,
+      to: pkg.identity,
+      confidence: "high",
+      reason: `${pkg.manifestPath} declares ${pkg.ecosystem} package ${pkg.name}.`,
+      derivedFrom: [source]
+    });
+  }
+  for (const repository of repositories) {
+    if (repository.relationship.kind !== "submodule" || !repository.relationship.parentRepository)
+      continue;
+    const parent = repositoryById.get(repository.relationship.parentRepository);
+    if (!parent)
+      continue;
+    graphEdges.push({
+      id: createGraphEdgeIdentity("contains", parent.identity, repository.identity),
+      kind: "contains",
+      from: parent.identity,
+      to: repository.identity,
+      confidence: "high",
+      reason: `${repository.id} is checked out as submodule ${repository.relationship.path ?? repository.id}.`,
+      derivedFrom: []
+    });
+  }
+  for (const dependency of dependencies) {
+    const consumer = repositoryById.get(dependency.consumerRepository);
+    const provider = packageByProvider.get(`${dependency.providerRepository}\0${dependency.ecosystem}\0${dependency.package}`);
+    const derivations = dependency.evidence.map((evidence) => workspaceSource(inputById.get(dependency.consumerRepository), evidence.path));
+    graphEdges.push({
+      id: dependency.identity,
+      kind: "depends-on",
+      from: consumer.identity,
+      to: provider.identity,
+      confidence: dependency.evidence.some((evidence) => evidence.kind === "manifest") ? "high" : "medium",
+      reason: `${dependency.consumerRepository} depends on ${dependency.package} from ${dependency.providerRepository}.`,
+      derivedFrom: derivations
+    });
+  }
+  nodes.push(...(options.identityNodes ?? []).map((entry2) => ({
+    ...entry2,
+    derivedFrom: entry2.derivedFrom.map((derivation) => ({ ...derivation }))
+  })));
+  graphEdges.push(...(options.identityEdges ?? []).map((entry2) => ({
+    ...entry2,
+    derivedFrom: entry2.derivedFrom.map((derivation) => ({ ...derivation }))
+  })));
+  for (const input of inputs) {
+    const files = new Map(input.repo.files.map((file) => [file.path, file]));
+    const ensureFile = (path) => {
+      const id = createGraphIdentity({ workspace: options.workspace, repository: input.id, kind: "file", key: path });
+      if (!nodes.some((node) => node.id === id))
+        nodes.push({
+          id,
+          kind: "file",
+          key: path,
+          repository: input.id,
+          parent: repositoryById.get(input.id).identity,
+          derivedFrom: [workspaceSource(input, path)]
+        });
+      return id;
+    };
+    const inventory = inventoryDecisionRecords(input.repo);
+    for (const diagnostic of inventory.diagnostics) {
+      diagnostics.push({ code: "decision-source-invalid", severity: diagnostic.severity, message: diagnostic.message, repositories: [input.id] });
+    }
+    for (const record3 of inventory.records) {
+      for (const target of record3.targets) {
+        const unresolved = (reason2) => {
+          diagnostics.push({
+            code: "decision-unresolved-target",
+            severity: "warning",
+            message: `${record3.path}: ${target.kind}:${target.kind === "file" ? target.path : target.name} has no rationale edge: ${reason2}.`,
+            repositories: [input.id]
+          });
+        };
+        let to;
+        let description;
+        let targetDerivation;
+        if (target.kind === "file") {
+          if (!files.get(target.path)?.contentFingerprint || target.path === record3.path) {
+            unresolved(target.path === record3.path ? "self-reference" : "missing file or exact source fingerprint");
+            continue;
+          }
+          to = ensureFile(target.path);
+          description = target.path;
+          targetDerivation = workspaceSource(input, target.path);
+        } else {
+          const candidates = nodes.filter((node) => node.repository === input.id && node.kind === target.kind && node.key === target.name && (target.kind !== "symbol" || !target.path || node.derivedFrom.some((source) => source.kind === "source" && source.repository === input.id && source.path === target.path && files.get(target.path)?.contentFingerprint === source.fingerprint)));
+          if (candidates.length !== 1) {
+            unresolved(candidates.length === 0 ? "no exact repository-local identity with matching provenance" : "ambiguous repository-local identities");
+            continue;
+          }
+          to = candidates[0].id;
+          description = `${target.kind}:${target.name}`;
+          targetDerivation = { kind: "node", id: to };
+        }
+        const from = ensureFile(record3.path);
+        const kind = target.evidence === "explicit" ? "rationale-for" : "mentions";
+        graphEdges.push({
+          id: createGraphEdgeIdentity(kind, from, to),
+          kind,
+          from,
+          to,
+          confidence: "high",
+          reason: target.evidence === "explicit" ? `${record3.path} explicitly declares authored scope for ${description}; decision status: ${record3.status}. This is not a code dependency or proof that the decision is enforced.` : `${record3.path} literally mentions ${description}; this does not establish authored scope or a code dependency.`,
+          derivedFrom: [workspaceSource(input, record3.path), targetDerivation]
+        });
+      }
+    }
+  }
+  return buildIdentityGraph({ workspace: options.workspace, nodes, edges: graphEdges });
+}
+function workspaceSource(input, path) {
+  const file = input.repo.files.find((candidate) => candidate.path === path);
+  if (!file)
+    throw new Error(`Workspace evidence references missing file ${input.id}:${path}.`);
+  if (!file.contentFingerprint) {
+    throw new Error(`Workspace evidence requires an exact content fingerprint for ${input.id}:${path}.`);
+  }
+  return {
+    kind: "source",
+    repository: input.id,
+    path,
+    fingerprint: file.contentFingerprint
+  };
+}
+function packageLookupKeys(pkg) {
+  const keys = [`${pkg.ecosystem}:${pkg.ecosystem === "python" ? normalizePythonName(pkg.name) : pkg.name}`];
+  for (const namespace of pkg.importNamespaces) {
+    keys.push(`${pkg.ecosystem}:${pkg.ecosystem === "python" ? normalizePythonName(namespace) : namespace}`);
+  }
+  return [...new Set(keys)];
+}
+function importMatches(ecosystem, source, namespace) {
+  if (ecosystem === "node")
+    return nodePackageName(source) === namespace;
+  if (ecosystem === "python")
+    return normalizePythonName(source.split(".")[0] ?? "") === normalizePythonName(namespace);
+  return source === namespace || source.startsWith(`${namespace}.`);
+}
+function nodePackageName(source) {
+  const parts = source.split("/");
+  return source.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0] ?? source;
+}
+function pythonNamespaces(files, directory) {
+  const prefix = directory ? `${directory}/` : "";
+  return [...new Set(files.flatMap((file) => {
+    if (!file.path.startsWith(prefix) || file.extension !== ".py")
+      return [];
+    const relative6 = file.path.slice(prefix.length);
+    const first = relative6.split("/")[0] ?? "";
+    if (!first || ["tests", "test", "scripts"].includes(first))
+      return [];
+    return [first.replace(/\.py$/, "")];
+  }))];
+}
+function javaPackages(files, directory) {
+  const prefix = directory ? `${directory}/` : "";
+  return [...new Set(files.flatMap((file) => {
+    if (!file.path.startsWith(prefix) || file.extension !== ".java")
+      return [];
+    const match = file.textSample.match(/\bpackage\s+([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*;/);
+    return match?.[1] ? [match[1]] : [];
+  }))];
+}
+function tomlProject(text2) {
+  const section2 = sectionText(text2, "project") || sectionText(text2, "tool.poetry");
+  const name = tomlScalar(section2, "name");
+  const version = tomlScalar(section2, "version");
+  return { ...name ? { name } : {}, ...version ? { version } : {} };
+}
+function tomlDependencies(text2) {
+  const results = [];
+  const project = sectionText(text2, "project");
+  const array2 = project.match(/(?:^|\n)\s*dependencies\s*=\s*\[([\s\S]*?)\]/i)?.[1] ?? "";
+  for (const match of array2.matchAll(/["']([^"']+)["']/g)) {
+    const raw = match[1]?.trim();
+    if (!raw)
+      continue;
+    const parsed2 = raw.match(/^([A-Za-z0-9_.-]+)(.*)$/);
+    if (parsed2?.[1])
+      results.push({ name: parsed2[1], ...parsed2[2]?.trim() ? { version: parsed2[2].trim() } : {}, raw });
+  }
+  const poetry = sectionText(text2, "tool.poetry.dependencies");
+  for (const match of poetry.matchAll(/^\s*([A-Za-z0-9_.-]+)\s*=\s*["']([^"']+)["']/gm)) {
+    if (match[1]?.toLowerCase() === "python")
+      continue;
+    if (match[1] && match[2])
+      results.push({ name: match[1], version: match[2], raw: `${match[1]} ${match[2]}` });
+  }
+  return results;
+}
+function mavenProject(text2) {
+  const withoutDependencies = text2.replace(/<dependencies\b[\s\S]*?<\/dependencies>/gi, "");
+  const groupId = xmlValue(withoutDependencies, "groupId");
+  const artifactId = xmlValue(withoutDependencies, "artifactId");
+  const version = xmlValue(withoutDependencies, "version");
+  return {
+    ...groupId ? { groupId } : {},
+    ...artifactId ? { artifactId } : {},
+    ...version ? { version } : {}
+  };
+}
+function mavenDependencies(text2) {
+  return [...text2.matchAll(/<dependency\b[^>]*>([\s\S]*?)<\/dependency>/gi)].flatMap((match) => {
+    const groupId = xmlValue(match[1] ?? "", "groupId");
+    const artifactId = xmlValue(match[1] ?? "", "artifactId");
+    if (!groupId || !artifactId)
+      return [];
+    const version = xmlValue(match[1] ?? "", "version");
+    return [{ groupId, artifactId, ...version ? { version } : {} }];
+  });
+}
+function sectionText(text2, section2) {
+  const escaped = section2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return text2.match(new RegExp(`(?:^|\\n)\\s*\\[${escaped}\\]\\s*\\n([\\s\\S]*?)(?=\\n\\s*\\[|$)`, "i"))?.[1] ?? "";
+}
+function tomlScalar(section2, key2) {
+  return section2.match(new RegExp(`(?:^|\\n)\\s*${key2}\\s*=\\s*["']([^"']+)["']`, "i"))?.[1]?.trim();
+}
+function xmlValue(text2, tag) {
+  return text2.match(new RegExp(`<${tag}\\b[^>]*>\\s*([^<]+?)\\s*</${tag}>`, "i"))?.[1]?.trim();
+}
+function parseJson(text2) {
+  try {
+    const parsed2 = JSON.parse(text2);
+    return isRecord10(parsed2) ? parsed2 : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function stringValue(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function normalizePythonName(name) {
+  return name.toLowerCase().replace(/[-_.]+/g, "-");
+}
+function manifestDirectory(path) {
+  return path.split("/").slice(0, -1).join("/");
+}
+function validateRepositoryInputs(inputs) {
+  const ids = /* @__PURE__ */ new Set();
+  for (const input of inputs) {
+    if (!REPOSITORY_ID.test(input.id))
+      throw new Error(`Invalid workspace repository ID: ${input.id}`);
+    if (ids.has(input.id))
+      throw new Error(`Duplicate workspace repository ID: ${input.id}`);
+    ids.add(input.id);
+  }
+}
+function deduplicateDiagnostics(diagnostics) {
+  const seen = /* @__PURE__ */ new Set();
+  return diagnostics.filter((diagnostic) => {
+    const key2 = `${diagnostic.code}\0${diagnostic.message}\0${diagnostic.repositories.join("\0")}`;
+    if (seen.has(key2))
+      return false;
+    seen.add(key2);
+    return true;
+  }).sort((a, b) => a.code.localeCompare(b.code) || a.message.localeCompare(b.message));
+}
+function isRecord10(candidate) {
+  return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
+}
+
 // packages/core/dist/verify.js
 function verifyPlan(report, repo, options = {}) {
   const changed = repo.changedFiles;
@@ -8615,7 +9458,7 @@ function verifyPlan(report, repo, options = {}) {
     findings,
     diagnostics: repo.diagnostics,
     impact,
-    narrative: buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy),
+    narrative: buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy, options.workspace ? buildWorkspaceVerifyNarrative(options.workspace.map, options.workspace.repository, changed) : []),
     ...sensitiveData ? { sensitiveData } : {}
   };
 }
@@ -8627,7 +9470,7 @@ function policyVerifyFinding(finding) {
     message: finding.message
   };
 }
-function buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy) {
+function buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy, crossRepository = []) {
   const narrative = [];
   if (changed.length > 0)
     narrative.push({
@@ -8635,6 +9478,7 @@ function buildVerifyNarrative(report, changed, changedSource, changedTests, impa
       text: `${changed.length} file${changed.length === 1 ? "" : "s"} changed: ${changed.slice(0, 8).join(", ")}${changed.length > 8 ? ", ..." : ""}.`,
       evidence: changed.map((path) => ({ kind: "changed-file", path, detail: "Present in the resolved verification diff." }))
     });
+  narrative.push(...crossRepository);
   for (const finding of policy?.findings ?? []) {
     narrative.push({
       classification: "observation",
@@ -9102,48 +9946,6 @@ var DEFAULT_LIMITS = {
 // packages/core/dist/ci-matrix.js
 var DIMENSIONS = ["os", "runtime", "database", "browser", "feature-flag", "deployment"];
 var DIMENSION_SET = new Set(DIMENSIONS);
-
-// packages/core/dist/identity-graph.js
-var ID_SCOPE = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/;
-var ENTITY_KINDS = /* @__PURE__ */ new Set([
-  "repository",
-  "service",
-  "package",
-  "module",
-  "file",
-  "symbol",
-  "contract",
-  "runtime-component",
-  "deployment"
-]);
-function createGraphIdentity(input) {
-  if (!ENTITY_KINDS.has(input.kind))
-    throw new Error(`Invalid graph entity kind: ${String(input.kind)}`);
-  validateIdentityScope(input.workspace, "workspace");
-  validateIdentityKey(input.key, "key");
-  if (input.repository)
-    validateIdentityScope(input.repository, "repository");
-  if (input.parent && !input.parent.startsWith("fixmap://"))
-    throw new Error("Graph identity parent must be a FixMap identity.");
-  const base = `fixmap://workspace/${encodePart(input.workspace)}`;
-  if (input.kind === "repository")
-    return `${base}/repository/${encodePart(input.key)}`;
-  const scope = input.parent ? input.parent : input.repository ? `${base}/repository/${encodePart(input.repository)}` : base;
-  return `${scope}/${input.kind}/${encodePart(input.key)}`;
-}
-function validateIdentityScope(value, label) {
-  if (!ID_SCOPE.test(value) || value === "." || value === "..")
-    throw new Error(`Invalid graph identity ${label}: ${value}`);
-}
-function validateIdentityKey(value, label) {
-  const segments = value.split("/");
-  if (!value.trim() || value !== value.trim() || value.length > 512 || /[\0-\x1f\x7f]/.test(value) || segments.some((segment) => !segment || segment === "." || segment === "..")) {
-    throw new Error(`Invalid graph identity ${label}: ${value}`);
-  }
-}
-function encodePart(value) {
-  return value.split("/").map(encodeURIComponent).join("/");
-}
 
 // packages/core/dist/yaml-subset.js
 var YamlSubsetError = class extends Error {
@@ -9653,7 +10455,7 @@ function compareContractInventories(previous, current2) {
     comparisonVersion: 1,
     summary: changes.length === 0 ? "No supported contract surface changed." : `${changes.length} contract change${changes.length === 1 ? "" : "s"}: ${breaking} breaking, ${unknown} unknown, ${compatible} compatible.`,
     changes,
-    diagnostics: deduplicateDiagnostics([...previous.diagnostics, ...current2.diagnostics])
+    diagnostics: deduplicateDiagnostics2([...previous.diagnostics, ...current2.diagnostics])
   };
 }
 function compareSurface(before, after, changes) {
@@ -9680,7 +10482,7 @@ function contractChange(before, after, change, compatibility, reason2, entry2, b
   const surface = after ?? before;
   const key2 = `${surface.id}\0${change}\0${entry2?.key ?? ""}\0${beforeSignature ?? ""}\0${afterSignature ?? ""}`;
   return {
-    id: `contract-change:${stableHash4(key2)}`,
+    id: `contract-change:${stableHash5(key2)}`,
     contractId: surface.id,
     contractKind: surface.kind,
     path: surface.path,
@@ -9736,7 +10538,7 @@ function parseContract(source) {
   }
   if (/(?:^|\/)migrations?\/.*\.sql$/i.test(source.path))
     return parsed(source, "migration", parseMigration(source.content));
-  const json = parseJson(source.content);
+  const json = parseJson2(source.content);
   if (json)
     return parsedStructured(source, json);
   const yamlLike = /\.ya?ml$/i.test(source.path) || /^\s*(?:openapi|swagger|asyncapi)\s*:/m.test(source.content);
@@ -9749,7 +10551,7 @@ function parseContract(source) {
         throw error;
       return parseFailed(source, `YAML ${error.message}.`);
     }
-    if (isRecord10(document)) {
+    if (isRecord11(document)) {
       for (const key2 of ["openapi", "swagger", "asyncapi"]) {
         if (typeof document[key2] !== "number")
           continue;
@@ -9781,7 +10583,7 @@ function parsedStructured(source, document) {
   const asyncapi = specVersion(document.asyncapi);
   if (asyncapi)
     return parsed(source, "asyncapi", { ...parseAsyncApiJson(document), version: asyncapi });
-  if (typeof document.$schema === "string" || isRecord10(document.properties)) {
+  if (typeof document.$schema === "string" || isRecord11(document.properties)) {
     return parsed(source, "json-schema", {
       ...parseJsonSchema(document),
       ...typeof document.$schema === "string" ? { version: document.$schema } : {}
@@ -9852,7 +10654,7 @@ function parseAsyncApiJson(root) {
   for (const [channel, channelValue] of Object.entries(recordValue(root.channels))) {
     const channelRecord = recordValue(channelValue);
     for (const operation of ["publish", "subscribe"]) {
-      if (!isRecord10(channelRecord[operation]))
+      if (!isRecord11(channelRecord[operation]))
         continue;
       entries.push(entry(`operation:${operation}:${channel}`, "operation", `${operation} ${channel}`));
     }
@@ -9948,7 +10750,7 @@ function parseMigration(content) {
   const statements = content.split(";").map((statement) => statement.replace(/--[^\r\n]*/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean);
   for (const statement of statements) {
     const destructive = /\bDROP\s+(?:TABLE|COLUMN|TYPE|INDEX|CONSTRAINT)\b|\bALTER\s+(?:TABLE\s+)?[^;]+\b(?:SET\s+NOT\s+NULL|TYPE\s+)\b|\bTRUNCATE\b/i.test(statement);
-    entries.push(entry(`migration:${stableHash4(statement.toLowerCase())}`, "migration", `${destructive ? "destructive" : "additive"}:${statement}`, false));
+    entries.push(entry(`migration:${stableHash5(statement.toLowerCase())}`, "migration", `${destructive ? "destructive" : "additive"}:${statement}`, false));
   }
   return { entries };
 }
@@ -9978,7 +10780,7 @@ function uniqueSurfaceIndex(surfaces, label) {
 function unavailableContractPaths(diagnostics) {
   return new Set(diagnostics.filter((diagnostic) => diagnostic.code === "contract-parse-failed" || diagnostic.code === "contract-source-incomplete").map((diagnostic) => diagnostic.path));
 }
-function deduplicateDiagnostics(diagnostics) {
+function deduplicateDiagnostics2(diagnostics) {
   const byKey = /* @__PURE__ */ new Map();
   for (const diagnostic of diagnostics) {
     byKey.set(`${diagnostic.code}\0${diagnostic.path}\0${diagnostic.message}`, { ...diagnostic });
@@ -10009,23 +10811,23 @@ function titleFromRoot(root) {
   return typeof title === "string" && title.trim() ? { name: title.trim() } : {};
 }
 function recordValue(value) {
-  return isRecord10(value) ? value : {};
+  return isRecord11(value) ? value : {};
 }
-function parseJson(content) {
+function parseJson2(content) {
   try {
     const parsed2 = JSON.parse(content);
-    return isRecord10(parsed2) ? parsed2 : void 0;
+    return isRecord11(parsed2) ? parsed2 : void 0;
   } catch {
     return void 0;
   }
 }
-function isRecord10(value) {
+function isRecord11(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function severityOrder2(value) {
   return value === "breaking" ? 0 : value === "unknown" ? 1 : 2;
 }
-function stableHash4(value) {
+function stableHash5(value) {
   let hash = 0xcbf29ce484222325n;
   for (const byte of new TextEncoder().encode(value)) {
     hash ^= BigInt(byte);
@@ -10297,7 +11099,7 @@ function validateFixMapReport(candidate, label) {
   }
   const versioned = record3.reportVersion === 1;
   const contextFiles = candidate.contextFiles;
-  const unsafeContextPath = contextFiles.findIndex((file) => isRecord11(file) && typeof file.path === "string" && file.path.trim().length > 0 && !isRepositoryRelativePath(file.path));
+  const unsafeContextPath = contextFiles.findIndex((file) => isRecord12(file) && typeof file.path === "string" && file.path.trim().length > 0 && !isRepositoryRelativePath(file.path));
   if (unsafeContextPath !== -1) {
     const path = contextFiles[unsafeContextPath].path;
     return {
@@ -10306,7 +11108,7 @@ function validateFixMapReport(candidate, label) {
     };
   }
   const invalid = contextFiles.findIndex((file) => {
-    if (!isRecord11(file))
+    if (!isRecord12(file))
       return true;
     const ranked = file;
     if (!isRepositoryRelativePath(ranked.path))
@@ -10349,7 +11151,7 @@ function validateFixMapReport(candidate, label) {
   }
   const testRoutes = record3.testRoutes;
   const invalidRoute = testRoutes.findIndex((route) => {
-    if (!isRecord11(route))
+    if (!isRecord12(route))
       return true;
     return typeof route.command !== "string" || !route.command.trim() || !isRepositoryRelativePathArray(route.relatedFiles) || (versioned || route.kind !== void 0) && route.kind !== "test" && route.kind !== "validation" || (versioned || route.reason !== void 0) && typeof route.reason !== "string";
   });
@@ -10361,7 +11163,7 @@ function validateFixMapReport(candidate, label) {
   }
   const risks = record3.risks;
   const invalidRisk = risks.findIndex((risk) => {
-    if (!isRecord11(risk))
+    if (!isRecord12(risk))
       return true;
     return typeof risk.area !== "string" || !risk.area.trim() || (versioned || risk.reason !== void 0) && typeof risk.reason !== "string" || (versioned || risk.severity !== void 0) && risk.severity !== "low" && risk.severity !== "medium" && risk.severity !== "high";
   });
@@ -10373,14 +11175,14 @@ function validateFixMapReport(candidate, label) {
   }
   if (record3.impact !== void 0) {
     const impact = record3.impact;
-    const history = isRecord11(impact) ? impact.history : void 0;
-    if (!isRecord11(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord11(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
+    const history = isRecord12(impact) ? impact.history : void 0;
+    if (!isRecord12(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord12(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
       return { success: false, message: `${label} has an invalid impact graph envelope.` };
     }
     const invalidImpact = impact.files.findIndex((file) => {
-      if (!isRecord11(file) || !isRepositoryRelativePath(file.path) || typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 || file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low" || !Array.isArray(file.evidence))
+      if (!isRecord12(file) || !isRepositoryRelativePath(file.path) || typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 || file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low" || !Array.isArray(file.evidence))
         return true;
-      return file.evidence.some((evidence) => !isRecord11(evidence) || !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) || !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() || evidence.occurrences !== void 0 && (!Number.isSafeInteger(evidence.occurrences) || evidence.occurrences < 0) || evidence.seedChanges !== void 0 && (!Number.isSafeInteger(evidence.seedChanges) || evidence.seedChanges < 0));
+      return file.evidence.some((evidence) => !isRecord12(evidence) || !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) || !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() || evidence.occurrences !== void 0 && (!Number.isSafeInteger(evidence.occurrences) || evidence.occurrences < 0) || evidence.seedChanges !== void 0 && (!Number.isSafeInteger(evidence.seedChanges) || evidence.seedChanges < 0));
     });
     if (invalidImpact !== -1) {
       return { success: false, message: `${label} has an invalid impact.files entry at index ${invalidImpact}.` };
@@ -10389,7 +11191,7 @@ function validateFixMapReport(candidate, label) {
       const primaryPaths = new Set(contextFiles.map((file) => file.path));
       const seenEdges = /* @__PURE__ */ new Set();
       if (!Array.isArray(impact.primaryImports) || impact.primaryImports.some((edge) => {
-        if (!isRecord11(edge) || !isRepositoryRelativePath(edge.from) || !isRepositoryRelativePath(edge.to) || edge.from === edge.to || !primaryPaths.has(edge.from) || !primaryPaths.has(edge.to))
+        if (!isRecord12(edge) || !isRepositoryRelativePath(edge.from) || !isRepositoryRelativePath(edge.to) || edge.from === edge.to || !primaryPaths.has(edge.from) || !primaryPaths.has(edge.to))
           return true;
         const key2 = JSON.stringify([edge.from, edge.to]);
         if (seenEdges.has(key2))
@@ -10406,8 +11208,8 @@ function validateFixMapReport(candidate, label) {
   }
   if (record3.evidence !== void 0) {
     const evidence = record3.evidence;
-    const validSubject = (subject) => isRecord11(subject) && typeof subject.kind === "string" && (subject.path === void 0 || isRepositoryRelativePath(subject.path));
-    if (!isRecord11(evidence) || evidence.evidenceVersion !== 1 || typeof evidence.collectedAt !== "string" || !Array.isArray(evidence.sources) || !evidence.sources.every((source) => isRecord11(source) && typeof source.provider === "string" && typeof source.version === "string" && (source.documentSha256 === void 0 || typeof source.documentSha256 === "string" && /^[a-f0-9]{64}$/.test(source.documentSha256))) || !Array.isArray(evidence.items) || evidence.items.length > 50 || !evidence.items.every((item) => isRecord11(item) && typeof item.id === "string" && typeof item.summary === "string" && typeof item.kind === "string" && ["high", "medium", "low"].includes(String(item.confidence)) && isRecord11(item.provider) && Array.isArray(item.subjects) && item.subjects.length > 0 && item.subjects.every(validSubject)) || !Number.isSafeInteger(evidence.omittedItems) || evidence.omittedItems < 0 || !Array.isArray(evidence.diagnostics)) {
+    const validSubject = (subject) => isRecord12(subject) && typeof subject.kind === "string" && (subject.path === void 0 || isRepositoryRelativePath(subject.path));
+    if (!isRecord12(evidence) || evidence.evidenceVersion !== 1 || typeof evidence.collectedAt !== "string" || !Array.isArray(evidence.sources) || !evidence.sources.every((source) => isRecord12(source) && typeof source.provider === "string" && typeof source.version === "string" && (source.documentSha256 === void 0 || typeof source.documentSha256 === "string" && /^[a-f0-9]{64}$/.test(source.documentSha256))) || !Array.isArray(evidence.items) || evidence.items.length > 50 || !evidence.items.every((item) => isRecord12(item) && typeof item.id === "string" && typeof item.summary === "string" && typeof item.kind === "string" && ["high", "medium", "low"].includes(String(item.confidence)) && isRecord12(item.provider) && Array.isArray(item.subjects) && item.subjects.length > 0 && item.subjects.every(validSubject)) || !Number.isSafeInteger(evidence.omittedItems) || evidence.omittedItems < 0 || !Array.isArray(evidence.diagnostics)) {
       return { success: false, message: `${label} has invalid evidence; it needs evidenceVersion 1, sources, at most 50 items with safe repository-relative subjects, omittedItems, and diagnostics.` };
     }
   }
@@ -10419,17 +11221,17 @@ function validateFixMapReport(candidate, label) {
   }
   if (record3.languageAdapters !== void 0) {
     const adapters = record3.languageAdapters;
-    if (!Array.isArray(adapters) || adapters.length > 32 || !adapters.every((adapter) => isRecord11(adapter) && Object.keys(adapter).every((key2) => key2 === "id" || key2 === "version" || key2 === "extensions") && typeof adapter.id === "string" && /^custom:[a-z][a-z0-9-]{0,63}$/.test(adapter.id) && typeof adapter.version === "string" && /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(adapter.version) && Array.isArray(adapter.extensions) && adapter.extensions.length > 0 && adapter.extensions.length <= 32 && adapter.extensions.every((extension) => typeof extension === "string" && /^\.[a-z0-9][a-z0-9_-]{0,15}$/.test(extension)))) {
+    if (!Array.isArray(adapters) || adapters.length > 32 || !adapters.every((adapter) => isRecord12(adapter) && Object.keys(adapter).every((key2) => key2 === "id" || key2 === "version" || key2 === "extensions") && typeof adapter.id === "string" && /^custom:[a-z][a-z0-9-]{0,63}$/.test(adapter.id) && typeof adapter.version === "string" && /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(adapter.version) && Array.isArray(adapter.extensions) && adapter.extensions.length > 0 && adapter.extensions.length <= 32 && adapter.extensions.every((extension) => typeof extension === "string" && /^\.[a-z0-9][a-z0-9_-]{0,15}$/.test(extension)))) {
       return { success: false, message: `${label} has invalid languageAdapters; each entry needs a custom: id, a version, and lowercase extensions.` };
     }
   }
   if (record3.annotations !== void 0) {
     const annotations = record3.annotations;
-    if (!isRecord11(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) || !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) || !Array.isArray(annotations.entries)) {
+    if (!isRecord12(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) || !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) || !Array.isArray(annotations.entries)) {
       return { success: false, message: `${label} has an invalid annotations envelope.` };
     }
     const invalidAnnotation = annotations.entries.findIndex((assessment) => {
-      if (!isRecord11(assessment) || !isRecord11(assessment.annotation) || typeof assessment.message !== "string" || !["active", "expired", "missing-target", "renamed-target"].includes(String(assessment.status)) || assessment.suggestedPath !== void 0 && !isRepositoryRelativePath(assessment.suggestedPath))
+      if (!isRecord12(assessment) || !isRecord12(assessment.annotation) || typeof assessment.message !== "string" || !["active", "expired", "missing-target", "renamed-target"].includes(String(assessment.status)) || assessment.suggestedPath !== void 0 && !isRepositoryRelativePath(assessment.suggestedPath))
         return true;
       try {
         validateAnnotationStore({ annotationStoreVersion: 1, annotations: [assessment.annotation] });
@@ -10446,12 +11248,12 @@ function validateFixMapReport(candidate, label) {
     if (!Array.isArray(record3.decisions))
       return { success: false, message: `${label} has invalid decisions; expected an array.` };
     const invalidDecision = record3.decisions.findIndex((decision) => {
-      if (!isRecord11(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.authoredStatus !== void 0 && (typeof decision.authoredStatus !== "string" || !decision.authoredStatus.trim() || decision.authoredStatus.length > 500 || decision.authoredStatus.includes("\0")) || decision.consequences !== void 0 && typeof decision.consequences !== "string" || decision.dependencyRules !== void 0 && (!Array.isArray(decision.dependencyRules) || !decision.dependencyRules.every((rule) => isRecord11(rule) && typeof rule.from === "string" && rule.from.trim() && typeof rule.deny === "string" && rule.deny.trim())))
+      if (!isRecord12(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.authoredStatus !== void 0 && (typeof decision.authoredStatus !== "string" || !decision.authoredStatus.trim() || decision.authoredStatus.length > 500 || decision.authoredStatus.includes("\0")) || decision.consequences !== void 0 && typeof decision.consequences !== "string" || decision.dependencyRules !== void 0 && (!Array.isArray(decision.dependencyRules) || !decision.dependencyRules.every((rule) => isRecord12(rule) && typeof rule.from === "string" && rule.from.trim() && typeof rule.deny === "string" && rule.deny.trim())))
         return true;
-      if (decision.source !== void 0 && (!isRecord11(decision.source) || decision.source.kind !== "pull-request" || decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url)))
+      if (decision.source !== void 0 && (!isRecord12(decision.source) || decision.source.kind !== "pull-request" || decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url)))
         return true;
       return decision.targets.some((target) => {
-        if (!isRecord11(target) || !["explicit", "literal-mention"].includes(String(target.evidence)))
+        if (!isRecord12(target) || !["explicit", "literal-mention"].includes(String(target.evidence)))
           return true;
         if (target.kind === "file")
           return !isRepositoryRelativePath(target.path);
@@ -10465,13 +11267,13 @@ function validateFixMapReport(candidate, label) {
   }
   if (record3.policy !== void 0) {
     const policy = record3.policy;
-    if (!isRecord11(policy) || typeof policy.policyFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
+    if (!isRecord12(policy) || typeof policy.policyFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
       return { success: false, message: `${label} has an invalid architecture policy envelope.` };
     }
     const invalidPolicyFinding = policy.findings.findIndex((finding) => {
-      if (!isRecord11(finding) || !["boundary-violation", "required-test-missing", "review-required", "breaking-contract"].includes(String(finding.code)) || !["info", "warning", "error"].includes(String(finding.severity)) || typeof finding.ruleId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(finding.ruleId) || typeof finding.message !== "string" || !finding.message.trim() || !isRepositoryRelativePathArray(finding.paths) || !Array.isArray(finding.evidence))
+      if (!isRecord12(finding) || !["boundary-violation", "required-test-missing", "review-required", "breaking-contract"].includes(String(finding.code)) || !["info", "warning", "error"].includes(String(finding.severity)) || typeof finding.ruleId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(finding.ruleId) || typeof finding.message !== "string" || !finding.message.trim() || !isRepositoryRelativePathArray(finding.paths) || !Array.isArray(finding.evidence))
         return true;
-      return finding.evidence.some((evidence) => !isRecord11(evidence) || !["import", "changed-file", "test-pattern", "reviewer", "contract-change", "decision-record"].includes(String(evidence.kind)) || typeof evidence.detail !== "string" || !evidence.detail.trim() || evidence.path !== void 0 && !isRepositoryRelativePath(evidence.path) || evidence.relatedPath !== void 0 && !isRepositoryRelativePath(evidence.relatedPath));
+      return finding.evidence.some((evidence) => !isRecord12(evidence) || !["import", "changed-file", "test-pattern", "reviewer", "contract-change", "decision-record"].includes(String(evidence.kind)) || typeof evidence.detail !== "string" || !evidence.detail.trim() || evidence.path !== void 0 && !isRepositoryRelativePath(evidence.path) || evidence.relatedPath !== void 0 && !isRepositoryRelativePath(evidence.relatedPath));
     });
     if (invalidPolicyFinding !== -1) {
       return { success: false, message: `${label} has an invalid architecture policy finding at index ${invalidPolicyFinding}.` };
@@ -10479,7 +11281,7 @@ function validateFixMapReport(candidate, label) {
   }
   const diagnostics = record3.diagnostics;
   const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
-    if (!isRecord11(diagnostic))
+    if (!isRecord12(diagnostic))
       return true;
     return typeof diagnostic.code !== "string" || !diagnostic.code.trim() || typeof diagnostic.message !== "string" || diagnostic.severity !== "info" && diagnostic.severity !== "warning" && diagnostic.severity !== "error" || diagnostic.paths !== void 0 && !isRepositoryRelativePathArray(diagnostic.paths);
   });
@@ -10491,21 +11293,21 @@ function validateFixMapReport(candidate, label) {
   }
   if (record3.analysis !== void 0) {
     const analysis = record3.analysis;
-    const grounding = isRecord11(analysis) ? analysis.grounding : void 0;
-    const specificity = isRecord11(grounding) ? grounding.specificity : void 0;
+    const grounding = isRecord12(analysis) ? analysis.grounding : void 0;
+    const specificity = isRecord12(grounding) ? grounding.specificity : void 0;
     if (specificity !== "anchored" && specificity !== "descriptive" && specificity !== "vague") {
       return {
         success: false,
         message: `${label} has invalid analysis.grounding.specificity; expected anchored, descriptive, or vague.`
       };
     }
-    if (!isRecord11(analysis) || !isRecord11(grounding) || !Array.isArray(grounding.identifiers) || !isStringArray(grounding.unresolvedIdentifiers) || !isStringArray(grounding.partiallyResolvedIdentifiers) || !isStringArray(grounding.unverifiedIdentifiers) || typeof grounding.scanComplete !== "boolean" || !isRecord11(analysis.ranking) || !isNullableFiniteNumber(analysis.ranking.topScore) || !isNullableFiniteNumber(analysis.ranking.runnerUpScore) || !isNullableFiniteNumber(analysis.ranking.topGap) || typeof analysis.ranking.clustered !== "boolean" || typeof analysis.nextAction !== "string") {
+    if (!isRecord12(analysis) || !isRecord12(grounding) || !Array.isArray(grounding.identifiers) || !isStringArray(grounding.unresolvedIdentifiers) || !isStringArray(grounding.partiallyResolvedIdentifiers) || !isStringArray(grounding.unverifiedIdentifiers) || typeof grounding.scanComplete !== "boolean" || !isRecord12(analysis.ranking) || !isNullableFiniteNumber(analysis.ranking.topScore) || !isNullableFiniteNumber(analysis.ranking.runnerUpScore) || !isNullableFiniteNumber(analysis.ranking.topGap) || typeof analysis.ranking.clustered !== "boolean" || typeof analysis.nextAction !== "string") {
       return {
         success: false,
         message: `${label} has incomplete or invalid analysis grounding, ranking, or nextAction fields.`
       };
     }
-    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord11(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isRepositoryRelativePathArray(identifier.matchedFiles));
+    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord12(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isRepositoryRelativePathArray(identifier.matchedFiles));
     if (invalidIdentifier !== -1) {
       return {
         success: false,
@@ -10514,15 +11316,15 @@ function validateFixMapReport(candidate, label) {
     }
     if (analysis.retrievalRanking !== void 0) {
       const retrievalRanking = analysis.retrievalRanking;
-      if (!isRecord11(retrievalRanking) || !isNullableFiniteNumber(retrievalRanking.topFusionScore) || !isNullableFiniteNumber(retrievalRanking.runnerUpFusionScore) || !isNullableFiniteNumber(retrievalRanking.topGap)) {
+      if (!isRecord12(retrievalRanking) || !isNullableFiniteNumber(retrievalRanking.topFusionScore) || !isNullableFiniteNumber(retrievalRanking.runnerUpFusionScore) || !isNullableFiniteNumber(retrievalRanking.topGap)) {
         return { success: false, message: `${label} has invalid analysis.retrievalRanking fields.` };
       }
     }
   }
   if (record3.retrieval !== void 0) {
     const retrieval = record3.retrieval;
-    const weights = isRecord11(retrieval) ? retrieval.weights : void 0;
-    if (!isRecord11(retrieval) || retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic" || !isRecord11(weights) || !isPositiveFiniteNumber(weights.structural) || !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) || !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
+    const weights = isRecord12(retrieval) ? retrieval.weights : void 0;
+    if (!isRecord12(retrieval) || retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic" || !isRecord12(weights) || !isPositiveFiniteNumber(weights.structural) || !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) || !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
       return { success: false, message: `${label} has an invalid retrieval envelope.` };
     }
     if (retrieval.mode === "structural-lexical-semantic" && !isSemanticProvenance(retrieval.semantic)) {
@@ -10534,7 +11336,7 @@ function validateFixMapReport(candidate, label) {
   }
   return { success: true, report: candidate };
 }
-function isRecord11(candidate) {
+function isRecord12(candidate) {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
 function isStringArray(candidate) {
@@ -10550,7 +11352,7 @@ function isIdentifierStatus(candidate) {
   return candidate === "exact-definition" || candidate === "exact-text" || candidate === "partial-definition" || candidate === "not-found" || candidate === "unverified";
 }
 function isRetrievalSignal(candidate) {
-  if (!isRecord11(candidate))
+  if (!isRecord12(candidate))
     return false;
   const ranks = [candidate.structuralRank, candidate.lexicalRank, candidate.semanticRank];
   if (ranks.every((rank) => rank === void 0))
@@ -10562,7 +11364,7 @@ function isRetrievalSignal(candidate) {
   return candidate.semanticSimilarity === void 0 || typeof candidate.semanticSimilarity === "number" && Number.isFinite(candidate.semanticSimilarity) && candidate.semanticSimilarity >= -1 && candidate.semanticSimilarity <= 1;
 }
 function isSemanticProvenance(candidate) {
-  if (!isRecord11(candidate))
+  if (!isRecord12(candidate))
     return false;
   return typeof candidate.id === "string" && candidate.id.trim().length > 0 && typeof candidate.version === "string" && candidate.version.trim().length > 0 && typeof candidate.model === "string" && candidate.model.trim().length > 0 && typeof candidate.artifactHash === "string" && /^[a-f0-9]{64}$/.test(candidate.artifactHash) && typeof candidate.runtime === "string" && candidate.runtime.trim().length > 0 && Number.isSafeInteger(candidate.dimensions) && Number(candidate.dimensions) > 0 && (candidate.normalization === "l2" || candidate.normalization === "none") && typeof candidate.local === "boolean" && typeof candidate.cacheKey === "string" && candidate.cacheKey.trim().length > 0 && Number.isSafeInteger(candidate.indexedFiles) && Number(candidate.indexedFiles) >= 0 && Number.isSafeInteger(candidate.truncatedFiles) && Number(candidate.truncatedFiles) >= 0;
 }
@@ -10579,7 +11381,7 @@ var CAPABILITY_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 var MAX_CAPABILITIES = 256;
 var MAX_ANCHORS2 = 64;
 function validateCapabilityStore(candidate) {
-  if (!isRecord12(candidate) || candidate.capabilityStoreVersion !== 1 || typeof candidate.workspace !== "string" || typeof candidate.repository !== "string" || !Array.isArray(candidate.capabilities)) {
+  if (!isRecord13(candidate) || candidate.capabilityStoreVersion !== 1 || typeof candidate.workspace !== "string" || typeof candidate.repository !== "string" || !Array.isArray(candidate.capabilities)) {
     throw new Error("Capability store must be a version-1 object with workspace, repository, and capabilities fields.");
   }
   assertOnlyKeys(candidate, ["capabilityStoreVersion", "workspace", "repository", "capabilities"], "capability store");
@@ -10644,7 +11446,7 @@ function buildCapabilityMap(repo, input) {
   };
 }
 function validateDefinition(candidate, index) {
-  if (!isRecord12(candidate))
+  if (!isRecord13(candidate))
     throw new Error(`Capability at index ${index} must be an object.`);
   assertOnlyKeys(candidate, ["id", "name", "anchors", "traversal"], `capability at index ${index}`);
   if (typeof candidate.id !== "string" || !CAPABILITY_ID.test(candidate.id)) {
@@ -10673,7 +11475,7 @@ function validateDefinition(candidate, index) {
   };
 }
 function validateAnchor(candidate, capability, index) {
-  if (!isRecord12(candidate))
+  if (!isRecord13(candidate))
     throw new Error(`Capability ${capability} anchor at index ${index} must be an object.`);
   assertOnlyKeys(candidate, ["operation", "path"], `capability ${capability} anchor at index ${index}`);
   if (candidate.operation !== "touch" && candidate.operation !== "add") {
@@ -10685,7 +11487,7 @@ function validateAnchor(candidate, capability, index) {
   return { operation: candidate.operation, path };
 }
 function validateTraversal(candidate, capability) {
-  if (!isRecord12(candidate))
+  if (!isRecord13(candidate))
     throw new Error(`Capability ${capability} traversal must be an object.`);
   assertOnlyKeys(candidate, ["direction", "maxDepth", "maxNodes"], `capability ${capability} traversal`);
   const direction = candidate.direction;
@@ -10724,7 +11526,7 @@ function assertOnlyKeys(record3, allowed, label) {
   if (unknown.length > 0)
     throw new Error(`${label} has unknown field${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`);
 }
-function isRecord12(candidate) {
+function isRecord13(candidate) {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
 
@@ -10743,12 +11545,12 @@ async function compareCapabilityRefs(input) {
   const to = capabilitySnapshot(historicalTo, id, input.asOf);
   const selected = comparePaths(from.map?.scope.selected ?? [], to.map?.scope.selected ?? []);
   const affected = comparePaths(from.map?.scope.affected ?? [], to.map?.scope.affected ?? []);
-  const contracts = compareEntities(from.map?.scope.contracts.map((entry2) => ({ id: entry2.id, fingerprint: `${entry2.sourceFingerprint}\0${canonicalize3(entry2.entries)}` })) ?? [], to.map?.scope.contracts.map((entry2) => ({ id: entry2.id, fingerprint: `${entry2.sourceFingerprint}\0${canonicalize3(entry2.entries)}` })) ?? []);
+  const contracts = compareEntities(from.map?.scope.contracts.map((entry2) => ({ id: entry2.id, fingerprint: `${entry2.sourceFingerprint}\0${canonicalize4(entry2.entries)}` })) ?? [], to.map?.scope.contracts.map((entry2) => ({ id: entry2.id, fingerprint: `${entry2.sourceFingerprint}\0${canonicalize4(entry2.entries)}` })) ?? []);
   const decisions = compareEntities(from.map?.scope.decisions.map((entry2) => ({ id: entry2.id, fingerprint: entry2.sourceFingerprint })) ?? [], to.map?.scope.decisions.map((entry2) => ({ id: entry2.id, fingerprint: entry2.sourceFingerprint })) ?? []);
   const testAssociations = compareEntities(from.testAssociations.map((entry2) => ({ id: entry2.path, fingerprint: entry2.sourceFingerprint })), to.testAssociations.map((entry2) => ({ id: entry2.path, fingerprint: entry2.sourceFingerprint })));
   const reviewers = compareEntities(reviewerEntities(from.map), reviewerEntities(to.map));
   const architectureFindings = compareEntities(findingEntities(from.map), findingEntities(to.map));
-  const definitionChanged = canonicalize3(from.capability ?? null) !== canonicalize3(to.capability ?? null);
+  const definitionChanged = canonicalize4(from.capability ?? null) !== canonicalize4(to.capability ?? null);
   const totalChanges = [selected, affected, contracts, decisions, testAssociations, reviewers, architectureFindings].reduce((total, diff) => total + diff.added.length + diff.removed.length + diff.modified.length, definitionChanged ? 1 : 0);
   return {
     capabilityHistoryVersion: 1,
@@ -10823,27 +11625,199 @@ function compareMaps(previous, current2) {
 function reviewerEntities(map) {
   return (map?.scope.reviewers ?? []).map((reviewer) => ({
     id: reviewer.reviewer,
-    fingerprint: canonicalize3({ paths: reviewer.paths, evidence: reviewer.evidence })
+    fingerprint: canonicalize4({ paths: reviewer.paths, evidence: reviewer.evidence })
   }));
 }
 function findingEntities(map) {
   return (map?.scope.architectureFindings ?? []).map((finding) => ({
     id: `${finding.ruleId}:${finding.code}:${finding.paths.join("|")}`,
-    fingerprint: canonicalize3(finding)
+    fingerprint: canonicalize4(finding)
   }));
 }
-function canonicalize3(value) {
+function canonicalize4(value) {
   if (Array.isArray(value))
-    return `[${value.map(canonicalize3).join(",")}]`;
+    return `[${value.map(canonicalize4).join(",")}]`;
   if (value && typeof value === "object") {
-    return `{${Object.entries(value).filter(([, entry2]) => entry2 !== void 0).sort(([left], [right]) => left.localeCompare(right)).map(([key2, entry2]) => `${JSON.stringify(key2)}:${canonicalize3(entry2)}`).join(",")}}`;
+    return `{${Object.entries(value).filter(([, entry2]) => entry2 !== void 0).sort(([left], [right]) => left.localeCompare(right)).map(([key2, entry2]) => `${JSON.stringify(key2)}:${canonicalize4(entry2)}`).join(",")}}`;
   }
   return JSON.stringify(value);
 }
 
+// packages/core/dist/workspace-config.js
+import { readFile as readFile5, realpath as realpath3 } from "node:fs/promises";
+import { homedir as homedir3 } from "node:os";
+import { dirname as dirname3, isAbsolute as isAbsolute3, resolve as resolve5 } from "node:path";
+var REPOSITORY_ID2 = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+var MAX_ALIASES = 256;
+var MAX_PACKAGE_NAME = 214;
+var MAX_REASON = 500;
+var ECOSYSTEMS = /* @__PURE__ */ new Set(["node", "python", "maven"]);
+var ALIAS_KEYS = /* @__PURE__ */ new Set(["consumer", "ecosystem", "package", "provider", "providerPackage", "reason"]);
+function parseWorkspaceConfig(value) {
+  if (!isRecord14(value))
+    throw new Error("Workspace config must be a JSON object.");
+  if (value.workspaceConfigVersion !== 1) {
+    throw new Error("Workspace config workspaceConfigVersion must be 1.");
+  }
+  const workspace = stringField(value.workspace, "workspace");
+  if (!Array.isArray(value.repositories) || value.repositories.length < 1 || value.repositories.length > 32) {
+    throw new Error("Workspace config repositories must contain 1-32 entries.");
+  }
+  const repositories = value.repositories.map((entry2, index) => {
+    if (!isRecord14(entry2))
+      throw new Error(`Workspace repository ${index + 1} must be an object.`);
+    const id = stringField(entry2.id, `repositories[${index}].id`);
+    if (!REPOSITORY_ID2.test(id))
+      throw new Error(`Invalid workspace repository ID: ${id}`);
+    const path = stringField(entry2.path, `repositories[${index}].path`);
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path)) {
+      throw new Error(`Workspace repository ${id} must use a local path, not a URL.`);
+    }
+    const relationship = parseRelationship(entry2.relationship, id);
+    return { id, path, ...relationship ? { relationship } : {} };
+  });
+  const aliases = value.aliases === void 0 ? void 0 : parseAliases(value.aliases, new Set(repositories.map((entry2) => entry2.id)));
+  return { workspaceConfigVersion: 1, workspace, repositories, ...aliases ? { aliases } : {} };
+}
+function parseAliases(value, repositoryIds) {
+  if (!Array.isArray(value) || value.length > MAX_ALIASES) {
+    throw new Error(`Workspace config aliases must be an array of at most ${MAX_ALIASES} entries.`);
+  }
+  const seen = /* @__PURE__ */ new Set();
+  return value.map((entry2, index) => {
+    const where = `aliases[${index}]`;
+    if (!isRecord14(entry2))
+      throw new Error(`Workspace config ${where} must be an object.`);
+    const unknown = Object.keys(entry2).filter((key3) => !ALIAS_KEYS.has(key3));
+    if (unknown.length > 0)
+      throw new Error(`Workspace config ${where} has unknown field${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`);
+    const consumer = stringField(entry2.consumer, `${where}.consumer`);
+    const provider = stringField(entry2.provider, `${where}.provider`);
+    for (const [field, id] of [["consumer", consumer], ["provider", provider]]) {
+      if (!repositoryIds.has(id))
+        throw new Error(`Workspace config ${where}.${field} names unknown repository ${id}.`);
+    }
+    if (consumer === provider)
+      throw new Error(`Workspace config ${where} must link two different repositories.`);
+    if (typeof entry2.ecosystem !== "string" || !ECOSYSTEMS.has(entry2.ecosystem)) {
+      throw new Error(`Workspace config ${where}.ecosystem must be node, python, or maven.`);
+    }
+    const ecosystem = entry2.ecosystem;
+    const pkg = packageName(entry2.package, `${where}.package`);
+    const providerPackage = packageName(entry2.providerPackage, `${where}.providerPackage`);
+    const reason2 = stringField(entry2.reason, `${where}.reason`);
+    if (reason2.length > MAX_REASON || /[\u0000-\u001f\u007f]/.test(reason2)) {
+      throw new Error(`Workspace config ${where}.reason must be one line of at most ${MAX_REASON} characters.`);
+    }
+    const key2 = `${consumer}\0${ecosystem}\0${pkg}`;
+    if (seen.has(key2))
+      throw new Error(`Workspace config ${where} repeats the alias for ${consumer} ${ecosystem}:${pkg}.`);
+    seen.add(key2);
+    return { consumer, ecosystem, package: pkg, provider, providerPackage, reason: reason2 };
+  });
+}
+function packageName(value, name) {
+  const text2 = stringField(value, name);
+  if (text2.length > MAX_PACKAGE_NAME || /[\s\u0000-\u001f\u007f`\\]/.test(text2) || text2.includes("..")) {
+    throw new Error(`Workspace config ${name} must be a package name of at most ${MAX_PACKAGE_NAME} characters without whitespace, backslashes, or "..".`);
+  }
+  return text2;
+}
+function parseRelationship(value, repository) {
+  if (value === void 0)
+    return void 0;
+  if (!isRecord14(value) || value.kind !== "checkout" && value.kind !== "submodule") {
+    throw new Error(`Workspace repository ${repository} relationship.kind must be checkout or submodule.`);
+  }
+  if (value.kind === "checkout")
+    return { kind: "checkout" };
+  const parentRepository = stringField(value.parentRepository, `${repository}.relationship.parentRepository`);
+  const path = typeof value.path === "string" && value.path.trim() ? value.path.trim() : void 0;
+  return { kind: "submodule", parentRepository, ...path ? { path } : {} };
+}
+async function resolveWorkspaceRepositories(repositories, configDirectory) {
+  const ids = /* @__PURE__ */ new Set();
+  const roots = /* @__PURE__ */ new Map();
+  const resolved = [];
+  for (const config of repositories) {
+    if (ids.has(config.id))
+      throw new Error(`Duplicate workspace repository ID: ${config.id}`);
+    ids.add(config.id);
+    const literal = expandHomePath(config.path);
+    const root = resolve5(isAbsolute3(literal) ? literal : resolve5(configDirectory, literal));
+    let canonical;
+    try {
+      canonical = await realpath3(root);
+    } catch (error) {
+      const code = error.code;
+      throw new Error(`Workspace repository ${config.id} could not be opened at "${root}": ${code === "ENOENT" ? "no such file or directory" : error instanceof Error ? error.message : String(error)}`);
+    }
+    const key2 = pathKey(canonical);
+    const collision = roots.get(key2);
+    if (collision)
+      throw new Error(`Workspace repositories ${collision} and ${config.id} resolve to the same checkout.`);
+    roots.set(key2, config.id);
+    resolved.push({ config, root: canonical });
+  }
+  return resolved;
+}
+async function loadWorkspaceConfig(configPath, options = {}) {
+  let raw;
+  try {
+    raw = JSON.parse((await readFile5(configPath, "utf8")).replace(/^﻿/, ""));
+  } catch (error) {
+    throw new Error(`Could not read workspace config "${configPath}": ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const config = parseWorkspaceConfig(raw);
+  const resolved = await resolveWorkspaceRepositories(config.repositories, dirname3(resolve5(configPath)));
+  const scan = options.scanRepository ?? scanRepo;
+  const scanned = [];
+  for (const entry2 of resolved) {
+    const repo = await scan({ repoRoot: entry2.root, includeHistory: false, useCache: options.useCache ?? true });
+    assertWorkspaceScan(entry2.config.id, repo);
+    scanned.push({ id: entry2.config.id, root: entry2.root, repo, relationship: entry2.config.relationship });
+  }
+  const map = buildWorkspaceMap(scanned.map((entry2) => ({ id: entry2.id, repo: entry2.repo, relationship: entry2.relationship ?? { kind: "checkout" } })), { workspace: config.workspace, ...config.aliases ? { aliases: config.aliases } : {} });
+  return { config, repositories: resolved.map((entry2) => ({ id: entry2.config.id, root: entry2.root })), map };
+}
+function assertWorkspaceScan(repository, repo) {
+  const error = repo.diagnostics.find((diagnostic) => diagnostic.severity === "error");
+  if (error)
+    throw new Error(`Workspace repository ${repository} could not be scanned: ${error.message}`);
+  if (repo.files.length === 0)
+    throw new Error(`Workspace repository ${repository} contains no scannable files.`);
+}
+async function findWorkspaceRepository(loaded, repoRoot) {
+  let canonical;
+  try {
+    canonical = await realpath3(resolve5(repoRoot));
+  } catch {
+    return void 0;
+  }
+  return loaded.repositories.find((entry2) => pathKey(entry2.root) === pathKey(canonical))?.id;
+}
+function pathKey(path) {
+  return process.platform === "win32" ? path.toLowerCase() : path;
+}
+function expandHomePath(value) {
+  if (value === "~")
+    return homedir3();
+  if (value.startsWith("~/") || value.startsWith("~\\"))
+    return resolve5(homedir3(), value.slice(2));
+  return value;
+}
+function stringField(value, name) {
+  if (typeof value !== "string" || !value.trim())
+    throw new Error(`Workspace config ${name} must be a non-blank string.`);
+  return value.trim();
+}
+function isRecord14(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 // packages/core/dist/contracts-repository.js
 import { execFile as execFile4 } from "node:child_process";
-import { relative as relative3, resolve as resolve5, sep as sep3 } from "node:path";
+import { relative as relative3, resolve as resolve6, sep as sep3 } from "node:path";
 import { promisify as promisify4 } from "node:util";
 var exec4 = promisify4(execFile4);
 var MAX_CONTRACT_BYTES = 2 * 1024 * 1024;
@@ -10851,7 +11825,7 @@ var MAX_TREE_BYTES2 = 32 * 1024 * 1024;
 var MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 var STRUCTURED_EXTENSION = /\.(?:json|ya?ml)$/i;
 async function inventoryContractsAtRef(input) {
-  const repoRoot = resolve5(input.repoRoot);
+  const repoRoot = resolve6(input.repoRoot);
   const requestedRef = validateRef(input.ref);
   const commit = await resolveCommit(repoRoot, requestedRef);
   const { stdout } = await exec4("git", ["ls-tree", "-r", "-z", "-l", "--full-tree", commit, "--"], {
@@ -10917,7 +11891,61 @@ function unread(path) {
   };
 }
 
+// packages/action/src/workspace-section.ts
+var WORKSPACE_STATEMENT_LIMIT = 8;
+function resolveWorkspaceInput(raw, repoRoot, jobRoot = repoRoot) {
+  const value = raw?.trim();
+  if (!value) return void 0;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) throw new Error("workspace must be a path to a workspace config file in the job workspace, not a URL.");
+  const path = resolve7(repoRoot, value);
+  const offset = relative4(resolve7(jobRoot), path);
+  if (offset === "" || offset.startsWith("..") || isAbsolute4(offset)) {
+    throw new Error("workspace must name a config file inside the job workspace.");
+  }
+  return path;
+}
+async function buildWorkspaceSection(configPath, context) {
+  const loaded = await (context.loadWorkspace ?? loadWorkspaceConfig)(configPath, { useCache: context.useCache });
+  const repository = await findWorkspaceRepository(loaded, context.repoRoot);
+  if (!repository) {
+    throw new Error("workspace config does not list this checkout; add its path so FixMap can trace what depends on it.");
+  }
+  const statements = buildWorkspaceVerifyNarrative(loaded.map, repository, context.changedPaths);
+  const lines = [
+    "## Cross-repository impact (preview)",
+    "",
+    `Workspace ${markdownCode2(loaded.map.workspace)}, this checkout ${markdownCode2(repository)}, ${count2(loaded.map.repositories.length, "repository", "repositories")}, ${count2(loaded.map.dependencies.length, "cross-repository dependency", "cross-repository dependencies")}.`,
+    ""
+  ];
+  if (context.changedPaths.length === 0) {
+    lines.push("- No changed files to trace.");
+  } else if (statements.length === 0) {
+    lines.push("- No other workspace checkout consumes a package this pull request changes.");
+  } else {
+    for (const statement of statements.slice(0, WORKSPACE_STATEMENT_LIMIT)) {
+      const source = statement.evidence.find((entry2) => entry2.kind === "cross-repository");
+      lines.push(`- **${statement.classification}** ${safeText(statement.text)}${source?.path ? ` (evidence: ${markdownCode2(source.path)})` : ""}`);
+    }
+  }
+  return `${lines.join("\n")}
+`;
+}
+function safeText(text2) {
+  return text2.split(/(@[A-Za-z0-9][\w.-]*\/[\w.-]+)/g).map((part, index) => index % 2 === 1 ? markdownCode2(part) : withoutMentions(part).replace(/[\\`*_[\]<>|]/g, (character) => `\\${character}`)).join("");
+}
+function count2(value, one, many) {
+  return `${value.toLocaleString()} ${value === 1 ? one : many}`;
+}
+function markdownCode2(value) {
+  const longestRun = Math.max(0, ...(value.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = "`".repeat(longestRun + 1);
+  const pad = /^[` ]|[` ]$/.test(value) ? " " : "";
+  return `${fence}${pad}${value}${pad}${fence}`;
+}
+
 // packages/action/src/annotations.ts
+import { realpath as realpath4, stat as stat4 } from "node:fs/promises";
+import { isAbsolute as isAbsolute5, relative as relative5, resolve as resolve8 } from "node:path";
 async function runAnnotationAction(input, repoRoot, allowWrite) {
   if (Buffer.byteLength(input, "utf8") > 32768) throw new Error("annotation-request exceeds 32 KiB.");
   let request;
@@ -10958,10 +11986,10 @@ async function runAnnotationAction(input, repoRoot, allowWrite) {
     ...request.expiresAt !== void 0 ? { expiresAt: request.expiresAt } : {}
   });
   if ("path" in annotation.scope && annotation.scope.path) {
-    const root = await realpath3(repoRoot);
-    const target = await realpath3(resolve6(root, annotation.scope.path));
-    const inside = relative4(root, target);
-    if (!inside || isAbsolute3(inside) || inside === ".." || inside.startsWith("../") || inside.startsWith("..\\") || !(await stat4(target)).isFile()) {
+    const root = await realpath4(repoRoot);
+    const target = await realpath4(resolve8(root, annotation.scope.path));
+    const inside = relative5(root, target);
+    if (!inside || isAbsolute5(inside) || inside === ".." || inside.startsWith("../") || inside.startsWith("..\\") || !(await stat4(target)).isFile()) {
       throw new Error("Annotation target must be an existing file inside the checkout.");
     }
   }
@@ -10975,7 +12003,7 @@ function record2(value) {
 
 // packages/action/src/runner.ts
 import { appendFileSync, readFileSync, statSync } from "node:fs";
-import { resolve as resolve7 } from "node:path";
+import { resolve as resolve9 } from "node:path";
 
 // packages/action/src/github.ts
 var FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
@@ -11159,7 +12187,7 @@ function renderChangeScopeSection(scope, heading = "## Change scope (preview)") 
   ];
   if (scope.affected.length > 0) {
     lines.push("Top affected paths:", "");
-    lines.push(...scope.affected.slice(0, SECTION_PATH_LIMIT).map((entry2) => `- ${markdownCode2(entry2.path)} (distance ${entry2.distance})`));
+    lines.push(...scope.affected.slice(0, SECTION_PATH_LIMIT).map((entry2) => `- ${markdownCode3(entry2.path)} (distance ${entry2.distance})`));
     if (scope.affected.length > SECTION_PATH_LIMIT) {
       lines.push(`- \u2026and ${(scope.affected.length - SECTION_PATH_LIMIT).toLocaleString()} more`);
     }
@@ -11167,7 +12195,7 @@ function renderChangeScopeSection(scope, heading = "## Change scope (preview)") 
   }
   if (unresolved.length > 0) {
     lines.push("Unresolved anchors:", "");
-    lines.push(...unresolved.slice(0, SECTION_PATH_LIMIT).map((anchor) => `- ${anchor.operation} ${markdownCode2(anchor.path)}`));
+    lines.push(...unresolved.slice(0, SECTION_PATH_LIMIT).map((anchor) => `- ${anchor.operation} ${markdownCode3(anchor.path)}`));
     if (unresolved.length > SECTION_PATH_LIMIT) {
       lines.push(`- \u2026and ${(unresolved.length - SECTION_PATH_LIMIT).toLocaleString()} more`);
     }
@@ -11180,7 +12208,7 @@ function renderChangeScopeSection(scope, heading = "## Change scope (preview)") 
   return lines.join("\n");
 }
 async function buildCapabilitySection(repo, id, context) {
-  const heading = `## Capability (preview): ${markdownCode2(id)}`;
+  const heading = `## Capability (preview): ${markdownCode3(id)}`;
   let storePresent;
   try {
     storePresent = capabilityStoreFromRepo(repo) !== void 0;
@@ -11210,7 +12238,7 @@ async function buildCapabilitySection(repo, id, context) {
   }
   if (map) {
     lines.push(
-      `**${escapeMarkdown(map.capability.name)}**, defined in ${markdownCode2(map.source.path)} (${map.source.fingerprint}).`,
+      `**${escapeMarkdown(map.capability.name)}**, defined in ${markdownCode3(map.source.path)} (${map.source.fingerprint}).`,
       "",
       renderChangeScopeSection(map.scope, "### Current map").trimEnd(),
       ""
@@ -11243,8 +12271,8 @@ function renderCapabilityDiffSection(diff) {
     "",
     diff.summary,
     "",
-    `- Base ${markdownCode2(diff.from.requestedRef)}: ${diff.from.state}`,
-    `- Head ${markdownCode2(diff.to.requestedRef)}: ${diff.to.state}`,
+    `- Base ${markdownCode3(diff.from.requestedRef)}: ${diff.from.state}`,
+    `- Head ${markdownCode3(diff.to.requestedRef)}: ${diff.to.state}`,
     `- Definition changed: ${diff.definitionChanged ? "yes" : "no"}`
   ];
   const categories2 = [
@@ -11261,10 +12289,10 @@ function renderCapabilityDiffSection(diff) {
     lines.push(`- ${label}: +${entry2.added.length} \u2212${entry2.removed.length} ~${entry2.modified.length}`);
   }
   const pathChanges = [
-    ...diff.selected.added.map((path) => `added selected ${markdownCode2(path)}`),
-    ...diff.selected.removed.map((path) => `removed selected ${markdownCode2(path)}`),
-    ...diff.affected.added.map((path) => `added affected ${markdownCode2(path)}`),
-    ...diff.affected.removed.map((path) => `removed affected ${markdownCode2(path)}`)
+    ...diff.selected.added.map((path) => `added selected ${markdownCode3(path)}`),
+    ...diff.selected.removed.map((path) => `removed selected ${markdownCode3(path)}`),
+    ...diff.affected.added.map((path) => `added affected ${markdownCode3(path)}`),
+    ...diff.affected.removed.map((path) => `removed affected ${markdownCode3(path)}`)
   ];
   if (pathChanges.length > 0) {
     lines.push("", "Path changes:", "", ...pathChanges.slice(0, SECTION_PATH_LIMIT).map((entry2) => `- ${entry2}`));
@@ -11280,7 +12308,7 @@ function renderCapabilityDiffSection(diff) {
 function repositoryId(value) {
   return value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "").slice(0, 64) || "repository";
 }
-function markdownCode2(value) {
+function markdownCode3(value) {
   const longestRun = Math.max(0, ...[...value.matchAll(/`+/g)].map((match) => match[0].length));
   const fence = "`".repeat(longestRun + 1);
   const pad = /^[` ]|[` ]$/.test(value) ? " " : "";
@@ -11375,22 +12403,22 @@ async function buildReviewSections(request, context) {
 var COMPATIBILITY_ORDER = { breaking: 0, unknown: 1, compatible: 2 };
 function renderContractSection(result) {
   const { changes } = result.comparison;
-  const count2 = (compatibility) => changes.filter((change) => change.compatibility === compatibility).length;
+  const count3 = (compatibility) => changes.filter((change) => change.compatibility === compatibility).length;
   const lines = [
     "## Contract changes (preview)",
     "",
     // Reasons quote contract text, where a GraphQL directive such as `@deprecated` would mention someone.
     withoutMentions(result.comparison.summary),
     "",
-    `- Breaking: ${count2("breaking").toLocaleString()}`,
-    `- Unknown: ${count2("unknown").toLocaleString()}`,
-    `- Compatible: ${count2("compatible").toLocaleString()}`,
+    `- Breaking: ${count3("breaking").toLocaleString()}`,
+    `- Unknown: ${count3("unknown").toLocaleString()}`,
+    `- Compatible: ${count3("compatible").toLocaleString()}`,
     ""
   ];
   if (changes.length > 0) {
     const ordered = [...changes].sort((a, b) => COMPATIBILITY_ORDER[a.compatibility] - COMPATIBILITY_ORDER[b.compatibility] || a.path.localeCompare(b.path));
     lines.push("Top changes:", "");
-    lines.push(...ordered.slice(0, SECTION_PATH_LIMIT).map((change) => `- ${change.compatibility} ${markdownCode2(change.path)} (${change.contractKind}): ${withoutMentions(change.reason)}`));
+    lines.push(...ordered.slice(0, SECTION_PATH_LIMIT).map((change) => `- ${change.compatibility} ${markdownCode3(change.path)} (${change.contractKind}): ${withoutMentions(change.reason)}`));
     if (changes.length > SECTION_PATH_LIMIT) lines.push(`- \u2026and ${(changes.length - SECTION_PATH_LIMIT).toLocaleString()} more`);
     lines.push("");
   }
@@ -11398,7 +12426,7 @@ function renderContractSection(result) {
     lines.push(`Contracts not compared: ${result.comparison.diagnostics.length.toLocaleString()}; run the CLI for details.`, "");
   }
   lines.push(
-    `Base ${markdownCode2(result.from.requestedRef)} at ${markdownCode2(result.from.commit)}; head ${markdownCode2(result.to.requestedRef)} at ${markdownCode2(result.to.commit)}. Both sides were read from Git objects without a checkout. Breaking changes are advisory and never fail this step. Run \`fixmap contracts diff\` for the complete comparison.`,
+    `Base ${markdownCode3(result.from.requestedRef)} at ${markdownCode3(result.from.commit)}; head ${markdownCode3(result.to.requestedRef)} at ${markdownCode3(result.to.commit)}. Both sides were read from Git objects without a checkout. Breaking changes are advisory and never fail this step. Run \`fixmap contracts diff\` for the complete comparison.`,
     ""
   );
   return lines.join("\n");
@@ -11431,9 +12459,9 @@ function renderReviewerSection(input) {
     if (result.suggestions.length > 0) {
       for (const suggestion of result.suggestions.slice(0, SECTION_PATH_LIMIT)) {
         const sources = [...new Set(suggestion.evidence.map((entry2) => EVIDENCE_LABEL[entry2.kind]))].join(", ");
-        const paths = suggestion.paths.slice(0, 3).map(markdownCode2).join(", ");
+        const paths = suggestion.paths.slice(0, 3).map(markdownCode3).join(", ");
         const more = suggestion.paths.length > 3 ? ` and ${(suggestion.paths.length - 3).toLocaleString()} more` : "";
-        lines.push(`- ${markdownCode2(suggestion.reviewer)} (${suggestion.confidence}; ${sources}): ${paths}${more}`);
+        lines.push(`- ${markdownCode3(suggestion.reviewer)} (${suggestion.confidence}; ${sources}): ${paths}${more}`);
       }
       if (result.suggestions.length > SECTION_PATH_LIMIT) {
         lines.push(`- \u2026and ${(result.suggestions.length - SECTION_PATH_LIMIT).toLocaleString()} more`);
@@ -11443,14 +12471,14 @@ function renderReviewerSection(input) {
   }
   const warnings = result.diagnostics.filter((entry2) => entry2.severity === "warning");
   if (warnings.length > 0) {
-    lines.push(...warnings.slice(0, SECTION_PATH_LIMIT).map((entry2) => `- warning (${markdownCode2(entry2.source)}): ${entry2.message}`), "");
+    lines.push(...warnings.slice(0, SECTION_PATH_LIMIT).map((entry2) => `- warning (${markdownCode3(entry2.source)}): ${entry2.message}`), "");
   }
   lines.push("Run `fixmap reviewers` for the per-path evidence.", "");
   return lines.join("\n");
 }
 function renderArchitectureDriftSection(result) {
   const { drift } = result;
-  const edge = (entry2) => `${markdownCode2(entry2.from)} -> ${markdownCode2(entry2.to)}`;
+  const edge = (entry2) => `${markdownCode3(entry2.from)} -> ${markdownCode3(entry2.to)}`;
   const lines = [
     "## Architecture drift (preview)",
     "",
@@ -11467,13 +12495,13 @@ function renderArchitectureDriftSection(result) {
     if (values.length > SECTION_PATH_LIMIT) lines.push(`- \u2026and ${(values.length - SECTION_PATH_LIMIT).toLocaleString()} more`);
     lines.push("");
   };
-  list("New cycles", drift.newCycles, (cycle) => cycle.map(markdownCode2).join(" -> "));
-  list("New policy violations", drift.newBoundaryViolations, (entry2) => `${markdownCode2(entry2.ruleId)}: ${edge(entry2)}`);
-  list("Decision disagreements", result.decisionDisagreements, (entry2) => `${markdownCode2(entry2.decisionPath)} denies ${markdownCode2(entry2.rule.from)} -> ${markdownCode2(entry2.rule.deny)}; ${edge(entry2.edge)} ${entry2.introduced ? "was introduced in this range" : "already existed at the base"}`);
+  list("New cycles", drift.newCycles, (cycle) => cycle.map(markdownCode3).join(" -> "));
+  list("New policy violations", drift.newBoundaryViolations, (entry2) => `${markdownCode3(entry2.ruleId)}: ${edge(entry2)}`);
+  list("Decision disagreements", result.decisionDisagreements, (entry2) => `${markdownCode3(entry2.decisionPath)} denies ${markdownCode3(entry2.rule.from)} -> ${markdownCode3(entry2.rule.deny)}; ${edge(entry2.edge)} ${entry2.introduced ? "was introduced in this range" : "already existed at the base"}`);
   list("Added edges", drift.addedEdges, edge);
   list("Removed edges", drift.removedEdges, edge);
   lines.push(
-    `Base ${markdownCode2(result.from.requestedRef)} at ${markdownCode2(result.from.commit)}; head ${markdownCode2(result.to.requestedRef)} at ${markdownCode2(result.to.commit)}. Both sides were read from Git objects without a checkout. Run \`fixmap history\` for the complete comparison.`,
+    `Base ${markdownCode3(result.from.requestedRef)} at ${markdownCode3(result.from.commit)}; head ${markdownCode3(result.to.requestedRef)} at ${markdownCode3(result.to.commit)}. Both sides were read from Git objects without a checkout. Run \`fixmap history\` for the complete comparison.`,
     ""
   );
   return lines.join("\n");
@@ -11601,7 +12629,7 @@ var STEP_SUMMARY_LIMIT_BYTES = 1024 * 1024;
 var TRUNCATION_FOOTER = "\n\n> FixMap report truncated to fit GitHub's 1 MiB step-summary limit. Run FixMap locally with `--output` to retain a complete report.\n";
 var ACTION_OUTPUT_REPORT_LIMIT_BYTES = 900 * 1024;
 var OUTPUT_TRUNCATION_FOOTER = "\n\n[FixMap report truncated to fit the GitHub Actions output limit. Run FixMap locally with --output for a complete report.]\n";
-var SCOPE_INPUTS = ["change-scope-touch", "change-scope-add", "capability"];
+var SCOPE_INPUTS = ["change-scope-touch", "change-scope-add", "capability", "workspace"];
 function readReviewSectionRequest(env) {
   const historyAuthors = readInput("reviewers-history-authors", env);
   const request = {
@@ -11620,7 +12648,7 @@ function readReviewSectionRequest(env) {
 }
 async function runAction(env = process.env, dependencies = {}) {
   const appendFile = dependencies.appendFile ?? ((path, contents) => appendFileSync(path, contents));
-  const readFile5 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
+  const readFile6 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
   const stdout = dependencies.stdout ?? ((text2) => process.stdout.write(text2));
   if (readInput("mode", env)?.toLowerCase() === "annotate") {
     const incompatible = ["issue", "diff", "base", "head", "limit", "exclude", "report-path", "comment-author", ...SCOPE_INPUTS].filter((name) => readInput(name, env));
@@ -11647,7 +12675,7 @@ ${delimiter}
     return;
   }
   if (readInput("annotation-request", env) || readInput("allow-annotation-write", env) === "true") throw new Error("Annotation inputs require mode: annotate.");
-  const event = readEvent(env.GITHUB_EVENT_PATH, readFile5);
+  const event = readEvent(env.GITHUB_EVENT_PATH, readFile6);
   const rawIssue = readInput("issue", env) || buildPullRequestIssueText(event);
   const diffSpec = readInput("diff", env);
   const workingTree = parseBooleanInput("working-tree", readInput("working-tree", env));
@@ -11681,7 +12709,7 @@ ${delimiter}
         `FixMap verify mode does not use plan-only input${planOnly.length === 1 ? "" : "s"}: ${planOnly.join(", ")}. Remove them, or set mode: plan.`
       );
     }
-    return runVerifyMode({ env, dependencies, readFile: readFile5, appendFile, stdout, format, failOn, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache, contracts: reviewRequest.contracts, diffRefs });
+    return runVerifyMode({ env, dependencies, readFile: readFile6, appendFile, stdout, format, failOn, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache, contracts: reviewRequest.contracts, diffRefs });
   }
   if (failOn === "warning") throw new Error("fail-on: warning is a verify-mode input; remove it or set mode: verify.");
   const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : void 0;
@@ -11729,6 +12757,13 @@ ${delimiter}
     ...dependencies.scanRepo ? { scanRepo: dependencies.scanRepo } : {},
     ...dependencies.compareCapabilityRefs ? { compareCapabilityRefs: dependencies.compareCapabilityRefs } : {}
   }) : void 0;
+  const workspaceConfig = resolveWorkspaceInput(readInput("workspace", env), repoRoot, env.GITHUB_WORKSPACE || repoRoot);
+  const workspaceSection = workspaceConfig ? await buildWorkspaceSection(workspaceConfig, {
+    repoRoot,
+    useCache: !noCache,
+    changedPaths: report.changedFiles,
+    ...dependencies.loadWorkspace ? { loadWorkspace: dependencies.loadWorkspace } : {}
+  }) : void 0;
   const reviewSections = hasReviewSections(reviewRequest) ? await buildReviewSections(reviewRequest, {
     repoRoot,
     useCache: !noCache,
@@ -11740,7 +12775,7 @@ ${delimiter}
   for (const warning of [...scopeSections?.warnings ?? [], ...reviewSections?.warnings ?? []]) stdout(`::warning::${warning}
 `);
   const planMarkdown = renderMarkdownReport(report);
-  const extraMarkdown = [scopeSections?.markdown, reviewSections?.markdown].filter(Boolean).join("\n");
+  const extraMarkdown = [scopeSections?.markdown, workspaceSection, reviewSections?.markdown].filter(Boolean).join("\n");
   const markdown = extraMarkdown ? `${planMarkdown.trimEnd()}
 
 ${extraMarkdown}` : planMarkdown;
@@ -11827,7 +12862,7 @@ async function runVerifyMode(context) {
     includeUntracked: context.includeUntracked,
     useCache: !context.noCache,
     includeHistory: true,
-    internalExclude: [resolve7(repoRoot, reportPath)]
+    internalExclude: [resolve9(repoRoot, reportPath)]
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
   if (diffFailure) {
@@ -12014,12 +13049,12 @@ function readInput(name, env) {
   const value = env[githubName] || env[shellSafeName];
   return value?.trim() || void 0;
 }
-function readEvent(eventPath, readFile5) {
+function readEvent(eventPath, readFile6) {
   if (!eventPath) {
     return void 0;
   }
   try {
-    return JSON.parse(readFile5(eventPath));
+    return JSON.parse(readFile6(eventPath));
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`FixMap could not read the GitHub event payload: ${detail}`);

@@ -81,7 +81,7 @@ Map package dependencies and downstream impact across local repositories:
 fixmap workspace --config .fixmap/workspace.json --seed auth --format json
 ```
 
-The JSON config uses `"workspaceConfigVersion": 1`, a stable `workspace` name, and 1–32 `{ "id", "path" }` repository entries. Paths are relative to the config file. Optional submodule entries use `relationship: { "kind": "submodule", "parentRepository": "auth", "path": "vendor/contracts" }`. FixMap scans at most four checkouts concurrently, never executes their code, and resolves Node, Python, and Maven package/version identities plus manifest/import evidence.
+The JSON config uses `"workspaceConfigVersion": 1`, a stable `workspace` name, and 1–32 `{ "id", "path" }` repository entries. Paths are relative to the config file. Optional submodule entries use `relationship: { "kind": "submodule", "parentRepository": "auth", "path": "vendor/contracts" }`. FixMap scans at most four checkouts concurrently, never executes their code, and resolves Node, Python, and Maven package/version identities plus manifest/import evidence. Preview: a reviewed `aliases` list links a consumer package name to a differently named provider package, and `fixmap verify --workspace <config>` names the other checkouts that consume what a diff changed.
 
 Continuously compare agent edits with a saved plan and recalculate impact:
 

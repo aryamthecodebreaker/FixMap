@@ -98,6 +98,13 @@ inputs:
       A missing or invalid store degrades to a warning. Read-only: the Action never writes the
       store.
     required: false
+  workspace:
+    description: >-
+      Preview. Plan mode only. Path to a fixmap workspace config inside the job workspace that
+      lists this checkout and the other repositories checked out beside it. Adds a
+      "Cross-repository impact" section naming checkouts that consume packages this pull request
+      changes, each citing its manifest or import evidence. Read-only; nothing is run.
+    required: false
   contracts:
     description: >-
       Preview. Plan and verify modes. On pull requests with both base and head refs fetched,

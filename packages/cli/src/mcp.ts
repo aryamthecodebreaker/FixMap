@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { loadVerifyWorkspace } from "./workspace-command.js";
 import { ANNOTATION_TOOL, runAnnotationTool } from "./annotation-tool.js";
 import { DOSSIER_TOOL, OUTCOMES_TOOL, runDossierTool, runOutcomesTool } from "./record-tools.js";
 import { dirname, join, resolve } from "node:path";
@@ -118,6 +119,7 @@ type VerifyArguments = {
   includeUntracked?: boolean;
   noCache?: boolean;
   sensitiveData?: boolean;
+  workspace?: string;
 };
 
 const PLAN_TOOL = {
@@ -577,6 +579,10 @@ const VERIFY_TOOL = {
       sensitiveData: {
         type: "boolean",
         description: "Preview: attach possible sensitive-data flows touching the plan or diff and add an advisory finding when the diff adds one. Locations and kinds only."
+      },
+      workspace: {
+        type: "string",
+        description: "Preview (may change before v0.10.0): path to a fixmap workspace config that lists this checkout; adds narration naming other checkouts that consume packages the diff changes."
       }
     },
     required: ["report"],
@@ -1075,6 +1081,7 @@ export function createFixMapMcpServer(
       }
       const args = parsed.value;
       try {
+        const workspace = args.workspace ? await loadVerifyWorkspace(args.workspace, args.repo ?? defaultRepo, !args.noCache) : undefined;
         const repo = await scanRepo({
           repoRoot: args.repo ?? defaultRepo,
           diffSpec: args.diff,
@@ -1090,7 +1097,7 @@ export function createFixMapMcpServer(
         if (diffFailure) {
           throw new Error(`${diffFailure.message} Verification needs a resolvable diff.`);
         }
-        const result = verifyPlan(args.report, repo, { sensitiveData: args.sensitiveData === true });
+        const result = verifyPlan(args.report, repo, { sensitiveData: args.sensitiveData === true, ...(workspace ? { workspace } : {}) });
         const text = args.format === "json"
           ? `${JSON.stringify(result, null, 2)}\n`
           : renderVerifyMarkdown(result);
@@ -1468,7 +1475,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
     return { success: false, message: "tool arguments must be an object." };
   }
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["report", "diff", "base", "head", "repo", "format", "workingTree", "includeUntracked", "noCache", "sensitiveData"]);
+  const allowed = new Set(["report", "diff", "base", "head", "repo", "format", "workingTree", "includeUntracked", "noCache", "sensitiveData", "workspace"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
@@ -1495,11 +1502,15 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
   if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
   if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
   if (record.head && !record.base) return { success: false, message: '"head" requires "base".' };
+  if (record.workspace !== undefined && (typeof record.workspace !== "string" || !record.workspace.trim())) {
+    return { success: false, message: '"workspace" must be a non-blank path to a local workspace config.' };
+  }
   const format = normalizeFormat(record.format); if (!format.success) return format;
   return {
     success: true,
     value: {
       report,
+      ...(typeof record.workspace === "string" ? { workspace: record.workspace.trim() } : {}),
       ...(loaded.sourcePath ? { reportPath: loaded.sourcePath } : {}),
       ...(typeof record.diff === "string" ? { diff: record.diff.trim() } : {}),
       ...(typeof record.base === "string" ? { base: record.base.trim() } : {}),

@@ -174,8 +174,17 @@ export { createLocalTransformersEmbeddingProvider } from "./transformers-embeddi
 export type { LocalTransformersEmbeddingOptions } from "./transformers-embedding.js";
 export { withPersistentEmbeddingCache } from "./semantic-cache.js";
 export type { PersistentEmbeddingCacheOptions } from "./semantic-cache.js";
-export { buildWorkspaceImpact, buildWorkspaceMap } from "./workspace.js";
+export { buildWorkspaceImpact, buildWorkspaceMap, buildWorkspaceVerifyNarrative } from "./workspace.js";
+export {
+  assertWorkspaceScan,
+  findWorkspaceRepository,
+  loadWorkspaceConfig,
+  parseWorkspaceConfig,
+  resolveWorkspaceRepositories
+} from "./workspace-config.js";
+export type { LoadedWorkspace, LoadWorkspaceOptions, WorkspaceConfig, WorkspaceConfigRepository } from "./workspace-config.js";
 export type {
+  WorkspaceAlias,
   WorkspaceDependency,
   WorkspaceDependencyEvidence,
   WorkspaceDiagnostic,

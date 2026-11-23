@@ -16,6 +16,7 @@ import { architecturePolicyFromRepo, evaluateArchitecturePolicy } from "./archit
 import type { ArchitecturePolicyFinding, ArchitecturePolicyResult } from "./architecture.js";
 import { reportPaths } from "./report-evidence.js";
 import { buildReportSensitiveData, renderSensitiveDataMarkdown, sensitiveDataVerifyFinding } from "./report-sensitive-data.js";
+import { buildWorkspaceVerifyNarrative, type WorkspaceMap } from "./workspace.js";
 
 export function verifyPlan(
   report: FixMapReport,
@@ -23,6 +24,8 @@ export function verifyPlan(
   options: {
     /** Attach lexical sensitive-data flows and add an advisory finding for flows the diff introduced. */
     sensitiveData?: boolean;
+    /** Add cross-repository narration when this checkout is `repository` in a loaded workspace map. */
+    workspace?: { map: WorkspaceMap; repository: string };
   } = {}
 ): VerifyResult {
   const changed = repo.changedFiles;
@@ -256,7 +259,8 @@ export function verifyPlan(
     findings,
     diagnostics: repo.diagnostics,
     impact,
-    narrative: buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy),
+    narrative: buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy,
+      options.workspace ? buildWorkspaceVerifyNarrative(options.workspace.map, options.workspace.repository, changed) : []),
     ...(sensitiveData ? { sensitiveData } : {})
   };
 }
@@ -283,7 +287,8 @@ function buildVerifyNarrative(
   changedTests: readonly string[],
   impact: ImpactMap,
   newRisks: readonly { area: string; reason: string; severity: "low" | "medium" | "high" }[],
-  policy?: ArchitecturePolicyResult
+  policy?: ArchitecturePolicyResult,
+  crossRepository: readonly VerifyNarrativeStatement[] = []
 ): VerifyNarrativeStatement[] {
   const narrative: VerifyNarrativeStatement[] = [];
   if (changed.length > 0) narrative.push({
@@ -291,6 +296,8 @@ function buildVerifyNarrative(
     text: `${changed.length} file${changed.length === 1 ? "" : "s"} changed: ${changed.slice(0, 8).join(", ")}${changed.length > 8 ? ", ..." : ""}.`,
     evidence: changed.map((path) => ({ kind: "changed-file", path, detail: "Present in the resolved verification diff." }))
   });
+  // Other checkouts that consume what changed come right after the change itself: the 16-statement cap must not drop them.
+  narrative.push(...crossRepository);
   for (const finding of policy?.findings ?? []) {
     narrative.push({
       classification: "observation",
