@@ -7856,6 +7856,7 @@ async function readBlobs(repoRoot, entries) {
       stdout.push(chunk);
   });
   child.stderr.on("data", (chunk) => stderr.push(chunk));
+  child.stdin.on("error", () => void 0);
   child.stdin.end(`${uniqueOids.join("\n")}
 `);
   const exitCode = await new Promise((resolveExit, reject) => {

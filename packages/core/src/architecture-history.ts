@@ -365,6 +365,8 @@ export async function readBlobs(repoRoot: string, entries: readonly TreeEntry[])
     else stdout.push(chunk);
   });
   child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+  // git can exit before reading every id (not a repository, or killed at the output cap); the exit code reports that.
+  child.stdin.on("error", () => undefined);
   child.stdin.end(`${uniqueOids.join("\n")}\n`);
   const exitCode = await new Promise<number | null>((resolveExit, reject) => {
     child.once("error", reject);

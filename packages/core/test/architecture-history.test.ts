@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
-import { buildArchitectureSnapshotAtRef, compareArchitectureRefs, scanRepoAtRef } from "../src/architecture-history.js";
+import { buildArchitectureSnapshotAtRef, compareArchitectureRefs, readBlobs, scanRepoAtRef } from "../src/architecture-history.js";
 
 const exec = promisify(execFile);
 const HISTORICAL_GIT_TEST_TIMEOUT = process.platform === "win32" ? 30_000 : 15_000;
@@ -38,6 +38,19 @@ async function fixture(): Promise<{ root: string; before: string; after: string 
 }
 
 describe("historical architecture", () => {
+  it("reports a git failure instead of crashing when git exits before reading every object id", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fixmap-not-a-repo-"));
+    roots.push(root);
+    // More ids than a pipe buffer holds, so the write is still pending when git exits outside a repository.
+    const entries = Array.from({ length: 20_000 }, (_, index) => ({
+      mode: "100644",
+      oid: index.toString(16).padStart(40, "0"),
+      size: 1,
+      path: `f${index}.ts`
+    }));
+    await expect(readBlobs(root, entries)).rejects.toThrow(/git cat-file failed/);
+  }, HISTORICAL_GIT_TEST_TIMEOUT);
+
   it("reads exact blob identities at a ref without moving HEAD or changing the worktree", async () => {
     const { root, before, after } = await fixture();
     const headBefore = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
