@@ -1,14 +1,14 @@
 import { createRequire as __fixmapCreateRequire } from 'module'; const require = __fixmapCreateRequire(import.meta.url);
 
 // packages/action/src/runner.ts
-import { randomUUID as randomUUID3 } from "node:crypto";
+import { randomUUID as randomUUID4 } from "node:crypto";
 
 // packages/action/src/annotations.ts
-import { realpath as realpath3, stat as stat3 } from "node:fs/promises";
-import { isAbsolute as isAbsolute3, relative as relative3, resolve as resolve5 } from "node:path";
+import { realpath as realpath3, stat as stat4 } from "node:fs/promises";
+import { isAbsolute as isAbsolute3, relative as relative4, resolve as resolve6 } from "node:path";
 
 // packages/core/dist/plan.js
-import { readFile as readFile2 } from "node:fs/promises";
+import { readFile as readFile3 } from "node:fs/promises";
 import { join as join3, resolve as resolve3 } from "node:path";
 
 // packages/core/dist/exclude.js
@@ -1333,11 +1333,11 @@ function resolveComposerSymbol(project, symbol, repoPaths, suffixPaths) {
   for (const mapping of project.psr4) {
     if (!symbol.startsWith(mapping.prefix))
       continue;
-    const relative4 = symbol.slice(mapping.prefix.length).replace(/\\/g, "/");
-    if (!relative4)
+    const relative5 = symbol.slice(mapping.prefix.length).replace(/\\/g, "/");
+    if (!relative5)
       continue;
     for (const root of mapping.roots) {
-      const candidate = [root, `${relative4}.php`].filter(Boolean).join("/");
+      const candidate = [root, `${relative5}.php`].filter(Boolean).join("/");
       if (repoPaths.has(candidate))
         targets.add(candidate);
     }
@@ -1637,23 +1637,23 @@ function buildRubyProjects(files) {
     if (/^\s*gem\s*(?:\(|\s)\s*["']rails["']/im.test(manifest.textSample))
       railsEvidence.add(manifest.path);
     for (const file of scoped) {
-      const relative4 = root ? file.path.slice(root.length + 1) : file.path;
-      if (relative4.toLowerCase() === ".rspec" || /(?:^|\/)spec\/(?:spec_helper|rails_helper)\.rb$/i.test(relative4) || /_spec\.rb$/i.test(relative4)) {
+      const relative5 = root ? file.path.slice(root.length + 1) : file.path;
+      if (relative5.toLowerCase() === ".rspec" || /(?:^|\/)spec\/(?:spec_helper|rails_helper)\.rb$/i.test(relative5) || /_spec\.rb$/i.test(relative5)) {
         rspecEvidence.add(file.path);
       }
-      if (/(?:^|\/)test\/test_helper\.rb$/i.test(relative4) || /_test\.rb$/i.test(relative4) || /^(?:\s*require\s*\(?\s*["']minitest|\s*class\s+[^\n<]+<\s*(?:Minitest::Test|MiniTest::Unit)\b)/m.test(file.textSample)) {
+      if (/(?:^|\/)test\/test_helper\.rb$/i.test(relative5) || /_test\.rb$/i.test(relative5) || /^(?:\s*require\s*\(?\s*["']minitest|\s*class\s+[^\n<]+<\s*(?:Minitest::Test|MiniTest::Unit)\b)/m.test(file.textSample)) {
         minitestEvidence.add(file.path);
       }
     }
     const application = scoped.find((file) => {
-      const relative4 = root ? file.path.slice(root.length + 1) : file.path;
-      return relative4.toLowerCase() === "config/application.rb" && /\bclass\s+Application\s*<\s*Rails::Application\b/.test(file.textSample);
+      const relative5 = root ? file.path.slice(root.length + 1) : file.path;
+      return relative5.toLowerCase() === "config/application.rb" && /\bclass\s+Application\s*<\s*Rails::Application\b/.test(file.textSample);
     });
     if (application)
       railsEvidence.add(application.path);
     const autoloadFiles = railsEvidence.size === 2 ? scoped.filter((file) => {
-      const relative4 = root ? file.path.slice(root.length + 1) : file.path;
-      return /^app\/(?!assets(?:\/|$)|javascript(?:\/|$)|views(?:\/|$))[^/]+\/.+\.rb$/i.test(relative4);
+      const relative5 = root ? file.path.slice(root.length + 1) : file.path;
+      return /^app\/(?!assets(?:\/|$)|javascript(?:\/|$)|views(?:\/|$))[^/]+\/.+\.rb$/i.test(relative5);
     }).map((file) => file.path).sort((left, right) => left.localeCompare(right)) : [];
     const rakefile = scoped.find((file) => file.path.split("/").pop()?.toLowerCase() === "rakefile");
     const rakeTestPath = rakefile && /\b(?:Rake::TestTask|task\s*(?:\(|\s)\s*:test\b)/.test(rakefile.textSample) ? rakefile.path : void 0;
@@ -1701,9 +1701,9 @@ function rubyTestCommandForProject(project, relatedTests = []) {
     const testPath = relatedMinitest[0] ?? project.minitestEvidence.find((path) => /_test\.rb$/i.test(path));
     if (!testPath)
       return void 0;
-    const relative4 = project.root ? testPath.slice(project.root.length + 1) : testPath;
+    const relative5 = project.root ? testPath.slice(project.root.length + 1) : testPath;
     return {
-      command: scopedBundleCommand(project.root, `ruby -Itest ${relative4}`),
+      command: scopedBundleCommand(project.root, `ruby -Itest ${relative5}`),
       reason: `${testPath} provides executable Minitest evidence for ${project.path}`,
       scopeDir: project.root
     };
@@ -4469,9 +4469,9 @@ function assessAnnotations(store, repo, options) {
   const validated = validateAnnotationStore(store);
   const now = parseTimestamp(options.now, "assessment time");
   const paths = new Set(repo.files.map((file) => normalizePath(file.path)));
-  const renames = new Map((options.renames ?? []).map((rename3) => {
-    const from = validateRelativePath(rename3.from, "rename source");
-    const to = validateRelativePath(rename3.to, "rename target");
+  const renames = new Map((options.renames ?? []).map((rename4) => {
+    const from = validateRelativePath(rename4.from, "rename source");
+    const to = validateRelativePath(rename4.to, "rename target");
     return [from, to];
   }));
   return validated.annotations.map((annotation) => {
@@ -5091,6 +5091,60 @@ function evaluateArchitecturePolicy(policy, input) {
     findings: findings.sort((a, b) => severityOrder(a.severity) - severityOrder(b.severity) || a.ruleId.localeCompare(b.ruleId) || a.paths.join("\0").localeCompare(b.paths.join("\0")))
   };
 }
+function buildArchitectureSnapshot(repo, policy) {
+  const graph = buildImportGraph(repo.files);
+  const edges = [...graph.imports].flatMap(([from, targets]) => [...targets].map((to) => ({ from, to }))).sort(edgeOrder);
+  const cycles = findCycles(edges);
+  const paths = [...new Set(edges.flatMap((edge) => [edge.from, edge.to]))].sort();
+  const coupling = paths.map((path) => {
+    const incoming = graph.importedBy.get(path)?.size ?? 0;
+    const outgoing = graph.imports.get(path)?.size ?? 0;
+    return { path, incoming, outgoing, total: incoming + outgoing };
+  });
+  const boundaryViolations = policy ? evaluateArchitecturePolicy(policy, { repo }).findings.flatMap((finding) => finding.code === "boundary-violation" && finding.paths[0] && finding.paths[1] ? [{ ruleId: finding.ruleId, from: finding.paths[0], to: finding.paths[1] }] : []).sort(violationOrder) : [];
+  const incompleteFiles = repo.files.filter((file) => languageAdapterForFile(file) && file.textSampleComplete === false).length;
+  const canonical = {
+    edges,
+    cycles,
+    coupling,
+    boundaryViolations,
+    truncated: { files: graph.truncatedFiles + incompleteFiles, edges: graph.truncatedEdges }
+  };
+  return {
+    architectureSnapshotVersion: 1,
+    fingerprint: `architecture:${stableHash3(canonicalize2(canonical))}`,
+    sourceFingerprint: repoSourceFingerprint(repo),
+    ...canonical
+  };
+}
+function compareArchitectureSnapshots(previous, current2, options = {}) {
+  if (previous.architectureSnapshotVersion !== 1 || current2.architectureSnapshotVersion !== 1) {
+    throw new Error("Unsupported architecture snapshot version.");
+  }
+  const previousEdges = new Map(previous.edges.map((edge) => [edgeKey(edge), edge]));
+  const currentEdges = new Map(current2.edges.map((edge) => [edgeKey(edge), edge]));
+  const previousCycles = new Map(previous.cycles.map((cycle) => [cycle.join("\0"), cycle]));
+  const currentCycles = new Map(current2.cycles.map((cycle) => [cycle.join("\0"), cycle]));
+  const previousViolations = new Map(previous.boundaryViolations.map((value) => [violationKey(value), value]));
+  const currentViolations = new Map(current2.boundaryViolations.map((value) => [violationKey(value), value]));
+  const previousCoupling = new Map(previous.coupling.map((value) => [value.path, value.total]));
+  const minimumDelta = options.couplingDelta ?? 2;
+  return {
+    fromFingerprint: previous.fingerprint,
+    toFingerprint: current2.fingerprint,
+    addedEdges: mapDifference(currentEdges, previousEdges).sort(edgeOrder),
+    removedEdges: mapDifference(previousEdges, currentEdges).sort(edgeOrder),
+    newCycles: mapDifference(currentCycles, previousCycles).sort(cycleOrder),
+    resolvedCycles: mapDifference(previousCycles, currentCycles).sort(cycleOrder),
+    newBoundaryViolations: mapDifference(currentViolations, previousViolations).sort(violationOrder),
+    resolvedBoundaryViolations: mapDifference(previousViolations, currentViolations).sort(violationOrder),
+    couplingGrowth: current2.coupling.flatMap((value) => {
+      const before = previousCoupling.get(value.path) ?? 0;
+      const delta = value.total - before;
+      return delta >= minimumDelta ? [{ path: value.path, before, after: value.total, delta }] : [];
+    }).sort((a, b) => b.delta - a.delta || a.path.localeCompare(b.path))
+  };
+}
 function boundaryRule(value, index) {
   const rule = ruleRecord(value, "boundaries", index);
   return {
@@ -5169,6 +5223,74 @@ function strings(value, label) {
 function matchesAny(path, patternsToMatch) {
   return patternsToMatch.some((pattern) => buildPathExcluder([pattern]).excludes(path));
 }
+function findCycles(edges) {
+  const adjacency = /* @__PURE__ */ new Map();
+  for (const edge of edges)
+    adjacency.set(edge.from, [...adjacency.get(edge.from) ?? [], edge.to].sort());
+  const nodes = [...new Set(edges.flatMap((edge) => [edge.from, edge.to]))].sort();
+  const index = /* @__PURE__ */ new Map();
+  const low = /* @__PURE__ */ new Map();
+  const stack = [];
+  const onStack = /* @__PURE__ */ new Set();
+  const cycles = [];
+  let next = 0;
+  const visit = (node) => {
+    index.set(node, next);
+    low.set(node, next);
+    next += 1;
+    stack.push(node);
+    onStack.add(node);
+    for (const neighbor of adjacency.get(node) ?? []) {
+      if (!index.has(neighbor)) {
+        visit(neighbor);
+        low.set(node, Math.min(low.get(node), low.get(neighbor)));
+      } else if (onStack.has(neighbor)) {
+        low.set(node, Math.min(low.get(node), index.get(neighbor)));
+      }
+    }
+    if (low.get(node) !== index.get(node))
+      return;
+    const component = [];
+    let popped;
+    do {
+      popped = stack.pop();
+      onStack.delete(popped);
+      component.push(popped);
+    } while (popped !== node);
+    component.sort();
+    if (component.length > 1 || adjacency.get(component[0])?.includes(component[0]))
+      cycles.push(component);
+  };
+  for (const node of nodes)
+    if (!index.has(node))
+      visit(node);
+  return cycles.sort(cycleOrder);
+}
+function repoSourceFingerprint(repo) {
+  const unversioned = repo.files.find((file) => !file.contentFingerprint);
+  if (unversioned)
+    throw new Error(`Architecture snapshots require an exact content fingerprint for ${unversioned.path}.`);
+  const sources = repo.files.map((file) => `${file.path}\0${file.contentFingerprint}`).sort();
+  return `repository:${stableHash3(sources.join("\0"))}`;
+}
+function mapDifference(left, right) {
+  return [...left].flatMap(([key, value]) => right.has(key) ? [] : [value]);
+}
+function edgeKey(edge) {
+  return `${edge.from}\0${edge.to}`;
+}
+function violationKey(value) {
+  return `${value.ruleId}\0${value.from}\0${value.to}`;
+}
+function edgeOrder(a, b) {
+  return a.from.localeCompare(b.from) || a.to.localeCompare(b.to);
+}
+function violationOrder(a, b) {
+  return a.ruleId.localeCompare(b.ruleId) || edgeOrder(a, b);
+}
+function cycleOrder(a, b) {
+  return a.join("\0").localeCompare(b.join("\0"));
+}
 function severityOrder(value) {
   return value === "error" ? 0 : value === "warning" ? 1 : 2;
 }
@@ -5187,6 +5309,21 @@ function array(value) {
 }
 function isRecord4(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function canonicalize2(value) {
+  if (Array.isArray(value))
+    return `[${value.map(canonicalize2).join(",")}]`;
+  if (value && typeof value === "object")
+    return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, entry2]) => `${JSON.stringify(key)}:${canonicalize2(entry2)}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+function stableHash3(value) {
+  let hash = 0xcbf29ce484222325n;
+  for (const byte of new TextEncoder().encode(value)) {
+    hash ^= BigInt(byte);
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return hash.toString(16).padStart(16, "0");
 }
 
 // packages/core/dist/report.js
@@ -6436,15 +6573,15 @@ function reportUnreadContent(diagnostics, files) {
       paths: affected.slice(0, 8).map((file) => file.path)
     });
   }
-  const unread = files.filter((file) => file.isSource && file.textSampleComplete === false && file.textSampleSkipReason === "too-large");
-  if (unread.length === 0)
+  const unread2 = files.filter((file) => file.isSource && file.textSampleComplete === false && file.textSampleSkipReason === "too-large");
+  if (unread2.length === 0)
     return;
-  const sample = unread.slice().sort((a, b) => b.sizeBytes - a.sizeBytes).slice(0, 3).map((file) => `${file.path} (${Math.ceil(file.sizeBytes / 1e3).toLocaleString()} kB)`).join(", ");
+  const sample = unread2.slice().sort((a, b) => b.sizeBytes - a.sizeBytes).slice(0, 3).map((file) => `${file.path} (${Math.ceil(file.sizeBytes / 1e3).toLocaleString()} kB)`).join(", ");
   diagnostics.push({
     code: "content-too-large",
     severity: "warning",
-    message: `${unread.length.toLocaleString()} source file${unread.length === 1 ? "" : "s"} exceeded the complete text window \u2014 largest: ${sample}${unread.length > 3 ? ", \u2026" : ""}. Files over ${(MAX_TEXT_SAMPLE_BYTES / 1e3).toLocaleString()} kB use bounded head and distributed retrieval samples; context and grounding remain incomplete.`,
-    paths: unread.slice(0, 8).map((file) => file.path)
+    message: `${unread2.length.toLocaleString()} source file${unread2.length === 1 ? "" : "s"} exceeded the complete text window \u2014 largest: ${sample}${unread2.length > 3 ? ", \u2026" : ""}. Files over ${(MAX_TEXT_SAMPLE_BYTES / 1e3).toLocaleString()} kB use bounded head and distributed retrieval samples; context and grounding remain incomplete.`,
+    paths: unread2.slice(0, 8).map((file) => file.path)
   });
 }
 function reportSkippedSubmodules(diagnostics, gitLinks) {
@@ -7016,6 +7153,9 @@ function normalizePath3(path) {
 
 // packages/core/dist/architecture-history.js
 import { execFile as execFile2, spawn } from "node:child_process";
+import { createHash as createHash2, randomUUID as randomUUID2 } from "node:crypto";
+import { mkdir as mkdir2, readdir as readdir2, readFile as readFile2, rename as rename2, stat as stat2, unlink as unlink2, writeFile as writeFile2 } from "node:fs/promises";
+import { homedir as homedir2 } from "node:os";
 import { dirname as dirname2, extname as extname2, isAbsolute as isAbsolute2, join as join2, relative as relative2, resolve as resolve2, sep as sep2 } from "node:path";
 import { promisify as promisify2 } from "node:util";
 var exec2 = promisify2(execFile2);
@@ -7025,7 +7165,10 @@ var MAX_FILES = 25e3;
 var MAX_TEXT_SAMPLE_BYTES2 = 64e3;
 var MAX_BATCH_BYTES = 64 * 1024 * 1024;
 var MAX_BATCH_OUTPUT_BYTES = MAX_BATCH_BYTES + 2 * 1024 * 1024;
+var ARCHITECTURE_CACHE_VERSION = 1;
 var ARCHITECTURE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
+var ARCHITECTURE_CACHE_FILE = /^architecture-v\d+-[a-f0-9]{40,64}-(?:policy|no-policy)\.json$/;
+var ARCHITECTURE_CACHE_TEMP_FILE = /^architecture-v\d+-[a-f0-9]{40,64}-(?:policy|no-policy)\.json\.\d+-[0-9a-f-]{36}\.tmp$/;
 async function scanRepoAtRef(input) {
   const repoRoot = resolve2(input.repoRoot);
   const requestedRef = validateRef(input.ref);
@@ -7076,8 +7219,140 @@ async function scanCommit(repoRoot, requestedRef, commit) {
     ...ignoreBytes ? { ignoreFile: ignoreBytes.toString("utf8") } : {}
   };
 }
+async function buildArchitectureSnapshotAtRef(input) {
+  const repoRoot = resolve2(input.repoRoot);
+  const requestedRef = validateRef(input.ref);
+  const commit = await resolveCommit(repoRoot, requestedRef);
+  const applyPolicy = input.applyRepositoryPolicy !== false;
+  const cachePath = input.useCache === false ? void 0 : architectureCachePath(repoRoot, commit, applyPolicy);
+  const cached = cachePath ? await readArchitectureCache(cachePath, commit, applyPolicy) : void 0;
+  if (cached)
+    return { requestedRef, commit, ...cached };
+  const historical = await scanCommit(repoRoot, requestedRef, commit);
+  const policy = applyPolicy ? architecturePolicyFromRepo(historical.repo) : void 0;
+  const inventory = inventoryDecisionRecords(historical.repo);
+  const entry2 = {
+    snapshot: buildArchitectureSnapshot(historical.repo, policy),
+    // Only accepted records state intent. Proposed, rejected, superseded, and unlabeled
+    // records are history, and treating them as rules would invent disagreements.
+    decisionRules: inventory.records.filter((record3) => record3.status === "accepted").flatMap((record3) => (record3.dependencyRules ?? []).map((rule) => ({
+      decisionId: record3.id,
+      decisionPath: record3.path,
+      decisionTitle: record3.title,
+      from: rule.from,
+      deny: rule.deny
+    }))),
+    decisionDiagnostics: inventory.diagnostics.filter((diagnostic) => diagnostic.code !== "decision-target-missing")
+  };
+  if (cachePath)
+    await writeArchitectureCache(cachePath, commit, applyPolicy, entry2);
+  return { requestedRef, commit, ...entry2 };
+}
+async function compareArchitectureRefs(input) {
+  const options = {
+    repoRoot: input.repoRoot,
+    ...input.applyRepositoryPolicy !== void 0 ? { applyRepositoryPolicy: input.applyRepositoryPolicy } : {},
+    ...input.useCache !== void 0 ? { useCache: input.useCache } : {}
+  };
+  const [from, to] = await Promise.all([
+    buildArchitectureSnapshotAtRef({ ...options, ref: input.fromRef }),
+    buildArchitectureSnapshotAtRef({ ...options, ref: input.toRef })
+  ]);
+  return {
+    from,
+    to,
+    drift: compareArchitectureSnapshots(from.snapshot, to.snapshot, {
+      ...input.couplingDelta !== void 0 ? { couplingDelta: input.couplingDelta } : {}
+    }),
+    decisionDisagreements: findDecisionDisagreements(from.snapshot, to)
+  };
+}
+function findDecisionDisagreements(previous, current2) {
+  const earlier = new Set(previous.edges.map((edge) => `${edge.from}\0${edge.to}`));
+  return current2.decisionRules.flatMap((rule) => {
+    const from = buildPathExcluder([rule.from]);
+    const deny = buildPathExcluder([rule.deny]);
+    return current2.snapshot.edges.filter((edge) => from.excludes(edge.from) && deny.excludes(edge.to)).map((edge) => ({
+      decisionId: rule.decisionId,
+      decisionPath: rule.decisionPath,
+      decisionTitle: rule.decisionTitle,
+      rule: { from: rule.from, deny: rule.deny },
+      edge: { from: edge.from, to: edge.to },
+      introduced: !earlier.has(`${edge.from}\0${edge.to}`)
+    }));
+  }).sort((a, b) => a.decisionPath.localeCompare(b.decisionPath) || a.rule.from.localeCompare(b.rule.from) || a.rule.deny.localeCompare(b.rule.deny) || a.edge.from.localeCompare(b.edge.from) || a.edge.to.localeCompare(b.edge.to));
+}
+function architectureCacheRoot() {
+  return resolve2(process.env.FIXMAP_CACHE_DIR ?? join2(process.env.LOCALAPPDATA ?? process.env.XDG_CACHE_HOME ?? join2(homedir2(), ".cache"), "fixmap", "scans"));
+}
+function architectureCachePath(repoRoot, commit, applyPolicy) {
+  const cacheRoot = architectureCacheRoot();
+  const fold = (value) => process.platform === "win32" ? value.toLowerCase() : value;
+  const distance = relative2(fold(repoRoot), fold(cacheRoot));
+  if (distance === "" || distance !== ".." && !distance.startsWith(`..${sep2}`) && !isAbsolute2(distance))
+    return void 0;
+  return join2(cacheRoot, `architecture-v${ARCHITECTURE_CACHE_VERSION}-${commit}-${applyPolicy ? "policy" : "no-policy"}.json`);
+}
+async function readArchitectureCache(path, commit, applyPolicy) {
+  try {
+    const parsed2 = JSON.parse(await readFile2(path, "utf8"));
+    if (parsed2.architectureHistoryCacheVersion !== ARCHITECTURE_CACHE_VERSION || parsed2.commit !== commit || parsed2.applyPolicy !== applyPolicy || typeof parsed2.checksum !== "string")
+      return void 0;
+    if (parsed2.checksum !== checksum(JSON.stringify(parsed2.entry)))
+      return void 0;
+    return isArchitectureEntry(parsed2.entry) ? parsed2.entry : void 0;
+  } catch {
+    return void 0;
+  }
+}
+async function writeArchitectureCache(path, commit, applyPolicy, entry2) {
+  const temporaryPath = `${path}.${process.pid}-${randomUUID2()}.tmp`;
+  try {
+    await mkdir2(dirname2(path), { recursive: true });
+    await pruneArchitectureCache(dirname2(path));
+    const record3 = {
+      architectureHistoryCacheVersion: ARCHITECTURE_CACHE_VERSION,
+      commit,
+      applyPolicy,
+      checksum: checksum(JSON.stringify(entry2)),
+      entry: entry2
+    };
+    await writeFile2(temporaryPath, `${JSON.stringify(record3)}
+`, { encoding: "utf8", flag: "wx" });
+    await rename2(temporaryPath, path);
+  } catch {
+    try {
+      await unlink2(temporaryPath);
+    } catch {
+    }
+  }
+}
+async function pruneArchitectureCache(directory) {
+  try {
+    const now = Date.now();
+    await Promise.all((await readdir2(directory, { withFileTypes: true })).filter((entry2) => entry2.isFile() && (ARCHITECTURE_CACHE_FILE.test(entry2.name) || ARCHITECTURE_CACHE_TEMP_FILE.test(entry2.name))).map(async (entry2) => {
+      const path = join2(directory, entry2.name);
+      try {
+        if (now - (await stat2(path)).mtimeMs > ARCHITECTURE_CACHE_MAX_AGE_MS)
+          await unlink2(path);
+      } catch {
+      }
+    }));
+  } catch {
+  }
+}
+function isArchitectureEntry(value) {
+  if (!isRecord6(value) || !isRecord6(value.snapshot) || !Array.isArray(value.decisionRules) || !Array.isArray(value.decisionDiagnostics))
+    return false;
+  const snapshot = value.snapshot;
+  const edge = (entry2) => isRecord6(entry2) && typeof entry2.from === "string" && typeof entry2.to === "string";
+  return snapshot.architectureSnapshotVersion === 1 && typeof snapshot.fingerprint === "string" && typeof snapshot.sourceFingerprint === "string" && Array.isArray(snapshot.edges) && snapshot.edges.every(edge) && Array.isArray(snapshot.cycles) && snapshot.cycles.every((cycle) => Array.isArray(cycle) && cycle.every((path) => typeof path === "string")) && Array.isArray(snapshot.coupling) && Array.isArray(snapshot.boundaryViolations) && isRecord6(snapshot.truncated) && value.decisionRules.every((rule) => isRecord6(rule) && ["decisionId", "decisionPath", "decisionTitle", "from", "deny"].every((key) => typeof rule[key] === "string"));
+}
 function isRecord6(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function checksum(value) {
+  return createHash2("sha256").update(value).digest("hex");
 }
 function historicalPackageScripts(files, diagnostics) {
   return files.filter((file) => file.path === "package.json" || file.path.endsWith("/package.json")).flatMap((manifest) => {
@@ -7558,14 +7833,14 @@ function positiveInteger2(value, fallback) {
   return value !== void 0 && Number.isSafeInteger(value) && value > 0 ? value : fallback;
 }
 function withTimeout(promise, timeoutMs, controller) {
-  return new Promise((resolve7, reject) => {
+  return new Promise((resolve8, reject) => {
     const timer = setTimeout(() => {
       controller.abort();
       reject(new Error(`timed out after ${timeoutMs.toLocaleString()} ms`));
     }, timeoutMs);
     promise.then((value) => {
       clearTimeout(timer);
-      resolve7(value);
+      resolve8(value);
     }, (error) => {
       clearTimeout(timer);
       reject(error);
@@ -7726,7 +8001,7 @@ function normalizeAbsolutePattern(repoRoot, pattern) {
 }
 async function readIgnoreFile(repoRoot) {
   try {
-    return parseIgnoreFile(await readFile2(join3(repoRoot, ".fixmapignore"), "utf8"));
+    return parseIgnoreFile(await readFile3(join3(repoRoot, ".fixmapignore"), "utf8"));
   } catch {
     return [];
   }
@@ -8044,9 +8319,9 @@ function renderVerifyMarkdown(result) {
 }
 
 // packages/core/dist/annotation-store.js
-import { mkdir as mkdir2, open as open2, readFile as readFile3, realpath as realpath2, rename as rename2, rm, stat as stat2, lstat } from "node:fs/promises";
+import { mkdir as mkdir3, open as open2, readFile as readFile4, realpath as realpath2, rename as rename3, rm, stat as stat3, lstat } from "node:fs/promises";
 import { resolve as resolve4 } from "node:path";
-import { randomUUID as randomUUID2 } from "node:crypto";
+import { randomUUID as randomUUID3 } from "node:crypto";
 async function readAnnotationStore(repoRoot) {
   return readStore(await annotationRoot(repoRoot));
 }
@@ -8060,7 +8335,7 @@ async function updateAnnotationStore(repoRoot, update) {
 }
 async function annotationRoot(path) {
   const root = await realpath2(path);
-  if (!(await stat2(root)).isDirectory())
+  if (!(await stat3(root)).isDirectory())
     throw new Error("Annotation repository must be a directory.");
   return root;
 }
@@ -8068,7 +8343,7 @@ async function readStore(repoRoot) {
   await assertStoreBoundary(repoRoot);
   const path = resolve4(repoRoot, ".fixmap", "annotations.json");
   try {
-    return validateAnnotationStore(JSON.parse(await readFile3(path, "utf8")));
+    return validateAnnotationStore(JSON.parse(await readFile4(path, "utf8")));
   } catch (error) {
     if (isNodeError(error, "ENOENT"))
       return emptyAnnotationStore();
@@ -8079,10 +8354,10 @@ async function readStore(repoRoot) {
 }
 async function writeStore(repoRoot, store) {
   const directory = resolve4(repoRoot, ".fixmap");
-  await mkdir2(directory, { recursive: true });
+  await mkdir3(directory, { recursive: true });
   await assertStoreBoundary(repoRoot);
   const target = resolve4(directory, "annotations.json");
-  const temporary = resolve4(directory, `.annotations.${process.pid}.${randomUUID2()}.tmp`);
+  const temporary = resolve4(directory, `.annotations.${process.pid}.${randomUUID3()}.tmp`);
   const handle = await open2(temporary, "wx", 384);
   try {
     await handle.writeFile(`${JSON.stringify(validateAnnotationStore(store), null, 2)}
@@ -8092,7 +8367,7 @@ async function writeStore(repoRoot, store) {
     await handle.close();
   }
   try {
-    await rename2(temporary, target);
+    await rename3(temporary, target);
   } catch (error) {
     await rm(temporary, { force: true });
     throw error;
@@ -8101,7 +8376,7 @@ async function writeStore(repoRoot, store) {
 async function withStoreLock(repoRoot, operation) {
   await assertStoreBoundary(repoRoot);
   const directory = resolve4(repoRoot, ".fixmap");
-  await mkdir2(directory, { recursive: true });
+  await mkdir3(directory, { recursive: true });
   await assertStoreBoundary(repoRoot);
   const lockPath = resolve4(directory, "annotations.lock");
   let handle;
@@ -8346,6 +8621,20 @@ function evidenceOrder(a, b) {
 }
 function confidenceOrder(value) {
   return value === "high" ? 0 : value === "medium" ? 1 : 2;
+}
+function withoutMentions(value) {
+  return value.replace(/(^|[^A-Za-z0-9_.+-])@+(?=[A-Za-z0-9])/g, "$1");
+}
+function reviewRoutingWithoutMentions(result) {
+  return {
+    ...result,
+    suggestions: result.suggestions.map((suggestion) => ({
+      ...suggestion,
+      reviewer: withoutMentions(suggestion.reviewer),
+      evidence: suggestion.evidence.map((entry2) => ({ ...entry2, detail: withoutMentions(entry2.detail) }))
+    })).sort((a, b) => confidenceOrder(a.confidence) - confidenceOrder(b.confidence) || a.reviewer.localeCompare(b.reviewer)),
+    diagnostics: result.diagnostics.map((entry2) => ({ ...entry2, message: withoutMentions(entry2.message) }))
+  };
 }
 
 // packages/core/dist/sandbox.js
@@ -8877,6 +9166,112 @@ function inventoryContracts(sources, inheritedDiagnostics = []) {
     diagnostics: diagnostics.sort((a, b) => a.path.localeCompare(b.path) || a.code.localeCompare(b.code))
   };
 }
+function compareContractInventories(previous, current2) {
+  if (previous.inventoryVersion !== 1 || current2.inventoryVersion !== 1) {
+    throw new Error("Unsupported contract inventory version.");
+  }
+  const changes = [];
+  const beforeById = uniqueSurfaceIndex(previous.surfaces, "previous");
+  const afterById = uniqueSurfaceIndex(current2.surfaces, "current");
+  const unavailableBefore = unavailableContractPaths(previous.diagnostics);
+  const unavailableAfter = unavailableContractPaths(current2.diagnostics);
+  for (const [id, before] of beforeById) {
+    const after = afterById.get(id);
+    if (!after) {
+      if (unavailableAfter.has(before.path)) {
+        changes.push(contractChange(before, void 0, "contract-unavailable", "unknown", `${before.kind} contract ${before.name} could not be read on the later side, so its compatibility is unknown.`));
+        continue;
+      }
+      changes.push(contractChange(before, void 0, "contract-removed", "breaking", `Removed ${before.kind} contract ${before.name}.`));
+      continue;
+    }
+    compareSurface(before, after, changes);
+  }
+  for (const [id, after] of afterById) {
+    if (!beforeById.has(id)) {
+      if (unavailableBefore.has(after.path)) {
+        changes.push(contractChange(void 0, after, "contract-unavailable", "unknown", `${after.kind} contract ${after.name} could not be read on the earlier side, so its compatibility is unknown.`));
+        continue;
+      }
+      changes.push(contractChange(void 0, after, "contract-added", "compatible", `Added ${after.kind} contract ${after.name}.`));
+    }
+  }
+  changes.sort((a, b) => severityOrder2(a.compatibility) - severityOrder2(b.compatibility) || a.path.localeCompare(b.path) || (a.entry ?? "").localeCompare(b.entry ?? "") || a.change.localeCompare(b.change));
+  const breaking = changes.filter((change) => change.compatibility === "breaking").length;
+  const unknown = changes.filter((change) => change.compatibility === "unknown").length;
+  const compatible = changes.length - breaking - unknown;
+  return {
+    comparisonVersion: 1,
+    summary: changes.length === 0 ? "No supported contract surface changed." : `${changes.length} contract change${changes.length === 1 ? "" : "s"}: ${breaking} breaking, ${unknown} unknown, ${compatible} compatible.`,
+    changes,
+    diagnostics: deduplicateDiagnostics([...previous.diagnostics, ...current2.diagnostics])
+  };
+}
+function compareSurface(before, after, changes) {
+  const beforeEntries = new Map(before.entries.map((entry2) => [entry2.key, entry2]));
+  const afterEntries = new Map(after.entries.map((entry2) => [entry2.key, entry2]));
+  for (const [key, entry2] of beforeEntries) {
+    const current2 = afterEntries.get(key);
+    if (!current2) {
+      changes.push(contractChange(before, after, "entry-removed", removalCompatibility(entry2), `Removed ${describeEntry(entry2)}.`, entry2));
+    } else if (entry2.signature !== current2.signature || entry2.required !== current2.required) {
+      const compatibility = changedCompatibility(entry2, current2);
+      const detail = entry2.signature === current2.signature ? `requiredness from ${entry2.required} to ${current2.required}` : `signature from ${entry2.signature} to ${current2.signature}`;
+      changes.push(contractChange(before, after, "entry-changed", compatibility, `${describeEntry(entry2)} changed ${detail}.`, current2, entry2.signature, current2.signature));
+    }
+  }
+  for (const [key, entry2] of afterEntries) {
+    if (beforeEntries.has(key))
+      continue;
+    const compatibility = additionCompatibility(entry2);
+    changes.push(contractChange(before, after, "entry-added", compatibility, additionReason(entry2), entry2));
+  }
+}
+function contractChange(before, after, change, compatibility, reason2, entry2, beforeSignature, afterSignature) {
+  const surface = after ?? before;
+  const key = `${surface.id}\0${change}\0${entry2?.key ?? ""}\0${beforeSignature ?? ""}\0${afterSignature ?? ""}`;
+  return {
+    id: `contract-change:${stableHash4(key)}`,
+    contractId: surface.id,
+    contractKind: surface.kind,
+    path: surface.path,
+    change,
+    compatibility,
+    reason: reason2,
+    ...entry2 ? { entry: entry2.key } : {},
+    ...beforeSignature !== void 0 ? { before: beforeSignature } : {},
+    ...afterSignature !== void 0 ? { after: afterSignature } : {},
+    evidence: {
+      ...before ? { beforeFingerprint: before.sourceFingerprint } : {},
+      ...after ? { afterFingerprint: after.sourceFingerprint } : {}
+    }
+  };
+}
+function removalCompatibility(entry2) {
+  return entry2.role === "migration" ? "unknown" : "breaking";
+}
+function additionCompatibility(entry2) {
+  if (entry2.role === "migration")
+    return /^destructive:/.test(entry2.signature) ? "breaking" : "compatible";
+  return entry2.required && (entry2.role === "argument" || entry2.role === "required-field") ? "breaking" : "compatible";
+}
+function changedCompatibility(before, after) {
+  if (!before.required && after.required)
+    return "breaking";
+  if (before.role === "migration")
+    return /^destructive:/.test(after.signature) ? "breaking" : "unknown";
+  return "breaking";
+}
+function describeEntry(entry2) {
+  return `${entry2.role.replace("-", " ")} ${entry2.key}`;
+}
+function additionReason(entry2) {
+  if (entry2.role === "migration") {
+    const [classification, ...statement] = entry2.signature.split(":");
+    return `Added ${classification} migration statement: ${statement.join(":")}.`;
+  }
+  return `Added ${describeEntry(entry2)}${entry2.required ? " as required" : ""}.`;
+}
 function parseContract(source) {
   const lower = source.path.toLowerCase();
   if (lower.endsWith(".graphql") || lower.endsWith(".gql")) {
@@ -9104,7 +9499,7 @@ function parseMigration(content) {
   const statements = content.split(";").map((statement) => statement.replace(/--[^\r\n]*/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean);
   for (const statement of statements) {
     const destructive = /\bDROP\s+(?:TABLE|COLUMN|TYPE|INDEX|CONSTRAINT)\b|\bALTER\s+(?:TABLE\s+)?[^;]+\b(?:SET\s+NOT\s+NULL|TYPE\s+)\b|\bTRUNCATE\b/i.test(statement);
-    entries.push(entry(`migration:${stableHash3(statement.toLowerCase())}`, "migration", `${destructive ? "destructive" : "additive"}:${statement}`, false));
+    entries.push(entry(`migration:${stableHash4(statement.toLowerCase())}`, "migration", `${destructive ? "destructive" : "additive"}:${statement}`, false));
   }
   return { entries };
 }
@@ -9121,6 +9516,25 @@ function normalizeEntries(entries) {
     byKey.set(value.key, { ...value });
   }
   return [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
+function uniqueSurfaceIndex(surfaces, label) {
+  const index = /* @__PURE__ */ new Map();
+  for (const surface of surfaces) {
+    if (index.has(surface.id))
+      throw new Error(`Duplicate ${label} contract surface: ${surface.id}`);
+    index.set(surface.id, surface);
+  }
+  return index;
+}
+function unavailableContractPaths(diagnostics) {
+  return new Set(diagnostics.filter((diagnostic) => diagnostic.code === "contract-parse-failed" || diagnostic.code === "contract-source-incomplete").map((diagnostic) => diagnostic.path));
+}
+function deduplicateDiagnostics(diagnostics) {
+  const byKey = /* @__PURE__ */ new Map();
+  for (const diagnostic of diagnostics) {
+    byKey.set(`${diagnostic.code}\0${diagnostic.path}\0${diagnostic.message}`, { ...diagnostic });
+  }
+  return [...byKey.values()].sort((a, b) => a.path.localeCompare(b.path) || a.code.localeCompare(b.code));
 }
 function validateContractSource(source) {
   if (!source.path.trim() || source.path.includes("\0") || /^(?:[\\/]|[A-Za-z]:)/.test(source.path) || source.path.replace(/\\/g, "/").split("/").some((part) => !part || part === "." || part === "..")) {
@@ -9159,7 +9573,10 @@ function parseJson(content) {
 function isRecord8(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function stableHash3(value) {
+function severityOrder2(value) {
+  return value === "breaking" ? 0 : value === "unknown" ? 1 : 2;
+}
+function stableHash4(value) {
   let hash = 0xcbf29ce484222325n;
   for (const byte of new TextEncoder().encode(value)) {
     hash ^= BigInt(byte);
@@ -9878,12 +10295,12 @@ async function compareCapabilityRefs(input) {
   const to = capabilitySnapshot(historicalTo, id, input.asOf);
   const selected = comparePaths(from.map?.scope.selected ?? [], to.map?.scope.selected ?? []);
   const affected = comparePaths(from.map?.scope.affected ?? [], to.map?.scope.affected ?? []);
-  const contracts = compareEntities(from.map?.scope.contracts.map((entry2) => ({ id: entry2.id, fingerprint: `${entry2.sourceFingerprint}\0${canonicalize2(entry2.entries)}` })) ?? [], to.map?.scope.contracts.map((entry2) => ({ id: entry2.id, fingerprint: `${entry2.sourceFingerprint}\0${canonicalize2(entry2.entries)}` })) ?? []);
+  const contracts = compareEntities(from.map?.scope.contracts.map((entry2) => ({ id: entry2.id, fingerprint: `${entry2.sourceFingerprint}\0${canonicalize3(entry2.entries)}` })) ?? [], to.map?.scope.contracts.map((entry2) => ({ id: entry2.id, fingerprint: `${entry2.sourceFingerprint}\0${canonicalize3(entry2.entries)}` })) ?? []);
   const decisions = compareEntities(from.map?.scope.decisions.map((entry2) => ({ id: entry2.id, fingerprint: entry2.sourceFingerprint })) ?? [], to.map?.scope.decisions.map((entry2) => ({ id: entry2.id, fingerprint: entry2.sourceFingerprint })) ?? []);
   const testAssociations = compareEntities(from.testAssociations.map((entry2) => ({ id: entry2.path, fingerprint: entry2.sourceFingerprint })), to.testAssociations.map((entry2) => ({ id: entry2.path, fingerprint: entry2.sourceFingerprint })));
   const reviewers = compareEntities(reviewerEntities(from.map), reviewerEntities(to.map));
   const architectureFindings = compareEntities(findingEntities(from.map), findingEntities(to.map));
-  const definitionChanged = canonicalize2(from.capability ?? null) !== canonicalize2(to.capability ?? null);
+  const definitionChanged = canonicalize3(from.capability ?? null) !== canonicalize3(to.capability ?? null);
   const totalChanges = [selected, affected, contracts, decisions, testAssociations, reviewers, architectureFindings].reduce((total, diff) => total + diff.added.length + diff.removed.length + diff.modified.length, definitionChanged ? 1 : 0);
   return {
     capabilityHistoryVersion: 1,
@@ -9958,31 +10375,99 @@ function compareMaps(previous, current2) {
 function reviewerEntities(map) {
   return (map?.scope.reviewers ?? []).map((reviewer) => ({
     id: reviewer.reviewer,
-    fingerprint: canonicalize2({ paths: reviewer.paths, evidence: reviewer.evidence })
+    fingerprint: canonicalize3({ paths: reviewer.paths, evidence: reviewer.evidence })
   }));
 }
 function findingEntities(map) {
   return (map?.scope.architectureFindings ?? []).map((finding) => ({
     id: `${finding.ruleId}:${finding.code}:${finding.paths.join("|")}`,
-    fingerprint: canonicalize2(finding)
+    fingerprint: canonicalize3(finding)
   }));
 }
-function canonicalize2(value) {
+function canonicalize3(value) {
   if (Array.isArray(value))
-    return `[${value.map(canonicalize2).join(",")}]`;
+    return `[${value.map(canonicalize3).join(",")}]`;
   if (value && typeof value === "object") {
-    return `{${Object.entries(value).filter(([, entry2]) => entry2 !== void 0).sort(([left], [right]) => left.localeCompare(right)).map(([key, entry2]) => `${JSON.stringify(key)}:${canonicalize2(entry2)}`).join(",")}}`;
+    return `{${Object.entries(value).filter(([, entry2]) => entry2 !== void 0).sort(([left], [right]) => left.localeCompare(right)).map(([key, entry2]) => `${JSON.stringify(key)}:${canonicalize3(entry2)}`).join(",")}}`;
   }
   return JSON.stringify(value);
 }
 
 // packages/core/dist/contracts-repository.js
 import { execFile as execFile4 } from "node:child_process";
+import { relative as relative3, resolve as resolve5, sep as sep3 } from "node:path";
 import { promisify as promisify4 } from "node:util";
 var exec4 = promisify4(execFile4);
 var MAX_CONTRACT_BYTES = 2 * 1024 * 1024;
 var MAX_TREE_BYTES2 = 32 * 1024 * 1024;
 var MAX_TOTAL_BYTES = 64 * 1024 * 1024;
+var STRUCTURED_EXTENSION = /\.(?:json|ya?ml)$/i;
+async function inventoryContractsAtRef(input) {
+  const repoRoot = resolve5(input.repoRoot);
+  const requestedRef = validateRef(input.ref);
+  const commit = await resolveCommit(repoRoot, requestedRef);
+  const { stdout } = await exec4("git", ["ls-tree", "-r", "-z", "-l", "--full-tree", commit, "--"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: MAX_TREE_BYTES2
+  });
+  const candidates = parseTree(stdout).filter((entry2) => entry2.mode !== "120000" && entry2.mode !== "160000").filter((entry2) => CONTRACT_PATH.test(entry2.path) || STRUCTURED_EXTENSION.test(entry2.path));
+  const diagnostics = [];
+  const readable = [];
+  let totalBytes = 0;
+  for (const entry2 of candidates) {
+    if (entry2.size <= MAX_CONTRACT_BYTES && totalBytes + entry2.size <= MAX_TOTAL_BYTES) {
+      readable.push(entry2);
+      totalBytes += entry2.size;
+    } else if (CONTRACT_PATH.test(entry2.path)) {
+      diagnostics.push(unread(entry2.path));
+    }
+  }
+  const blobs = await readBlobs(repoRoot, readable);
+  const sources = [];
+  for (const entry2 of readable) {
+    const byPath = CONTRACT_PATH.test(entry2.path);
+    const content = decodeUtf8(blobs.get(entry2.oid));
+    if (content === void 0) {
+      if (byPath)
+        diagnostics.push(unread(entry2.path));
+      continue;
+    }
+    if (!byPath && !isContractCandidate(entry2.path, content))
+      continue;
+    sources.push({ path: entry2.path, content, fingerprint: `git:${entry2.oid}` });
+  }
+  return { requestedRef, commit, inventory: inventoryContracts(sources, diagnostics) };
+}
+async function compareContractRefs(input) {
+  const [from, to] = await Promise.all([
+    inventoryContractsAtRef({ repoRoot: input.repoRoot, ref: input.fromRef }),
+    inventoryContractsAtRef({ repoRoot: input.repoRoot, ref: input.toRef })
+  ]);
+  return {
+    contractDiffVersion: 1,
+    from: { requestedRef: from.requestedRef, commit: from.commit },
+    to: { requestedRef: to.requestedRef, commit: to.commit },
+    comparison: compareContractInventories(from.inventory, to.inventory)
+  };
+}
+function decodeUtf8(bytes) {
+  if (!bytes)
+    return void 0;
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return void 0;
+  }
+}
+function unread(path) {
+  return {
+    code: "contract-source-incomplete",
+    severity: "warning",
+    path,
+    message: `${path} looks like a contract, but it is larger than ${MAX_CONTRACT_BYTES / 1024 / 1024} MB, not UTF-8 text, or unreadable, so FixMap did not parse it.`
+  };
+}
 
 // packages/action/src/annotations.ts
 async function runAnnotationAction(input, repoRoot, allowWrite) {
@@ -10026,9 +10511,9 @@ async function runAnnotationAction(input, repoRoot, allowWrite) {
   });
   if ("path" in annotation.scope && annotation.scope.path) {
     const root = await realpath3(repoRoot);
-    const target = await realpath3(resolve5(root, annotation.scope.path));
-    const inside = relative3(root, target);
-    if (!inside || isAbsolute3(inside) || inside === ".." || inside.startsWith("../") || inside.startsWith("..\\") || !(await stat3(target)).isFile()) {
+    const target = await realpath3(resolve6(root, annotation.scope.path));
+    const inside = relative4(root, target);
+    if (!inside || isAbsolute3(inside) || inside === ".." || inside.startsWith("../") || inside.startsWith("..\\") || !(await stat4(target)).isFile()) {
       throw new Error("Annotation target must be an existing file inside the checkout.");
     }
   }
@@ -10042,7 +10527,7 @@ function record2(value) {
 
 // packages/action/src/runner.ts
 import { appendFileSync, readFileSync, statSync } from "node:fs";
-import { resolve as resolve6 } from "node:path";
+import { resolve as resolve7 } from "node:path";
 
 // packages/action/src/github.ts
 var FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
@@ -10362,6 +10847,190 @@ function message(error) {
   return /[.…]$/.test(bounded) ? bounded : `${bounded}.`;
 }
 
+// packages/action/src/review-sections.ts
+function hasReviewSections(request) {
+  return request.contracts || request.reviewers || request.architectureDrift;
+}
+var REFS_NEEDED = "needs a pull request with both base and head refs. Fetch the base ref (for example `actions/checkout` with `fetch-depth: 0`) to compare.";
+async function buildReviewSections(request, context) {
+  const sections = [];
+  const warnings = [];
+  let breakingContractCount;
+  if (request.contracts) {
+    const heading = "## Contract changes (preview)";
+    if (!context.diffRefs) {
+      sections.push([heading, "", `Contract comparison ${REFS_NEEDED}`, ""].join("\n"));
+      warnings.push(`FixMap contract comparison ${REFS_NEEDED}`);
+    } else {
+      try {
+        const result = await (context.compareContractRefs ?? compareContractRefs)({
+          repoRoot: context.repoRoot,
+          fromRef: context.diffRefs.baseRef,
+          toRef: context.diffRefs.headRef
+        });
+        breakingContractCount = result.comparison.changes.filter((change) => change.compatibility === "breaking").length;
+        sections.push(renderContractSection(result));
+      } catch (error) {
+        sections.push([heading, "", `Contract comparison unavailable: ${message(error)} ${REFS_NEEDED}`, ""].join("\n"));
+        warnings.push(`FixMap contract comparison unavailable: ${message(error)}`);
+      }
+    }
+  }
+  if (request.reviewers) {
+    const heading = "## Suggested reviewers (preview)";
+    try {
+      const repo = await (context.scanRepo ?? scanRepo)({
+        repoRoot: context.repoRoot,
+        useCache: context.useCache,
+        includeHistory: request.reviewersHistoryAuthors
+      });
+      const scanError = repo.diagnostics.find((diagnostic) => diagnostic.severity === "error");
+      if (scanError) throw new Error(scanError.message);
+      const result = routeReviewers(repo, {
+        changedPaths: context.changedPaths,
+        now: context.now,
+        includeHistoryAuthors: request.reviewersHistoryAuthors
+      });
+      sections.push(renderReviewerSection(result));
+    } catch (error) {
+      const detail = withoutMentions(message(error));
+      sections.push([heading, "", `Reviewer suggestions unavailable: ${detail}`, ""].join("\n"));
+      warnings.push(`FixMap reviewer suggestions unavailable: ${detail}`);
+    }
+  }
+  if (request.architectureDrift) {
+    const heading = "## Architecture drift (preview)";
+    if (!context.diffRefs) {
+      sections.push([heading, "", `Architecture drift ${REFS_NEEDED}`, ""].join("\n"));
+      warnings.push(`FixMap architecture drift ${REFS_NEEDED}`);
+    } else {
+      try {
+        const result = await (context.compareArchitectureRefs ?? compareArchitectureRefs)({
+          repoRoot: context.repoRoot,
+          fromRef: context.diffRefs.baseRef,
+          toRef: context.diffRefs.headRef,
+          useCache: context.useCache
+        });
+        sections.push(renderArchitectureDriftSection(result));
+      } catch (error) {
+        sections.push([heading, "", `Architecture drift unavailable: ${message(error)} ${REFS_NEEDED}`, ""].join("\n"));
+        warnings.push(`FixMap architecture drift unavailable: ${message(error)}`);
+      }
+    }
+  }
+  return {
+    markdown: sections.join("\n"),
+    warnings,
+    ...breakingContractCount !== void 0 ? { breakingContractCount } : {}
+  };
+}
+var COMPATIBILITY_ORDER = { breaking: 0, unknown: 1, compatible: 2 };
+function renderContractSection(result) {
+  const { changes } = result.comparison;
+  const count = (compatibility) => changes.filter((change) => change.compatibility === compatibility).length;
+  const lines = [
+    "## Contract changes (preview)",
+    "",
+    // Reasons quote contract text, where a GraphQL directive such as `@deprecated` would mention someone.
+    withoutMentions(result.comparison.summary),
+    "",
+    `- Breaking: ${count("breaking").toLocaleString()}`,
+    `- Unknown: ${count("unknown").toLocaleString()}`,
+    `- Compatible: ${count("compatible").toLocaleString()}`,
+    ""
+  ];
+  if (changes.length > 0) {
+    const ordered = [...changes].sort((a, b) => COMPATIBILITY_ORDER[a.compatibility] - COMPATIBILITY_ORDER[b.compatibility] || a.path.localeCompare(b.path));
+    lines.push("Top changes:", "");
+    lines.push(...ordered.slice(0, SECTION_PATH_LIMIT).map((change) => `- ${change.compatibility} ${markdownCode2(change.path)} (${change.contractKind}): ${withoutMentions(change.reason)}`));
+    if (changes.length > SECTION_PATH_LIMIT) lines.push(`- \u2026and ${(changes.length - SECTION_PATH_LIMIT).toLocaleString()} more`);
+    lines.push("");
+  }
+  if (result.comparison.diagnostics.length > 0) {
+    lines.push(`Contracts not compared: ${result.comparison.diagnostics.length.toLocaleString()}; run the CLI for details.`, "");
+  }
+  lines.push(
+    `Base ${markdownCode2(result.from.requestedRef)} at ${markdownCode2(result.from.commit)}; head ${markdownCode2(result.to.requestedRef)} at ${markdownCode2(result.to.commit)}. Both sides were read from Git objects without a checkout. Breaking changes are advisory and never fail this step. Run \`fixmap contracts diff\` for the complete comparison.`,
+    ""
+  );
+  return lines.join("\n");
+}
+var EVIDENCE_LABEL = {
+  codeowners: "CODEOWNERS",
+  annotation: "annotation",
+  "architecture-policy": "architecture policy",
+  "git-history": "commit history"
+};
+function renderReviewerSection(input) {
+  const result = reviewRoutingWithoutMentions(input);
+  const lines = [
+    "## Suggested reviewers (preview)",
+    "",
+    "Suggestions only. FixMap does not request reviews or notify anyone, and a name is not evidence of identity, employment, or current availability.",
+    ""
+  ];
+  if (result.changedPaths.length === 0) {
+    lines.push("No changed paths, so there is nothing to route.", "");
+  } else {
+    const covered = new Set(result.suggestions.flatMap((suggestion) => suggestion.paths));
+    const uncovered = result.changedPaths.filter((path) => !covered.has(path));
+    lines.push(
+      `- Changed paths routed: ${result.changedPaths.length.toLocaleString()}`,
+      `- Suggested reviewers: ${result.suggestions.length.toLocaleString()}`,
+      `- Paths without reviewer evidence: ${uncovered.length.toLocaleString()}`,
+      ""
+    );
+    if (result.suggestions.length > 0) {
+      for (const suggestion of result.suggestions.slice(0, SECTION_PATH_LIMIT)) {
+        const sources = [...new Set(suggestion.evidence.map((entry2) => EVIDENCE_LABEL[entry2.kind]))].join(", ");
+        const paths = suggestion.paths.slice(0, 3).map(markdownCode2).join(", ");
+        const more = suggestion.paths.length > 3 ? ` and ${(suggestion.paths.length - 3).toLocaleString()} more` : "";
+        lines.push(`- ${markdownCode2(suggestion.reviewer)} (${suggestion.confidence}; ${sources}): ${paths}${more}`);
+      }
+      if (result.suggestions.length > SECTION_PATH_LIMIT) {
+        lines.push(`- \u2026and ${(result.suggestions.length - SECTION_PATH_LIMIT).toLocaleString()} more`);
+      }
+      lines.push("");
+    }
+  }
+  const warnings = result.diagnostics.filter((entry2) => entry2.severity === "warning");
+  if (warnings.length > 0) {
+    lines.push(...warnings.slice(0, SECTION_PATH_LIMIT).map((entry2) => `- warning (${markdownCode2(entry2.source)}): ${entry2.message}`), "");
+  }
+  lines.push("Run `fixmap reviewers` for the per-path evidence.", "");
+  return lines.join("\n");
+}
+function renderArchitectureDriftSection(result) {
+  const { drift } = result;
+  const edge = (entry2) => `${markdownCode2(entry2.from)} -> ${markdownCode2(entry2.to)}`;
+  const lines = [
+    "## Architecture drift (preview)",
+    "",
+    `- Added edges: ${drift.addedEdges.length.toLocaleString()}`,
+    `- Removed edges: ${drift.removedEdges.length.toLocaleString()}`,
+    `- New cycles: ${drift.newCycles.length.toLocaleString()} (resolved: ${drift.resolvedCycles.length.toLocaleString()})`,
+    `- New policy violations: ${drift.newBoundaryViolations.length.toLocaleString()} (resolved: ${drift.resolvedBoundaryViolations.length.toLocaleString()})`,
+    `- Decision disagreements: ${result.decisionDisagreements.length.toLocaleString()} (introduced here: ${result.decisionDisagreements.filter((entry2) => entry2.introduced).length.toLocaleString()})`,
+    ""
+  ];
+  const list = (title, values, render) => {
+    if (values.length === 0) return;
+    lines.push(`${title}:`, "", ...values.slice(0, SECTION_PATH_LIMIT).map((value) => `- ${render(value)}`));
+    if (values.length > SECTION_PATH_LIMIT) lines.push(`- \u2026and ${(values.length - SECTION_PATH_LIMIT).toLocaleString()} more`);
+    lines.push("");
+  };
+  list("New cycles", drift.newCycles, (cycle) => cycle.map(markdownCode2).join(" -> "));
+  list("New policy violations", drift.newBoundaryViolations, (entry2) => `${markdownCode2(entry2.ruleId)}: ${edge(entry2)}`);
+  list("Decision disagreements", result.decisionDisagreements, (entry2) => `${markdownCode2(entry2.decisionPath)} denies ${markdownCode2(entry2.rule.from)} -> ${markdownCode2(entry2.rule.deny)}; ${edge(entry2.edge)} ${entry2.introduced ? "was introduced in this range" : "already existed at the base"}`);
+  list("Added edges", drift.addedEdges, edge);
+  list("Removed edges", drift.removedEdges, edge);
+  lines.push(
+    `Base ${markdownCode2(result.from.requestedRef)} at ${markdownCode2(result.from.commit)}; head ${markdownCode2(result.to.requestedRef)} at ${markdownCode2(result.to.commit)}. Both sides were read from Git objects without a checkout. Run \`fixmap history\` for the complete comparison.`,
+    ""
+  );
+  return lines.join("\n");
+}
+
 // packages/action/src/issue-source.ts
 var MAX_API_RESPONSE_CHARS = 1e6;
 var MAX_ISSUE_BODY_CHARS = 2e4;
@@ -10485,12 +11154,29 @@ var TRUNCATION_FOOTER = "\n\n> FixMap report truncated to fit GitHub's 1 MiB ste
 var ACTION_OUTPUT_REPORT_LIMIT_BYTES = 900 * 1024;
 var OUTPUT_TRUNCATION_FOOTER = "\n\n[FixMap report truncated to fit the GitHub Actions output limit. Run FixMap locally with --output for a complete report.]\n";
 var SCOPE_INPUTS = ["change-scope-touch", "change-scope-add", "capability"];
+function readReviewSectionRequest(env) {
+  const historyAuthors = readInput("reviewers-history-authors", env);
+  const request = {
+    contracts: parseBooleanInput("contracts", readInput("contracts", env)),
+    reviewers: parseBooleanInput("reviewers", readInput("reviewers", env)),
+    reviewersHistoryAuthors: historyAuthors === void 0 || parseBooleanInput("reviewers-history-authors", historyAuthors),
+    architectureDrift: parseBooleanInput("architecture-drift", readInput("architecture-drift", env))
+  };
+  const used = [
+    request.contracts ? "contracts" : "",
+    request.reviewers ? "reviewers" : "",
+    request.reviewersHistoryAuthors ? "" : "reviewers-history-authors",
+    request.architectureDrift ? "architecture-drift" : ""
+  ].filter(Boolean);
+  return { ...request, used };
+}
 async function runAction(env = process.env, dependencies = {}) {
   const appendFile = dependencies.appendFile ?? ((path, contents) => appendFileSync(path, contents));
-  const readFile4 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
+  const readFile5 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
   const stdout = dependencies.stdout ?? ((text) => process.stdout.write(text));
   if (readInput("mode", env)?.toLowerCase() === "annotate") {
     const incompatible = ["issue", "diff", "base", "head", "limit", "exclude", "report-path", "comment-author", ...SCOPE_INPUTS].filter((name) => readInput(name, env));
+    incompatible.push(...readReviewSectionRequest(env).used);
     for (const name of ["working-tree", "include-untracked", "no-cache"]) {
       if (parseBooleanInput(name, readInput(name, env))) incompatible.push(name);
     }
@@ -10504,7 +11190,7 @@ async function runAction(env = process.env, dependencies = {}) {
     stdout(output2);
     if (env.GITHUB_STEP_SUMMARY) appendBoundedStepSummary(env.GITHUB_STEP_SUMMARY, withJsonDetails("# FixMap annotations\n\nLocal checkout operation only; no commit, push, or GitHub comment was made.", output2), dependencies, appendFile, stdout);
     if (env.GITHUB_OUTPUT) {
-      const delimiter = `fixmap_${(dependencies.uuid ?? randomUUID3)().replace(/-/g, "")}`;
+      const delimiter = `fixmap_${(dependencies.uuid ?? randomUUID4)().replace(/-/g, "")}`;
       appendFile(env.GITHUB_OUTPUT, `report<<${delimiter}
 ${output2}
 ${delimiter}
@@ -10513,7 +11199,7 @@ ${delimiter}
     return;
   }
   if (readInput("annotation-request", env) || readInput("allow-annotation-write", env) === "true") throw new Error("Annotation inputs require mode: annotate.");
-  const event = readEvent(env.GITHUB_EVENT_PATH, readFile4);
+  const event = readEvent(env.GITHUB_EVENT_PATH, readFile5);
   const rawIssue = readInput("issue", env) || buildPullRequestIssueText(event);
   const diffSpec = readInput("diff", env);
   const workingTree = parseBooleanInput("working-tree", readInput("working-tree", env));
@@ -10529,19 +11215,25 @@ ${delimiter}
   if (includeUntracked && !workingTree) throw new Error("include-untracked requires working-tree.");
   if (workingTree && (diffSpec || baseRef || headRef)) throw new Error("Use either working-tree or diff/base/head, not both.");
   if (diffSpec && (baseRef || headRef)) throw new Error("Use either diff or base/head, not both.");
+  const reviewRequest = readReviewSectionRequest(env);
+  if (!reviewRequest.reviewersHistoryAuthors && !reviewRequest.reviewers) {
+    throw new Error("reviewers-history-authors: false requires reviewers: true.");
+  }
+  const diffRefs = event?.pull_request?.number && baseRef && headRef ? { baseRef, headRef } : void 0;
   if (mode === "verify") {
     const planOnly = [
       readInput("limit", env) ? "limit" : "",
       readInput("exclude", env) ? "exclude" : "",
       readInput("issue", env) ? "issue" : "",
-      ...SCOPE_INPUTS.filter((name) => readInput(name, env))
+      ...SCOPE_INPUTS.filter((name) => readInput(name, env)),
+      ...reviewRequest.used.filter((name) => name !== "contracts")
     ].filter(Boolean);
     if (planOnly.length > 0) {
       throw new Error(
         `FixMap verify mode does not use plan-only input${planOnly.length === 1 ? "" : "s"}: ${planOnly.join(", ")}. Remove them, or set mode: plan.`
       );
     }
-    return runVerifyMode({ env, dependencies, readFile: readFile4, appendFile, stdout, format, failOn, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache });
+    return runVerifyMode({ env, dependencies, readFile: readFile5, appendFile, stdout, format, failOn, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache, contracts: reviewRequest.contracts, diffRefs });
   }
   if (failOn === "warning") throw new Error("fail-on: warning is a verify-mode input; remove it or set mode: verify.");
   const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : void 0;
@@ -10580,28 +11272,38 @@ ${delimiter}
       message: `Fetched ${issueSource.displayUrl} anonymously and used its title${fetchedIssue?.body ? " and body" : ""} as task context` + (fetchedIssue?.truncated ? "; the body was truncated to 20,000 characters, so later text did not inform the ranking." : ".")
     });
   }
+  const now = (dependencies.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))();
   const scopeSections = hasScopeSections(scopeRequest) ? await buildScopeSections(scopeRequest, {
     repoRoot,
     useCache: !noCache,
-    asOf: (dependencies.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))(),
-    ...event?.pull_request?.number && baseRef && headRef ? { diffRefs: { baseRef, headRef } } : {},
+    asOf: now,
+    ...diffRefs ? { diffRefs } : {},
     ...dependencies.scanRepo ? { scanRepo: dependencies.scanRepo } : {},
     ...dependencies.compareCapabilityRefs ? { compareCapabilityRefs: dependencies.compareCapabilityRefs } : {}
   }) : void 0;
-  for (const warning of scopeSections?.warnings ?? []) stdout(`::warning::${warning}
+  const reviewSections = hasReviewSections(reviewRequest) ? await buildReviewSections(reviewRequest, {
+    repoRoot,
+    useCache: !noCache,
+    now,
+    changedPaths: report.changedFiles.length > 0 ? report.changedFiles : report.contextFiles.map((file) => file.path),
+    ...diffRefs ? { diffRefs } : {},
+    ...reviewSectionDependencies(dependencies)
+  }) : void 0;
+  for (const warning of [...scopeSections?.warnings ?? [], ...reviewSections?.warnings ?? []]) stdout(`::warning::${warning}
 `);
   const planMarkdown = renderMarkdownReport(report);
-  const markdown = scopeSections ? `${planMarkdown.trimEnd()}
+  const extraMarkdown = [scopeSections?.markdown, reviewSections?.markdown].filter(Boolean).join("\n");
+  const markdown = extraMarkdown ? `${planMarkdown.trimEnd()}
 
-${scopeSections.markdown}` : planMarkdown;
+${extraMarkdown}` : planMarkdown;
   const output = format === "json" ? renderJsonReport(report) : markdown;
   stdout(output);
   if (env.GITHUB_STEP_SUMMARY) {
     appendBoundedStepSummary(env.GITHUB_STEP_SUMMARY, format === "json" ? withJsonDetails(markdown, output) : markdown, dependencies, appendFile, stdout);
   }
   if (env.GITHUB_OUTPUT) {
-    appendFile(env.GITHUB_OUTPUT, renderActionOutputs(output, report, dependencies.uuid ?? randomUUID3) + (scopeSections?.changeScopeAffectedCount !== void 0 ? `change-scope-affected-count=${scopeSections.changeScopeAffectedCount}
-` : ""));
+    appendFile(env.GITHUB_OUTPUT, renderActionOutputs(output, report, dependencies.uuid ?? randomUUID4) + (scopeSections?.changeScopeAffectedCount !== void 0 ? `change-scope-affected-count=${scopeSections.changeScopeAffectedCount}
+` : "") + breakingContractOutput(reviewSections));
   }
   const token = readInput("github-token", env) || env.GITHUB_TOKEN;
   const commentAuthor = readInput("comment-author", env);
@@ -10610,8 +11312,8 @@ ${scopeSections.markdown}` : planMarkdown;
       const comment = format === "json" ? `\`\`\`json
 ${output.trimEnd()}
 \`\`\`
-${scopeSections ? `
-${scopeSections.markdown}` : ""}` : markdown;
+${extraMarkdown ? `
+${extraMarkdown}` : ""}` : markdown;
       await upsertPullRequestComment(token, event, comment, commentAuthor, env, dependencies.createClient);
     } catch (error) {
       if (!isPermissionDeniedError(error)) {
@@ -10634,6 +11336,17 @@ function parseMode(value) {
     return normalized;
   }
   throw new Error(`Invalid mode input ${JSON.stringify(value)}; expected plan or verify.`);
+}
+function reviewSectionDependencies(dependencies) {
+  return {
+    ...dependencies.scanRepo ? { scanRepo: dependencies.scanRepo } : {},
+    ...dependencies.compareContractRefs ? { compareContractRefs: dependencies.compareContractRefs } : {},
+    ...dependencies.compareArchitectureRefs ? { compareArchitectureRefs: dependencies.compareArchitectureRefs } : {}
+  };
+}
+function breakingContractOutput(sections) {
+  return sections?.breakingContractCount !== void 0 ? `breaking-contract-count=${sections.breakingContractCount}
+` : "";
 }
 async function runVerifyMode(context) {
   const reportPath = readInput("report-path", context.env);
@@ -10666,14 +11379,30 @@ async function runVerifyMode(context) {
     includeUntracked: context.includeUntracked,
     useCache: !context.noCache,
     includeHistory: true,
-    internalExclude: [resolve6(repoRoot, reportPath)]
+    internalExclude: [resolve7(repoRoot, reportPath)]
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
   if (diffFailure) {
     throw new Error(`${diffFailure.message} Verification needs a resolvable diff.`);
   }
   const result = verifyPlan(report, repo);
-  const markdown = renderVerifyMarkdown(result);
+  const contractSections = context.contracts ? await buildReviewSections(
+    { contracts: true, reviewers: false, reviewersHistoryAuthors: true, architectureDrift: false },
+    {
+      repoRoot,
+      useCache: !context.noCache,
+      now: (context.dependencies.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))(),
+      changedPaths: [],
+      ...context.diffRefs ? { diffRefs: context.diffRefs } : {},
+      ...reviewSectionDependencies(context.dependencies)
+    }
+  ) : void 0;
+  for (const warning of contractSections?.warnings ?? []) context.stdout(`::warning::${warning}
+`);
+  const verifyMarkdown = renderVerifyMarkdown(result);
+  const markdown = contractSections ? `${verifyMarkdown.trimEnd()}
+
+${contractSections.markdown}` : verifyMarkdown;
   const output = context.format === "json" ? `${JSON.stringify(result, null, 2)}
 ` : markdown;
   context.stdout(output);
@@ -10683,7 +11412,7 @@ async function runVerifyMode(context) {
   if (context.env.GITHUB_OUTPUT) {
     context.appendFile(
       context.env.GITHUB_OUTPUT,
-      renderVerifyOutputs(output, result, context.dependencies.uuid ?? randomUUID3)
+      renderVerifyOutputs(output, result, context.dependencies.uuid ?? randomUUID4) + breakingContractOutput(contractSections)
     );
   }
   if (result.findings.some(
@@ -10694,7 +11423,7 @@ async function runVerifyMode(context) {
     );
   }
 }
-function renderVerifyOutputs(reportText, result, uuid = randomUUID3) {
+function renderVerifyOutputs(reportText, result, uuid = randomUUID4) {
   const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;
   const fittedReport = fitOutputReport(reportText);
   const terminated = fittedReport.endsWith("\n") ? fittedReport : `${fittedReport}
@@ -10739,7 +11468,7 @@ function parseBooleanInput(name, value) {
   if (/^(?:false|0|no)$/i.test(value)) return false;
   throw new Error(`${name} must be true or false.`);
 }
-function renderActionOutputs(reportText, report, uuid = randomUUID3) {
+function renderActionOutputs(reportText, report, uuid = randomUUID4) {
   const delimiter = `fixmap_${uuid().replaceAll("-", "")}`;
   const fittedReport = fitOutputReport(reportText);
   const terminatedReport = fittedReport.endsWith("\n") ? fittedReport : `${fittedReport}
@@ -10837,12 +11566,12 @@ function readInput(name, env) {
   const value = env[githubName] || env[shellSafeName];
   return value?.trim() || void 0;
 }
-function readEvent(eventPath, readFile4) {
+function readEvent(eventPath, readFile5) {
   if (!eventPath) {
     return void 0;
   }
   try {
-    return JSON.parse(readFile4(eventPath));
+    return JSON.parse(readFile5(eventPath));
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`FixMap could not read the GitHub event payload: ${detail}`);

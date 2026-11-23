@@ -255,7 +255,7 @@ function repositoryId(value: string): string {
 }
 
 /** Same code-span rendering as Core's report renderer, so repository paths cannot break out. */
-function markdownCode(value: string): string {
+export function markdownCode(value: string): string {
   const longestRun = Math.max(0, ...[...value.matchAll(/`+/g)].map((match) => match[0].length));
   const fence = "`".repeat(longestRun + 1);
   const pad = /^[` ]|[` ]$/.test(value) ? " " : "";
@@ -267,7 +267,7 @@ function escapeMarkdown(value: string): string {
 }
 
 /** Git failures carry multi-line stderr; one bounded line keeps the comment readable. */
-function message(error: unknown): string {
+export function message(error: unknown): string {
   const text = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim();
   const bounded = text.length > 300 ? `${text.slice(0, 299)}…` : text;
   return /[.…]$/.test(bounded) ? bounded : `${bounded}.`;
