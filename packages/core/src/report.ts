@@ -10,7 +10,9 @@ import { buildImpactMap } from "./impact.js";
 import { DEFAULT_CONTEXT_FILE_LIMIT, rankContextFiles, rankContextFilesEvidenceDetailed } from "./rank.js";
 import { extractTaskSignals, tokenizePath } from "./signals.js";
 import { findGatedTestDiagnostics } from "./test-gates.js";
-import { markdownCode } from "./markdown.js";
+import { inlineProse, markdownCode } from "./markdown.js";
+import { renderSensitiveDataMarkdown } from "./report-sensitive-data.js";
+import { renderSupplyChainReportMarkdown } from "./report-supply-chain.js";
 import { DIAGNOSTIC_TERM_LIMIT, truncateForDiagnostic } from "./text.js";
 import { rankContextFilesHybrid } from "./semantic.js";
 import type { createCustomLanguageContext } from "./custom-language-context.js";
@@ -874,6 +876,8 @@ export function renderMarkdownReport(report: FixMapReport): string {
       ...(report.evidence.omittedItems > 0 ? ["", `${report.evidence.omittedItems} further evidence item${report.evidence.omittedItems === 1 ? " was" : "s were"} not about files in this report.`] : []),
       ...report.evidence.diagnostics.map((diagnostic) => `- **${diagnostic.severity}** ${markdownCode(diagnostic.provider)} ${diagnostic.code}: ${inlineProse(diagnostic.message)}`)
     ] : []),
+    ...(report.sensitiveData ? renderSensitiveDataMarkdown(report.sensitiveData) : []),
+    ...(report.supplyChain ? renderSupplyChainReportMarkdown(report.supplyChain) : []),
     ...(report.policy ? [
       "",
       "## Architecture Policy",
@@ -973,10 +977,6 @@ function describeAnnotationScope(assessment: AnnotationAssessment): string {
   if (scope.kind === "symbol") return `${markdownCode(scope.symbol)} in ${markdownCode(scope.path)}`;
   if (scope.kind === "service") return `service ${markdownCode(scope.name)}`;
   return `contract ${markdownCode(scope.name)}${scope.path ? ` in ${markdownCode(scope.path)}` : ""}`;
-}
-
-function inlineProse(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
 }
 
 function listOrEmpty(lines: string[]): string[] {

@@ -77,6 +77,8 @@ type PlanArguments = {
   noCache?: boolean;
   semanticModel?: string;
   evidence?: string[];
+  sensitiveData?: boolean;
+  supplyChain?: string;
 };
 
 type ExplainArguments = {
@@ -114,6 +116,7 @@ type VerifyArguments = {
   workingTree?: boolean;
   includeUntracked?: boolean;
   noCache?: boolean;
+  sensitiveData?: boolean;
 };
 
 const PLAN_TOOL = {
@@ -188,6 +191,14 @@ const PLAN_TOOL = {
         items: { type: "string" },
         maxItems: 8,
         description: "Local version-1 evidence bundle files from other tools (data only, never executed). Relevant items are attached to the report."
+      },
+      sensitiveData: {
+        type: "boolean",
+        description: "Preview: attach possible sensitive-data source-to-sink flows (credential, token, PII, payment to logging, network, storage, analytics) touching the report's files. Locations and kinds only; matched values are never included."
+      },
+      supplyChain: {
+        type: "string",
+        description: "Preview: local version-1 normalized scanner/SBOM bundle file. Findings for packages declared in manifests among the report's files are attached with tool, database, and bundle provenance."
       }
     },
     additionalProperties: false
@@ -527,7 +538,11 @@ const VERIFY_TOOL = {
       workingTree: { type: "boolean", description: "Verify staged and unstaged tracked changes against HEAD" },
       includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" },
       format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" },
-      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" }
+      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" },
+      sensitiveData: {
+        type: "boolean",
+        description: "Preview: attach possible sensitive-data flows touching the plan or diff and add an advisory finding when the diff adds one. Locations and kinds only."
+      }
     },
     required: ["report"],
     additionalProperties: false
@@ -1010,7 +1025,7 @@ export function createFixMapMcpServer(
         if (diffFailure) {
           throw new Error(`${diffFailure.message} Verification needs a resolvable diff.`);
         }
-        const result = verifyPlan(args.report, repo);
+        const result = verifyPlan(args.report, repo, { sensitiveData: args.sensitiveData === true });
         const text = args.format === "json"
           ? `${JSON.stringify(result, null, 2)}\n`
           : renderVerifyMarkdown(result);
@@ -1111,7 +1126,9 @@ export function createFixMapMcpServer(
         limit: args.limit,
         exclude: args.exclude,
         semanticModelPath: args.semanticModel,
-        ...(args.evidence ? { evidencePaths: args.evidence } : {})
+        ...(args.evidence ? { evidencePaths: args.evidence } : {}),
+        ...(args.sensitiveData ? { sensitiveData: true } : {}),
+        ...(args.supplyChain ? { supplyChainPath: args.supplyChain } : {})
       }, repositorySourceDependencies);
     } catch (error) {
       return {
@@ -1153,7 +1170,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence", "at"]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence", "sensitiveData", "supplyChain", "at"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return {
@@ -1213,6 +1230,16 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
       return { success: false, message: '"evidence" must be an array of at most 8 non-empty local file paths.' };
     }
     value.evidence = record.evidence.map((entry: string) => entry.trim());
+  }
+  if (record.sensitiveData !== undefined && typeof record.sensitiveData !== "boolean") {
+    return { success: false, message: '"sensitiveData" must be a boolean.' };
+  }
+  if (record.sensitiveData === true) value.sensitiveData = true;
+  if (record.supplyChain !== undefined) {
+    if (typeof record.supplyChain !== "string" || !record.supplyChain.trim() || record.supplyChain.length > 1_000 || record.supplyChain.includes("\0")) {
+      return { success: false, message: '"supplyChain" must be a non-empty local bundle file path.' };
+    }
+    value.supplyChain = record.supplyChain.trim();
   }
   if (value.ref && !/^https?:\/\//i.test(value.repo ?? "") && !tryParseGitHubIssueSource(value.issue ?? "")) {
     return { success: false, message: '"ref" requires a remote GitHub "repo" or issue URL.' };
@@ -1376,7 +1403,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
     return { success: false, message: "tool arguments must be an object." };
   }
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["report", "diff", "base", "head", "repo", "format", "workingTree", "includeUntracked", "noCache"]);
+  const allowed = new Set(["report", "diff", "base", "head", "repo", "format", "workingTree", "includeUntracked", "noCache", "sensitiveData"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
@@ -1398,7 +1425,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
   if (!record.diff && !record.base && record.workingTree !== true) {
     return { success: false, message: 'provide "diff", "base"/"head", or "workingTree" so FixMap can see what changed.' };
   }
-  for (const name of ["workingTree", "includeUntracked", "noCache"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
+  for (const name of ["workingTree", "includeUntracked", "noCache", "sensitiveData"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
   if (record.includeUntracked === true && record.workingTree !== true) return { success: false, message: '"includeUntracked" requires "workingTree".' };
   if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
   if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
@@ -1416,6 +1443,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
       ...(record.workingTree === true ? { workingTree: true } : {}),
       ...(record.includeUntracked === true ? { includeUntracked: true } : {}),
       ...(record.noCache === true ? { noCache: true } : {}),
+      ...(record.sensitiveData === true ? { sensitiveData: true } : {}),
       ...(format.value ? { format: format.value } : {})
     }
   };

@@ -14,8 +14,17 @@ import type { FixMapReport, ImpactMap, RepoMap, VerifyFinding, VerifyNarrativeSt
 import { markdownCode } from "./markdown.js";
 import { architecturePolicyFromRepo, evaluateArchitecturePolicy } from "./architecture.js";
 import type { ArchitecturePolicyFinding, ArchitecturePolicyResult } from "./architecture.js";
+import { reportPaths } from "./report-evidence.js";
+import { buildReportSensitiveData, renderSensitiveDataMarkdown, sensitiveDataVerifyFinding } from "./report-sensitive-data.js";
 
-export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
+export function verifyPlan(
+  report: FixMapReport,
+  repo: RepoMap,
+  options: {
+    /** Attach lexical sensitive-data flows and add an advisory finding for flows the diff introduced. */
+    sensitiveData?: boolean;
+  } = {}
+): VerifyResult {
   const changed = repo.changedFiles;
   const findings: VerifyFinding[] = [];
   const fileByPath = new Map(repo.files.map((file) => [file.path, file]));
@@ -230,13 +239,25 @@ export function verifyPlan(report: FixMapReport, repo: RepoMap): VerifyResult {
     });
   }
 
+  // 7. Opt-in and advisory: possible sensitive-data flows the diff added. Lexical evidence only.
+  const sensitiveData = options.sensitiveData
+    ? buildReportSensitiveData(
+      repo,
+      new Set([...reportPaths(report), ...changed, ...impact.files.map((file) => file.path)]),
+      { compareWithDiff: true }
+    )
+    : undefined;
+  const sensitiveFinding = sensitiveData ? sensitiveDataVerifyFinding(sensitiveData) : undefined;
+  if (sensitiveFinding) findings.push(sensitiveFinding);
+
   return {
     summary: buildVerifySummary(changed.length, findings),
     changedFiles: changed,
     findings,
     diagnostics: repo.diagnostics,
     impact,
-    narrative: buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy)
+    narrative: buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy),
+    ...(sensitiveData ? { sensitiveData } : {})
   };
 }
 
@@ -405,5 +426,6 @@ export function renderVerifyMarkdown(result: VerifyResult): string {
         )
       : ["- None found"]));
   }
+  if (result.sensitiveData) lines.push(...renderSensitiveDataMarkdown(result.sensitiveData));
   return `${lines.join("\n")}\n`;
 }

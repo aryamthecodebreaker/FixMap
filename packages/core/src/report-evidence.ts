@@ -36,14 +36,10 @@ export async function attachReportEvidence(
     { repo, issueText: context.issueText, diffText: repo.diffText ?? "" },
     { allowNetwork: false, allowCodeExecution: false, ...(context.now ? { now: context.now } : {}) }
   );
-  const reportPaths = new Set<string>([
-    ...report.contextFiles.map((file) => file.path),
-    ...(report.impact?.files ?? []).map((file) => file.path),
-    ...report.changedFiles
-  ]);
+  const paths = reportPaths(report);
   const relevant = collected.items.filter((item) => item.subjects.some((subject) =>
     (subject.kind === "file" || subject.kind === "symbol" || subject.kind === "contract") &&
-    "path" in subject && typeof subject.path === "string" && reportPaths.has(subject.path)
+    "path" in subject && typeof subject.path === "string" && paths.has(subject.path)
   ));
   const items = relevant.slice(0, MAX_REPORT_EVIDENCE_ITEMS);
   return {
@@ -58,4 +54,13 @@ export async function attachReportEvidence(
     omittedItems: collected.items.length - items.length,
     diagnostics: collected.diagnostics
   };
+}
+
+/** The paths a report is about: ranked context files, impact files, and changed files. */
+export function reportPaths(report: Pick<FixMapReport, "contextFiles" | "impact" | "changedFiles">): Set<string> {
+  return new Set<string>([
+    ...report.contextFiles.map((file) => file.path),
+    ...(report.impact?.files ?? []).map((file) => file.path),
+    ...report.changedFiles
+  ]);
 }

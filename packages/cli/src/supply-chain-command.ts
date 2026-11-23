@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
@@ -7,7 +9,7 @@ import {
   validateSupplyChainEvidenceBundle,
   type SupplyChainEvidenceBundle
 } from "@aryam/fixmap-core";
-import { describeInputReadError, readDecodedTextFile } from "./decode-input.js";
+import { decodeInputText, describeInputReadError, readDecodedTextFile } from "./decode-input.js";
 
 export const SUPPLY_CHAIN_USAGE = `Usage: fixmap supply-chain --input <bundle.json> [--format markdown|json] [--output <file>]
 
@@ -15,6 +17,19 @@ Validates a version-1 normalized external scanner/SBOM bundle and renders packag
 `;
 
 export type SupplyChainReport = Awaited<ReturnType<typeof buildSupplyChainReport>>;
+
+/** Read and validate a bundle for `plan --supply-chain`, with the SHA-256 of its exact bytes. */
+export function readSupplyChainBundleFile(path: string): { bundle: SupplyChainEvidenceBundle; documentSha256: string } {
+  try {
+    const bytes = readFileSync(path);
+    return {
+      bundle: validateSupplyChainEvidenceBundle(JSON.parse(decodeInputText(bytes)) as unknown),
+      documentSha256: createHash("sha256").update(bytes).digest("hex")
+    };
+  } catch (error) {
+    throw new Error(`Could not import supply-chain evidence from "${path}": ${describeInputReadError(path, error)}`);
+  }
+}
 
 export async function buildSupplyChainReport(candidate: unknown) {
   const bundle = validateSupplyChainEvidenceBundle(candidate);

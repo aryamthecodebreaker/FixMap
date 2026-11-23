@@ -190,6 +190,75 @@ describe("fixmap mcp server", () => {
     }
   });
 
+  it("attaches sensitive-data and supply-chain evidence to plans and flags a new flow in verify", async () => {
+    const secret = "sk_live_SUPERSECRET_5150";
+    const root = await createAuthFixture();
+    const bundleDir = await mkdtemp(join(tmpdir(), "fixmap-mcp-supply-"));
+    const bundlePath = join(bundleDir, "scanner.json");
+    const bundleText = JSON.stringify({
+      supplyChainBundleVersion: 1,
+      generatedAt: "2026-11-01T00:00:00Z",
+      source: { tool: "external-scanner", toolVersion: "4.2.0", databaseVersion: "db-2026-11-01", documentFingerprint: `sha256:${"a".repeat(64)}` },
+      components: [{ id: "npm-left-pad", name: "left-pad", version: "1.0.0", licenses: ["MIT"], paths: ["package.json"] }],
+      findings: [{ id: "adv-1", kind: "vulnerability", severity: "high", confidence: "high", componentId: "npm-left-pad", summary: "Advisory matched left-pad." }]
+    });
+    await writeFile(bundlePath, bundleText);
+    await writeFile(join(root, "src", "auth", "session.ts"), `export function refresh() {\n  const accessToken = "${secret}";\n  return accessToken;\n}\n`);
+    await exec("git", ["init", "-q"], { cwd: root });
+    await exec("git", ["add", "-A"], { cwd: root });
+    await exec("git", ["-c", "user.name=FixMap Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "fixture"], { cwd: root });
+    await writeFile(join(root, "package.json"), JSON.stringify({ scripts: { test: "vitest run" }, dependencies: { "left-pad": "1.0.0" } }));
+    const client = await connectClient();
+    try {
+      const planned = await client.callTool({
+        name: "fixmap_plan",
+        arguments: { issue: "refresh session accessToken", repo: root, workingTree: true, format: "json", sensitiveData: true, supplyChain: bundlePath }
+      });
+      expect(planned.isError).toBeFalsy();
+      const plan = JSON.parse((planned.content as Array<{ text: string }>)[0]!.text);
+      expect(plan.sensitiveData).toMatchObject({ sensitiveDataVersion: 1, flows: [] });
+      expect(plan.supplyChain.source.documentSha256).toBe(createHash("sha256").update(bundleText).digest("hex"));
+      expect(plan.supplyChain.findings).toEqual([expect.objectContaining({ id: "adv-1", manifestPaths: ["package.json"] })]);
+
+      await writeFile(join(root, "src", "auth", "session.ts"), `export function refresh() {\n  const accessToken = "${secret}";\n  console.log("refreshed", accessToken);\n  return accessToken;\n}\n`);
+      for (const format of ["json", "markdown"]) {
+        const verified = await client.callTool({ name: "fixmap_verify", arguments: { report: plan, repo: root, workingTree: true, format, sensitiveData: true } });
+        expect(verified.isError).toBeFalsy();
+        const text = (verified.content as Array<{ text: string }>)[0]!.text;
+        expect(text).not.toContain(secret);
+        if (format === "json") {
+          const result = JSON.parse(text);
+          expect(result.findings).toContainEqual(expect.objectContaining({ code: "sensitive-data-flow-introduced", severity: "info", paths: ["src/auth/session.ts"] }));
+          expect(result.sensitiveData.flows).toContainEqual(expect.objectContaining({ introducedByDiff: true, relation: "same-file" }));
+        } else {
+          expect(text).toContain("## Sensitive Data");
+        }
+      }
+      const withoutFlag = await client.callTool({ name: "fixmap_verify", arguments: { report: plan, repo: root, workingTree: true, format: "json" } });
+      expect(JSON.parse((withoutFlag.content as Array<{ text: string }>)[0]!.text).sensitiveData).toBeUndefined();
+
+      await writeFile(bundlePath, JSON.stringify({ supplyChainBundleVersion: 1, generatedAt: "not-a-date" }));
+      const malformed = await client.callTool({ name: "fixmap_plan", arguments: { issue: "x", repo: root, supplyChain: bundlePath } });
+      expect(malformed.isError).toBe(true);
+      expect((malformed.content as Array<{ text: string }>)[0]!.text).toContain("Invalid supply-chain evidence bundle envelope.");
+    } finally {
+      await client.close();
+      await rm(root, { recursive: true, force: true });
+      await rm(bundleDir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it("validates sensitiveData and supplyChain arguments", () => {
+    expect(parsePlanArguments({ issue: "x", sensitiveData: "yes" })).toMatchObject({ success: false, message: '"sensitiveData" must be a boolean.' });
+    expect(parsePlanArguments({ issue: "x", supplyChain: ["a.json"] })).toMatchObject({ success: false });
+    expect(parsePlanArguments({ issue: "x", supplyChain: "  " })).toMatchObject({ success: false });
+    expect(parsePlanArguments({ issue: "x", sensitiveData: true, supplyChain: " scanner.json " })).toMatchObject({ success: true, value: { sensitiveData: true, supplyChain: "scanner.json" } });
+    const report = { summary: "", contextFiles: [], testRoutes: [], risks: [], changedFiles: [], diagnostics: [] };
+    expect(parseVerifyArguments({ report, diff: "HEAD", sensitiveData: 1 })).toMatchObject({ success: false, message: '"sensitiveData" must be a boolean.' });
+    expect(parseVerifyArguments({ report, diff: "HEAD", supplyChain: "scanner.json" })).toMatchObject({ success: false });
+    expect(parseVerifyArguments({ report, diff: "HEAD", sensitiveData: true })).toMatchObject({ success: true, value: { sensitiveData: true } });
+  });
+
   it("suggests reviewers read-only and validates fixmap_reviewers arguments", async () => {
     const root = await mkdtemp(join(tmpdir(), "fixmap-mcp-reviewers-"));
     execFileSync("git", ["init", "-q"], { cwd: root });
@@ -427,7 +496,7 @@ describe("fixmap mcp server", () => {
     expect(plan).toBeDefined();
     expect(plan?.description).toContain("test commands");
     expect(Object.keys(plan?.inputSchema.properties ?? {}).sort()).toEqual(
-      ["issue", "diff", "base", "head", "repo", "ref", "at", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence"].sort()
+      ["issue", "diff", "base", "head", "repo", "ref", "at", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence", "sensitiveData", "supplyChain"].sort()
     );
     expect(plan?.inputSchema.additionalProperties).toBe(false);
     expect(plan?.inputSchema.properties?.repo?.description).toContain("public GitHub HTTPS");
@@ -477,7 +546,7 @@ describe("fixmap mcp server", () => {
     expect(runtime?.inputSchema.additionalProperties).toBe(false);
     expect(verify).toBeDefined();
     expect(Object.keys(verify?.inputSchema.properties ?? {}).sort()).toEqual(
-      ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache"].sort()
+      ["report", "diff", "base", "head", "repo", "workingTree", "includeUntracked", "format", "noCache", "sensitiveData"].sort()
     );
     expect(verify?.inputSchema.required).toEqual(["report"]);
     expect(verify?.inputSchema.additionalProperties).toBe(false);
