@@ -114,6 +114,7 @@ Usage:
   fixmap workspace --config .fixmap/workspace.json --seed auth --format json
   fixmap ask --report plan.json --question "Which tests should I run?"
   fixmap migrate --input migration.json --format markdown
+  fixmap alternatives --report plan-a.json --report plan-b.json --graph-fingerprint <commit-sha>
   fixmap reverse-docs --input reverse-docs.json --format markdown
   fixmap history --repo . --from v0.9.0 --to HEAD
   fixmap contracts diff v0.9.0..HEAD
@@ -144,6 +145,7 @@ Commands:
   workspace           Preview: Map package dependencies and impact across local repositories
   ask                 Preview: Answer structural questions from a saved report with citations
   migrate             Preview: Build a dependency-ordered, review-only migration plan
+  alternatives        Preview: Compare alternative plans side by side without picking a winner
   reverse-docs        Preview: Draft review-only documentation from exact structural evidence
   history             Preview: Compare architecture at two committed Git refs without checkout
   contracts           Preview: List API/schema contracts or diff them across Git refs without checkout
@@ -549,6 +551,15 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   if (args[0] === "migrate") {
     const { runMigrationCommand } = await import("./migration-command.js");
     return runMigrationCommand(args.slice(1), {
+      stdout,
+      stderr,
+      ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
+    });
+  }
+
+  if (args[0] === "alternatives") {
+    const { runAlternativesCommand } = await import("./alternatives-command.js");
+    return runAlternativesCommand(args.slice(1), {
       stdout,
       stderr,
       ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
