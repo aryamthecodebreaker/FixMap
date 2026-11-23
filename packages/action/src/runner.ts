@@ -7,7 +7,9 @@ import {
   renderJsonReport,
   renderMarkdownReport,
   renderVerifyMarkdown,
+  compareArchitectureRefs,
   compareCapabilityRefs,
+  compareContractRefs,
   scanRepo,
   stripByteOrderMark,
   validateFixMapReport,
@@ -28,6 +30,12 @@ import {
   splitPathListInput,
   type ScopeSectionRequest
 } from "./scope-sections.js";
+import {
+  buildReviewSections,
+  hasReviewSections,
+  type ReviewSectionRequest,
+  type ReviewSections
+} from "./review-sections.js";
 import {
   fetchActionIssue,
   parseActionIssueSource,
@@ -54,10 +62,33 @@ export type ActionDependencies = {
   fetchIssue?: (source: ActionIssueSource) => Promise<ActionIssue>;
   scanRepo?: typeof scanRepo;
   compareCapabilityRefs?: typeof compareCapabilityRefs;
+  compareContractRefs?: typeof compareContractRefs;
+  compareArchitectureRefs?: typeof compareArchitectureRefs;
   now?: () => string;
 };
 
 const SCOPE_INPUTS = ["change-scope-touch", "change-scope-add", "capability"] as const;
+
+/**
+ * Boolean preview inputs default to "false" (and reviewers-history-authors to "true") in
+ * action.yml, so GitHub always sets them; only values that change behavior count as "used".
+ */
+function readReviewSectionRequest(env: NodeJS.ProcessEnv): ReviewSectionRequest & { used: string[] } {
+  const historyAuthors = readInput("reviewers-history-authors", env);
+  const request: ReviewSectionRequest = {
+    contracts: parseBooleanInput("contracts", readInput("contracts", env)),
+    reviewers: parseBooleanInput("reviewers", readInput("reviewers", env)),
+    reviewersHistoryAuthors: historyAuthors === undefined || parseBooleanInput("reviewers-history-authors", historyAuthors),
+    architectureDrift: parseBooleanInput("architecture-drift", readInput("architecture-drift", env))
+  };
+  const used = [
+    request.contracts ? "contracts" : "",
+    request.reviewers ? "reviewers" : "",
+    request.reviewersHistoryAuthors ? "" : "reviewers-history-authors",
+    request.architectureDrift ? "architecture-drift" : ""
+  ].filter(Boolean);
+  return { ...request, used };
+}
 
 export async function runAction(
   env: NodeJS.ProcessEnv = process.env,
@@ -68,6 +99,7 @@ export async function runAction(
   const stdout = dependencies.stdout ?? ((text) => process.stdout.write(text));
   if (readInput("mode", env)?.toLowerCase() === "annotate") {
     const incompatible = ["issue", "diff", "base", "head", "limit", "exclude", "report-path", "comment-author", ...SCOPE_INPUTS].filter((name) => readInput(name, env));
+    incompatible.push(...readReviewSectionRequest(env).used);
     for (const name of ["working-tree", "include-untracked", "no-cache"]) {
       if (parseBooleanInput(name, readInput(name, env))) incompatible.push(name);
     }
@@ -103,6 +135,12 @@ export async function runAction(
   if (includeUntracked && !workingTree) throw new Error("include-untracked requires working-tree.");
   if (workingTree && (diffSpec || baseRef || headRef)) throw new Error("Use either working-tree or diff/base/head, not both.");
   if (diffSpec && (baseRef || headRef)) throw new Error("Use either diff or base/head, not both.");
+  const reviewRequest = readReviewSectionRequest(env);
+  if (!reviewRequest.reviewersHistoryAuthors && !reviewRequest.reviewers) {
+    throw new Error("reviewers-history-authors: false requires reviewers: true.");
+  }
+  // Base-vs-head sections compare exact commits, so they run only on pull requests with both refs.
+  const diffRefs = event?.pull_request?.number && baseRef && headRef ? { baseRef, headRef } : undefined;
 
   // Verify closes the plan-edit-verify loop for workflows that never touch the CLI or MCP:
   // a first job saves the plan as an artifact, a later run on `synchronize` checks the
@@ -114,7 +152,8 @@ export async function runAction(
       readInput("limit", env) ? "limit" : "",
       readInput("exclude", env) ? "exclude" : "",
       readInput("issue", env) ? "issue" : "",
-      ...SCOPE_INPUTS.filter((name) => readInput(name, env))
+      ...SCOPE_INPUTS.filter((name) => readInput(name, env)),
+      ...reviewRequest.used.filter((name) => name !== "contracts")
     ].filter(Boolean);
     if (planOnly.length > 0) {
       throw new Error(
@@ -122,7 +161,7 @@ export async function runAction(
         "Remove them, or set mode: plan."
       );
     }
-    return runVerifyMode({ env, dependencies, readFile, appendFile, stdout, format, failOn, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache });
+    return runVerifyMode({ env, dependencies, readFile, appendFile, stdout, format, failOn, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache, contracts: reviewRequest.contracts, diffRefs });
   }
   if (failOn === "warning") throw new Error("fail-on: warning is a verify-mode input; remove it or set mode: verify.");
 
@@ -174,21 +213,33 @@ export async function runAction(
         (fetchedIssue?.truncated ? "; the body was truncated to 20,000 characters, so later text did not inform the ranking." : ".")
     });
   }
+  const now = (dependencies.now ?? (() => new Date().toISOString()))();
   const scopeSections = hasScopeSections(scopeRequest)
     ? await buildScopeSections(scopeRequest, {
         repoRoot,
         useCache: !noCache,
-        asOf: (dependencies.now ?? (() => new Date().toISOString()))(),
-        ...(event?.pull_request?.number && baseRef && headRef ? { diffRefs: { baseRef, headRef } } : {}),
+        asOf: now,
+        ...(diffRefs ? { diffRefs } : {}),
         ...(dependencies.scanRepo ? { scanRepo: dependencies.scanRepo } : {}),
         ...(dependencies.compareCapabilityRefs ? { compareCapabilityRefs: dependencies.compareCapabilityRefs } : {})
       })
     : undefined;
-  for (const warning of scopeSections?.warnings ?? []) stdout(`::warning::${warning}\n`);
+  const reviewSections = hasReviewSections(reviewRequest)
+    ? await buildReviewSections(reviewRequest, {
+        repoRoot,
+        useCache: !noCache,
+        now,
+        changedPaths: report.changedFiles.length > 0 ? report.changedFiles : report.contextFiles.map((file) => file.path),
+        ...(diffRefs ? { diffRefs } : {}),
+        ...reviewSectionDependencies(dependencies)
+      })
+    : undefined;
+  for (const warning of [...scopeSections?.warnings ?? [], ...reviewSections?.warnings ?? []]) stdout(`::warning::${warning}\n`);
   const planMarkdown = renderMarkdownReport(report);
   // The preview sections join the readable report only; the JSON report keeps the FixMapReport
   // contract that verify mode and downstream tools validate.
-  const markdown = scopeSections ? `${planMarkdown.trimEnd()}\n\n${scopeSections.markdown}` : planMarkdown;
+  const extraMarkdown = [scopeSections?.markdown, reviewSections?.markdown].filter(Boolean).join("\n");
+  const markdown = extraMarkdown ? `${planMarkdown.trimEnd()}\n\n${extraMarkdown}` : planMarkdown;
   const output = format === "json" ? renderJsonReport(report) : markdown;
 
   stdout(output);
@@ -202,7 +253,8 @@ export async function runAction(
 
   if (env.GITHUB_OUTPUT) {
     appendFile(env.GITHUB_OUTPUT, renderActionOutputs(output, report, dependencies.uuid ?? randomUUID) +
-      (scopeSections?.changeScopeAffectedCount !== undefined ? `change-scope-affected-count=${scopeSections.changeScopeAffectedCount}\n` : ""));
+      (scopeSections?.changeScopeAffectedCount !== undefined ? `change-scope-affected-count=${scopeSections.changeScopeAffectedCount}\n` : "") +
+      breakingContractOutput(reviewSections));
   }
 
   const token = readInput("github-token", env) || env.GITHUB_TOKEN;
@@ -210,7 +262,7 @@ export async function runAction(
   if (token) {
     try {
       const comment = format === "json"
-        ? `\`\`\`json\n${output.trimEnd()}\n\`\`\`\n${scopeSections ? `\n${scopeSections.markdown}` : ""}`
+        ? `\`\`\`json\n${output.trimEnd()}\n\`\`\`\n${extraMarkdown ? `\n${extraMarkdown}` : ""}`
         : markdown;
       await upsertPullRequestComment(token, event, comment, commentAuthor, env, dependencies.createClient);
     } catch (error) {
@@ -250,7 +302,21 @@ type VerifyModeContext = {
   workingTree: boolean;
   includeUntracked: boolean;
   noCache: boolean;
+  contracts: boolean;
+  diffRefs: { baseRef: string; headRef: string } | undefined;
 };
+
+function reviewSectionDependencies(dependencies: ActionDependencies) {
+  return {
+    ...(dependencies.scanRepo ? { scanRepo: dependencies.scanRepo } : {}),
+    ...(dependencies.compareContractRefs ? { compareContractRefs: dependencies.compareContractRefs } : {}),
+    ...(dependencies.compareArchitectureRefs ? { compareArchitectureRefs: dependencies.compareArchitectureRefs } : {})
+  };
+}
+
+function breakingContractOutput(sections: ReviewSections | undefined): string {
+  return sections?.breakingContractCount !== undefined ? `breaking-contract-count=${sections.breakingContractCount}\n` : "";
+}
 
 async function runVerifyMode(context: VerifyModeContext): Promise<void> {
   const reportPath = readInput("report-path", context.env);
@@ -294,7 +360,23 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
   }
 
   const result = verifyPlan(report, repo);
-  const markdown = renderVerifyMarkdown(result);
+  // Contract changes are advisory here too: only verify findings decide whether the step fails.
+  const contractSections = context.contracts
+    ? await buildReviewSections(
+        { contracts: true, reviewers: false, reviewersHistoryAuthors: true, architectureDrift: false },
+        {
+          repoRoot,
+          useCache: !context.noCache,
+          now: (context.dependencies.now ?? (() => new Date().toISOString()))(),
+          changedPaths: [],
+          ...(context.diffRefs ? { diffRefs: context.diffRefs } : {}),
+          ...reviewSectionDependencies(context.dependencies)
+        }
+      )
+    : undefined;
+  for (const warning of contractSections?.warnings ?? []) context.stdout(`::warning::${warning}\n`);
+  const verifyMarkdown = renderVerifyMarkdown(result);
+  const markdown = contractSections ? `${verifyMarkdown.trimEnd()}\n\n${contractSections.markdown}` : verifyMarkdown;
   const output = context.format === "json" ? `${JSON.stringify(result, null, 2)}\n` : markdown;
 
   context.stdout(output);
@@ -305,7 +387,7 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
   if (context.env.GITHUB_OUTPUT) {
     context.appendFile(
       context.env.GITHUB_OUTPUT,
-      renderVerifyOutputs(output, result, context.dependencies.uuid ?? randomUUID)
+      renderVerifyOutputs(output, result, context.dependencies.uuid ?? randomUUID) + breakingContractOutput(contractSections)
     );
   }
 
