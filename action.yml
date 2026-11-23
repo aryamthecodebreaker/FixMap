@@ -98,6 +98,40 @@ inputs:
       A missing or invalid store degrades to a warning. Read-only: the Action never writes the
       store.
     required: false
+  contracts:
+    description: >-
+      Preview. Plan and verify modes. On pull requests with both base and head refs fetched,
+      compares OpenAPI, AsyncAPI, GraphQL, Protobuf, JSON Schema, and SQL migration contracts at
+      the two exact commits from Git objects without a checkout, with the same Core engine as
+      fixmap contracts diff, and adds a bounded "Contract changes" section (breaking, unknown, and
+      compatible counts plus the top changes with paths). Breaking changes are advisory and never
+      fail the step; only fail-on in verify mode does. Missing refs degrade to a warning.
+    required: false
+    default: "false"
+  reviewers:
+    description: >-
+      Preview. Plan mode only. Adds a bounded "Suggested reviewers" section for the changed paths
+      (or, without a diff, the ranked context files) from CODEOWNERS, annotation owners,
+      architecture-policy reviewers, and recent commit authors, with the same Core engine as
+      fixmap reviewers. Suggestions only: the Action never requests reviews and prints names
+      without "@", so nobody is notified.
+    required: false
+    default: "false"
+  reviewers-history-authors:
+    description: >-
+      Preview. With reviewers, set false to leave out commit-author suggestions and use only
+      CODEOWNERS, annotations, and policy, like fixmap reviewers --no-history-authors.
+    required: false
+    default: "true"
+  architecture-drift:
+    description: >-
+      Preview. Plan mode only. On pull requests with both base and head refs fetched, compares
+      the import architecture at the two exact commits from Git objects without a checkout, with
+      the same Core engine as fixmap history, and adds a bounded "Architecture drift" section
+      (added and removed edges, new cycles, policy violations, and decision disagreements).
+      Missing refs degrade to a warning.
+    required: false
+    default: "false"
 outputs:
   report:
     description: The bounded FixMap report, or verification, in the selected format.
@@ -111,6 +145,8 @@ outputs:
     description: Number of changed files compared against the plan. Verify mode only.
   change-scope-affected-count:
     description: Preview. Number of affected paths in the change scope. Set only when change-scope-touch or change-scope-add is used.
+  breaking-contract-count:
+    description: Preview. Number of breaking contract changes between base and head. Set only when contracts is true and both refs were compared.
 branding:
   icon: map
   color: green

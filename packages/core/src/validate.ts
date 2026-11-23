@@ -1,6 +1,9 @@
 import type { FixMapReport } from "./types.js";
 import { validateAnnotationStore } from "./annotations.js";
 import { isDecisionPullRequestUrl } from "./decisions.js";
+import { isRepositoryRelativePath } from "./paths.js";
+import { isReportSensitiveData } from "./report-sensitive-data.js";
+import { isReportSupplyChain } from "./report-supply-chain.js";
 
 export type ValidatedFixMapReport =
   | { success: true; report: FixMapReport }
@@ -195,6 +198,14 @@ export function validateFixMapReport(candidate: unknown, label: string): Validat
     }
   }
 
+  if (record.sensitiveData !== undefined && !isReportSensitiveData(record.sensitiveData)) {
+    return { success: false, message: `${label} has invalid sensitiveData; it needs sensitiveDataVersion 1, the fixmap-sensitive-data provider, counts, and at most 50 flows with safe paths, known categories, and rule ids.` };
+  }
+
+  if (record.supplyChain !== undefined && !isReportSupplyChain(record.supplyChain)) {
+    return { success: false, message: `${label} has invalid supplyChain; it needs supplyChainVersion 1, tool and bundle provenance, omittedFindings, and at most 50 findings with manifest paths.` };
+  }
+
   if (record.languageAdapters !== undefined) {
     const adapters = record.languageAdapters;
     if (!Array.isArray(adapters) || adapters.length > 32 || !adapters.every((adapter) =>
@@ -385,15 +396,6 @@ function isStringArray(candidate: unknown): candidate is string[] {
 
 function isRepositoryRelativePathArray(candidate: unknown): candidate is string[] {
   return Array.isArray(candidate) && candidate.every(isRepositoryRelativePath);
-}
-
-function isRepositoryRelativePath(candidate: unknown): candidate is string {
-  if (typeof candidate !== "string" || !candidate.trim() || candidate.includes("\0") ||
-    /^[\\/]/.test(candidate) || /^[A-Za-z]:/.test(candidate)) {
-    return false;
-  }
-  const segments = candidate.replace(/\\/g, "/").split("/");
-  return segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..");
 }
 
 function isNullableFiniteNumber(candidate: unknown): boolean {

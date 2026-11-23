@@ -44,9 +44,30 @@ type Release = {
 
 const releases: Release[] = [
   {
+    version: "0.9.6",
+    date: "November 23, 2026",
+    label: "Latest release",
+    summary: "Five previews: possible sensitive-data flows and dependency scanner findings in plans, side-by-side plan alternatives, editing product areas from AI agents, and contract, reviewer, and architecture sections on pull requests.",
+    groups: [
+      {
+        label: "Added",
+        items: [
+          "fixmap plan --sensitive-data shows possible credential, token, personal-data, or payment flows near the files in a plan, without ever printing the values.",
+          "fixmap plan --supply-chain attaches findings from your dependency scanner for the packages those files use.",
+          "fixmap alternatives compares several possible plans side by side and states the trade-offs instead of picking a winner.",
+          "AI agents can create, update, and remove product areas over MCP.",
+          "The GitHub Action can add contract changes, suggested reviewers, and architecture drift to pull request comments, without notifying anyone."
+        ]
+      },
+      {
+        label: "Improved",
+        items: ["All five are previews: they work and are tested, but may change before v0.10.0."]
+      }
+    ]
+  },
+  {
     version: "0.9.5",
     date: "November 22, 2026",
-    label: "Latest release",
     summary: "Six previews: other tools' findings in plans, API contract checks, architecture drift and historical plans, reviewer suggestions, saved outcomes and dossiers, and new GitHub Action sections.",
     groups: [
       {

@@ -51,6 +51,7 @@ import { runWorkspaceCommand } from "./workspace-command.js";
 import { runChangeScopeCommand } from "./change-scope-command.js";
 import { runReviewersCommand } from "./reviewers-command.js";
 import { runCapabilitiesCommand, runCapabilityCommand } from "./capability-command.js";
+import { compareAlternativesFromSources, renderAlternativesMarkdown } from "./alternatives-command.js";
 import { runContractsCommand } from "./contracts-command.js";
 import {
   buildReportForRepository,
@@ -77,6 +78,8 @@ type PlanArguments = {
   noCache?: boolean;
   semanticModel?: string;
   evidence?: string[];
+  sensitiveData?: boolean;
+  supplyChain?: string;
 };
 
 type ExplainArguments = {
@@ -114,6 +117,7 @@ type VerifyArguments = {
   workingTree?: boolean;
   includeUntracked?: boolean;
   noCache?: boolean;
+  sensitiveData?: boolean;
 };
 
 const PLAN_TOOL = {
@@ -188,6 +192,14 @@ const PLAN_TOOL = {
         items: { type: "string" },
         maxItems: 8,
         description: "Local version-1 evidence bundle files from other tools (data only, never executed). Relevant items are attached to the report."
+      },
+      sensitiveData: {
+        type: "boolean",
+        description: "Preview: attach possible sensitive-data source-to-sink flows (credential, token, PII, payment to logging, network, storage, analytics) touching the report's files. Locations and kinds only; matched values are never included."
+      },
+      supplyChain: {
+        type: "string",
+        description: "Preview: local version-1 normalized scanner/SBOM bundle file. Findings for packages declared in manifests among the report's files are attached with tool, database, and bundle provenance."
       }
     },
     additionalProperties: false
@@ -341,16 +353,50 @@ const CAPABILITY_TOOL = {
   title: "FixMap capability",
   description:
     "Preview (may change before v0.10.0): List human-owned product capabilities, rebuild one current capability map, or compare it across exact Git refs from .fixmap/capabilities.json. " +
+    "With action create, update, or remove it writes .fixmap/capabilities.json through the same locked, atomic, symlink-refusing path as fixmap capability; use an action only when the user asks for that change. " +
     "The store contains explicit names, anchors, and bounds only; no generated conclusions, API, LLM, semantic inference, or account.",
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
   inputSchema: {
     type: "object" as const,
     properties: {
-      id: { type: "string", description: "Capability id to show; omit to list definitions" },
+      action: { type: "string", enum: ["create", "update", "remove"], description: "Change the store; omit to read" },
+      id: { type: "string", description: "Capability id to show or change; omit to list definitions" },
+      name: { type: "string", description: "Human-facing capability name (create/update)" },
+      touch: { type: "array", items: { type: "string" }, description: "Existing implementation anchors (create/update)" },
+      add: { type: "array", items: { type: "string" }, description: "Planned path anchors; missing paths stay unresolved (create/update)" },
+      direction: { type: "string", enum: ["dependencies", "dependents", "both"], description: "Traversal direction (create/update)" },
+      depth: { type: "integer", minimum: 0, maximum: 8, description: "Maximum traversal depth (create/update)" },
+      maxNodes: { type: "integer", minimum: 1, maximum: 2000, description: "Maximum selected plus affected nodes (create/update)" },
+      workspace: { type: "string", description: "Store workspace identity when creating the first capability" },
+      repository: { type: "string", description: "Store repository identity when creating the first capability" },
       from: { type: "string", description: "Earlier exact Git ref; requires id and to" },
       to: { type: "string", description: "Later exact Git ref; requires id and from" },
       repo: { type: "string", description: "Local checkout path (defaults to the MCP server repository)" },
       format: { type: "string", description: "Output format: markdown (default) or json" },
       noCache: { type: "boolean", description: "Bypass repository scan caches" }
+    },
+    additionalProperties: false
+  }
+};
+
+const ALTERNATIVES_TOOL = {
+  name: "fixmap_alternatives",
+  title: "FixMap plan alternatives",
+  description:
+    "Preview (may change before v0.10.0): Compare 2-20 alternative plans on the same exact graph fingerprint side by side: intended edits, impact, contract and total blast radius, contract compatibility, policy errors and warnings, planned tests, reversibility, and uncertainty. " +
+    "Provide a version-1 alternatives input, saved FixMap JSON plan paths with the graphFingerprint they were planned against, or both. " +
+    "It never picks a winner or scores plans; it states each trade-off from the evidence. Read-only.",
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      input: {
+        description: "Version-1 alternatives input object or path to a local JSON input file",
+        anyOf: [{ type: "object" }, { type: "string" }]
+      },
+      reports: { type: "array", items: { type: "string" }, description: "Paths to saved FixMap JSON plans, one alternative each" },
+      graphFingerprint: { type: "string", description: "Graph state every report was planned against, such as the commit SHA; required with reports" },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
     },
     additionalProperties: false
   }
@@ -527,7 +573,11 @@ const VERIFY_TOOL = {
       workingTree: { type: "boolean", description: "Verify staged and unstaged tracked changes against HEAD" },
       includeUntracked: { type: "boolean", description: "With workingTree, include untracked files" },
       format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" },
-      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" }
+      noCache: { type: "boolean", description: "Bypass the exact-state repository scan cache" },
+      sensitiveData: {
+        type: "boolean",
+        description: "Preview: attach possible sensitive-data flows touching the plan or diff and add an advisory finding when the diff adds one. Locations and kinds only."
+      }
     },
     required: ["report"],
     additionalProperties: false
@@ -572,7 +622,7 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, REVIEWERS_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, CONTRACTS_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL, ANNOTATION_TOOL, OUTCOMES_TOOL, DOSSIER_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, REVIEWERS_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, ALTERNATIVES_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, CONTRACTS_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL, ANNOTATION_TOOL, OUTCOMES_TOOL, DOSSIER_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -674,6 +724,36 @@ export function createFixMapMcpServer(
       const stderr: string[] = [];
       const exitCode = await runReviewersCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
       return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }] };
+    }
+    if (request.params.name === ALTERNATIVES_TOOL.name) {
+      const record = request.params.arguments as Record<string, unknown> | undefined;
+      const invalid = (text: string) => ({ isError: true, content: [{ type: "text", text: `Invalid arguments: ${text}` }] });
+      const unknown = Object.keys(record ?? {}).filter((key) => !["input", "reports", "graphFingerprint", "format"].includes(key));
+      if (unknown.length > 0) return invalid(`unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`);
+      const input = record?.input;
+      if (input !== undefined && !(typeof input === "string" && input.trim()) && (typeof input !== "object" || input === null || Array.isArray(input))) {
+        return invalid('"input" must be an alternatives object or a local JSON path.');
+      }
+      const reports = validateStringList(record?.reports, "reports");
+      if (!reports.success) return invalid(reports.message);
+      if (reports.values.length > 20) return invalid('"reports" accepts at most 20 paths.');
+      const graphFingerprint = record?.graphFingerprint;
+      if (graphFingerprint !== undefined && (typeof graphFingerprint !== "string" || !graphFingerprint.trim())) return invalid('"graphFingerprint" must be a non-empty string.');
+      const format = normalizeFormat(record?.format);
+      if (!format.success) return invalid(format.message);
+      try {
+        const comparison = compareAlternativesFromSources({
+          ...(input !== undefined ? { input: typeof input === "string" ? input.trim() : input } : {}),
+          reports: reports.values,
+          ...(typeof graphFingerprint === "string" ? { graphFingerprint: graphFingerprint.trim() } : {})
+        });
+        return { content: [{ type: "text", text: format.value === "json" ? `${JSON.stringify(comparison, null, 2)}\n` : renderAlternativesMarkdown(comparison) }] };
+      } catch (error) {
+        return { isError: true, content: [{ type: "text", text: `Could not compare plan alternatives: ${error instanceof Error ? error.message : String(error)}` }] };
+      }
+    }
+    if (request.params.name === CAPABILITY_TOOL.name && (request.params.arguments as Record<string, unknown> | undefined)?.action !== undefined) {
+      return runCapabilityMutationTool(request.params.arguments as Record<string, unknown>, defaultRepo);
     }
     if (request.params.name === CAPABILITY_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;
@@ -1010,7 +1090,7 @@ export function createFixMapMcpServer(
         if (diffFailure) {
           throw new Error(`${diffFailure.message} Verification needs a resolvable diff.`);
         }
-        const result = verifyPlan(args.report, repo);
+        const result = verifyPlan(args.report, repo, { sensitiveData: args.sensitiveData === true });
         const text = args.format === "json"
           ? `${JSON.stringify(result, null, 2)}\n`
           : renderVerifyMarkdown(result);
@@ -1111,7 +1191,9 @@ export function createFixMapMcpServer(
         limit: args.limit,
         exclude: args.exclude,
         semanticModelPath: args.semanticModel,
-        ...(args.evidence ? { evidencePaths: args.evidence } : {})
+        ...(args.evidence ? { evidencePaths: args.evidence } : {}),
+        ...(args.sensitiveData ? { sensitiveData: true } : {}),
+        ...(args.supplyChain ? { supplyChainPath: args.supplyChain } : {})
       }, repositorySourceDependencies);
     } catch (error) {
       return {
@@ -1153,7 +1235,7 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
   }
 
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence", "at"]);
+  const allowed = new Set(["issue", "diff", "base", "head", "repo", "ref", "format", "limit", "exclude", "workingTree", "includeUntracked", "noCache", "semanticModel", "evidence", "sensitiveData", "supplyChain", "at"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return {
@@ -1213,6 +1295,16 @@ export function parsePlanArguments(input: unknown): PlanArgumentsValidation {
       return { success: false, message: '"evidence" must be an array of at most 8 non-empty local file paths.' };
     }
     value.evidence = record.evidence.map((entry: string) => entry.trim());
+  }
+  if (record.sensitiveData !== undefined && typeof record.sensitiveData !== "boolean") {
+    return { success: false, message: '"sensitiveData" must be a boolean.' };
+  }
+  if (record.sensitiveData === true) value.sensitiveData = true;
+  if (record.supplyChain !== undefined) {
+    if (typeof record.supplyChain !== "string" || !record.supplyChain.trim() || record.supplyChain.length > 1_000 || record.supplyChain.includes("\0")) {
+      return { success: false, message: '"supplyChain" must be a non-empty local bundle file path.' };
+    }
+    value.supplyChain = record.supplyChain.trim();
   }
   if (value.ref && !/^https?:\/\//i.test(value.repo ?? "") && !tryParseGitHubIssueSource(value.issue ?? "")) {
     return { success: false, message: '"ref" requires a remote GitHub "repo" or issue URL.' };
@@ -1376,7 +1468,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
     return { success: false, message: "tool arguments must be an object." };
   }
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["report", "diff", "base", "head", "repo", "format", "workingTree", "includeUntracked", "noCache"]);
+  const allowed = new Set(["report", "diff", "base", "head", "repo", "format", "workingTree", "includeUntracked", "noCache", "sensitiveData"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
@@ -1398,7 +1490,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
   if (!record.diff && !record.base && record.workingTree !== true) {
     return { success: false, message: 'provide "diff", "base"/"head", or "workingTree" so FixMap can see what changed.' };
   }
-  for (const name of ["workingTree", "includeUntracked", "noCache"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
+  for (const name of ["workingTree", "includeUntracked", "noCache", "sensitiveData"] as const) if (record[name] !== undefined && typeof record[name] !== "boolean") return { success: false, message: `"${name}" must be a boolean.` };
   if (record.includeUntracked === true && record.workingTree !== true) return { success: false, message: '"includeUntracked" requires "workingTree".' };
   if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
   if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
@@ -1416,6 +1508,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
       ...(record.workingTree === true ? { workingTree: true } : {}),
       ...(record.includeUntracked === true ? { includeUntracked: true } : {}),
       ...(record.noCache === true ? { noCache: true } : {}),
+      ...(record.sensitiveData === true ? { sensitiveData: true } : {}),
       ...(format.value ? { format: format.value } : {})
     }
   };
@@ -1440,6 +1533,47 @@ function validateStringList(
     return { success: false, message: `"${label}" must be an array of at most 64 bounded non-empty paths.` };
   }
   return { success: true, values: candidate.map((entry) => String(entry).trim()) };
+}
+
+/** Same validation and errors as `fixmap capability create|update|remove`: arguments become CLI flags. */
+async function runCapabilityMutationTool(record: Record<string, unknown>, defaultRepo: string) {
+  const invalid = (text: string) => ({ isError: true, content: [{ type: "text", text: `Invalid arguments: ${text}` }] });
+  const action = record.action;
+  if (action !== "create" && action !== "update" && action !== "remove") return invalid('"action" must be create, update, or remove.');
+  const allowed = action === "remove"
+    ? ["action", "id", "repo", "format"]
+    : ["action", "id", "name", "touch", "add", "direction", "depth", "maxNodes", "workspace", "repository", "repo", "format"];
+  const unknown = Object.keys(record).filter((key) => !allowed.includes(key));
+  if (unknown.length > 0) return invalid(`argument${unknown.length === 1 ? "" : "s"} not allowed for ${action}: ${unknown.join(", ")}.`);
+  if (typeof record.id !== "string" || !record.id.trim()) return invalid(`capability ${action} requires "id".`);
+  for (const key of ["name", "direction", "workspace", "repository", "repo"] as const) {
+    const value = record[key];
+    if (value !== undefined && (typeof value !== "string" || !value.trim())) return invalid(`"${key}" must be a non-empty string.`);
+  }
+  for (const key of ["depth", "maxNodes"] as const) {
+    if (record[key] !== undefined && !Number.isSafeInteger(record[key])) return invalid(`"${key}" must be an integer.`);
+  }
+  if (typeof record.repo === "string" && /^https?:\/\//i.test(record.repo)) return invalid('"repo" must be a local checkout.');
+  const touch = validateStringList(record.touch, "touch");
+  if (!touch.success) return invalid(touch.message);
+  const add = validateStringList(record.add, "add");
+  if (!add.success) return invalid(add.message);
+  const format = normalizeFormat(record.format);
+  if (!format.success) return invalid(format.message);
+  const commandArgs = [action, record.id.trim()];
+  if (typeof record.name === "string") commandArgs.push("--name", record.name.trim());
+  for (const path of touch.values) commandArgs.push("--touch", path);
+  for (const path of add.values) commandArgs.push("--add", path);
+  if (typeof record.direction === "string") commandArgs.push("--direction", record.direction.trim());
+  if (record.depth !== undefined) commandArgs.push("--depth", String(record.depth));
+  if (record.maxNodes !== undefined) commandArgs.push("--max-nodes", String(record.maxNodes));
+  if (typeof record.workspace === "string") commandArgs.push("--workspace", record.workspace.trim());
+  if (typeof record.repository === "string") commandArgs.push("--repository", record.repository.trim());
+  commandArgs.push("--repo", typeof record.repo === "string" ? record.repo.trim() : defaultRepo, "--format", format.value ?? "markdown");
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const exitCode = await runCapabilityCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
+  return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }] };
 }
 
 function normalizeFormat(candidate: unknown): { success: true; value: "markdown" | "json" | undefined } | { success: false; message: string } {

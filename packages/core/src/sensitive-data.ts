@@ -1,6 +1,6 @@
 import { buildImportGraph } from "./import-graph.js";
 import type { EvidenceItem, EvidenceProvider, EvidenceProviderResult, EvidenceRelationship } from "./evidence.js";
-import type { RepoFile } from "./types.js";
+import type { RepoFile, RepoMap } from "./types.js";
 
 export type SensitiveDataCategory = "credential" | "token" | "pii" | "payment";
 export type SensitiveSinkCategory = "logging" | "network" | "storage" | "analytics";
@@ -10,7 +10,9 @@ type ClassifiedFile = { file: RepoFile; sources: SensitiveDataCategory[]; sinks:
 
 const MAX_ANALYZED_FILES = 5_000;
 const MAX_RELATIONSHIPS = 10_000;
-const PROVIDER_VERSION = "1.0.0";
+export const SENSITIVE_DATA_PROVIDER_ID = "fixmap-sensitive-data";
+export const SENSITIVE_DATA_PROVIDER_VERSION = "1.0.0";
+const PROVIDER_VERSION = SENSITIVE_DATA_PROVIDER_VERSION;
 
 const SOURCE_RULES: readonly SignalRule<SensitiveDataCategory>[] = [
   { id: "credential-password", category: "credential", pattern: /\b(?:password|passwd|credential|client[_-]?secret|api[_-]?key)\b/i },
@@ -31,63 +33,82 @@ const SINK_RULES: readonly SignalRule<SensitiveSinkCategory>[] = [
  * it never claims that a value flowed, that a sink is unsafe, or that unmatched code is safe.
  */
 export const sensitiveDataFlowEvidenceProvider: EvidenceProvider = {
-  id: "fixmap-sensitive-data",
+  id: SENSITIVE_DATA_PROVIDER_ID,
   version: PROVIDER_VERSION,
   capabilities: { network: "never", executesCode: false },
   collect({ repo }): EvidenceProviderResult {
-    const codeFiles = repo.files.filter((file) => file.kind === "code");
-    const eligible = codeFiles.filter((file) => file.textSampleComplete !== false && file.contentFingerprint);
-    const selected = eligible.slice(0, MAX_ANALYZED_FILES);
-    const classified = selected.map(classifyFile).filter((entry) => entry.sources.length > 0 || entry.sinks.length > 0);
-    const exact = classified;
-    const skippedFiles = codeFiles.length - selected.length;
-    const items: EvidenceItem[] = [scopeItem(repo.root, selected.length, skippedFiles)];
-    const itemId = new Map<string, string>();
-
-    for (const entry of exact) {
-      for (const category of entry.sources) {
-        const id = stableId("source", category, entry.file.path);
-        itemId.set(key(entry.file.path, "source", category), id);
-        items.push(fileItem(id, entry.file, "source", category));
-      }
-      for (const category of entry.sinks) {
-        const id = stableId("sink", category, entry.file.path);
-        itemId.set(key(entry.file.path, "sink", category), id);
-        items.push(fileItem(id, entry.file, "sink", category));
-      }
-    }
-
-    const relationships: EvidenceRelationship[] = [];
-    const relationshipIds = new Set<string>();
-    for (const entry of exact) {
-      for (const source of entry.sources) for (const sink of entry.sinks) {
-        pushRelationship(relationships, relationshipIds, {
-          from: itemId.get(key(entry.file.path, "source", source))!,
-          to: itemId.get(key(entry.file.path, "sink", sink))!,
-          relation: "same-file-sensitive-signal-and-sink",
-          reason: `${entry.file.path} contains both ${source} vocabulary and a ${sink} call pattern; value flow was not verified.`
-        });
-      }
-    }
-
-    const graph = buildImportGraph(repo.files);
-    const byPath = new Map(exact.map((entry) => [entry.file.path, entry]));
-    for (const [fromPath, targets] of graph.imports) {
-      const from = byPath.get(fromPath);
-      if (!from) continue;
-      for (const toPath of targets) {
-        const to = byPath.get(toPath);
-        if (!to) continue;
-        connectAcrossImport(relationships, relationshipIds, itemId, from, to);
-        connectAcrossImport(relationships, relationshipIds, itemId, to, from);
-      }
-    }
-    return {
-      items: items.sort((a, b) => a.id.localeCompare(b.id)),
-      relationships: relationships.slice(0, MAX_RELATIONSHIPS).sort((a, b) => a.id.localeCompare(b.id))
-    };
+    return collectSensitiveDataSignals(repo);
   }
 };
+
+/** Synchronous core of the provider, shared by Plan and Verify report attachment. */
+export function collectSensitiveDataSignals(repo: Pick<RepoMap, "root" | "files">): EvidenceProviderResult {
+  const codeFiles = repo.files.filter((file) => file.kind === "code");
+  const eligible = codeFiles.filter((file) => file.textSampleComplete !== false && file.contentFingerprint);
+  const selected = eligible.slice(0, MAX_ANALYZED_FILES);
+  const classified = selected.map(classifyFile).filter((entry) => entry.sources.length > 0 || entry.sinks.length > 0);
+  const exact = classified;
+  const skippedFiles = codeFiles.length - selected.length;
+  const items: EvidenceItem[] = [scopeItem(repo.root, selected.length, skippedFiles)];
+  const itemId = new Map<string, string>();
+
+  for (const entry of exact) {
+    for (const category of entry.sources) {
+      const id = stableId("source", category, entry.file.path);
+      itemId.set(key(entry.file.path, "source", category), id);
+      items.push(fileItem(id, entry.file, "source", category));
+    }
+    for (const category of entry.sinks) {
+      const id = stableId("sink", category, entry.file.path);
+      itemId.set(key(entry.file.path, "sink", category), id);
+      items.push(fileItem(id, entry.file, "sink", category));
+    }
+  }
+
+  const relationships: EvidenceRelationship[] = [];
+  const relationshipIds = new Set<string>();
+  for (const entry of exact) {
+    for (const source of entry.sources) for (const sink of entry.sinks) {
+      pushRelationship(relationships, relationshipIds, {
+        from: itemId.get(key(entry.file.path, "source", source))!,
+        to: itemId.get(key(entry.file.path, "sink", sink))!,
+        relation: "same-file-sensitive-signal-and-sink",
+        reason: `${entry.file.path} contains both ${source} vocabulary and a ${sink} call pattern; value flow was not verified.`
+      });
+    }
+  }
+
+  const graph = buildImportGraph(repo.files);
+  const byPath = new Map(exact.map((entry) => [entry.file.path, entry]));
+  for (const [fromPath, targets] of graph.imports) {
+    const from = byPath.get(fromPath);
+    if (!from) continue;
+    for (const toPath of targets) {
+      const to = byPath.get(toPath);
+      if (!to) continue;
+      connectAcrossImport(relationships, relationshipIds, itemId, from, to);
+      connectAcrossImport(relationships, relationshipIds, itemId, to, from);
+    }
+  }
+  return {
+    items: items.sort((a, b) => a.id.localeCompare(b.id)),
+    relationships: relationships.slice(0, MAX_RELATIONSHIPS).sort((a, b) => a.id.localeCompare(b.id))
+  };
+}
+
+/**
+ * First 1-based line on which any of the given rules matches, so reports can point at a
+ * location without quoting it. Returns undefined when no single line matches.
+ */
+export function sensitiveSignalLine(text: string, ruleIds: readonly string[]): number | undefined {
+  const rules = [...SOURCE_RULES, ...SINK_RULES].filter((rule) => ruleIds.includes(rule.id));
+  if (rules.length === 0) return undefined;
+  const lines = text.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    if (rules.some((rule) => rule.pattern.test(lines[index]!))) return index + 1;
+  }
+  return undefined;
+}
 
 function classifyFile(file: RepoFile): ClassifiedFile {
   return {

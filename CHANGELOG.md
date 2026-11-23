@@ -6,6 +6,18 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.6 - 2026-11-23
+
+Every addition in this release is a preview: it works and is tested, but its output and options may change before v0.10.0.
+
+### Added
+
+- `fixmap plan --sensitive-data` and `fixmap verify --sensitive-data` (MCP `sensitiveData`) attach possible credential, token, personal-data, or payment source-to-sink flows that touch the report's files. Matched values are never printed, only locations and kinds. Verify adds an advisory when a change introduces a new flow.
+- `fixmap plan --supply-chain <bundle.json>` (MCP `supplyChain`) attaches imported scanner or SBOM findings for packages declared in manifests among the report's files, with tool and database provenance.
+- `fixmap alternatives` compares 2-20 alternative plans, or saved Plan reports, side by side on the same graph state without picking a winner. MCP: `fixmap_alternatives`.
+- MCP `fixmap_capability` can now create, update, and remove product capabilities with the same validation and safe writes as the CLI.
+- The GitHub Action accepts `contracts`, `reviewers`, `reviewers-history-authors`, and `architecture-drift` to add contract changes, suggested reviewers (never notified), and architecture drift to its pull request comment, and outputs `breaking-contract-count`.
+
 ## 0.9.5 - 2026-11-22
 
 Every addition in this release is a preview: it works and is tested, but its output and options may change before v0.10.0.

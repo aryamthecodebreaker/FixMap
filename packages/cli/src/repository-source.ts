@@ -13,6 +13,7 @@ import {
   type ReportEvidenceSource,
   type ScanDiagnostic
 } from "@aryam/fixmap-core";
+import { readSupplyChainBundleFile } from "./supply-chain-command.js";
 
 const exec = promisify(execFile);
 const GIT_MAX_BUFFER = 10 * 1024 * 1024;
@@ -42,6 +43,10 @@ export type RepositoryPlanInput = {
   semanticModelPath?: string | undefined;
   /** Local evidence bundle files (data only, version-1 envelope). */
   evidencePaths?: string[] | undefined;
+  /** Attach local lexical sensitive-data flows (locations and kinds only). */
+  sensitiveData?: boolean | undefined;
+  /** Local normalized supply-chain bundle file (data only). */
+  supplyChainPath?: string | undefined;
 };
 
 export type ClonedRepository = {
@@ -552,6 +557,7 @@ export async function buildReportForRepository(
     const bundle = await readEvidenceProviderBundle(path);
     evidenceSources.push({ provider: bundle.provider, documentSha256: bundle.documentSha256 });
   }
+  const supplyChain = input.supplyChainPath ? readSupplyChainBundleFile(input.supplyChainPath) : undefined;
 
   return withRepositorySource(
     source,
@@ -577,6 +583,8 @@ export async function buildReportForRepository(
         internalExclude: input.internalExclude,
         embeddingProvider,
         ...(evidenceSources.length > 0 ? { evidenceSources } : {}),
+        ...(input.sensitiveData ? { sensitiveData: true } : {}),
+        ...(supplyChain ? { supplyChain } : {}),
         ...(input.atRef ? { atRef: input.atRef } : {})
       });
       reportProgress(`ranked ${report.contextFiles.length} context files`);
