@@ -11,3 +11,8 @@ export function longestBacktickRun(value: string): number {
   for (const match of value.matchAll(/`+/g)) longest = Math.max(longest, match[0].length);
   return longest;
 }
+
+/** Collapse whitespace so supplied text stays on one Markdown line. */
+export function inlineProse(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { link, mkdir, mkdtemp, readFile, readdir, symlink, writeFile } from "node:fs/promises";
+import { link, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -200,7 +200,7 @@ describe("CLI argument handling", () => {
     const features = (JSON.parse(catalog.stdout.join("")) as { features: Array<{ name: string; preview?: true }> }).features;
     expect(features.filter((feature) => feature.preview).map((feature) => feature.name)).toEqual([
       "Change scope", "Reviewer suggestions", "Product capabilities", "Cross-repository workspace", "Repository Q&A", "Migration planning",
-      "Plan alternatives", "Reverse documentation", "Architecture history", "Historical plans", "Contract Guardian", "Supply-chain evidence", "Runtime evidence", "Evidence import", "Outcome feedback loop", "Change dossier", "Execution sandbox",
+      "Plan alternatives", "Reverse documentation", "Architecture history", "Historical plans", "Contract Guardian", "Supply-chain evidence", "Runtime evidence", "Evidence import", "Sensitive-data flows", "Supply-chain in plans", "Outcome feedback loop", "Change dossier", "Execution sandbox",
       "Local hybrid retrieval"
     ]);
     expect(features.find((feature) => feature.name === "Plan")?.preview).toBeUndefined();
@@ -1153,6 +1153,51 @@ describe("CLI argument handling", () => {
     expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({
       semanticModelPath: "C:\\models\\embed"
     }));
+  });
+
+  it("passes --sensitive-data and --supply-chain to the report builder and rejects bad forms", async () => {
+    const io = capture();
+    const buildReport = vi.fn(async () => report);
+    await runCli(
+      ["plan", "--issue", "rotate the session token", "--sensitive-data", "--supply-chain", "scanner.json"],
+      { ...io.dependencies, buildReport }
+    );
+    expect(buildReport).toHaveBeenCalledWith(expect.objectContaining({ sensitiveData: true, supplyChainPath: "scanner.json" }));
+
+    const plain = vi.fn(async () => report);
+    await runCli(["plan", "--issue", "rotate the session token"], { ...capture().dependencies, buildReport: plain });
+    expect(plain.mock.calls[0]![0]).not.toHaveProperty("sensitiveData");
+    expect(plain.mock.calls[0]![0]).not.toHaveProperty("supplyChainPath");
+
+    for (const args of [
+      ["plan", "--issue", "x", "--sensitive-data=yes"],
+      ["plan", "--issue", "x", "--sensitive-data", "--sensitive-data"],
+      ["plan", "--issue", "x", "--supply-chain"],
+      ["plan", "--issue", "x", "--supply-chain", "a.json", "--supply-chain", "b.json"]
+    ]) {
+      const rejected = capture();
+      expect(await runCli(args, { ...rejected.dependencies, buildReport })).toBe(1);
+    }
+
+    const verify = capture();
+    expect(await runCli(["verify", "--report", "plan.json", "--supply-chain", "scanner.json"], verify.dependencies)).toBe(1);
+    expect(verify.stderr.join("")).toContain("verify does not accept plan-only option(s): --supply-chain");
+  });
+
+  it("reports a malformed supply-chain bundle without a stack or its contents", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "fixmap-cli-supply-"));
+    try {
+      const bundlePath = join(directory, "scanner.json");
+      await writeFile(bundlePath, JSON.stringify({ supplyChainBundleVersion: 2, secret: "sk_live_SUPERSECRET_1234" }));
+      const io = capture();
+      expect(await runCli(["plan", "--issue", "upgrade left-pad", "--repo", directory, "--supply-chain", bundlePath], io.dependencies)).toBe(1);
+      const stderr = io.stderr.join("");
+      expect(stderr).toContain("Could not import supply-chain evidence");
+      expect(stderr).toContain("Invalid supply-chain evidence bundle envelope.");
+      expect(stderr).not.toContain("SUPERSECRET");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it("keeps semantic-model selection out of verify", async () => {

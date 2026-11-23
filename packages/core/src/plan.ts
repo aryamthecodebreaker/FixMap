@@ -11,7 +11,10 @@ import { createCustomLanguageContext } from "./custom-language-context.js";
 import type { EmbeddingProvider } from "./semantic.js";
 import type { FixMapInput, FixMapReport } from "./types.js";
 import { fixMapArtifactKind, isFixMapArtifact } from "./artifacts.js";
-import { attachReportEvidence, type ReportEvidenceSource } from "./report-evidence.js";
+import { attachReportEvidence, reportPaths, type ReportEvidenceSource } from "./report-evidence.js";
+import { buildReportSensitiveData } from "./report-sensitive-data.js";
+import { buildReportSupplyChain } from "./report-supply-chain.js";
+import type { SupplyChainEvidenceBundle } from "./supply-chain.js";
 
 export async function buildFixMapReport(
   input: Pick<
@@ -26,6 +29,10 @@ export async function buildFixMapReport(
     languageRegistry?: LanguageRegistry;
     /** Explicit evidence providers, typically imported bundles; collected without network or code execution. */
     evidenceSources?: readonly ReportEvidenceSource[];
+    /** Attach local lexical sensitive-data flows touching the report's files (locations and kinds only). */
+    sensitiveData?: boolean;
+    /** A validated supply-chain bundle and the SHA-256 of its exact bytes. */
+    supplyChain?: { bundle: SupplyChainEvidenceBundle; documentSha256: string };
     /** Preview: rank against this committed ref, read from Git objects without checkout. */
     atRef?: string | undefined;
   }
@@ -50,6 +57,10 @@ export async function buildFixMapAnalysis(
     languageRegistry?: LanguageRegistry;
     /** Explicit evidence providers, typically imported bundles; collected without network or code execution. */
     evidenceSources?: readonly ReportEvidenceSource[];
+    /** Attach local lexical sensitive-data flows touching the report's files (locations and kinds only). */
+    sensitiveData?: boolean;
+    /** A validated supply-chain bundle and the SHA-256 of its exact bytes. */
+    supplyChain?: { bundle: SupplyChainEvidenceBundle; documentSha256: string };
     /** Preview: rank against this committed ref, read from Git objects without checkout. */
     atRef?: string | undefined;
   }
@@ -92,6 +103,12 @@ export async function buildFixMapAnalysis(
 
   if (input.evidenceSources && input.evidenceSources.length > 0) {
     report.evidence = await attachReportEvidence(report, analyzedRepo, input.evidenceSources, { issueText: input.issueText ?? "" });
+  }
+  if (input.sensitiveData) {
+    report.sensitiveData = buildReportSensitiveData(analyzedRepo, reportPaths(report));
+  }
+  if (input.supplyChain) {
+    report.supplyChain = buildReportSupplyChain(input.supplyChain.bundle, input.supplyChain.documentSha256, reportPaths(report));
   }
 
   if (input.languageRegistry && languageContext) {

@@ -57,6 +57,8 @@ export type CliOptions = {
   noCache: boolean;
   semanticModelPath?: string | undefined;
   evidencePaths: string[];
+  sensitiveData: boolean;
+  supplyChainPath?: string | undefined;
   unknownArgs: string[];
   invalidValues: string[];
 };
@@ -172,6 +174,8 @@ Options:
   --no-cache          Bypass the exact git-state repository scan cache
   --semantic-model <dir> Use an existing local embedding model; never downloads or uploads source
   --evidence <file>   Attach a version-1 evidence bundle from another tool (repeatable; data only, never executed)
+  --sensitive-data    Preview: Attach possible sensitive-data source-to-sink flows (locations and kinds only); with verify, flag flows the diff adds
+  --supply-chain <file> Preview: Attach findings from a normalized scanner/SBOM bundle for packages in manifests among the report's files
   --repo <source>     Local path or public GitHub HTTPS URL (defaults to current directory)
   --ref <branch|tag>  Branch or tag to scan when --repo is a remote GitHub URL
   --at <git-ref>      Preview: Rank against a local committed ref, read from Git objects without checkout
@@ -676,7 +680,7 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     return 1;
   }
   if (options.command === "verify") {
-    const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain", options.semanticModelPath && "--semantic-model", options.evidencePaths.length > 0 && "--evidence", options.atRef && "--at"].filter(Boolean);
+    const planOnly = [options.issueText && "--issue", options.issueFile && "--issue-file", options.comparePath && "--compare", options.limit !== undefined && "--limit", options.exclude.length > 0 && "--exclude", options.explainPath && "--explain", options.semanticModelPath && "--semantic-model", options.evidencePaths.length > 0 && "--evidence", options.supplyChainPath && "--supply-chain", options.atRef && "--at"].filter(Boolean);
     if (planOnly.length > 0) { stderr(`verify does not accept plan-only option(s): ${planOnly.join(", ")}.\n`); return 1; }
     const outputCollision = await describeOutputInputCollision(options);
     if (outputCollision) { stderr(`${outputCollision}\n`); return 1; }
@@ -844,7 +848,9 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       exclude: options.exclude,
       internalExclude: localPlanArtifactExclusions(options),
       semanticModelPath: options.semanticModelPath,
-      evidencePaths: options.evidencePaths
+      evidencePaths: options.evidencePaths,
+      ...(options.sensitiveData ? { sensitiveData: true } : {}),
+      ...(options.supplyChainPath ? { supplyChainPath: options.supplyChainPath } : {})
     });
   } catch (error) {
     stderr(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -1092,6 +1098,7 @@ const SINGLE_VALUE_FLAGS = new Set([
   "--repo",
   "--semantic-model",
   "--evidence",
+  "--supply-chain",
   "--format",
   "--report",
   "--explain",
@@ -1100,7 +1107,7 @@ const SINGLE_VALUE_FLAGS = new Set([
   "--fail-on",
   "--output"
 ]);
-const BOOLEAN_FLAGS = new Set(["--working-tree", "--include-untracked", "--no-cache"]);
+const BOOLEAN_FLAGS = new Set(["--working-tree", "--include-untracked", "--no-cache", "--sensitive-data"]);
 
 function hasStandaloneHelpFlag(args: string[]): boolean {
   for (let index = 1; index < args.length; index += 1) {
@@ -1144,6 +1151,8 @@ export function parseArgs(args: string[]): CliOptions {
   let semanticModelPath: string | undefined;
   const exclude: string[] = [];
   const evidencePaths: string[] = [];
+  let sensitiveData = false;
+  let supplyChainPath: string | undefined;
   const unknownArgs: string[] = [];
   const invalidValues: string[] = [];
   const flagCounts = new Map<string, number>();
@@ -1230,6 +1239,10 @@ export function parseArgs(args: string[]): CliOptions {
       consumeValue();
       if (value?.trim()) evidencePaths.push(expandHomePath(value.trim()));
       else invalidValues.push("--evidence requires a local evidence bundle file");
+    } else if (arg === "--supply-chain") {
+      consumeValue();
+      if (value?.trim()) supplyChainPath = expandHomePath(value.trim());
+      else invalidValues.push("--supply-chain requires a local supply-chain bundle file");
     } else if (arg === "--format") {
       consumeValue();
       const normalized = value?.trim().toLowerCase();
@@ -1285,6 +1298,11 @@ export function parseArgs(args: string[]): CliOptions {
       flagCounts.set(arg, 1);
       if (inlineValue !== undefined) invalidValues.push(`${arg} does not accept a value; pass ${arg} by itself`);
       else noCache = true;
+    } else if (arg === "--sensitive-data") {
+      if (flagCounts.has(arg)) invalidValues.push(`pass ${arg} only once`);
+      flagCounts.set(arg, 1);
+      if (inlineValue !== undefined) invalidValues.push(`${arg} does not accept a value; pass ${arg} by itself`);
+      else sensitiveData = true;
     } else if (arg === "--output") {
       consumeValue();
       if (value?.trim()) output = expandHomePath(value.trim());
@@ -1317,6 +1335,8 @@ export function parseArgs(args: string[]): CliOptions {
     noCache,
     semanticModelPath,
     evidencePaths,
+    sensitiveData,
+    supplyChainPath,
     unknownArgs,
     invalidValues
   };
@@ -1580,7 +1600,7 @@ async function runVerify(
       return 1;
     }
 
-    const result = verifyPlan(report, repo);
+    const result = verifyPlan(report, repo, { sensitiveData: options.sensitiveData });
     const rendered = options.format === "json"
       ? `${JSON.stringify(result, null, 2)}\n`
       : renderVerifyMarkdown(result);

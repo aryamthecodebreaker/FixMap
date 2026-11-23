@@ -130,3 +130,13 @@ export function isBackupPath(path: string): boolean {
   const fileName = path.split("/").pop() ?? "";
   return BACKUP_FILE_PATTERNS.some((pattern) => pattern.test(fileName));
 }
+
+/** A non-empty relative path with no absolute prefix and no empty, `.`, or `..` segment. */
+export function isRepositoryRelativePath(candidate: unknown): candidate is string {
+  if (typeof candidate !== "string" || !candidate.trim() || candidate.includes("\0") ||
+    /^[\\/]/.test(candidate) || /^[A-Za-z]:/.test(candidate)) {
+    return false;
+  }
+  const segments = candidate.replace(/\\/g, "/").split("/");
+  return segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..");
+}

@@ -2,6 +2,8 @@ import type { AnnotationAssessment } from "./annotations.js";
 import type { DecisionRecord } from "./decisions.js";
 import type { ArchitecturePolicyResult } from "./architecture.js";
 import type { ReportEvidence } from "./report-evidence.js";
+import type { ReportSensitiveData } from "./report-sensitive-data.js";
+import type { ReportSupplyChain } from "./report-supply-chain.js";
 
 export type FixMapInput = {
   repoRoot: string;
@@ -294,6 +296,10 @@ export type FixMapReport = {
   policy?: ArchitecturePolicyResult;
   /** Evidence from explicitly supplied providers about files in this report; never fetched or executed. */
   evidence?: ReportEvidence;
+  /** Opt-in lexical sensitive-data flows touching this report's files; locations and kinds only. */
+  sensitiveData?: ReportSensitiveData;
+  /** Imported scanner/SBOM findings for packages declared in manifests among this report's files. */
+  supplyChain?: ReportSupplyChain;
   /** Explicitly registered custom language adapters used for this report; callbacks are never serialized. */
   languageAdapters?: ReportLanguageAdapter[];
 };
@@ -321,7 +327,8 @@ export type VerifyFinding = {
     | "architecture-boundary-violation"
     | "architecture-required-test"
     | "architecture-review-required"
-    | "architecture-breaking-contract";
+    | "architecture-breaking-contract"
+    | "sensitive-data-flow-introduced";
   severity: "info" | "warning" | "error";
   paths: string[];
   message: string;
@@ -340,6 +347,8 @@ export type VerifyResult = {
   diagnostics: ScanDiagnostic[];
   impact?: ImpactMap;
   narrative?: VerifyNarrativeStatement[];
+  /** Opt-in lexical sensitive-data flows touching the plan or diff, with newly introduced ones marked. */
+  sensitiveData?: ReportSensitiveData;
 };
 
 export type VerifyNarrativeEvidence = {
