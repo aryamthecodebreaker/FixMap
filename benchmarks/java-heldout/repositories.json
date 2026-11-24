@@ -1,0 +1,48 @@
+{
+  "status": "held-out",
+  "targetPerLanguage": 4,
+  "candidateRule": "For each language, GitHub repository search (language filter, sorted by stars, descending, first 40 results on 2026-11-22), skipping archived repositories, repositories already used by any earlier FixMap cohort, and repositories whose name or description matches /awesome|tutorial|interview|course|book|roadmap|list of|collection|cheat|guide|learn|resources|example|leetcode|algorithm|exercise|demo|sample|homework|free |projects|system design|prompts?|papers/i. The first 15 survivors per language are listed in star order. This cohort continues the same frozen Java list from polyglot-heldout at the first candidate that cohort never queried; the case rule, limits and order are unchanged.",
+  "excludePullRequestsFrom": "../polyglot-heldout/dataset.json",
+  "repositories": [
+    {
+      "slug": "jeecgboot/JeecgBoot",
+      "language": "java"
+    },
+    {
+      "slug": "ReactiveX/RxJava",
+      "language": "java"
+    },
+    {
+      "slug": "lysine-dev/retrofit",
+      "language": "java"
+    },
+    {
+      "slug": "apache/dubbo",
+      "language": "java"
+    },
+    {
+      "slug": "TeamNewPipe/NewPipe",
+      "language": "java"
+    },
+    {
+      "slug": "YunaiV/ruoyi-vue-pro",
+      "language": "java"
+    },
+    {
+      "slug": "halo-dev/halo",
+      "language": "java"
+    },
+    {
+      "slug": "keycloak/keycloak",
+      "language": "java"
+    },
+    {
+      "slug": "alibaba/arthas",
+      "language": "java"
+    },
+    {
+      "slug": "yuliskov/SmartTube",
+      "language": "java"
+    }
+  ]
+}
