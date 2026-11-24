@@ -20,7 +20,9 @@ const otherVolume = `fixmap-smoke-other-${unique}`;
 const results = [];
 
 function docker(argv, options = {}) {
-  return execFileSync("docker", argv, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30 * 60_000, ...options }).trim();
+  // With inherited output (image builds) execFileSync returns null.
+  const output = execFileSync("docker", argv, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30 * 60_000, ...options });
+  return (output ?? "").trim();
 }
 
 function check(name, condition, detail) {
