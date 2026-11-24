@@ -50,7 +50,7 @@ const releases: Release[] = [
     summary: "Python, Java, Go, Rust, Ruby, PHP and .NET support is out of preview after passing a fresh test on 28 real fixes from projects FixMap had never seen.",
     groups: [
       {
-        label: "Changed",
+        label: "Improved",
         items: [
           "Every language found the fixed file in its top 5 at least once: Python 4 of 4, Go 4 of 4, Java 3 of 4, Rust 3 of 4, PHP 3 of 4, .NET 3 of 4, Ruby 2 of 4.",
           "Overall FixMap found it in 22 of 28 cases, keyword search (BM25) in 19 of 28. The difference is not statistically significant, and the bar only asked for not worse.",
