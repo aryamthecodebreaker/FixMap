@@ -2,27 +2,28 @@ import { execFile, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { architecturePolicyFromRepo, buildArchitectureSnapshot, compareArchitectureSnapshots } from "./architecture.js";
 import type { ArchitectureDrift, ArchitectureSnapshot } from "./architecture.js";
 import { inventoryDecisionRecords } from "./decisions.js";
 import type { DecisionDiagnostic } from "./decisions.js";
 import { buildPathExcluder } from "./exclude.js";
-import { isLanguageTestPath } from "./language-adapters.js";
-import { SOURCE_FILE_EXTENSIONS } from "./paths.js";
+import { describeFileFromBytes, readRepositoryHistory } from "./repo-scan.js";
 import type { PackageScript, RepoFile, RepoMap, ScanDiagnostic } from "./types.js";
 
 const exec = promisify(execFile);
 const MAX_REF_LENGTH = 500;
 const MAX_TREE_BYTES = 32 * 1024 * 1024;
 const MAX_FILES = 25_000;
-const MAX_TEXT_SAMPLE_BYTES = 64_000;
+/** Larger blobs get no content, as a checkout's sampler would still read windows from them; rare enough to bound memory. */
+const MAX_HISTORICAL_BLOB_BYTES = 16 * 1024 * 1024;
 const MAX_BATCH_BYTES = 64 * 1024 * 1024;
 const MAX_BATCH_OUTPUT_BYTES = MAX_BATCH_BYTES + 2 * 1024 * 1024;
 // Bump whenever the import graph, snapshot, or decision-rule derivation changes. A commit's
 // tree never changes, so this version and the commit ID are the whole invalidation key.
-const ARCHITECTURE_CACHE_VERSION = 1;
+// 2: historical files are read with the checkout scan's rules (large-file samples, SFC script blocks).
+const ARCHITECTURE_CACHE_VERSION = 2;
 const ARCHITECTURE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const ARCHITECTURE_CACHE_FILE = /^architecture-v\d+-[a-f0-9]{40,64}-(?:policy|no-policy)\.json$/;
 const ARCHITECTURE_CACHE_TEMP_FILE = /^architecture-v\d+-[a-f0-9]{40,64}-(?:policy|no-policy)\.json\.\d+-[0-9a-f-]{36}\.tmp$/;
@@ -78,10 +79,12 @@ type ArchitectureEntry = Omit<HistoricalArchitectureSnapshot, "requestedRef" | "
 export async function scanRepoAtRef(input: { repoRoot: string; ref: string }): Promise<HistoricalRepoMap> {
   const repoRoot = resolve(input.repoRoot);
   const requestedRef = validateRef(input.ref);
-  return scanCommit(repoRoot, requestedRef, await resolveCommit(repoRoot, requestedRef));
+  // Plans rank with co-change history, so a historical plan reads the history up to that commit,
+  // exactly as a checkout of it would.
+  return scanCommit(repoRoot, requestedRef, await resolveCommit(repoRoot, requestedRef), { includeHistory: true });
 }
 
-async function scanCommit(repoRoot: string, requestedRef: string, commit: string): Promise<HistoricalRepoMap> {
+async function scanCommit(repoRoot: string, requestedRef: string, commit: string, options: { includeHistory?: boolean } = {}): Promise<HistoricalRepoMap> {
   const { stdout } = await exec("git", ["ls-tree", "-r", "-z", "-l", "--full-tree", commit, "--"], {
     cwd: repoRoot,
     encoding: "utf8",
@@ -99,13 +102,18 @@ async function scanCommit(repoRoot: string, requestedRef: string, commit: string
   const readable: TreeEntry[] = [];
   let scheduledBytes = 0;
   for (const entry of entries) {
-    if ((!isSourcePath(entry.path) && entry.path !== ".fixmapignore") || entry.size > MAX_TEXT_SAMPLE_BYTES) continue;
+    // The same source rule as the checkout scan decides what is read.
+    const wanted = entry.path === ".fixmapignore" || describeFileFromBytes(entry.path, entry.size, undefined).isSource;
+    if (!wanted || entry.size > MAX_HISTORICAL_BLOB_BYTES) continue;
     if (scheduledBytes + entry.size > MAX_BATCH_BYTES) continue;
     readable.push(entry);
     scheduledBytes += entry.size;
   }
   const content = await readBlobs(repoRoot, readable);
-  const files = entries.map((entry): RepoFile => buildRepoFile(entry, content.get(entry.oid)));
+  const files = entries.map((entry): RepoFile => describeFileFromBytes(entry.path, entry.size, content.get(entry.oid), `git:${entry.oid}`));
+  const history = options.includeHistory
+    ? await readRepositoryHistory(repoRoot, new Set(files.map((file) => file.path)), diagnostics, commit)
+    : undefined;
   const ignoreEntry = entries.find((entry) => entry.path === ".fixmapignore");
   const ignoreBytes = ignoreEntry ? content.get(ignoreEntry.oid) : undefined;
   return {
@@ -119,7 +127,8 @@ async function scanCommit(repoRoot: string, requestedRef: string, commit: string
       changedFiles: [],
       diffText: "",
       packageManager: inferPackageManager(entries),
-      diagnostics
+      diagnostics,
+      ...(history ? { history } : {})
     },
     ...(ignoreBytes ? { ignoreFile: ignoreBytes.toString("utf8") } : {})
   };
@@ -400,49 +409,6 @@ function parseBatch(output: Buffer, oids: readonly string[]): Map<string, Buffer
   return result;
 }
 
-function buildRepoFile(entry: TreeEntry, bytes: Buffer | undefined): RepoFile {
-  const extension = extname(entry.path).toLowerCase();
-  const isSource = isSourcePath(entry.path);
-  let textSample = "";
-  let textSampleComplete: boolean | undefined;
-  let textSampleSkipReason: RepoFile["textSampleSkipReason"];
-  if (isSource) {
-    if (!bytes) {
-      textSampleComplete = false;
-      textSampleSkipReason = "too-large";
-    } else {
-      try {
-        textSample = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-        textSampleComplete = true;
-      } catch {
-        textSampleComplete = false;
-        textSampleSkipReason = "not-text";
-      }
-    }
-  }
-  return {
-    path: entry.path,
-    contentFingerprint: `git:${entry.oid}`,
-    extension,
-    sizeBytes: entry.size,
-    isTest: isLanguageTestPath(entry.path, extension) || /(?:^|\/)(?:__tests__|tests?|spec)(?:\/|$)/i.test(entry.path),
-    isSource,
-    kind: classify(entry.path, extension),
-    textSample,
-    ...(textSampleComplete !== undefined ? { textSampleComplete } : {}),
-    ...(textSampleSkipReason ? { textSampleSkipReason } : {})
-  };
-}
-
-function isSourcePath(path: string): boolean {
-  return SOURCE_FILE_EXTENSIONS.has(extname(path).toLowerCase()) || /(?:^|\/)(?:dockerfile|makefile|pom\.xml|pyproject\.toml)$/i.test(path);
-}
-
-function classify(path: string, extension: string): RepoFile["kind"] {
-  if (/\.(?:md|mdx)$/i.test(extension) || /(?:^|\/)docs?\//i.test(path)) return "documentation";
-  if (/\.(?:json|ya?ml|toml)$/i.test(extension) || /(?:^|\/)(?:dockerfile|makefile|pom\.xml)$/i.test(path)) return "config";
-  return isSourcePath(path) ? "code" : "other";
-}
 
 function inferPackageManager(entries: readonly TreeEntry[]): RepoMap["packageManager"] {
   const names = new Set(entries.map((entry) => entry.path.split("/").at(-1)?.toLowerCase()));

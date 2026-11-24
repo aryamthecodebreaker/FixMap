@@ -1425,15 +1425,17 @@ const NO_GIT_HISTORY =
   "this repository has no commits yet, so there is nothing to diff against. " +
   "Commit the initial work first, or run with --issue alone to rank from the task text.";
 
-async function readRepositoryHistory(
+export async function readRepositoryHistory(
   root: string,
   repositoryPaths: ReadonlySet<string>,
-  diagnostics: RepoMap["diagnostics"]
+  diagnostics: RepoMap["diagnostics"],
+  /** History up to and including this commit; a historical scan passes its commit, a checkout uses HEAD. */
+  ref = "HEAD"
 ): Promise<RepositoryHistory | undefined> {
   try {
     const [{ stdout: shallowText }, { stdout: countText }, { stdout: logText }] = await Promise.all([
       exec("git", ["rev-parse", "--is-shallow-repository"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["rev-list", "--count", "--no-merges", "HEAD", "--", "."], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["rev-list", "--count", "--no-merges", "--end-of-options", ref, "--", "."], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
       exec("git", [
         "-c", "core.quotepath=false",
         "log",
@@ -1443,7 +1445,8 @@ async function readRepositoryHistory(
         "--format=%x1e%H%x1f%ct%x1f%aN",
         "--name-only",
         "-z",
-        "HEAD",
+        "--end-of-options",
+        ref,
         "--",
         "."
       ], { cwd: root, maxBuffer: GIT_HISTORY_MAX_BUFFER })
@@ -1645,6 +1648,63 @@ async function readTextSample(
   } catch {
     return { text: "", complete: false, skipReason: "unreadable" };
   }
+}
+
+/**
+ * Describes a file from bytes already in memory (Git objects for historical scans) with the same
+ * rules the checkout scan applies when reading from disk: head sample, distributed search windows
+ * for oversized files, NUL-byte binary detection, Vue/Svelte script extraction, test detection, and
+ * classification. `bytes` undefined means the content could not be read within the scan's budget.
+ */
+export function describeFileFromBytes(
+  relativePath: string,
+  sizeBytes: number,
+  bytes: Buffer | undefined,
+  contentFingerprint?: string
+): RepoFile {
+  const extension = extname(relativePath).toLowerCase();
+  const conventionalKind = classifyConventionalTextFile(relativePath);
+  const isSource = SOURCE_EXTENSIONS.has(extension) || conventionalKind !== undefined;
+  const sample = !isSource
+    ? { text: "", complete: true as boolean }
+    : bytes
+      ? sampleFromBytes(bytes, sizeBytes)
+      : { text: "", complete: false, skipReason: "too-large" as const };
+  if (SFC_EXTENSIONS.has(extension) && sample.text) {
+    sample.text = extractScriptBlocks(sample.text);
+    if ("searchText" in sample && sample.searchText) sample.searchText = extractScriptBlocks(sample.searchText);
+  }
+  return {
+    path: relativePath,
+    ...(contentFingerprint ? { contentFingerprint } : {}),
+    extension,
+    sizeBytes,
+    isTest: isLanguageTestPath(relativePath, extension) || TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
+    isSource,
+    kind: classifyFile(relativePath, extension),
+    textSample: sample.text,
+    ...("searchText" in sample && sample.searchText ? { searchTextSample: sample.searchText } : {}),
+    textSampleComplete: sample.complete,
+    ...("skipReason" in sample && sample.skipReason ? { textSampleSkipReason: sample.skipReason } : {})
+  };
+}
+
+/** `readTextSample` over an in-memory buffer: identical head, windows and binary rule. */
+function sampleFromBytes(
+  bytes: Buffer,
+  sizeBytes: number
+): { text: string; searchText?: string; complete: boolean; skipReason?: RepoFile["textSampleSkipReason"] } {
+  const head = sizeBytes <= MAX_TEXT_SAMPLE_BYTES ? bytes : bytes.subarray(0, MAX_TEXT_SAMPLE_BYTES);
+  if (head.includes(0)) return { text: "", complete: false, skipReason: "not-text" };
+  const text = head.toString("utf8");
+  if (sizeBytes <= MAX_TEXT_SAMPLE_BYTES) return { text, complete: true };
+  const windowBytes = Math.floor(MAX_TEXT_SAMPLE_BYTES / 4);
+  const maximumStart = Math.max(0, sizeBytes - windowBytes);
+  const starts = [...new Set([0, Math.floor(maximumStart / 3), Math.floor((maximumStart * 2) / 3), maximumStart])];
+  const windows = starts.map((position) => bytes.subarray(position, position + windowBytes));
+  const searchBytes = Buffer.concat(windows.flatMap((window, index) => index === 0 ? [window] : [Buffer.from("\n"), window]));
+  if (searchBytes.includes(0)) return { text: "", complete: false, skipReason: "not-text" };
+  return { text, searchText: searchBytes.toString("utf8"), complete: false, skipReason: "too-large" };
 }
 
 async function readFileWindow(path: string, position: number, length: number): Promise<Buffer> {
