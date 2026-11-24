@@ -51,7 +51,7 @@ const { scanRepo, rankContextFilesEvidenceDetailed } = await import(
 
 const suiteIndex = process.argv.indexOf("--suite");
 const suite = suiteIndex === -1 ? "external" : process.argv[suiteIndex + 1];
-if (!["external", "heldout", "multilanguage-dev", "polyglot-dev", "polyglot-validation", "polyglot-heldout"].includes(suite)) {
+if (!["external", "heldout", "multilanguage-dev", "polyglot-dev", "polyglot-validation", "polyglot-heldout", "java-heldout"].includes(suite)) {
   process.stderr.write(`Unknown suite "${suite}"; expected "external", "heldout", "multilanguage-dev", "polyglot-dev", or "polyglot-validation".\n`);
   process.exit(1);
 }

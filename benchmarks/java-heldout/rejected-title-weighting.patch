@@ -1,0 +1,190 @@
+diff --git a/packages/core/src/rank.ts b/packages/core/src/rank.ts
+index d939acf..4efbaa4 100644
+--- a/packages/core/src/rank.ts
++++ b/packages/core/src/rank.ts
+@@ -193,9 +193,9 @@ export function rankContextFilesEvidenceDetailed(
+       : new Set<RepoFile["kind"]>(["code"]);
+   const sourceLimit = Math.min(eligibleFiles.length, RETRIEVAL_CANDIDATES_PER_SOURCE);
+   const structuralCandidates = structural.slice(0, sourceLimit);
+-  const lexicalCandidates = rankByBm25Detailed(eligibleFiles, task, sourceLimit, lexicalKinds);
++  const lexicalCandidates = rankByBm25Detailed(eligibleFiles, task, sourceLimit, lexicalKinds, input.issueText);
+   const lexicalFinishedAt = performance.now();
+-  const symbolCandidates = rankSymbolsByBm25Detailed(eligibleFiles, task, sourceLimit, input.languageContext);
++  const symbolCandidates = rankSymbolsByBm25Detailed(eligibleFiles, task, sourceLimit, input.languageContext, input.issueText);
+   const symbolFinishedAt = performance.now();
+   const structuralRank = new Map(structuralCandidates.map((file, index) => [file.path, index + 1]));
+   const lexicalByPath = new Map(lexicalCandidates.map((entry) => [entry.id, entry]));
+diff --git a/packages/core/src/retrieval.ts b/packages/core/src/retrieval.ts
+index fa99c97..6336b4c 100644
+--- a/packages/core/src/retrieval.ts
++++ b/packages/core/src/retrieval.ts
+@@ -38,8 +38,27 @@ export type RetrievalQuery = {
+   originalTerms: string[];
+   terms: string[];
+   expansions: RetrievalQueryExpansion[];
++  /** Terms from the task's title line when the task also has a body; they carry TITLE_TERM_WEIGHT. */
++  titleTerms: string[];
+ };
+ 
++/**
++ * Issue titles name the problem; bodies add logs, stack traces and environment detail. Treating
++ * every word once made a long body drown the title (a Java crash report titled after the class
++ * that failed never reached the lexical top 50). Title terms count twice when a body exists;
++ * one-line tasks are unchanged because every term is a title term.
++ */
++export const TITLE_TERM_WEIGHT = 2;
++
++/** The first non-empty line, when more non-empty text follows it. */
++export function taskTitle(task: string): string | undefined {
++  const lines = task.split(/\r?\n/);
++  const index = lines.findIndex((line) => line.trim().length > 0);
++  if (index === -1) return undefined;
++  const rest = lines.slice(index + 1).join("\n").trim();
++  return rest ? lines[index]!.trim() : undefined;
++}
++
+ export type Bm25RankedDocument = {
+   id: string;
+   score: number;
+@@ -71,7 +90,11 @@ const TECHNICAL_ALIASES: Readonly<Record<string, readonly string[]>> = Object.fr
+  * Expands only reversible technical aliases and simple English inflections. The original
+  * terms remain separately inspectable so callers never have to guess what FixMap inferred.
+  */
+-export function buildRetrievalQuery(task: string): RetrievalQuery {
++/**
++ * `titleSource` is the issue text only. Ranking joins issue text and diff into one task, so the
++ * title must never be read from that joined string: a diff's first line is not a title.
++ */
++export function buildRetrievalQuery(task: string, titleSource?: string): RetrievalQuery {
+   const originalTerms = retrievalQueryTerms(task);
+   const seen = new Set(originalTerms);
+   const expansions: RetrievalQueryExpansion[] = [];
+@@ -88,7 +111,12 @@ export function buildRetrievalQuery(task: string): RetrievalQuery {
+     else if (source.endsWith("s") && !source.endsWith("ss") && source.length > 4) add(source.slice(0, -1), source, "inflection");
+   }
+ 
+-  return { originalTerms, terms: [...seen], expansions };
++  const title = titleSource === undefined ? undefined : taskTitle(titleSource);
++  const titleOriginal = new Set(title ? retrievalQueryTerms(title) : []);
++  const titleTerms = title
++    ? [...seen].filter((term) => titleOriginal.has(term) || expansions.some((expansion) => expansion.term === term && titleOriginal.has(expansion.source)))
++    : [];
++  return { originalTerms, terms: [...seen], expansions, titleTerms };
+ }
+ 
+ /** Standard BM25 (k1=1.2, b=0.75) over the scanner's code-only candidate corpus. */
+@@ -101,13 +129,15 @@ export function rankByBm25Detailed(
+   files: RepoFile[],
+   task: string,
+   limit = 5,
+-  eligibleKinds: ReadonlySet<RepoFile["kind"]> = new Set(["code"])
++  eligibleKinds: ReadonlySet<RepoFile["kind"]> = new Set(["code"]),
++  titleSource?: string
+ ): Bm25RankedDocument[] {
+   const candidates = files.filter((file) => file.isSource && !file.isTest && eligibleKinds.has(file.kind));
+   return rankDocumentsByBm25(
+     candidates.map((file) => ({ id: file.path, text: `${file.path}\n${file.searchTextSample ?? file.textSample}` })),
+     task,
+-    limit
++    limit,
++    titleSource
+   );
+ }
+ 
+@@ -115,7 +145,7 @@ export function rankByBm25Detailed(
+  * Retrieves definition-sized units independently from whole-file retrieval. A symbol hit
+  * is mapped back to its owning file, but its symbol identity and rank remain visible.
+  */
+-export function rankSymbolsByBm25Detailed(files: RepoFile[], task: string, limit = 50, custom?: ReturnType<typeof createCustomLanguageContext>): SymbolRetrievalHit[] {
++export function rankSymbolsByBm25Detailed(files: RepoFile[], task: string, limit = 50, custom?: ReturnType<typeof createCustomLanguageContext>, titleSource?: string): SymbolRetrievalHit[] {
+   const units = files.flatMap((file) => {
+     const extracted = custom?.supports(file.extension) ? custom.extract(file) : undefined;
+     const definitions = extracted ? (extracted.status === "ok" ? extracted.facts.definitions : []) : extractLanguageDefinitions(file);
+@@ -133,7 +163,7 @@ export function rankSymbolsByBm25Detailed(files: RepoFile[], task: string, limit
+     };
+     });
+   });
+-  const ranked = rankDocumentsByBm25(units, task, Math.max(limit * 4, limit));
++  const ranked = rankDocumentsByBm25(units, task, Math.max(limit * 4, limit), titleSource);
+   const byId = new Map(units.map((unit) => [unit.id, unit]));
+   const seenPaths = new Set<string>();
+   const hits: SymbolRetrievalHit[] = [];
+@@ -150,9 +180,12 @@ export function rankSymbolsByBm25Detailed(files: RepoFile[], task: string, limit
+ export function rankDocumentsByBm25(
+   inputs: readonly { id: string; text: string }[],
+   task: string,
+-  limit = 5
++  limit = 5,
++  titleSource?: string
+ ): Bm25RankedDocument[] {
+-  const terms = buildRetrievalQuery(task).terms;
++  const query = buildRetrievalQuery(task, titleSource);
++  const terms = query.terms;
++  const titleTerms = new Set(query.titleTerms);
+   if (inputs.length === 0 || terms.length === 0) return [];
+   const queryTerms = new Set(terms);
+   const documentFrequency = new Map(terms.map((term) => [term, 0]));
+@@ -175,7 +208,8 @@ export function rankDocumentsByBm25(
+       if (frequency === 0) continue;
+       const df = documentFrequency.get(term) ?? 0;
+       const idf = Math.log(1 + (documents.length - df + 0.5) / (df + 0.5));
+-      score += idf * ((frequency * 2.2) / (frequency + 1.2 * (0.25 + (0.75 * document.length) / averageLength)));
++      const weight = titleTerms.has(term) ? TITLE_TERM_WEIGHT : 1;
++      score += weight * idf * ((frequency * 2.2) / (frequency + 1.2 * (0.25 + (0.75 * document.length) / averageLength)));
+     }
+     if (score > 0) insertBoundedBm25(top, { id: document.id, score }, boundedLimit);
+   }
+diff --git a/packages/core/test/title-weighting.test.ts b/packages/core/test/title-weighting.test.ts
+new file mode 100644
+index 0000000..5b77667
+--- /dev/null
++++ b/packages/core/test/title-weighting.test.ts
+@@ -0,0 +1,48 @@
++import { describe, expect, it } from "vitest";
++import { buildRetrievalQuery, rankDocumentsByBm25, taskTitle, TITLE_TERM_WEIGHT } from "../src/retrieval.js";
++
++describe("issue-title term weighting", () => {
++  it("reads a title only when a body follows it", () => {
++    expect(taskTitle("Failed to restore switch over string\n\nStack trace:\n at Foo.bar")).toBe("Failed to restore switch over string");
++    expect(taskTitle("\n\n  Title after blank lines  \nbody")).toBe("Title after blank lines");
++    expect(taskTitle("one line only")).toBeUndefined();
++    expect(taskTitle("title\n\n   \n")).toBeUndefined();
++    expect(taskTitle("")).toBeUndefined();
++  });
++
++  it("weights title terms (and their expansions) only when the issue text is given as the title source", () => {
++    const task = "Config loader crashes\n\nThe parser throws NullPointerException in Loader when reading values";
++    expect(buildRetrievalQuery(task).titleTerms).toEqual([]);
++    const weighted = buildRetrievalQuery(task, task);
++    expect(weighted.titleTerms.sort()).toEqual(["config", "configuration", "crashes", "crashe", "loader"].filter((term) => weighted.terms.includes(term)).sort());
++    expect(weighted.titleTerms).not.toContain("parser");
++    expect(TITLE_TERM_WEIGHT).toBe(2);
++  });
++
++  it("lets two title matches outrank three body-only matches, which win without weighting", () => {
++    const issue = "Switch string broken\n\nstack frame handler region";
++    const documents = [
++      { id: "SwitchStringVisitor", text: "switch string visitor" },
++      { id: "FrameHandler", text: "frame handler region" },
++      { id: "Unrelated", text: "logging output format" }
++    ];
++    expect(rankDocumentsByBm25(documents, issue, 3)[0]?.id).toBe("FrameHandler");
++    expect(rankDocumentsByBm25(documents, issue, 3, issue)[0]?.id).toBe("SwitchStringVisitor");
++  });
++
++  it("never treats a diff's first line as a title", () => {
++    const task = ["fix loader", "diff --git a/src/Loader.java b/src/Loader.java\n+ value"].join("\n");
++    expect(buildRetrievalQuery(task, "fix loader").titleTerms).toEqual([]);
++    expect(buildRetrievalQuery(task, undefined).titleTerms).toEqual([]);
++  });
++
++  it("ranks one-line tasks exactly as before", () => {
++    const documents = [
++      { id: "a", text: "alpha beta gamma" },
++      { id: "b", text: "beta beta delta" },
++      { id: "c", text: "gamma delta epsilon" }
++    ];
++    const task = "beta gamma delta";
++    expect(rankDocumentsByBm25(documents, task, 3, task)).toEqual(rankDocumentsByBm25(documents, task, 3));
++  });
++});
