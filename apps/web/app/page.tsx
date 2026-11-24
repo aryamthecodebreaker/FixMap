@@ -14,8 +14,8 @@ import { FIXMAP_FEATURES } from "@aryam/fixmap-core/browser";
 import { repoUrl, siteStats } from "./_lib/site-data";
 import { loadUsageStats, USAGE_FIRST_PUBLISHED, USAGE_PACKAGE, USAGE_REPOSITORY } from "./_lib/usage-stats";
 
-/** Refresh the public npm and GitHub usage numbers at most once an hour. */
-export const revalidate = 3600;
+/** Re-check npm and GitHub every 5 minutes, matching npm's own cache. Next needs a literal here. */
+export const revalidate = 300;
 
 const formatCount = (value: number) => value.toLocaleString("en-US");
 const launchMonth = new Date(`${USAGE_FIRST_PUBLISHED}T00:00:00Z`).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -90,7 +90,7 @@ export default async function HomePage() {
             <article>
               <span>Tested</span>
               <strong>{count(heldoutUnmentioned.top3HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases} held-out tasks put the fixing file in the first 3 results.</strong>
-              <p>A simpler BM25 search tied FixMap in the Top-3 test. At Top-5, BM25 found {count(heldoutBaseline.bm25.top5HitRate, heldoutBaseline.bm25.cases)}/{heldoutBaseline.bm25.cases}; FixMap found {count(heldoutBaseline.fixmap.top5HitRate, heldoutBaseline.fixmap.cases)}/{heldoutBaseline.fixmap.cases}.</p>
+              <p>Against a simpler BM25 keyword search on the same tasks: Top 1, FixMap {count(heldoutBaseline.fixmap.top1HitRate, heldoutBaseline.fixmap.cases)}/{heldoutBaseline.fixmap.cases} vs BM25 {count(heldoutBaseline.bm25.top1HitRate, heldoutBaseline.bm25.cases)}/{heldoutBaseline.bm25.cases}; Top 3, {count(heldoutBaseline.fixmap.top3HitRate, heldoutBaseline.fixmap.cases)}/{heldoutBaseline.fixmap.cases} vs {count(heldoutBaseline.bm25.top3HitRate, heldoutBaseline.bm25.cases)}/{heldoutBaseline.bm25.cases}; Top 5, {count(heldoutBaseline.fixmap.top5HitRate, heldoutBaseline.fixmap.cases)}/{heldoutBaseline.fixmap.cases} vs {count(heldoutBaseline.bm25.top5HitRate, heldoutBaseline.bm25.cases)}/{heldoutBaseline.bm25.cases}. With this few cases none of the differences is statistically significant.</p>
             </article>
             <article>
               <span>How it works</span>
@@ -110,8 +110,9 @@ export default async function HomePage() {
         <div className="pro-section-heading">
           <h2 id="pro-usage-title">How often FixMap is downloaded.</h2>
           <p>
-            Live from npm and GitHub, refreshed every hour. A download is not a person: automated builds,
-            mirrors, and repeat installs all count. FixMap itself never reports usage.
+            Live from npm and GitHub, checked every 5 minutes. npm publishes download counts once a day, so
+            the newest day is yesterday. A download is not a person: automated builds, mirrors, and repeat
+            installs all count. FixMap itself never reports usage.
           </p>
           <Link className="text-link" href="/features">
             See all {FIXMAP_FEATURES.length} features ({FIXMAP_FEATURES.filter((feature) => !feature.preview).length} ready, {FIXMAP_FEATURES.filter((feature) => feature.preview).length} preview) <ArrowRight size={17} weight="bold" aria-hidden />
@@ -125,9 +126,17 @@ export default async function HomePage() {
               <div><dt>Downloads since {launchMonth}</dt><dd>{formatCount(usage.sinceLaunch)}</dd></div>
               <div><dt>GitHub stars</dt><dd>{usage.stars === null ? "—" : formatCount(usage.stars)}</dd></div>
             </dl>
+            {usage.sinceLaunchWithCore !== null ? (
+              <p className="pro-usage-source">
+                {formatCount(usage.sinceLaunchWithCore)} including the engine package, which the CLI installs automatically.
+              </p>
+            ) : null}
             <p className="pro-usage-source">
               Source: <a href={`https://www.npmjs.com/package/${USAGE_PACKAGE}`}>{USAGE_PACKAGE} on npm</a> and{" "}
-              <a href={`https://github.com/${USAGE_REPOSITORY}`}>GitHub</a>. Checked{" "}
+              <a href={`https://github.com/${USAGE_REPOSITORY}`}>GitHub</a>. npm counts through{" "}
+              <time dateTime={usage.countsThrough}>
+                {new Date(`${usage.countsThrough}T00:00:00Z`).toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}
+              </time>; checked{" "}
               <time dateTime={usage.fetchedAt}>
                 {new Date(usage.fetchedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC
               </time>.

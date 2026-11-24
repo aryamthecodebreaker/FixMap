@@ -44,9 +44,33 @@ type Release = {
 
 const releases: Release[] = [
   {
-    version: "0.9.8",
+    version: "0.9.9",
     date: "November 24, 2026",
     label: "Latest release",
+    summary: "FixMap was tested on 40 real bug fixes in eight languages it was never tuned on, with the pass bars written down first: 0 of 4 features met their bar.",
+    groups: [
+      {
+        label: "Added",
+        items: [
+          "Verify and its narration: 39/40 real fixes passed (missed its bar and stays a preview).",
+          "Change scope: recall 10% vs a same-folder baseline's 10% over 11 multi-file fixes (missed its bar and stays a preview).",
+          "Reviewer suggestions: the author was in the top 3 for 40% of 20 eligible fixes vs 60% for the busiest committers (missed its bar and stays a preview; 20 fixes by first-time contributors excluded).",
+          "Historical plans: 18/40 gave the identical top 5 (missed its bar and stays a preview)."
+        ]
+      },
+      {
+        label: "Improved",
+        items: [
+          "The Evidence page now shows results in seven more languages, including where FixMap is weak.",
+          "Benchmark numbers on the homepage and Evidence page now come straight from the recorded results; a hand-written paragraph had gone out of date.",
+          "The download counter checks npm every 5 minutes, shows which day npm counted through, and gives the combined total with the engine package."
+        ]
+      }
+    ]
+  },
+  {
+    version: "0.9.8",
+    date: "November 24, 2026",
     summary: "Saved FixMap files stay readable across upgrades, fixmap ask resists instructions planted in reports, and the self-hosted container is proven on Intel and ARM.",
     groups: [
       {

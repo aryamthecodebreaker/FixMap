@@ -6,6 +6,22 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.9 - 2026-11-24
+
+### Added
+
+- A real-world feature bench (`scripts/evaluate-features.mjs`): 40 of 40 real fixes from held-out repositories in eight languages, with pass bars committed before the run (`benchmarks/feature-bench/PREREGISTRATION.md`). Results:
+  - Verify and its narration: 39/40 real fixes passed (missed its bar and stays a preview).
+  - Change scope: recall 10% vs a same-folder baseline's 10% over 11 multi-file fixes (missed its bar and stays a preview).
+  - Reviewer suggestions: the author was in the top 3 for 40% of 20 eligible fixes vs 60% for the busiest committers (missed its bar and stays a preview; 20 fixes by first-time contributors excluded).
+  - Historical plans: 18/40 gave the identical top 5 (missed its bar and stays a preview).
+- The website's Evidence page shows the seven-language held-out result and the feature bench.
+
+### Improved
+
+- The Evidence page and homepage now read every FixMap-vs-BM25 figure from the recorded results. The Evidence page had a hand-written paragraph saying FixMap found 5 of 9 at Top 5 (the recording says 8 of 9) and that Top 3 tied (FixMap 5 of 9, BM25 4 of 9); none of the differences is significant (p = 1.0). Spotted by an independent stress test.
+- The homepage download counter re-checks npm every 5 minutes, says which day npm counted through, and adds the combined CLI + engine total with an explanation.
+
 ## 0.9.8 - 2026-11-24
 
 ### Added
