@@ -138,6 +138,22 @@ export default function EvidencePage() {
         <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap does not beat BM25 over code files on repositories it was never tuned against.</strong> BM25 leads the Top 1 point estimate 4/9 to 3/9, while Top 3 ties at 5/9; both paired McNemar exact tests have p = 1.0. At Top 5 the baseline wins four cases FixMap misses and FixMap wins none: BM25 has the fixing file in its top five for 9 of 9 of these cases, FixMap for 5 of 9 (p = 0.125). FixMap does lead on the regression suite (69% vs 39% Top 1), but that is the suite whose cases shaped the ranker, and even there the lead is not significant against this baseline. We publish this because it is what the measurement says; closing the Top-5 recall gap is the next piece of work.</p></div>
       </section>
 
+      <section className="section page-shell" aria-labelledby="feature-bench-title">
+        <div className="section-heading split-heading">
+          <div><p className="eyebrow">Real-world feature bench · {siteStats.featureBench.available} real fixes</p><h2 id="feature-bench-title">Features measured against simple baselines.</h2></div>
+          <p>Each feature was checked on real merged fixes from repositories FixMap was never tuned on, in eight languages. The pass bars were committed to GitHub before the run; a feature that misses its bar stays labelled preview.</p>
+        </div>
+        <div className="results-table" role="table" aria-label="Feature bench results">
+          <div className="results-row results-head" role="row"><span role="columnheader">Feature</span><span role="columnheader">FixMap</span><span role="columnheader">Bar</span><span role="columnheader">Result</span></div>
+          <div className="results-row" role="row"><span role="cell">Verify names every changed file; narration passes its quality check</span><span role="cell">{siteStats.featureBench.bars.verify.passed}/{siteStats.featureBench.bars.verify.of}</span><span role="cell">every case</span><span role="cell">{siteStats.featureBench.bars.verify.meetsBar ? "Met" : "Missed"}</span></div>
+          <div className="results-row" role="row"><span role="cell">Change scope finds the other files a fix changed</span><span role="cell">{rate(siteStats.featureBench.bars.changeScope.fixmapRecall)}</span><span role="cell">above same-folder baseline ({rate(siteStats.featureBench.bars.changeScope.baselineRecall)})</span><span role="cell">{siteStats.featureBench.bars.changeScope.meetsBar ? "Met" : "Missed"}</span></div>
+          <div className="results-row" role="row"><span role="cell">Reviewer suggestions include the fix&apos;s author (top 3)</span><span role="cell">{rate(siteStats.featureBench.bars.reviewers.fixmapHitRate)}</span><span role="cell">above busiest committers ({rate(siteStats.featureBench.bars.reviewers.baselineHitRate)})</span><span role="cell">{siteStats.featureBench.bars.reviewers.meetsBar ? "Met" : "Missed"}</span></div>
+          <div className="results-row" role="row"><span role="cell">Plans against an older commit match a checkout of it (top 5)</span><span role="cell">{siteStats.featureBench.bars.historicalPlans.passed}/{siteStats.featureBench.bars.historicalPlans.of}</span><span role="cell">every case</span><span role="cell">{siteStats.featureBench.bars.historicalPlans.meetsBar ? "Met" : "Missed"}</span></div>
+        </div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>Small samples.</strong> Change scope used {siteStats.featureBench.bars.changeScope.cases} fixes that touched several files, and reviewer suggestions {siteStats.featureBench.bars.reviewers.cases} fixes whose authors had committed before; {siteStats.featureBench.bars.reviewers.excluded} first-time contributors could not be suggested by any method. Contract checks, sensitive-data flows, policy, conflicts and other features need hand-labelled answers and are not judged here.</p></div>
+        <a className="text-link" href={`${repoUrl}/blob/main/benchmarks/feature-bench/PREREGISTRATION.md`}>Read the bars, written before the run <ArrowRight size={17} weight="bold" aria-hidden /></a>
+      </section>
+
       <section className="section page-shell" aria-labelledby="languages-title">
         <div className="section-heading split-heading">
           <div><p className="eyebrow">Seven more languages · {siteStats.languages.cases} held-out cases</p><h2 id="languages-title">Strong in Python and Rust, weak in Java.</h2></div>

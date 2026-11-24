@@ -5343,7 +5343,7 @@ function normalizeStatus(value) {
     superseded: "superseded",
     replaced: "superseded"
   };
-  const match = /^([a-z]+)(?=$|[\s:,(])/.exec(normalized);
+  const match = /^([a-z]+)(?=$|[\s:,(.;])/.exec(normalized);
   const status = match?.[1] ? labels[match[1]] : void 0;
   if (!status)
     return "unknown";
@@ -10689,7 +10689,7 @@ function buildVerifyNarrative(report, changed, changedSource, changedTests, impa
       continue;
     narrative.push({
       classification: "observation",
-      text: `${decision.source ? `Local PR attribution (remote source unverified): ${decision.source.url}. ` : ""}${decision.path} records an ${decision.status} decision${decision.authoredStatus ? ` (authored status: ${JSON.stringify(decision.authoredStatus)})` : ""} relevant to this diff: ${decision.decision.replace(/\s+/g, " ").trim()}`,
+      text: `${decision.source ? `Local PR attribution (remote source unverified): ${decision.source.url}. ` : ""}${decision.path} records ${/^[aeiou]/.test(decision.status) ? "an" : "a"} ${decision.status} decision${decision.authoredStatus ? ` (authored status: ${JSON.stringify(decision.authoredStatus)})` : ""} relevant to this diff: ${decisionSummary(decision.decision)}`,
       evidence: [{
         kind: "decision-record",
         path: decision.path,
@@ -10699,6 +10699,16 @@ function buildVerifyNarrative(report, changed, changedSource, changedTests, impa
     });
   }
   return narrative.slice(0, 16);
+}
+var DECISION_SUMMARY_CHARS = 280;
+function decisionSummary(text2) {
+  const flat = text2.replace(/\s+/g, " ").trim();
+  const sentence = /^(.+?[.!?])(?:\s|$)/.exec(flat)?.[1] ?? flat;
+  if (sentence.length <= DECISION_SUMMARY_CHARS)
+    return sentence.length < flat.length ? `${sentence} The record has more.` : sentence;
+  const cut = sentence.slice(0, DECISION_SUMMARY_CHARS);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > DECISION_SUMMARY_CHARS / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:]+$/, "")}\u2026 The record has more.`;
 }
 function buildVerifySummary(changedCount, findings) {
   const files = `${changedCount} changed ${changedCount === 1 ? "file" : "files"}`;

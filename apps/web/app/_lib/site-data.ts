@@ -6,6 +6,7 @@ import savings from "../../../../benchmarks/external/savings-results.json";
 import adversarial from "../../../../benchmarks/adversarial/results.json";
 import polyglotBaseline from "../../../../benchmarks/polyglot-heldout/baseline-results.json";
 import polyglotDataset from "../../../../benchmarks/polyglot-heldout/dataset.json";
+import featureBench from "../../../../benchmarks/feature-bench/results.json";
 import cli from "../../../../packages/cli/package.json";
 
 type EvaluationCase = {
@@ -94,6 +95,8 @@ const languages = (() => {
 
 export const siteStats = {
   languages,
+  /** Pre-registered real-world feature bench, read from its recorded results. */
+  featureBench: featureBench.summary,
   version: cli.version,
   medianSeconds: (savings.performance.medianScanAndRankMs / 1000).toFixed(2),
   confidenceCalibration,
