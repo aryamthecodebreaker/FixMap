@@ -1,0 +1,66 @@
+{
+  "generatedAt": "2026-11-24",
+  "status": "held-out",
+  "taskTextRule": "Closing issue title plus the first 600 characters of its body.",
+  "selectionRule": "Per configured repository and language: the first of the 100 most recently updated merged pull requests that closes an issue with at least 80 body characters, is not docs-titled, changes no more than 20 files total, and modifies 1-3 non-test implementation files in that language. Pull requests already present in ../polyglot-heldout/dataset.json are excluded. Candidates are walked in their configured order until 4 repositories per language yield a case; later candidates are not queried. The PR base commit and exact fixing source paths are frozen before FixMap is measured.",
+  "languages": [
+    "java"
+  ],
+  "cases": [
+    {
+      "slug": "jeecgboot/JeecgBoot",
+      "language": "java",
+      "repo": "https://github.com/jeecgboot/JeecgBoot.git",
+      "license": "Apache-2.0",
+      "sha": "3105865cc070527bd866f55afac89ee527701f35",
+      "issue": 9374,
+      "pullRequest": 9377,
+      "task": "AI知识库，用千帆的时候，向量化报错\n\n##### 版本号：3.9.0\n\n\n##### 分支：\n\n\n##### 问题描述：\n2026-02-26 11:42:31.148 [http-nio-8080-exec-1] INFO  org.apache.tomcat.util.http.parser.Cookie:168 - A cookie header was received [Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1770523880,1771581370,1772075640;] that contained an invalid cookie. That cookie will be ignored.\n Note: further occurrences of this error will be logged at DEBUG level.\n2026-02-26 11:42:31.163 [http-nio-8080-exec-1] INFO  o.a.c.c.C.[Tomcat].[localhost].[/jeecg-boot]:168 - Initializing Spring DispatcherServlet 'dispatcherServlet'\n2026-02-26 11:42:31.163 [http-nio-8080-exec-1] INFO  or",
+      "expected": [
+        "jeecg-boot/jeecg-boot-module/jeecg-boot-module-airag/src/main/java/org/jeecg/modules/airag/llm/handler/EmbeddingHandler.java"
+      ]
+    },
+    {
+      "slug": "ReactiveX/RxJava",
+      "language": "java",
+      "repo": "https://github.com/ReactiveX/RxJava.git",
+      "license": "Apache-2.0",
+      "sha": "4e481d505a54cabc0bb1a8e902051963e184c880",
+      "issue": 8288,
+      "pullRequest": 8289,
+      "task": "Misleading SchedulerSupport for function Observable.take\n\nThe SchedulerSupport annotation for \"Observable.take(long time, TimeUnit unit)\" has the value SchedulerSupport.NONE while Javadoc and implementation indicate SchedulerSupport.COMPUTATION.\n\nThe annotation should be changed accordingly to match the implementation.\n\nVersions: RxJava v3.1.12 and RxJava v4.0.0-alpha-21\n",
+      "expected": [
+        "src/main/java/io/reactivex/rxjava4/core/Observable.java"
+      ]
+    },
+    {
+      "slug": "lysine-dev/retrofit",
+      "language": "java",
+      "repo": "https://github.com/lysine-dev/retrofit.git",
+      "license": "Apache-2.0",
+      "sha": "50b452440d680b36c94de7467506852597fa474f",
+      "issue": 4295,
+      "pullRequest": 4761,
+      "task": "Interface without any methods not handled by Retrofit consumer keep rules\n\nA question from the R8 team. We recently handled https://issuetracker.google.com/391260908, which turned out to be an interface passed to `create` in Retrofit, which needed to be kept. The consumer keep rules already have rules to keep Retrofit interfaces, https://github.com/square/retrofit/blob/trunk/retrofit/src/main/resources/META-INF/proguard/retrofit2.pro#L31, says\n```\n-if interface * { @retrofit2.http.* <methods>; }\n-keep,allowobfuscation interface <1>\n```\nHowever, in the case of the issue the interface had no methods (and then trivially no methods annotated with a `retrofit2.http.*` ann",
+      "expected": [
+        "retrofit/src/main/java/retrofit2/RetrofitService.java"
+      ]
+    },
+    {
+      "slug": "apache/dubbo",
+      "language": "java",
+      "repo": "https://github.com/apache/dubbo.git",
+      "license": "Apache-2.0",
+      "sha": "7c4a0753540328ef5aac4a32407de410d23b7285",
+      "issue": 16589,
+      "pullRequest": 16590,
+      "task": "[Bug] TCP TLS handshakes fail because the peer hostname is missing\n\n### Pre-check\n\n- [x] I am sure that all the content I provide is in English.\n\n\n### Search before asking\n\n- [x] I had searched in the [issues](https://github.com/apache/dubbo/issues?q=is%3Aissue) and found no similar issues.\n\n\n### Apache Dubbo Component\n\nJava SDK (apache/dubbo)\n\n### Dubbo Version\n\n3.3.8-SNAPSHOT (`1cf125c42`), Netty 4.2.15.Final, Temurin 21.0.13, Linux.\n\n### Steps to reproduce this issue\n\nConnect `NettyClient` or `NettyConnectionClient` to a TLS server with a trusted certificate whose SAN matches the target address. Configure the client certificate, key and CA through `SslConfi",
+      "expected": [
+        "dubbo-remoting/dubbo-remoting-netty4/src/main/java/org/apache/dubbo/remoting/transport/netty4/NettyClient.java",
+        "dubbo-remoting/dubbo-remoting-netty4/src/main/java/org/apache/dubbo/remoting/transport/netty4/NettyConnectionClient.java",
+        "dubbo-remoting/dubbo-remoting-netty4/src/main/java/org/apache/dubbo/remoting/transport/netty4/ssl/SslClientTlsHandler.java"
+      ]
+    }
+  ],
+  "skipped": []
+}
