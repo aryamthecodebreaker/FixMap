@@ -7403,11 +7403,11 @@ async function readWorkingTree(repoRoot, includeUntracked, diagnostics, internal
 }
 var NOT_A_GIT_CHECKOUT = "this directory is not a git checkout. Ranking still works from the task text; --diff, --base/--head and --working-tree need a repository with history.";
 var NO_GIT_HISTORY = "this repository has no commits yet, so there is nothing to diff against. Commit the initial work first, or run with --issue alone to rank from the task text.";
-async function readRepositoryHistory(root, repositoryPaths, diagnostics) {
+async function readRepositoryHistory(root, repositoryPaths, diagnostics, ref = "HEAD") {
   try {
     const [{ stdout: shallowText }, { stdout: countText }, { stdout: logText }] = await Promise.all([
       exec("git", ["rev-parse", "--is-shallow-repository"], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
-      exec("git", ["rev-list", "--count", "--no-merges", "HEAD", "--", "."], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
+      exec("git", ["rev-list", "--count", "--no-merges", "--end-of-options", ref, "--", "."], { cwd: root, maxBuffer: GIT_MAX_BUFFER }),
       exec("git", [
         "-c",
         "core.quotepath=false",
@@ -7419,7 +7419,8 @@ async function readRepositoryHistory(root, repositoryPaths, diagnostics) {
         "--format=%x1e%H%x1f%ct%x1f%aN",
         "--name-only",
         "-z",
-        "HEAD",
+        "--end-of-options",
+        ref,
         "--",
         "."
       ], { cwd: root, maxBuffer: GIT_HISTORY_MAX_BUFFER })
@@ -7594,6 +7595,46 @@ async function readTextSample(path, sizeBytes) {
     return { text: "", complete: false, skipReason: "unreadable" };
   }
 }
+function describeFileFromBytes(relativePath, sizeBytes, bytes, contentFingerprint) {
+  const extension = extname(relativePath).toLowerCase();
+  const conventionalKind = classifyConventionalTextFile(relativePath);
+  const isSource = SOURCE_EXTENSIONS.has(extension) || conventionalKind !== void 0;
+  const sample = !isSource ? { text: "", complete: true } : bytes ? sampleFromBytes(bytes, sizeBytes) : { text: "", complete: false, skipReason: "too-large" };
+  if (SFC_EXTENSIONS.has(extension) && sample.text) {
+    sample.text = extractScriptBlocks(sample.text);
+    if ("searchText" in sample && sample.searchText)
+      sample.searchText = extractScriptBlocks(sample.searchText);
+  }
+  return {
+    path: relativePath,
+    ...contentFingerprint ? { contentFingerprint } : {},
+    extension,
+    sizeBytes,
+    isTest: isLanguageTestPath(relativePath, extension) || TEST_PATTERNS.some((pattern) => pattern.test(relativePath)),
+    isSource,
+    kind: classifyFile2(relativePath, extension),
+    textSample: sample.text,
+    ..."searchText" in sample && sample.searchText ? { searchTextSample: sample.searchText } : {},
+    textSampleComplete: sample.complete,
+    ..."skipReason" in sample && sample.skipReason ? { textSampleSkipReason: sample.skipReason } : {}
+  };
+}
+function sampleFromBytes(bytes, sizeBytes) {
+  const head = sizeBytes <= MAX_TEXT_SAMPLE_BYTES ? bytes : bytes.subarray(0, MAX_TEXT_SAMPLE_BYTES);
+  if (head.includes(0))
+    return { text: "", complete: false, skipReason: "not-text" };
+  const text2 = head.toString("utf8");
+  if (sizeBytes <= MAX_TEXT_SAMPLE_BYTES)
+    return { text: text2, complete: true };
+  const windowBytes = Math.floor(MAX_TEXT_SAMPLE_BYTES / 4);
+  const maximumStart = Math.max(0, sizeBytes - windowBytes);
+  const starts = [.../* @__PURE__ */ new Set([0, Math.floor(maximumStart / 3), Math.floor(maximumStart * 2 / 3), maximumStart])];
+  const windows = starts.map((position) => bytes.subarray(position, position + windowBytes));
+  const searchBytes = Buffer.concat(windows.flatMap((window, index) => index === 0 ? [window] : [Buffer.from("\n"), window]));
+  if (searchBytes.includes(0))
+    return { text: "", complete: false, skipReason: "not-text" };
+  return { text: text2, searchText: searchBytes.toString("utf8"), complete: false, skipReason: "too-large" };
+}
 async function readFileWindow(path, position, length) {
   const handle = await open(path, "r");
   try {
@@ -7640,25 +7681,25 @@ import { execFile as execFile2, spawn } from "node:child_process";
 import { createHash as createHash2, randomUUID as randomUUID2 } from "node:crypto";
 import { mkdir as mkdir2, readdir as readdir2, readFile as readFile2, rename as rename2, stat as stat2, unlink as unlink2, writeFile as writeFile2 } from "node:fs/promises";
 import { homedir as homedir2 } from "node:os";
-import { dirname as dirname2, extname as extname2, isAbsolute as isAbsolute2, join as join2, relative as relative2, resolve as resolve2, sep as sep2 } from "node:path";
+import { dirname as dirname2, isAbsolute as isAbsolute2, join as join2, relative as relative2, resolve as resolve2, sep as sep2 } from "node:path";
 import { promisify as promisify2 } from "node:util";
 var exec2 = promisify2(execFile2);
 var MAX_REF_LENGTH = 500;
 var MAX_TREE_BYTES = 32 * 1024 * 1024;
 var MAX_FILES = 25e3;
-var MAX_TEXT_SAMPLE_BYTES2 = 64e3;
+var MAX_HISTORICAL_BLOB_BYTES = 16 * 1024 * 1024;
 var MAX_BATCH_BYTES = 64 * 1024 * 1024;
 var MAX_BATCH_OUTPUT_BYTES = MAX_BATCH_BYTES + 2 * 1024 * 1024;
-var ARCHITECTURE_CACHE_VERSION = 1;
+var ARCHITECTURE_CACHE_VERSION = 2;
 var ARCHITECTURE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
 var ARCHITECTURE_CACHE_FILE = /^architecture-v\d+-[a-f0-9]{40,64}-(?:policy|no-policy)\.json$/;
 var ARCHITECTURE_CACHE_TEMP_FILE = /^architecture-v\d+-[a-f0-9]{40,64}-(?:policy|no-policy)\.json\.\d+-[0-9a-f-]{36}\.tmp$/;
 async function scanRepoAtRef(input) {
   const repoRoot = resolve2(input.repoRoot);
   const requestedRef = validateRef(input.ref);
-  return scanCommit(repoRoot, requestedRef, await resolveCommit(repoRoot, requestedRef));
+  return scanCommit(repoRoot, requestedRef, await resolveCommit(repoRoot, requestedRef), { includeHistory: true });
 }
-async function scanCommit(repoRoot, requestedRef, commit) {
+async function scanCommit(repoRoot, requestedRef, commit, options = {}) {
   const { stdout } = await exec2("git", ["ls-tree", "-r", "-z", "-l", "--full-tree", commit, "--"], {
     cwd: repoRoot,
     encoding: "utf8",
@@ -7673,20 +7714,27 @@ async function scanCommit(repoRoot, requestedRef, commit) {
       severity: "warning",
       message: `Historical scan stopped after ${MAX_FILES.toLocaleString()} files at ${commit}.`
     });
-  const readable = [];
-  let scheduledBytes = 0;
-  for (const entry2 of entries) {
-    if (!isSourcePath(entry2.path) && entry2.path !== ".fixmapignore" || entry2.size > MAX_TEXT_SAMPLE_BYTES2)
-      continue;
-    if (scheduledBytes + entry2.size > MAX_BATCH_BYTES)
-      continue;
-    readable.push(entry2);
-    scheduledBytes += entry2.size;
+  const wanted = entries.filter((entry2) => (entry2.path === ".fixmapignore" || describeFileFromBytes(entry2.path, entry2.size, void 0).isSource) && entry2.size <= MAX_HISTORICAL_BLOB_BYTES);
+  const described = /* @__PURE__ */ new Map();
+  let ignoreBytes;
+  for (let start = 0; start < wanted.length; ) {
+    const batch = [];
+    let batchBytes = 0;
+    while (start < wanted.length && (batch.length === 0 || batchBytes + wanted[start].size <= MAX_BATCH_BYTES)) {
+      batch.push(wanted[start]);
+      batchBytes += wanted[start].size;
+      start += 1;
+    }
+    const content = await readBlobs(repoRoot, batch);
+    for (const entry2 of batch) {
+      const bytes = content.get(entry2.oid);
+      if (entry2.path === ".fixmapignore")
+        ignoreBytes = bytes;
+      described.set(entry2.path, describeFileFromBytes(entry2.path, entry2.size, bytes, `git:${entry2.oid}`));
+    }
   }
-  const content = await readBlobs(repoRoot, readable);
-  const files = entries.map((entry2) => buildRepoFile(entry2, content.get(entry2.oid)));
-  const ignoreEntry = entries.find((entry2) => entry2.path === ".fixmapignore");
-  const ignoreBytes = ignoreEntry ? content.get(ignoreEntry.oid) : void 0;
+  const files = entries.map((entry2) => described.get(entry2.path) ?? describeFileFromBytes(entry2.path, entry2.size, void 0, `git:${entry2.oid}`));
+  const history = options.includeHistory ? await readRepositoryHistory(repoRoot, new Set(files.map((file) => file.path)), diagnostics, commit) : void 0;
   return {
     requestedRef,
     commit,
@@ -7698,7 +7746,8 @@ async function scanCommit(repoRoot, requestedRef, commit) {
       changedFiles: [],
       diffText: "",
       packageManager: inferPackageManager(entries),
-      diagnostics
+      diagnostics,
+      ...history ? { history } : {}
     },
     ...ignoreBytes ? { ignoreFile: ignoreBytes.toString("utf8") } : {}
   };
@@ -7943,49 +7992,6 @@ function parseBatch(output, oids) {
   if (offset !== output.length)
     throw new Error("git cat-file returned trailing output.");
   return result;
-}
-function buildRepoFile(entry2, bytes) {
-  const extension = extname2(entry2.path).toLowerCase();
-  const isSource = isSourcePath(entry2.path);
-  let textSample = "";
-  let textSampleComplete;
-  let textSampleSkipReason;
-  if (isSource) {
-    if (!bytes) {
-      textSampleComplete = false;
-      textSampleSkipReason = "too-large";
-    } else {
-      try {
-        textSample = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-        textSampleComplete = true;
-      } catch {
-        textSampleComplete = false;
-        textSampleSkipReason = "not-text";
-      }
-    }
-  }
-  return {
-    path: entry2.path,
-    contentFingerprint: `git:${entry2.oid}`,
-    extension,
-    sizeBytes: entry2.size,
-    isTest: isLanguageTestPath(entry2.path, extension) || /(?:^|\/)(?:__tests__|tests?|spec)(?:\/|$)/i.test(entry2.path),
-    isSource,
-    kind: classify(entry2.path, extension),
-    textSample,
-    ...textSampleComplete !== void 0 ? { textSampleComplete } : {},
-    ...textSampleSkipReason ? { textSampleSkipReason } : {}
-  };
-}
-function isSourcePath(path) {
-  return SOURCE_FILE_EXTENSIONS.has(extname2(path).toLowerCase()) || /(?:^|\/)(?:dockerfile|makefile|pom\.xml|pyproject\.toml)$/i.test(path);
-}
-function classify(path, extension) {
-  if (/\.(?:md|mdx)$/i.test(extension) || /(?:^|\/)docs?\//i.test(path))
-    return "documentation";
-  if (/\.(?:json|ya?ml|toml)$/i.test(extension) || /(?:^|\/)(?:dockerfile|makefile|pom\.xml)$/i.test(path))
-    return "config";
-  return isSourcePath(path) ? "code" : "other";
 }
 function inferPackageManager(entries) {
   const names = new Set(entries.map((entry2) => entry2.path.split("/").at(-1)?.toLowerCase()));

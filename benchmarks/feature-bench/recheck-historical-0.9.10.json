@@ -1,0 +1,770 @@
+{
+  "summary": {
+    "label": "re-check after the 0.9.10 fix (code as released in 0.9.10); not the pre-registered run, which stays 18/40 in results.json",
+    "cases": 40,
+    "available": 40,
+    "passed": 40
+  },
+  "cases": [
+    {
+      "slug": "Automattic/mongoose",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "lib/document.js",
+        "lib/helpers/setDefaultsOnInsert.js",
+        "lib/helpers/update/modifiedPaths.js",
+        "lib/types/subdocument.js",
+        "lib/types/array/methods/index.js"
+      ],
+      "atRef": [
+        "lib/document.js",
+        "lib/helpers/setDefaultsOnInsert.js",
+        "lib/helpers/update/modifiedPaths.js",
+        "lib/types/subdocument.js",
+        "lib/types/array/methods/index.js"
+      ]
+    },
+    {
+      "slug": "immerjs/immer",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "src/immer.ts",
+        "src/types/types-external.ts",
+        "src/plugins/patches.ts",
+        "src/core/immerClass.ts",
+        "src/core/proxy.ts"
+      ],
+      "atRef": [
+        "src/immer.ts",
+        "src/types/types-external.ts",
+        "src/plugins/patches.ts",
+        "src/core/immerClass.ts",
+        "src/core/proxy.ts"
+      ]
+    },
+    {
+      "slug": "jestjs/jest",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "packages/jest-core/src/TestScheduler.ts",
+        "packages/jest-runner/src/runTest.ts",
+        "packages/jest-test-sequencer/src/index.ts",
+        "packages/jest-worker/src/workers/threadChild.ts",
+        "packages/jest-worker/src/workers/processChild.ts"
+      ],
+      "atRef": [
+        "packages/jest-core/src/TestScheduler.ts",
+        "packages/jest-runner/src/runTest.ts",
+        "packages/jest-test-sequencer/src/index.ts",
+        "packages/jest-worker/src/workers/threadChild.ts",
+        "packages/jest-worker/src/workers/processChild.ts"
+      ]
+    },
+    {
+      "slug": "knex/knex",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "lib/knex-builder/make-knex.js",
+        "lib/dialects/postgres/index.js",
+        "lib/dialects/oracledb/index.js",
+        "bin/cli.js",
+        "lib/dialects/mysql/index.js"
+      ],
+      "atRef": [
+        "lib/knex-builder/make-knex.js",
+        "lib/dialects/postgres/index.js",
+        "lib/dialects/oracledb/index.js",
+        "bin/cli.js",
+        "lib/dialects/mysql/index.js"
+      ]
+    },
+    {
+      "slug": "mochajs/mocha",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "lib/reporters/xunit.js",
+        "lib/mocha.cjs",
+        "lib/reporters/html.js",
+        "lib/reporters/base.js",
+        "lib/nodejs/parallel-buffered-runner.cjs"
+      ],
+      "atRef": [
+        "lib/reporters/xunit.js",
+        "lib/mocha.cjs",
+        "lib/reporters/html.js",
+        "lib/reporters/base.js",
+        "lib/nodejs/parallel-buffered-runner.cjs"
+      ]
+    },
+    {
+      "slug": "react-hook-form/react-hook-form",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "src/logic/createFormControl.ts",
+        "src/useController.ts",
+        "src/types/form.ts",
+        "src/useFormState.ts",
+        "app/src/useFormState.tsx"
+      ],
+      "atRef": [
+        "src/logic/createFormControl.ts",
+        "src/useController.ts",
+        "src/types/form.ts",
+        "src/useFormState.ts",
+        "app/src/useFormState.tsx"
+      ]
+    },
+    {
+      "slug": "socketio/socket.io",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "packages/engine.io-client/lib/transports/polling-xhr.ts",
+        "packages/engine.io-client/lib/socket.ts",
+        "packages/socket.io-client/dist/socket.io.js",
+        "packages/socket.io/client-dist/socket.io.js",
+        "packages/engine.io-client/lib/transports/websocket.ts"
+      ],
+      "atRef": [
+        "packages/engine.io-client/lib/transports/polling-xhr.ts",
+        "packages/engine.io-client/lib/socket.ts",
+        "packages/socket.io-client/dist/socket.io.js",
+        "packages/socket.io/client-dist/socket.io.js",
+        "packages/engine.io-client/lib/transports/websocket.ts"
+      ]
+    },
+    {
+      "slug": "sveltejs/svelte",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "packages/svelte/src/internal/client/dom/blocks/boundary.js",
+        "packages/svelte/scripts/check-treeshakeability.js",
+        "packages/svelte/src/internal/client/errors.js",
+        "packages/svelte/src/internal/client/warnings.js",
+        "packages/svelte/src/internal/client/render.js"
+      ],
+      "atRef": [
+        "packages/svelte/src/internal/client/dom/blocks/boundary.js",
+        "packages/svelte/scripts/check-treeshakeability.js",
+        "packages/svelte/src/internal/client/errors.js",
+        "packages/svelte/src/internal/client/warnings.js",
+        "packages/svelte/src/internal/client/render.js"
+      ]
+    },
+    {
+      "slug": "vitejs/vite",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "packages/create-vite/template-vue-ts/src/App.vue",
+        "packages/create-vite/template-vue/src/App.vue",
+        "packages/vite/src/node/optimizer/rolldownDepPlugin.ts",
+        "packages/vite/types/metadata.d.ts",
+        "packages/vite/src/node/plugins/workerImportMetaUrl.ts"
+      ],
+      "atRef": [
+        "packages/create-vite/template-vue-ts/src/App.vue",
+        "packages/create-vite/template-vue/src/App.vue",
+        "packages/vite/src/node/optimizer/rolldownDepPlugin.ts",
+        "packages/vite/types/metadata.d.ts",
+        "packages/vite/src/node/plugins/workerImportMetaUrl.ts"
+      ]
+    },
+    {
+      "slug": "vuejs/core",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "tsconfig.json",
+        "packages-private/tsconfig.json",
+        "packages-private/dts-built-test/tsconfig.json",
+        "packages-private/vite-debug/tsconfig.json",
+        "packages/reactivity/src/ref.ts"
+      ],
+      "atRef": [
+        "tsconfig.json",
+        "packages-private/tsconfig.json",
+        "packages-private/dts-built-test/tsconfig.json",
+        "packages-private/vite-debug/tsconfig.json",
+        "packages/reactivity/src/ref.ts"
+      ]
+    },
+    {
+      "slug": "winstonjs/winston",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "lib/winston/transports/file.js",
+        "lib/winston/transports/http.js",
+        "lib/winston/tail-file.js",
+        "lib/winston/logger.js",
+        "lib/winston/transports/console.js"
+      ],
+      "atRef": [
+        "lib/winston/transports/file.js",
+        "lib/winston/transports/http.js",
+        "lib/winston/tail-file.js",
+        "lib/winston/logger.js",
+        "lib/winston/transports/console.js"
+      ]
+    },
+    {
+      "slug": "yargs/yargs",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "lib/utils/apply-extends.ts",
+        "lib/yargs-factory.ts",
+        "lib/command.ts",
+        "lib/validation.ts",
+        "lib/completion.ts"
+      ],
+      "atRef": [
+        "lib/utils/apply-extends.ts",
+        "lib/yargs-factory.ts",
+        "lib/command.ts",
+        "lib/validation.ts",
+        "lib/completion.ts"
+      ]
+    },
+    {
+      "slug": "NousResearch/hermes-agent",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "gateway/run_turn_persistence.py",
+        "gateway/run_turn_runner.py",
+        "apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/status.ts",
+        "agent/turn_empty_response.py",
+        "apps/desktop/src/components/assistant-ui/tool/fallback-model/format.ts"
+      ],
+      "atRef": [
+        "gateway/run_turn_persistence.py",
+        "gateway/run_turn_runner.py",
+        "apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/status.ts",
+        "agent/turn_empty_response.py",
+        "apps/desktop/src/components/assistant-ui/tool/fallback-model/format.ts"
+      ]
+    },
+    {
+      "slug": "yt-dlp/yt-dlp",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "CONTRIBUTING.md",
+        "yt_dlp/update.py",
+        "yt_dlp/extractor/la7.py",
+        "yt_dlp/extractor/youtube/_base.py",
+        "yt_dlp/extractor/youtube/_video.py"
+      ],
+      "atRef": [
+        "CONTRIBUTING.md",
+        "yt_dlp/update.py",
+        "yt_dlp/extractor/la7.py",
+        "yt_dlp/extractor/youtube/_base.py",
+        "yt_dlp/extractor/youtube/_video.py"
+      ]
+    },
+    {
+      "slug": "microsoft/markitdown",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "packages/markitdown/src/markitdown/__main__.py",
+        "packages/markitdown-mcp/src/markitdown_mcp/__main__.py",
+        "packages/markitdown/src/markitdown/converters/_pdf_converter.py",
+        "packages/markitdown-ocr/src/markitdown_ocr/_pdf_converter_with_ocr.py",
+        "packages/markitdown/src/markitdown/_markitdown.py"
+      ],
+      "atRef": [
+        "packages/markitdown/src/markitdown/__main__.py",
+        "packages/markitdown-mcp/src/markitdown_mcp/__main__.py",
+        "packages/markitdown/src/markitdown/converters/_pdf_converter.py",
+        "packages/markitdown-ocr/src/markitdown_ocr/_pdf_converter_with_ocr.py",
+        "packages/markitdown/src/markitdown/_markitdown.py"
+      ]
+    },
+    {
+      "slug": "Significant-Gravitas/AutoGPT",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "autogpt_platform/backend/backend/util/type.py",
+        "autogpt_platform/backend/backend/executor/utils.py",
+        "autogpt_platform/backend/backend/blocks/branching.py",
+        "autogpt_platform/backend/backend/blocks/_base.py",
+        "autogpt_platform/backend/backend/blocks/llm.py"
+      ],
+      "atRef": [
+        "autogpt_platform/backend/backend/util/type.py",
+        "autogpt_platform/backend/backend/executor/utils.py",
+        "autogpt_platform/backend/backend/blocks/branching.py",
+        "autogpt_platform/backend/backend/blocks/_base.py",
+        "autogpt_platform/backend/backend/blocks/llm.py"
+      ]
+    },
+    {
+      "slug": "NationalSecurityAgency/ghidra",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "Ghidra/Features/Base/src/main/java/ghidra/app/plugin/core/assembler/PatchInstructionAction.java",
+        "Ghidra/Features/Base/src/main/java/ghidra/app/plugin/prototype/analysis/ArmAggressiveInstructionFinderAnalyzer.java",
+        "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/disassemble/AbstractTracePatchInstructionAction.java",
+        "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/disassemble/FixedPlatformTracePatchInstructionAction.java",
+        "Ghidra/Features/Base/ghidra_scripts/Fix_ARM_Call_JumpsScript.java"
+      ],
+      "atRef": [
+        "Ghidra/Features/Base/src/main/java/ghidra/app/plugin/core/assembler/PatchInstructionAction.java",
+        "Ghidra/Features/Base/src/main/java/ghidra/app/plugin/prototype/analysis/ArmAggressiveInstructionFinderAnalyzer.java",
+        "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/disassemble/AbstractTracePatchInstructionAction.java",
+        "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/disassemble/FixedPlatformTracePatchInstructionAction.java",
+        "Ghidra/Features/Base/ghidra_scripts/Fix_ARM_Call_JumpsScript.java"
+      ]
+    },
+    {
+      "slug": "iluwatar/java-design-patterns",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "half-sync-half-async/src/main/java/com/iluwatar/halfsynchalfasync/AsyncTask.java",
+        "callback/src/main/java/com/iluwatar/callback/Task.java",
+        "thread-pool-executor/src/main/java/com/iluwatar/threadpoolexecutor/App.java",
+        "thread-pool-executor/src/main/java/com/iluwatar/threadpoolexecutor/FrontDeskService.java",
+        "thread-pool-executor/src/main/java/com/iluwatar/threadpoolexecutor/VipGuestCheckInTask.java"
+      ],
+      "atRef": [
+        "half-sync-half-async/src/main/java/com/iluwatar/halfsynchalfasync/AsyncTask.java",
+        "callback/src/main/java/com/iluwatar/callback/Task.java",
+        "thread-pool-executor/src/main/java/com/iluwatar/threadpoolexecutor/App.java",
+        "thread-pool-executor/src/main/java/com/iluwatar/threadpoolexecutor/FrontDeskService.java",
+        "thread-pool-executor/src/main/java/com/iluwatar/threadpoolexecutor/VipGuestCheckInTask.java"
+      ]
+    },
+    {
+      "slug": "termux/termux-app",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "termux-shared/src/main/java/com/termux/shared/android/AndroidUtils.java",
+        "app/src/main/java/com/termux/app/terminal/TermuxTerminalViewClient.java",
+        "app/src/main/java/com/termux/app/TermuxActivity.java",
+        "terminal-view/src/main/java/com/termux/view/TerminalView.java",
+        "app/src/main/java/com/termux/app/terminal/TermuxActivityRootView.java"
+      ],
+      "atRef": [
+        "termux-shared/src/main/java/com/termux/shared/android/AndroidUtils.java",
+        "app/src/main/java/com/termux/app/terminal/TermuxTerminalViewClient.java",
+        "app/src/main/java/com/termux/app/TermuxActivity.java",
+        "terminal-view/src/main/java/com/termux/view/TerminalView.java",
+        "app/src/main/java/com/termux/app/terminal/TermuxActivityRootView.java"
+      ]
+    },
+    {
+      "slug": "skylot/jadx",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "jadx-core/src/main/java/jadx/api/JadxArgs.java",
+        "jadx-core/src/main/java/jadx/core/utils/android/Res9patchStreamDecoder.java",
+        "jadx-gui/src/main/java/jadx/gui/report/ExceptionDialog.java",
+        "jadx-core/src/main/java/jadx/api/plugins/utils/CommonFileUtils.java",
+        "jadx-core/src/main/java/jadx/api/JadxDecompiler.java"
+      ],
+      "atRef": [
+        "jadx-core/src/main/java/jadx/api/JadxArgs.java",
+        "jadx-core/src/main/java/jadx/core/utils/android/Res9patchStreamDecoder.java",
+        "jadx-gui/src/main/java/jadx/gui/report/ExceptionDialog.java",
+        "jadx-core/src/main/java/jadx/api/plugins/utils/CommonFileUtils.java",
+        "jadx-core/src/main/java/jadx/api/JadxDecompiler.java"
+      ]
+    },
+    {
+      "slug": "ollama/ollama",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "server/sched.go",
+        "llm/llama_server.go",
+        "server/model_show_cache.go",
+        "cmd/launch/models.go",
+        "server/routes.go"
+      ],
+      "atRef": [
+        "server/sched.go",
+        "llm/llama_server.go",
+        "server/model_show_cache.go",
+        "cmd/launch/models.go",
+        "server/routes.go"
+      ]
+    },
+    {
+      "slug": "kubernetes/kubernetes",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "staging/src/k8s.io/kubectl/pkg/cmd/exec/exec.go",
+        "staging/src/k8s.io/apiserver/pkg/apis/audit/types.go",
+        "pkg/kubelet/apis/config/types.go",
+        "staging/src/k8s.io/kubectl/pkg/cmd/run/run.go",
+        "pkg/apis/core/types.go"
+      ],
+      "atRef": [
+        "staging/src/k8s.io/kubectl/pkg/cmd/exec/exec.go",
+        "staging/src/k8s.io/apiserver/pkg/apis/audit/types.go",
+        "pkg/kubelet/apis/config/types.go",
+        "staging/src/k8s.io/kubectl/pkg/cmd/run/run.go",
+        "pkg/apis/core/types.go"
+      ]
+    },
+    {
+      "slug": "JuliusBrussee/caveman",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "agents/compile.mjs",
+        "agents/profiles/qwen.json",
+        "skills/compile.mjs",
+        "integrations/compile.mjs",
+        "agents/drift-report.mjs"
+      ],
+      "atRef": [
+        "agents/compile.mjs",
+        "agents/profiles/qwen.json",
+        "skills/compile.mjs",
+        "integrations/compile.mjs",
+        "agents/drift-report.mjs"
+      ]
+    },
+    {
+      "slug": "microsoft/TypeScript",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "tsc/internal/ast/ast.go",
+        "tsc/internal/ast/symbol.go",
+        "tsc/testdata/baselines/reference/compiler/moduleMemberWithoutTypeAnnotation1.js",
+        "tsc/testdata/baselines/reference/compiler/moduleMemberWithoutTypeAnnotation2.js",
+        "tsc/internal/format/util.go"
+      ],
+      "atRef": [
+        "tsc/internal/ast/ast.go",
+        "tsc/internal/ast/symbol.go",
+        "tsc/testdata/baselines/reference/compiler/moduleMemberWithoutTypeAnnotation1.js",
+        "tsc/testdata/baselines/reference/compiler/moduleMemberWithoutTypeAnnotation2.js",
+        "tsc/internal/format/util.go"
+      ]
+    },
+    {
+      "slug": "ultraworkers/claw-code",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "rust/crates/runtime/src/task_packet.rs",
+        "rust/crates/rusty-claude-cli/src/main.rs",
+        "rust/crates/tools/src/lib.rs",
+        "rust/crates/runtime/src/task_registry.rs",
+        "rust/crates/commands/src/lib.rs"
+      ],
+      "atRef": [
+        "rust/crates/runtime/src/task_packet.rs",
+        "rust/crates/rusty-claude-cli/src/main.rs",
+        "rust/crates/tools/src/lib.rs",
+        "rust/crates/runtime/src/task_registry.rs",
+        "rust/crates/commands/src/lib.rs"
+      ]
+    },
+    {
+      "slug": "farion1231/cc-switch",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "src-tauri/src/proxy/providers/transform_responses.rs",
+        "src-tauri/src/session_manager/content.rs",
+        "src-tauri/src/proxy/providers/transform_codex_anthropic.rs",
+        "src-tauri/src/services/skill_repo_tokens.rs",
+        "src-tauri/src/services/codex_oauth_models.rs"
+      ],
+      "atRef": [
+        "src-tauri/src/proxy/providers/transform_responses.rs",
+        "src-tauri/src/session_manager/content.rs",
+        "src-tauri/src/proxy/providers/transform_codex_anthropic.rs",
+        "src-tauri/src/services/skill_repo_tokens.rs",
+        "src-tauri/src/services/codex_oauth_models.rs"
+      ]
+    },
+    {
+      "slug": "rustdesk/rustdesk",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "src/client.rs",
+        "src/lang/cn.rs",
+        "src/lang/ja.rs",
+        "src/lang/ru.rs",
+        "src/lang/ko.rs"
+      ],
+      "atRef": [
+        "src/client.rs",
+        "src/lang/cn.rs",
+        "src/lang/ja.rs",
+        "src/lang/ru.rs",
+        "src/lang/ko.rs"
+      ]
+    },
+    {
+      "slug": "rust-lang/rust",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "library/std/src/sync/poison/mutex.rs",
+        "library/std/src/sync/nonpoison/mutex.rs",
+        "library/std/src/sync/reentrant_lock.rs",
+        "library/std/src/sys/pal/unix/sync/mutex.rs",
+        "compiler/rustc_data_structures/src/sync/lock.rs"
+      ],
+      "atRef": [
+        "library/std/src/sync/poison/mutex.rs",
+        "library/std/src/sync/nonpoison/mutex.rs",
+        "library/std/src/sync/reentrant_lock.rs",
+        "library/std/src/sys/pal/unix/sync/mutex.rs",
+        "compiler/rustc_data_structures/src/sync/lock.rs"
+      ]
+    },
+    {
+      "slug": "jekyll/jekyll",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "lib/jekyll/document.rb",
+        "lib/jekyll/command.rb",
+        "lib/jekyll/url.rb",
+        "lib/jekyll/collection.rb",
+        "lib/jekyll/drops/document_drop.rb"
+      ],
+      "atRef": [
+        "lib/jekyll/document.rb",
+        "lib/jekyll/command.rb",
+        "lib/jekyll/url.rb",
+        "lib/jekyll/collection.rb",
+        "lib/jekyll/drops/document_drop.rb"
+      ]
+    },
+    {
+      "slug": "mastodon/mastodon",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "app/javascript/mastodon/features/ui/components/bundle_column_error/index.tsx",
+        "app/lib/link_details_extractor.rb",
+        "app/javascript/mastodon/actions/compose.js",
+        "app/controllers/concerns/web_app_controller_concern.rb",
+        "app/javascript/mastodon/features/navigation_panel/logged_out_info.tsx"
+      ],
+      "atRef": [
+        "app/javascript/mastodon/features/ui/components/bundle_column_error/index.tsx",
+        "app/lib/link_details_extractor.rb",
+        "app/javascript/mastodon/actions/compose.js",
+        "app/controllers/concerns/web_app_controller_concern.rb",
+        "app/javascript/mastodon/features/navigation_panel/logged_out_info.tsx"
+      ]
+    },
+    {
+      "slug": "huginn/huginn",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "app/models/agents/imap_folder_agent.rb",
+        "app/models/agents/java_script_agent.rb",
+        "app/models/agent.rb",
+        "app/controllers/user_credentials_controller.rb",
+        "app/models/agents/twilio_receive_text_agent.rb"
+      ],
+      "atRef": [
+        "app/models/agents/imap_folder_agent.rb",
+        "app/models/agents/java_script_agent.rb",
+        "app/models/agent.rb",
+        "app/controllers/user_credentials_controller.rb",
+        "app/models/agents/twilio_receive_text_agent.rb"
+      ]
+    },
+    {
+      "slug": "Homebrew/brew",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "Library/Homebrew/cmd/doctor.rb",
+        "Library/Homebrew/test_bot/formulae.rb",
+        "Library/Homebrew/utils/output.rb",
+        "Library/Homebrew/brew.rb",
+        "Library/Homebrew/rubocops/lines.rb"
+      ],
+      "atRef": [
+        "Library/Homebrew/cmd/doctor.rb",
+        "Library/Homebrew/test_bot/formulae.rb",
+        "Library/Homebrew/utils/output.rb",
+        "Library/Homebrew/brew.rb",
+        "Library/Homebrew/rubocops/lines.rb"
+      ]
+    },
+    {
+      "slug": "coollabsio/coolify",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "app/Livewire/Project/Shared/ScheduledTask/Executions.php",
+        "app/Http/Controllers/Api/ScheduledTasksController.php",
+        "app/Jobs/ScheduledTaskJob.php",
+        "app/Actions/CoolifyTask/RunRemoteProcess.php",
+        "app/Jobs/ScheduledJobManager.php"
+      ],
+      "atRef": [
+        "app/Livewire/Project/Shared/ScheduledTask/Executions.php",
+        "app/Http/Controllers/Api/ScheduledTasksController.php",
+        "app/Jobs/ScheduledTaskJob.php",
+        "app/Actions/CoolifyTask/RunRemoteProcess.php",
+        "app/Jobs/ScheduledJobManager.php"
+      ]
+    },
+    {
+      "slug": "nextcloud/server",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "apps/files_external/lib/Lib/Storage/SFTPReadStream.php",
+        "apps/files_external/lib/Lib/Storage/SFTP.php",
+        "lib/private/Preview/Movie.php",
+        "apps/files_versions/lib/Storage.php",
+        "apps/files_external/lib/Lib/Storage/SFTPWriteStream.php"
+      ],
+      "atRef": [
+        "apps/files_external/lib/Lib/Storage/SFTPReadStream.php",
+        "apps/files_external/lib/Lib/Storage/SFTP.php",
+        "lib/private/Preview/Movie.php",
+        "apps/files_versions/lib/Storage.php",
+        "apps/files_external/lib/Lib/Storage/SFTPWriteStream.php"
+      ]
+    },
+    {
+      "slug": "laravel/framework",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php",
+        "src/Illuminate/Database/Eloquent/Builder.php",
+        "src/Illuminate/Database/Eloquent/Factories/Factory.php",
+        "src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php",
+        "src/Illuminate/Database/Eloquent/Model.php"
+      ],
+      "atRef": [
+        "src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php",
+        "src/Illuminate/Database/Eloquent/Builder.php",
+        "src/Illuminate/Database/Eloquent/Factories/Factory.php",
+        "src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php",
+        "src/Illuminate/Database/Eloquent/Model.php"
+      ]
+    },
+    {
+      "slug": "filamentphp/filament",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "packages/schemas/src/Components/Concerns/CanBeHidden.php",
+        "packages/schemas/src/Components/Concerns/HasState.php",
+        "packages/schemas/src/Components/Section.php",
+        "packages/schemas/src/Concerns/HasState.php",
+        "packages/schemas/src/Components/Tabs.php"
+      ],
+      "atRef": [
+        "packages/schemas/src/Components/Concerns/CanBeHidden.php",
+        "packages/schemas/src/Components/Concerns/HasState.php",
+        "packages/schemas/src/Components/Section.php",
+        "packages/schemas/src/Concerns/HasState.php",
+        "packages/schemas/src/Components/Tabs.php"
+      ]
+    },
+    {
+      "slug": "2dust/v2rayN",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "v2rayN/v2rayN.Desktop/Program.cs",
+        "v2rayN/v2rayN.Desktop/Views/MainWindow.axaml.cs",
+        "v2rayN/v2rayN.WebAPI/Program.cs",
+        "v2rayN/v2rayN.Desktop/Views/BackupAndRestoreView.axaml.cs",
+        "v2rayN/v2rayN.Desktop/Views/OptionSettingWindow.axaml.cs"
+      ],
+      "atRef": [
+        "v2rayN/v2rayN.Desktop/Program.cs",
+        "v2rayN/v2rayN.Desktop/Views/MainWindow.axaml.cs",
+        "v2rayN/v2rayN.WebAPI/Program.cs",
+        "v2rayN/v2rayN.Desktop/Views/BackupAndRestoreView.axaml.cs",
+        "v2rayN/v2rayN.Desktop/Views/OptionSettingWindow.axaml.cs"
+      ]
+    },
+    {
+      "slug": "shadowsocks/shadowsocks-windows",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "shadowsocks-csharp/Data/abp.js",
+        "shadowsocks-csharp/Program.cs",
+        "shadowsocks-csharp/Controller/Service/GeositeUpdater.cs",
+        "shadowsocks-csharp/Controller/ShadowsocksController.cs",
+        "shadowsocks-csharp/View/MenuViewController.cs"
+      ],
+      "atRef": [
+        "shadowsocks-csharp/Data/abp.js",
+        "shadowsocks-csharp/Program.cs",
+        "shadowsocks-csharp/Controller/Service/GeositeUpdater.cs",
+        "shadowsocks-csharp/Controller/ShadowsocksController.cs",
+        "shadowsocks-csharp/View/MenuViewController.cs"
+      ]
+    },
+    {
+      "slug": "PowerShell/PowerShell",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "docs/FAQ.md",
+        "src/System.Management.Automation/engine/hostifaces/PowerShellProcessInstance.cs",
+        "src/Microsoft.PowerShell.ConsoleHost/host/msh/ConsoleHost.cs",
+        "src/System.Management.Automation/engine/remoting/common/RunspaceConnectionInfo.cs",
+        "src/Microsoft.PowerShell.ConsoleHost/WindowsTaskbarJumpList/TaskbarJumpList.cs"
+      ],
+      "atRef": [
+        "docs/FAQ.md",
+        "src/System.Management.Automation/engine/hostifaces/PowerShellProcessInstance.cs",
+        "src/Microsoft.PowerShell.ConsoleHost/host/msh/ConsoleHost.cs",
+        "src/System.Management.Automation/engine/remoting/common/RunspaceConnectionInfo.cs",
+        "src/Microsoft.PowerShell.ConsoleHost/WindowsTaskbarJumpList/TaskbarJumpList.cs"
+      ]
+    },
+    {
+      "slug": "files-community/Files",
+      "status": "ok",
+      "pass": true,
+      "workingTree": [
+        "src/Files.App/Files.App.csproj",
+        "src/Files.App.Server/Cloud/CloudDrivesDetector.cs",
+        "src/Files.App/MainWindow.xaml.cs",
+        "src/Files.App/Helpers/Win32/Win32Helper.Storage.cs",
+        "src/Files.App/ViewModels/Settings/AdvancedViewModel.cs"
+      ],
+      "atRef": [
+        "src/Files.App/Files.App.csproj",
+        "src/Files.App.Server/Cloud/CloudDrivesDetector.cs",
+        "src/Files.App/MainWindow.xaml.cs",
+        "src/Files.App/Helpers/Win32/Win32Helper.Storage.cs",
+        "src/Files.App/ViewModels/Settings/AdvancedViewModel.cs"
+      ]
+    }
+  ]
+}
