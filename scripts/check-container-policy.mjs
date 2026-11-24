@@ -25,7 +25,8 @@ for (const [pattern, description] of checks) {
   if (!matches) throw new Error(`Self-hosted container policy failed: ${description}.`);
 }
 if (/^FROM\s+(?!\$\{NODE_IMAGE\})/m.test(dockerfile)) throw new Error("Self-hosted container policy failed: an unpinned base stage exists.");
-if (/\b(?:ADD|curl|wget)\s+/i.test(dockerfile)) throw new Error("Self-hosted container policy failed: remote or opaque artifact acquisition exists.");
+// The ADD instruction (which can fetch URLs and unpack archives) and download tools; `git config --add` is not ADD.
+if (/^\s*ADD\s+/im.test(dockerfile) || /\b(?:curl|wget)\s+/i.test(dockerfile)) throw new Error("Self-hosted container policy failed: remote or opaque artifact acquisition exists.");
 
 // Exercise the actual config in isolated processes, not just its source spelling.
 const configUrl = pathToFileURL(resolve(root, "apps/web/next.config.mjs")).href;

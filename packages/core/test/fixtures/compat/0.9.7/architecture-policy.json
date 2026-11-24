@@ -1,0 +1,24 @@
+{
+  "architecturePolicyVersion": 1,
+  "boundaries": [],
+  "requiredTests": [
+    {
+      "id": "src-tests",
+      "paths": [
+        "src/**"
+      ],
+      "tests": [
+        "**/*.test.*",
+        "**/*.spec.*",
+        "src/**/test/**",
+        "src/**/tests/**",
+        "src/**/__tests__/**",
+        "src/**/spec/**"
+      ],
+      "reason": "Changes to src should come with a changed test. Edit this reason to say why.",
+      "severity": "warning"
+    }
+  ],
+  "requiredReviews": [],
+  "contracts": []
+}

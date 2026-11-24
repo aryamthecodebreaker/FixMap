@@ -1,0 +1,30 @@
+{
+  "changeDossierVersion": 1,
+  "fingerprint": "dossier:0fd8530defdc71ea",
+  "id": "dossier-20261124T073154Z-cc978abd",
+  "repositoryIdentity": "fixmap://workspace/local/repository/fixmap-compat-0.9.7-obxlYS",
+  "createdAt": "2026-11-24T07:31:54.897Z",
+  "updatedAt": "2026-11-24T07:31:54.897Z",
+  "request": {
+    "summary": "password reset fails",
+    "sourceFingerprint": "sha256:e7227a209335ca5318c2ced833db8826b4d8c420de157384ee9460b52377b571"
+  },
+  "assumptions": [],
+  "plan": {
+    "reportFingerprint": "sha256:599694ede944958740ca9d5fbd1f3cbfd2de24c3b285b4f6431526c51e31d6f2",
+    "graphFingerprint": "sha256:e63007c4c7463daafcdc4c1595154bdfc9901ceff21058ff08bade61ee449e7f"
+  },
+  "decisions": [],
+  "diff": {
+    "sourceFingerprint": "sha256:45d03eb4b041d062db34c1e629374bd789d899aa8a69e425938fba1588cf560a",
+    "changedFiles": [
+      "src/auth/reset.ts"
+    ],
+    "base": "HEAD",
+    "head": "working-tree"
+  },
+  "tests": [],
+  "runtimeEvidence": [],
+  "reviews": [],
+  "releaseIdentifiers": {}
+}

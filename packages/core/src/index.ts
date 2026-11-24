@@ -10,6 +10,8 @@ export { quoteCliValue } from "./cli-quote.js";
 export type { CliShell } from "./cli-quote.js";
 export type { ReportComparison } from "./compare.js";
 export { checkVerifyNarrative, renderVerifyMarkdown, verifyPlan } from "./verify.js";
+export { checkArtifactCompatibility, supportedArtifactVersions } from "./compatibility.js";
+export type { ArtifactCompatibility, ArtifactKind } from "./compatibility.js";
 export { explainFile, renderExplanationMarkdown } from "./explain.js";
 export type { FileExplanation } from "./explain.js";
 export {

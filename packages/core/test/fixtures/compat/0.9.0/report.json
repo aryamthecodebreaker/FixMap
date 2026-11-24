@@ -1,0 +1,94 @@
+{
+  "reportVersion": 1,
+  "summary": "FixMap found 1 context file, 1 impact file, and generated 1 test route.",
+  "contextFiles": [
+    {
+      "rank": 1,
+      "path": "src/auth/reset.ts",
+      "score": 15,
+      "confidence": "medium",
+      "reasons": [
+        "path matches task terms: reset",
+        "content matches task terms: reset, password",
+        "defines symbols matching task terms: resetPassword",
+        "auth-related task signal"
+      ]
+    }
+  ],
+  "testRoutes": [
+    {
+      "command": "npm run test",
+      "kind": "test",
+      "reason": "repository root script named test",
+      "relatedFiles": [
+        "src/auth/reset.test.ts"
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "area": "authentication",
+      "severity": "low",
+      "reason": "ranked files touch authentication; review this area before editing, but no diff evidence is available yet"
+    }
+  ],
+  "impact": {
+    "seeds": [
+      "src/auth/reset.ts"
+    ],
+    "files": [
+      {
+        "path": "src/auth/reset.test.ts",
+        "score": 13,
+        "confidence": "high",
+        "evidence": [
+          {
+            "kind": "imported-by",
+            "seed": "src/auth/reset.ts",
+            "reason": "this file imports src/auth/reset.ts"
+          },
+          {
+            "kind": "test-route",
+            "seed": "src/auth/reset.ts",
+            "reason": "routed test for src/auth/reset.ts via npm run test"
+          }
+        ]
+      }
+    ],
+    "inspectionOrder": [
+      "src/auth/reset.ts",
+      "src/auth/reset.test.ts"
+    ],
+    "history": {
+      "available": true,
+      "eligibleCommits": 1,
+      "shallow": false,
+      "truncated": false
+    }
+  },
+  "changedFiles": [],
+  "diagnostics": [
+    {
+      "code": "cache-bypass",
+      "severity": "info",
+      "message": "Repository scan caching was bypassed by --no-cache; this report used a fresh scan."
+    }
+  ],
+  "analysis": {
+    "grounding": {
+      "specificity": "descriptive",
+      "identifiers": [],
+      "unresolvedIdentifiers": [],
+      "partiallyResolvedIdentifiers": [],
+      "unverifiedIdentifiers": [],
+      "scanComplete": true
+    },
+    "ranking": {
+      "topScore": 15,
+      "runnerUpScore": null,
+      "topGap": null,
+      "clustered": false
+    },
+    "nextAction": "Inspect src/auth/reset.ts and its routed tests before editing."
+  }
+}

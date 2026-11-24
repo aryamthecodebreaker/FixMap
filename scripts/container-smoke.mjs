@@ -38,6 +38,13 @@ function fixtureRepository() {
   writeFileSync(join(directory, "src", "auth", "reset.ts"), "export function resetPassword(email: string) { return email.includes('@'); }\n");
   writeFileSync(join(directory, "src", "auth", "reset.test.ts"), "import { resetPassword } from './reset';\ntest('reset', () => resetPassword('a@b'));\n");
   writeFileSync(join(directory, "README.md"), "# Fixture\n");
+  // A real checkout, as users mount: two commits so history and diffs are available.
+  const git = (...argv) => execFileSync("git", ["-c", "user.name=FixMap", "-c", "user.email=fixmap@example.test", "-c", "commit.gpgsign=false", ...argv], { cwd: directory, stdio: "ignore" });
+  git("init", "--quiet");
+  git("add", "-A");
+  git("commit", "--quiet", "-m", "base");
+  writeFileSync(join(directory, "src", "auth", "reset.ts"), "export function resetPassword(email: string) { return email.trim().includes('@'); }\n");
+  git("commit", "--quiet", "-am", "trim reset emails");
   return directory;
 }
 
@@ -125,7 +132,13 @@ try {
   check("MCP lists its tools", names.includes("fixmap_plan") && names.includes("fixmap_verify"), `${names.length} tools`);
   const plan = await session.request("tools/call", { name: "fixmap_plan", arguments: { issue: "password reset fails", repo: "/workspace", format: "json", noCache: false } });
   const text = plan.result?.content?.[0]?.text ?? "";
-  check("MCP plans against the read-only mounted workspace", !plan.result?.isError && text.includes("src/auth/reset.ts"), plan.result?.isError ? text.slice(0, 400) : undefined);
+  check("MCP plans against the read-only mounted workspace", !plan.result?.isError && text.includes("src/auth/reset.ts"), text.slice(0, 600));
+  const report = JSON.parse(text);
+  const codes = (report.diagnostics ?? []).map((diagnostic) => diagnostic.code);
+  check("git history is readable inside the container", !codes.includes("impact-history-unavailable") && !codes.includes("history-unavailable"), `diagnostics: ${codes.join(", ") || "none"}`);
+  const verify = await session.request("tools/call", { name: "fixmap_verify", arguments: { report, repo: "/workspace", diff: "HEAD~1...HEAD", format: "json" } });
+  const verified = verify.result?.content?.[0]?.text ?? "";
+  check("MCP verifies a git diff inside the container", !verify.result?.isError && verified.includes("src/auth/reset.ts"), verified.slice(0, 600));
   await session.close();
 
   const listCache = (volume) => docker(["run", "--rm", "--network", "none", "--entrypoint", "node", "-v", `${volume}:/cache:ro`, mcpImage,

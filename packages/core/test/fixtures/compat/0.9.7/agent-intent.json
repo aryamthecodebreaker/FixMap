@@ -1,0 +1,22 @@
+{
+  "agentIntentVersion": 1,
+  "id": "compat",
+  "agent": "agent-a",
+  "task": "fix reset",
+  "baseCommit": "0f13240a55e7c19bf80f6971c8d5e631ba68506f",
+  "createdAt": "2026-11-24T07:31:57.154Z",
+  "expiresAt": "2026-11-24T09:31:57.154Z",
+  "edits": [
+    {
+      "path": "src/auth/reset.ts",
+      "ranges": [
+        {
+          "start": 1,
+          "end": 3
+        }
+      ]
+    }
+  ],
+  "impacts": [],
+  "contracts": []
+}
