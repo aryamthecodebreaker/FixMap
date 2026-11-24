@@ -123,10 +123,10 @@ describe("architecture drift over Git refs", () => {
     const state = await gitState(root);
     const first = await compareArchitectureRefs({ repoRoot: root, fromRef: before, toRef: after });
     const files = await cacheFiles();
-    expect(files).toEqual([`architecture-v1-${after}-policy.json`, `architecture-v1-${before}-policy.json`].sort());
+    expect(files).toEqual([`architecture-v2-${after}-policy.json`, `architecture-v2-${before}-policy.json`].sort());
 
     // A well-formed entry with a marker fingerprint proves the second run read the cache.
-    const afterPath = join(cacheDir, `architecture-v1-${after}-policy.json`);
+    const afterPath = join(cacheDir, `architecture-v2-${after}-policy.json`);
     const record = JSON.parse(await readFile(afterPath, "utf8"));
     record.entry.snapshot.fingerprint = "architecture:cachedmarker";
     const { createHash } = await import("node:crypto");
