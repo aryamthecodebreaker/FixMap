@@ -44,9 +44,30 @@ type Release = {
 
 const releases: Release[] = [
   {
-    version: "0.9.9",
+    version: "0.9.10",
     date: "November 24, 2026",
     label: "Latest release",
+    summary: "Plans against an older commit now read the code exactly like a checkout of that commit. On the same 40 real repositories, 40 now give identical results, up from 18.",
+    groups: [
+      {
+        label: "Fixed",
+        items: [
+          "fixmap plan --at no longer ignores large files or Git history when planning against an older commit.",
+          "Re-check after the fix, on the same 40 repositories (labelled; the pre-registered result stays 18/40): 40/40 now give the identical top 5."
+        ]
+      },
+      {
+        label: "Added",
+        items: [
+          "A fresh test set of never-seen Java projects. A Java ranking change was tried and not shipped because it did not help there.",
+          "A measurement of how often context excerpts contain the code a real fix changed; two alternative excerpt pickers were tried and not shipped."
+        ]
+      }
+    ]
+  },
+  {
+    version: "0.9.9",
+    date: "November 24, 2026",
     summary: "FixMap was tested on 40 real bug fixes in eight languages it was never tuned on, with the pass bars written down first: 0 of 4 features met their bar.",
     groups: [
       {

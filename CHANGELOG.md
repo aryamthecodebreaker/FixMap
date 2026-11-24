@@ -6,6 +6,18 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.10 - 2026-11-24
+
+### Fixed
+
+- `fixmap plan --at <ref>` (and `fixmap_plan` `at`, architecture snapshots) now read files exactly as a checkout of that commit would: files over 64 kB get the same head sample and distributed search windows instead of no content, Vue and Svelte files contribute only their script blocks, and binary detection, test detection and file classification use the checkout scan's rules. Historical plans also read Git history up to the requested commit, so co-change evidence is no longer missing. The real-world feature bench found historical plans matched a checkout in only 18 of 40 repositories. Re-check after the fix, on the same 40 repositories (labelled; the pre-registered result stays 18/40): 40/40 now give the identical top 5.
+- Architecture snapshots cached by earlier versions are rebuilt (cache version 2).
+
+### Added
+
+- `benchmarks/java-heldout`: a fresh Java held-out cohort. A Java ranking change (issue titles weighted twice) helped development cases but scored 2 of 4 on this cohort with and without it, so it was not shipped. Unchanged Java finds 2 of 4 fixes in its top 5 on never-seen repositories.
+- `scripts/evaluate-context.mjs` and `benchmarks/context-selection`: Context Pack excerpts contain a line the real fix changed in 28 of 35 cases at 4k tokens. Two alternative pickers measured worse or identical and were not shipped.
+
 ## 0.9.9 - 2026-11-24
 
 ### Added
