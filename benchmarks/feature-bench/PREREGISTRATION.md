@@ -50,3 +50,16 @@ stay previews unless a later, separately pre-registered evaluation covers them: 
 Guardian, sensitive-data flows, supply-chain evidence, architecture policy and drift, agent
 conflict detection, migration planning, plan alternatives, outcome learning, change dossiers,
 product capabilities, cross-repository workspaces.
+
+## Addendum, 2026-11-24, before the first run
+
+Clarifications of mechanics only; no bar changed.
+
+- The pull request head comes from the GitHub API (`pulls/<n>` head SHA) and is fetched as
+  `pull/<n>/head` without file contents (blobless); history is deepened until the merge base with
+  `sha` is reachable, up to 2,000 commits, else the case is `unavailable`.
+- "Changed files" means files the pull request modified or deleted that exist at `sha`. Files it
+  creates did not exist before the fix, so no tool could name them; they are counted and reported
+  but excluded from every recall and from the Verify check of bar 1.
+- Bar 4 compares Plan on the checkout of `sha` with Plan `--at <sha>` read from Git objects in the
+  same clone. The working tree is never modified by the bench, so HEAD plays no part in `--at`.
