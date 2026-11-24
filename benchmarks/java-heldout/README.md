@@ -25,3 +25,28 @@ The change ships only if, measured once here, FixMap's top-5 hits on these four 
 with the change than without it, and no development or regression suite (`external`, `heldout`,
 `polyglot-dev`, `multilanguage-dev`, other `polyglot-heldout` languages) loses a top-5 hit.
 Otherwise it is reverted and the result is reported as measured.
+
+## Result, 2026-11-24 (measured once)
+
+Candidate: issue-title terms weigh twice in lexical and symbol BM25 when the issue text also
+has a body (`rejected-title-weighting.patch`). Diagnosis on the four former `polyglot-heldout`
+Java cases (now development cases): two were unwinnable by any ranking (one fix only created new
+files; one shared no words with its task), and two were buried by long bodies. The candidate
+found both of those (0 to 2 of 4).
+
+| Suite | Top-5 without | Top-5 with |
+| --- | --- | --- |
+| **java-heldout (this cohort, measured once)** | **2 of 4** | **2 of 4** (same two cases) |
+| heldout (TypeScript/JavaScript) | 11 of 12 | 11 of 12 |
+| external | 16 of 16 | 16 of 16 |
+| polyglot-dev | 14 of 19 | 16 of 19 |
+| multilanguage-dev | 11 of 15 | 12 of 15 |
+| polyglot-validation | 7 of 8 | 6 of 8 (lost rust-lang/cargo at rank 5 to 6) |
+
+**Decision: not shipped.** The bar required more top-5 hits on this cohort with the change than
+without it; both were 2 of 4. The change is reverted and kept only as the patch above. The
+development gains suggest title weighting may help in general; that needs its own
+pre-registered experiment and a fresh cohort, not this one.
+
+Also measured: on never-seen Java, the unchanged ranker finds 2 of 4, not the 0 of 4 that
+`polyglot-heldout` showed, where one of the four cases could not be won by any ranking.
