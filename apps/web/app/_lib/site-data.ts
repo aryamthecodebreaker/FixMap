@@ -4,6 +4,8 @@ import heldoutBaseline from "../../../../benchmarks/heldout/baseline-results.jso
 import regressionBaseline from "../../../../benchmarks/external/baseline-results.json";
 import savings from "../../../../benchmarks/external/savings-results.json";
 import adversarial from "../../../../benchmarks/adversarial/results.json";
+import polyglotBaseline from "../../../../benchmarks/polyglot-heldout/baseline-results.json";
+import polyglotDataset from "../../../../benchmarks/polyglot-heldout/dataset.json";
 import cli from "../../../../packages/cli/package.json";
 
 type EvaluationCase = {
@@ -64,7 +66,34 @@ const baselineOf = (suite: BaselineSuite) => ({
   pathExtraction: strongestBaseline(suite, "path-extraction")
 });
 
+const LANGUAGE_LABELS: Record<string, string> = { python: "Python", java: "Java", go: "Go", rust: "Rust", ruby: "Ruby", php: "PHP", dotnet: ".NET (C#)" };
+
+/** Held-out cases in seven more languages, read straight from the recorded run (no case was tuned on). */
+const languages = (() => {
+  type ArmResult = { top5Hit: boolean };
+  const results = polyglotBaseline.results as Array<{ slug: string; arms: Record<string, ArmResult> }>;
+  const cases = polyglotDataset.cases as Array<{ slug: string; language: string }>;
+  const rows = new Map<string, { language: string; cases: number; fixmap: number; bm25: number }>();
+  results.forEach((result, index) => {
+    const language = cases[index]?.slug === result.slug ? cases[index]!.language : "unknown";
+    const row = rows.get(language) ?? { language: LANGUAGE_LABELS[language] ?? language, cases: 0, fixmap: 0, bm25: 0 };
+    row.cases += 1;
+    if (result.arms.fixmap?.top5Hit) row.fixmap += 1;
+    if (result.arms["bm25:code"]?.top5Hit) row.bm25 += 1;
+    rows.set(language, row);
+  });
+  return {
+    cases: polyglotBaseline.cases,
+    fixmapTop5: polyglotBaseline.arms.fixmap.all.top5HitRate,
+    bm25Top5: polyglotBaseline.arms["bm25:code"].all.top5HitRate,
+    fixmapInterval: polyglotBaseline.arms.fixmap.all.intervals95.top5,
+    top5PValue: polyglotBaseline.pairedVsFixmapMcnemarExact.all["bm25:code"].top5.pValue,
+    rows: [...rows.values()]
+  };
+})();
+
 export const siteStats = {
+  languages,
   version: cli.version,
   medianSeconds: (savings.performance.medianScanAndRankMs / 1000).toFixed(2),
   confidenceCalibration,

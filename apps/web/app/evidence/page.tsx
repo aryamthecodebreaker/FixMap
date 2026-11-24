@@ -138,6 +138,21 @@ export default function EvidencePage() {
         <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap does not beat BM25 over code files on repositories it was never tuned against.</strong> BM25 leads the Top 1 point estimate 4/9 to 3/9, while Top 3 ties at 5/9; both paired McNemar exact tests have p = 1.0. At Top 5 the baseline wins four cases FixMap misses and FixMap wins none: BM25 has the fixing file in its top five for 9 of 9 of these cases, FixMap for 5 of 9 (p = 0.125). FixMap does lead on the regression suite (69% vs 39% Top 1), but that is the suite whose cases shaped the ranker, and even there the lead is not significant against this baseline. We publish this because it is what the measurement says; closing the Top-5 recall gap is the next piece of work.</p></div>
       </section>
 
+      <section className="section page-shell" aria-labelledby="languages-title">
+        <div className="section-heading split-heading">
+          <div><p className="eyebrow">Seven more languages · {siteStats.languages.cases} held-out cases</p><h2 id="languages-title">Strong in Python and Rust, weak in Java.</h2></div>
+          <p>Real fixed issues in Python, Java, Go, Rust, Ruby, PHP, and .NET repositories FixMap was never tuned on, chosen by a rule written before the run. “Top 5” means the file changed by the merged fix appeared in the first five results.</p>
+        </div>
+        <div className="results-table" role="table" aria-label="Top-5 results by language for FixMap and BM25">
+          <div className="results-row results-head" role="row"><span role="columnheader">Language</span><span role="columnheader">Cases</span><span role="columnheader">FixMap top 5</span><span role="columnheader">BM25 top 5</span></div>
+          {siteStats.languages.rows.map((row) => (
+            <div className="results-row" role="row" key={row.language}><span role="cell">{row.language}</span><span role="cell">{row.cases}</span><span role="cell">{row.fixmap}/{row.cases}</span><span role="cell">{row.bm25}/{row.cases}</span></div>
+          ))}
+          <div className="results-row" role="row"><span role="cell"><strong>All seven</strong></span><span role="cell"><strong>{siteStats.languages.cases}</strong></span><span role="cell"><strong>{rate(siteStats.languages.fixmapTop5)}</strong></span><span role="cell"><strong>{rate(siteStats.languages.bm25Top5)}</strong></span></div>
+        </div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap&apos;s lead over BM25 here is not statistically significant</strong> (paired McNemar exact test, p = {siteStats.languages.top5PValue}; FixMap&apos;s 95% interval is {Math.round((siteStats.languages.fixmapInterval?.[0] ?? 0) * 100)}–{Math.round((siteStats.languages.fixmapInterval?.[1] ?? 0) * 100)}%). Java found none of its four fixes, so language support stays labelled preview until a fresh test passes in every language.</p></div>
+      </section>
+
       <section className="section page-shell">
         <div className="section-heading split-heading">
           <div><p className="eyebrow">Your repository</p><h2>Run the baseline comparison locally.</h2></div>
