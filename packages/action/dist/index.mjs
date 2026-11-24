@@ -7102,7 +7102,23 @@ async function walkFiles(root, current2, diagnostics, state, internalCacheRoot, 
   let entries;
   try {
     entries = await readdir(current2, { withFileTypes: true });
-  } catch {
+  } catch (error) {
+    const reason2 = error.code ?? "unreadable";
+    const path = normalizePath3(relative(root, current2));
+    if (!path) {
+      diagnostics.push({
+        code: "directory-unreadable",
+        severity: "error",
+        message: `Could not read the repository root (${reason2}), so nothing was scanned. Check that this user can list the checkout; in a container, make it readable by the container user or run with that user's uid.`
+      });
+    } else if (diagnostics.filter((diagnostic) => diagnostic.code === "directory-unreadable").length < 5) {
+      diagnostics.push({
+        code: "directory-unreadable",
+        severity: "warning",
+        paths: [path],
+        message: `Could not read ${path} (${reason2}); files under it were not scanned.`
+      });
+    }
     return [];
   }
   const results = [];
@@ -10738,118 +10754,6 @@ function renderVerifyMarkdown(result) {
 `;
 }
 
-// packages/core/dist/annotation-store.js
-import { mkdir as mkdir3, open as open2, readFile as readFile5, realpath as realpath3, rename as rename3, rm, stat as stat3, lstat as lstat2 } from "node:fs/promises";
-import { resolve as resolve6 } from "node:path";
-import { randomUUID as randomUUID3 } from "node:crypto";
-async function readAnnotationStore(repoRoot) {
-  return readStore(await annotationRoot(repoRoot));
-}
-async function updateAnnotationStore(repoRoot, update) {
-  const root = await annotationRoot(repoRoot);
-  return withStoreLock(root, async () => {
-    const updated = validateAnnotationStore(await update(await readStore(root)));
-    await writeStore(root, updated);
-    return updated;
-  });
-}
-async function annotationRoot(path) {
-  const root = await realpath3(path);
-  if (!(await stat3(root)).isDirectory())
-    throw new Error("Annotation repository must be a directory.");
-  return root;
-}
-async function readStore(repoRoot) {
-  await assertStoreBoundary(repoRoot);
-  const path = resolve6(repoRoot, ".fixmap", "annotations.json");
-  try {
-    return validateAnnotationStore(JSON.parse(await readFile5(path, "utf8")));
-  } catch (error) {
-    if (isNodeError(error, "ENOENT"))
-      return emptyAnnotationStore();
-    if (error instanceof SyntaxError)
-      throw new Error(`${path} is not valid JSON; repair it before adding annotations.`);
-    throw error;
-  }
-}
-async function writeStore(repoRoot, store) {
-  const directory = resolve6(repoRoot, ".fixmap");
-  await mkdir3(directory, { recursive: true });
-  await assertStoreBoundary(repoRoot);
-  const target = resolve6(directory, "annotations.json");
-  const temporary = resolve6(directory, `.annotations.${process.pid}.${randomUUID3()}.tmp`);
-  const handle = await open2(temporary, "wx", 384);
-  try {
-    await handle.writeFile(`${JSON.stringify(validateAnnotationStore(store), null, 2)}
-`, "utf8");
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-  try {
-    await rename3(temporary, target);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    throw error;
-  }
-}
-async function withStoreLock(repoRoot, operation) {
-  await assertStoreBoundary(repoRoot);
-  const directory = resolve6(repoRoot, ".fixmap");
-  await mkdir3(directory, { recursive: true });
-  await assertStoreBoundary(repoRoot);
-  const lockPath = resolve6(directory, "annotations.lock");
-  let handle;
-  try {
-    handle = await open2(lockPath, "wx", 384);
-  } catch (error) {
-    if (!isNodeError(error, "EEXIST"))
-      throw error;
-    throw new Error("Another FixMap annotation update is in progress or left a lock. Retry after it finishes; if interrupted, confirm no annotation writer is running before manually removing .fixmap/annotations.lock.");
-  }
-  try {
-    await handle.writeFile(`${JSON.stringify({ pid: process.pid, createdAt: (/* @__PURE__ */ new Date()).toISOString() })}
-`, "utf8");
-    await handle.sync();
-    return await operation();
-  } finally {
-    try {
-      await handle.close();
-    } finally {
-      await rm(lockPath, { force: true });
-    }
-  }
-}
-async function assertStoreBoundary(repoRoot) {
-  const directory = resolve6(repoRoot, ".fixmap");
-  const directoryInfo = await lstat2(directory).catch((error) => {
-    if (isNodeError(error, "ENOENT"))
-      return void 0;
-    throw error;
-  });
-  if (!directoryInfo)
-    return;
-  if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || await realpath3(directory) !== directory) {
-    throw new Error("Annotation store directory must be a real repository-local .fixmap directory, not a link or junction.");
-  }
-  for (const name of ["annotations.json", "annotations.lock"]) {
-    const info = await lstat2(resolve6(directory, name)).catch((error) => {
-      if (isNodeError(error, "ENOENT"))
-        return void 0;
-      throw error;
-    });
-    if (info && (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1)) {
-      throw new Error("Annotation store and lock must be regular, unlinked repository-local files.");
-    }
-  }
-}
-function isNodeError(error, code) {
-  return error instanceof Error && "code" in error && error.code === code;
-}
-
-// packages/core/dist/intent-store.js
-var MAX_TTL_MINUTES = 7 * 24 * 60;
-
 // packages/core/dist/ownership.js
 var CODEOWNERS_PATHS = [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"];
 var MAX_RULES = 1e4;
@@ -11059,23 +10963,6 @@ function reviewRoutingWithoutMentions(result) {
     diagnostics: result.diagnostics.map((entry2) => ({ ...entry2, message: withoutMentions(entry2.message) }))
   };
 }
-
-// packages/core/dist/sandbox.js
-import { execFile as execFile5, spawn as spawn2 } from "node:child_process";
-import { promisify as promisify5 } from "node:util";
-var exec5 = promisify5(execFile5);
-var DEFAULT_LIMITS = {
-  timeoutMs: 5 * 6e4,
-  outputBytes: 1e6,
-  cpus: 1,
-  memoryMb: 1024,
-  pids: 256,
-  tmpfsMb: 256
-};
-
-// packages/core/dist/ci-matrix.js
-var DIMENSIONS = ["os", "runtime", "database", "browser", "feature-flag", "deployment"];
-var DIMENSION_SET = new Set(DIMENSIONS);
 
 // packages/core/dist/change-scope.js
 var MAX_ANCHORS = 64;
@@ -11310,319 +11197,13 @@ function evidenceKey2(evidence) {
   return `${evidence.kind}\0${evidence.from ?? ""}\0${evidence.to}\0${evidence.reason}`;
 }
 
-// packages/core/dist/validate.js
-function validateFixMapReport(candidate, label) {
-  if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate) || !Array.isArray(candidate.contextFiles)) {
-    return {
-      success: false,
-      message: `${label} is not a FixMap JSON report: no contextFiles array.`
-    };
-  }
-  const record3 = candidate;
-  if (record3.reportVersion !== void 0 && record3.reportVersion !== 1) {
-    return {
-      success: false,
-      message: `${label} uses unsupported reportVersion ${JSON.stringify(record3.reportVersion)}; this FixMap release supports reportVersion 1.`
-    };
-  }
-  const invalidEnvelopeFields = [
-    typeof record3.summary === "string" ? void 0 : "summary (string)",
-    Array.isArray(record3.testRoutes) ? void 0 : "testRoutes (array)",
-    Array.isArray(record3.risks) ? void 0 : "risks (array)",
-    Array.isArray(record3.changedFiles) ? void 0 : "changedFiles (array)",
-    Array.isArray(record3.diagnostics) ? void 0 : "diagnostics (array)"
-  ].filter((field) => field !== void 0);
-  if (invalidEnvelopeFields.length > 0) {
-    return {
-      success: false,
-      message: `${label} is missing or has invalid fields in the complete FixMap report envelope: ${invalidEnvelopeFields.join(", ")}.`
-    };
-  }
-  const versioned = record3.reportVersion === 1;
-  const contextFiles = candidate.contextFiles;
-  const unsafeContextPath = contextFiles.findIndex((file) => isRecord12(file) && typeof file.path === "string" && file.path.trim().length > 0 && !isRepositoryRelativePath(file.path));
-  if (unsafeContextPath !== -1) {
-    const path = contextFiles[unsafeContextPath].path;
-    return {
-      success: false,
-      message: `${label} contextFiles[${unsafeContextPath}].path must stay inside the repository and use a normalized repository-relative path (got ${JSON.stringify(path)}).`
-    };
-  }
-  const invalid = contextFiles.findIndex((file) => {
-    if (!isRecord12(file))
-      return true;
-    const ranked = file;
-    if (!isRepositoryRelativePath(ranked.path))
-      return true;
-    if ((versioned || ranked.rank !== void 0) && (!Number.isSafeInteger(ranked.rank) || ranked.rank < 1))
-      return true;
-    if ((versioned || ranked.score !== void 0) && (typeof ranked.score !== "number" || !Number.isFinite(ranked.score)))
-      return true;
-    if ((versioned || ranked.confidence !== void 0) && ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low")
-      return true;
-    if ((versioned || ranked.reasons !== void 0) && !isStringArray(ranked.reasons))
-      return true;
-    if (ranked.fusionScore === void 0 !== (ranked.retrieval === void 0))
-      return true;
-    if (ranked.fusionScore !== void 0 && (!isPositiveFiniteNumber(ranked.fusionScore) || !isRetrievalSignal(ranked.retrieval)))
-      return true;
-    return false;
-  });
-  if (invalid !== -1) {
-    return {
-      success: false,
-      message: `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", ${versioned ? "and version 1 requires" : "and optional"} rank, score, confidence, and reasons fields with their documented types.`
-    };
-  }
-  const duplicatePath = contextFiles.findIndex((file, index) => contextFiles.findIndex((candidate2) => candidate2.path === file.path) !== index);
-  if (duplicatePath !== -1) {
-    return {
-      success: false,
-      message: `${label} has a duplicate contextFiles path at index ${duplicatePath}; each ranked path must appear once.`
-    };
-  }
-  if (versioned) {
-    const outOfOrderRank = contextFiles.findIndex((file, index) => file.rank !== index + 1);
-    if (outOfOrderRank !== -1) {
-      return {
-        success: false,
-        message: `${label} has an out-of-order contextFiles rank at index ${outOfOrderRank}; version 1 ranks must be sequential and match array order.`
-      };
-    }
-  }
-  const testRoutes = record3.testRoutes;
-  const invalidRoute = testRoutes.findIndex((route) => {
-    if (!isRecord12(route))
-      return true;
-    return typeof route.command !== "string" || !route.command.trim() || !isRepositoryRelativePathArray(route.relatedFiles) || (versioned || route.kind !== void 0) && route.kind !== "test" && route.kind !== "validation" || (versioned || route.reason !== void 0) && typeof route.reason !== "string";
-  });
-  if (invalidRoute !== -1) {
-    return {
-      success: false,
-      message: `${label} has an invalid testRoutes entry at index ${invalidRoute}; each route needs a string "command" and an array of non-empty string paths named relatedFiles; optional kind and reason fields must use their documented types.`
-    };
-  }
-  const risks = record3.risks;
-  const invalidRisk = risks.findIndex((risk) => {
-    if (!isRecord12(risk))
-      return true;
-    return typeof risk.area !== "string" || !risk.area.trim() || (versioned || risk.reason !== void 0) && typeof risk.reason !== "string" || (versioned || risk.severity !== void 0) && risk.severity !== "low" && risk.severity !== "medium" && risk.severity !== "high";
-  });
-  if (invalidRisk !== -1) {
-    return {
-      success: false,
-      message: `${label} has an invalid risks entry at index ${invalidRisk}; each risk needs a non-empty string "area", and optional reason and severity fields must use their documented types.`
-    };
-  }
-  if (record3.impact !== void 0) {
-    const impact = record3.impact;
-    const history = isRecord12(impact) ? impact.history : void 0;
-    if (!isRecord12(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord12(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
-      return { success: false, message: `${label} has an invalid impact graph envelope.` };
-    }
-    const invalidImpact = impact.files.findIndex((file) => {
-      if (!isRecord12(file) || !isRepositoryRelativePath(file.path) || typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 || file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low" || !Array.isArray(file.evidence))
-        return true;
-      return file.evidence.some((evidence) => !isRecord12(evidence) || !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) || !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() || evidence.occurrences !== void 0 && (!Number.isSafeInteger(evidence.occurrences) || evidence.occurrences < 0) || evidence.seedChanges !== void 0 && (!Number.isSafeInteger(evidence.seedChanges) || evidence.seedChanges < 0));
-    });
-    if (invalidImpact !== -1) {
-      return { success: false, message: `${label} has an invalid impact.files entry at index ${invalidImpact}.` };
-    }
-    if (impact.primaryImports !== void 0) {
-      const primaryPaths = new Set(contextFiles.map((file) => file.path));
-      const seenEdges = /* @__PURE__ */ new Set();
-      if (!Array.isArray(impact.primaryImports) || impact.primaryImports.some((edge) => {
-        if (!isRecord12(edge) || !isRepositoryRelativePath(edge.from) || !isRepositoryRelativePath(edge.to) || edge.from === edge.to || !primaryPaths.has(edge.from) || !primaryPaths.has(edge.to))
-          return true;
-        const key2 = JSON.stringify([edge.from, edge.to]);
-        if (seenEdges.has(key2))
-          return true;
-        seenEdges.add(key2);
-        return false;
-      })) {
-        return { success: false, message: `${label} has invalid impact.primaryImports; each unique edge must join two distinct primary context paths.` };
-      }
-    }
-  }
-  if (!isRepositoryRelativePathArray(record3.changedFiles)) {
-    return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
-  }
-  if (record3.evidence !== void 0) {
-    const evidence = record3.evidence;
-    const validSubject = (subject) => isRecord12(subject) && typeof subject.kind === "string" && (subject.path === void 0 || isRepositoryRelativePath(subject.path));
-    if (!isRecord12(evidence) || evidence.evidenceVersion !== 1 || typeof evidence.collectedAt !== "string" || !Array.isArray(evidence.sources) || !evidence.sources.every((source) => isRecord12(source) && typeof source.provider === "string" && typeof source.version === "string" && (source.documentSha256 === void 0 || typeof source.documentSha256 === "string" && /^[a-f0-9]{64}$/.test(source.documentSha256))) || !Array.isArray(evidence.items) || evidence.items.length > 50 || !evidence.items.every((item) => isRecord12(item) && typeof item.id === "string" && typeof item.summary === "string" && typeof item.kind === "string" && ["high", "medium", "low"].includes(String(item.confidence)) && isRecord12(item.provider) && Array.isArray(item.subjects) && item.subjects.length > 0 && item.subjects.every(validSubject)) || !Number.isSafeInteger(evidence.omittedItems) || evidence.omittedItems < 0 || !Array.isArray(evidence.diagnostics)) {
-      return { success: false, message: `${label} has invalid evidence; it needs evidenceVersion 1, sources, at most 50 items with safe repository-relative subjects, omittedItems, and diagnostics.` };
-    }
-  }
-  if (record3.sensitiveData !== void 0 && !isReportSensitiveData(record3.sensitiveData)) {
-    return { success: false, message: `${label} has invalid sensitiveData; it needs sensitiveDataVersion 1, the fixmap-sensitive-data provider, counts, and at most 50 flows with safe paths, known categories, and rule ids.` };
-  }
-  if (record3.supplyChain !== void 0 && !isReportSupplyChain(record3.supplyChain)) {
-    return { success: false, message: `${label} has invalid supplyChain; it needs supplyChainVersion 1, tool and bundle provenance, omittedFindings, and at most 50 findings with manifest paths.` };
-  }
-  if (record3.languageAdapters !== void 0) {
-    const adapters = record3.languageAdapters;
-    if (!Array.isArray(adapters) || adapters.length > 32 || !adapters.every((adapter) => isRecord12(adapter) && Object.keys(adapter).every((key2) => key2 === "id" || key2 === "version" || key2 === "extensions") && typeof adapter.id === "string" && /^custom:[a-z][a-z0-9-]{0,63}$/.test(adapter.id) && typeof adapter.version === "string" && /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(adapter.version) && Array.isArray(adapter.extensions) && adapter.extensions.length > 0 && adapter.extensions.length <= 32 && adapter.extensions.every((extension) => typeof extension === "string" && /^\.[a-z0-9][a-z0-9_-]{0,15}$/.test(extension)))) {
-      return { success: false, message: `${label} has invalid languageAdapters; each entry needs a custom: id, a version, and lowercase extensions.` };
-    }
-  }
-  if (record3.annotations !== void 0) {
-    const annotations = record3.annotations;
-    if (!isRecord12(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) || !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) || !Array.isArray(annotations.entries)) {
-      return { success: false, message: `${label} has an invalid annotations envelope.` };
-    }
-    const invalidAnnotation = annotations.entries.findIndex((assessment) => {
-      if (!isRecord12(assessment) || !isRecord12(assessment.annotation) || typeof assessment.message !== "string" || !["active", "expired", "missing-target", "renamed-target"].includes(String(assessment.status)) || assessment.suggestedPath !== void 0 && !isRepositoryRelativePath(assessment.suggestedPath))
-        return true;
-      try {
-        validateAnnotationStore({ annotationStoreVersion: 1, annotations: [assessment.annotation] });
-        return false;
-      } catch {
-        return true;
-      }
-    });
-    if (invalidAnnotation !== -1) {
-      return { success: false, message: `${label} has an invalid annotations entry at index ${invalidAnnotation}.` };
-    }
-  }
-  if (record3.decisions !== void 0) {
-    if (!Array.isArray(record3.decisions))
-      return { success: false, message: `${label} has invalid decisions; expected an array.` };
-    const invalidDecision = record3.decisions.findIndex((decision) => {
-      if (!isRecord12(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.authoredStatus !== void 0 && (typeof decision.authoredStatus !== "string" || !decision.authoredStatus.trim() || decision.authoredStatus.length > 500 || decision.authoredStatus.includes("\0")) || decision.consequences !== void 0 && typeof decision.consequences !== "string" || decision.dependencyRules !== void 0 && (!Array.isArray(decision.dependencyRules) || !decision.dependencyRules.every((rule) => isRecord12(rule) && typeof rule.from === "string" && rule.from.trim() && typeof rule.deny === "string" && rule.deny.trim())))
-        return true;
-      if (decision.source !== void 0 && (!isRecord12(decision.source) || decision.source.kind !== "pull-request" || decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url)))
-        return true;
-      return decision.targets.some((target) => {
-        if (!isRecord12(target) || !["explicit", "literal-mention"].includes(String(target.evidence)))
-          return true;
-        if (target.kind === "file")
-          return !isRepositoryRelativePath(target.path);
-        if (target.kind === "symbol")
-          return typeof target.name !== "string" || !target.name.trim() || target.path !== void 0 && !isRepositoryRelativePath(target.path);
-        return target.kind !== "service" && target.kind !== "contract" || typeof target.name !== "string" || !target.name.trim();
-      });
-    });
-    if (invalidDecision !== -1)
-      return { success: false, message: `${label} has an invalid decisions entry at index ${invalidDecision}.` };
-  }
-  if (record3.policy !== void 0) {
-    const policy = record3.policy;
-    if (!isRecord12(policy) || typeof policy.policyFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
-      return { success: false, message: `${label} has an invalid architecture policy envelope.` };
-    }
-    const invalidPolicyFinding = policy.findings.findIndex((finding) => {
-      if (!isRecord12(finding) || !["boundary-violation", "required-test-missing", "review-required", "breaking-contract"].includes(String(finding.code)) || !["info", "warning", "error"].includes(String(finding.severity)) || typeof finding.ruleId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(finding.ruleId) || typeof finding.message !== "string" || !finding.message.trim() || !isRepositoryRelativePathArray(finding.paths) || !Array.isArray(finding.evidence))
-        return true;
-      return finding.evidence.some((evidence) => !isRecord12(evidence) || !["import", "changed-file", "test-pattern", "reviewer", "contract-change", "decision-record"].includes(String(evidence.kind)) || typeof evidence.detail !== "string" || !evidence.detail.trim() || evidence.path !== void 0 && !isRepositoryRelativePath(evidence.path) || evidence.relatedPath !== void 0 && !isRepositoryRelativePath(evidence.relatedPath));
-    });
-    if (invalidPolicyFinding !== -1) {
-      return { success: false, message: `${label} has an invalid architecture policy finding at index ${invalidPolicyFinding}.` };
-    }
-  }
-  const diagnostics = record3.diagnostics;
-  const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
-    if (!isRecord12(diagnostic))
-      return true;
-    return typeof diagnostic.code !== "string" || !diagnostic.code.trim() || typeof diagnostic.message !== "string" || diagnostic.severity !== "info" && diagnostic.severity !== "warning" && diagnostic.severity !== "error" || diagnostic.paths !== void 0 && !isRepositoryRelativePathArray(diagnostic.paths);
-  });
-  if (invalidDiagnostic !== -1) {
-    return {
-      success: false,
-      message: `${label} has an invalid diagnostics entry at index ${invalidDiagnostic}; each diagnostic needs string code and message fields, an info, warning, or error severity, and optional non-empty string paths.`
-    };
-  }
-  if (record3.analysis !== void 0) {
-    const analysis = record3.analysis;
-    const grounding = isRecord12(analysis) ? analysis.grounding : void 0;
-    const specificity = isRecord12(grounding) ? grounding.specificity : void 0;
-    if (specificity !== "anchored" && specificity !== "descriptive" && specificity !== "vague") {
-      return {
-        success: false,
-        message: `${label} has invalid analysis.grounding.specificity; expected anchored, descriptive, or vague.`
-      };
-    }
-    if (!isRecord12(analysis) || !isRecord12(grounding) || !Array.isArray(grounding.identifiers) || !isStringArray(grounding.unresolvedIdentifiers) || !isStringArray(grounding.partiallyResolvedIdentifiers) || !isStringArray(grounding.unverifiedIdentifiers) || typeof grounding.scanComplete !== "boolean" || !isRecord12(analysis.ranking) || !isNullableFiniteNumber(analysis.ranking.topScore) || !isNullableFiniteNumber(analysis.ranking.runnerUpScore) || !isNullableFiniteNumber(analysis.ranking.topGap) || typeof analysis.ranking.clustered !== "boolean" || typeof analysis.nextAction !== "string") {
-      return {
-        success: false,
-        message: `${label} has incomplete or invalid analysis grounding, ranking, or nextAction fields.`
-      };
-    }
-    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord12(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isRepositoryRelativePathArray(identifier.matchedFiles));
-    if (invalidIdentifier !== -1) {
-      return {
-        success: false,
-        message: `${label} has an invalid analysis.grounding.identifiers entry at index ${invalidIdentifier}.`
-      };
-    }
-    if (analysis.retrievalRanking !== void 0) {
-      const retrievalRanking = analysis.retrievalRanking;
-      if (!isRecord12(retrievalRanking) || !isNullableFiniteNumber(retrievalRanking.topFusionScore) || !isNullableFiniteNumber(retrievalRanking.runnerUpFusionScore) || !isNullableFiniteNumber(retrievalRanking.topGap)) {
-        return { success: false, message: `${label} has invalid analysis.retrievalRanking fields.` };
-      }
-    }
-  }
-  if (record3.retrieval !== void 0) {
-    const retrieval = record3.retrieval;
-    const weights = isRecord12(retrieval) ? retrieval.weights : void 0;
-    if (!isRecord12(retrieval) || retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic" || !isRecord12(weights) || !isPositiveFiniteNumber(weights.structural) || !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) || !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
-      return { success: false, message: `${label} has an invalid retrieval envelope.` };
-    }
-    if (retrieval.mode === "structural-lexical-semantic" && !isSemanticProvenance(retrieval.semantic)) {
-      return { success: false, message: `${label} has invalid or missing semantic retrieval provenance.` };
-    }
-    if (retrieval.mode === "structural-lexical" && retrieval.semantic !== void 0) {
-      return { success: false, message: `${label} carries semantic provenance while declaring structural-lexical retrieval.` };
-    }
-  }
-  return { success: true, report: candidate };
-}
-function isRecord12(candidate) {
-  return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
-}
-function isStringArray(candidate) {
-  return Array.isArray(candidate) && candidate.every((entry2) => typeof entry2 === "string");
-}
-function isRepositoryRelativePathArray(candidate) {
-  return Array.isArray(candidate) && candidate.every(isRepositoryRelativePath);
-}
-function isNullableFiniteNumber(candidate) {
-  return candidate === null || typeof candidate === "number" && Number.isFinite(candidate);
-}
-function isIdentifierStatus(candidate) {
-  return candidate === "exact-definition" || candidate === "exact-text" || candidate === "partial-definition" || candidate === "not-found" || candidate === "unverified";
-}
-function isRetrievalSignal(candidate) {
-  if (!isRecord12(candidate))
-    return false;
-  const ranks = [candidate.structuralRank, candidate.lexicalRank, candidate.semanticRank];
-  if (ranks.every((rank) => rank === void 0))
-    return false;
-  if (ranks.some((rank) => rank !== void 0 && (!Number.isSafeInteger(rank) || Number(rank) < 1)))
-    return false;
-  if (candidate.structuralScore !== void 0 && (typeof candidate.structuralScore !== "number" || !Number.isFinite(candidate.structuralScore)))
-    return false;
-  return candidate.semanticSimilarity === void 0 || typeof candidate.semanticSimilarity === "number" && Number.isFinite(candidate.semanticSimilarity) && candidate.semanticSimilarity >= -1 && candidate.semanticSimilarity <= 1;
-}
-function isSemanticProvenance(candidate) {
-  if (!isRecord12(candidate))
-    return false;
-  return typeof candidate.id === "string" && candidate.id.trim().length > 0 && typeof candidate.version === "string" && candidate.version.trim().length > 0 && typeof candidate.model === "string" && candidate.model.trim().length > 0 && typeof candidate.artifactHash === "string" && /^[a-f0-9]{64}$/.test(candidate.artifactHash) && typeof candidate.runtime === "string" && candidate.runtime.trim().length > 0 && Number.isSafeInteger(candidate.dimensions) && Number(candidate.dimensions) > 0 && (candidate.normalization === "l2" || candidate.normalization === "none") && typeof candidate.local === "boolean" && typeof candidate.cacheKey === "string" && candidate.cacheKey.trim().length > 0 && Number.isSafeInteger(candidate.indexedFiles) && Number(candidate.indexedFiles) >= 0 && Number.isSafeInteger(candidate.truncatedFiles) && Number(candidate.truncatedFiles) >= 0;
-}
-function isPositiveFiniteNumber(candidate) {
-  return typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0;
-}
-
-// packages/core/dist/editor-transport.js
-var EDITOR_RESPONSE_MAX_BYTES = 4 * 1024 * 1024;
-
 // packages/core/dist/capabilities.js
 var CAPABILITY_PATH = ".fixmap/capabilities.json";
 var CAPABILITY_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 var MAX_CAPABILITIES = 256;
 var MAX_ANCHORS2 = 64;
 function validateCapabilityStore(candidate) {
-  if (!isRecord13(candidate) || candidate.capabilityStoreVersion !== 1 || typeof candidate.workspace !== "string" || typeof candidate.repository !== "string" || !Array.isArray(candidate.capabilities)) {
+  if (!isRecord12(candidate) || candidate.capabilityStoreVersion !== 1 || typeof candidate.workspace !== "string" || typeof candidate.repository !== "string" || !Array.isArray(candidate.capabilities)) {
     throw new Error("Capability store must be a version-1 object with workspace, repository, and capabilities fields.");
   }
   assertOnlyKeys(candidate, ["capabilityStoreVersion", "workspace", "repository", "capabilities"], "capability store");
@@ -11687,7 +11268,7 @@ function buildCapabilityMap(repo, input) {
   };
 }
 function validateDefinition(candidate, index) {
-  if (!isRecord13(candidate))
+  if (!isRecord12(candidate))
     throw new Error(`Capability at index ${index} must be an object.`);
   assertOnlyKeys(candidate, ["id", "name", "anchors", "traversal"], `capability at index ${index}`);
   if (typeof candidate.id !== "string" || !CAPABILITY_ID.test(candidate.id)) {
@@ -11716,7 +11297,7 @@ function validateDefinition(candidate, index) {
   };
 }
 function validateAnchor(candidate, capability, index) {
-  if (!isRecord13(candidate))
+  if (!isRecord12(candidate))
     throw new Error(`Capability ${capability} anchor at index ${index} must be an object.`);
   assertOnlyKeys(candidate, ["operation", "path"], `capability ${capability} anchor at index ${index}`);
   if (candidate.operation !== "touch" && candidate.operation !== "add") {
@@ -11728,7 +11309,7 @@ function validateAnchor(candidate, capability, index) {
   return { operation: candidate.operation, path };
 }
 function validateTraversal(candidate, capability) {
-  if (!isRecord13(candidate))
+  if (!isRecord12(candidate))
     throw new Error(`Capability ${capability} traversal must be an object.`);
   assertOnlyKeys(candidate, ["direction", "maxDepth", "maxNodes"], `capability ${capability} traversal`);
   const direction = candidate.direction;
@@ -11767,9 +11348,616 @@ function assertOnlyKeys(record3, allowed, label) {
   if (unknown.length > 0)
     throw new Error(`${label} has unknown field${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`);
 }
+function isRecord12(candidate) {
+  return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
+}
+
+// packages/core/dist/intent-store.js
+var MAX_TTL_MINUTES = 7 * 24 * 60;
+
+// packages/core/dist/validate.js
+function validateFixMapReport(candidate, label) {
+  if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate) || !Array.isArray(candidate.contextFiles)) {
+    return {
+      success: false,
+      message: `${label} is not a FixMap JSON report: no contextFiles array.`
+    };
+  }
+  const record3 = candidate;
+  if (record3.reportVersion !== void 0 && record3.reportVersion !== 1) {
+    return {
+      success: false,
+      message: `${label} uses unsupported reportVersion ${JSON.stringify(record3.reportVersion)}; this FixMap release supports reportVersion 1.`
+    };
+  }
+  const invalidEnvelopeFields = [
+    typeof record3.summary === "string" ? void 0 : "summary (string)",
+    Array.isArray(record3.testRoutes) ? void 0 : "testRoutes (array)",
+    Array.isArray(record3.risks) ? void 0 : "risks (array)",
+    Array.isArray(record3.changedFiles) ? void 0 : "changedFiles (array)",
+    Array.isArray(record3.diagnostics) ? void 0 : "diagnostics (array)"
+  ].filter((field) => field !== void 0);
+  if (invalidEnvelopeFields.length > 0) {
+    return {
+      success: false,
+      message: `${label} is missing or has invalid fields in the complete FixMap report envelope: ${invalidEnvelopeFields.join(", ")}.`
+    };
+  }
+  const versioned = record3.reportVersion === 1;
+  const contextFiles = candidate.contextFiles;
+  const unsafeContextPath = contextFiles.findIndex((file) => isRecord13(file) && typeof file.path === "string" && file.path.trim().length > 0 && !isRepositoryRelativePath(file.path));
+  if (unsafeContextPath !== -1) {
+    const path = contextFiles[unsafeContextPath].path;
+    return {
+      success: false,
+      message: `${label} contextFiles[${unsafeContextPath}].path must stay inside the repository and use a normalized repository-relative path (got ${JSON.stringify(path)}).`
+    };
+  }
+  const invalid = contextFiles.findIndex((file) => {
+    if (!isRecord13(file))
+      return true;
+    const ranked = file;
+    if (!isRepositoryRelativePath(ranked.path))
+      return true;
+    if ((versioned || ranked.rank !== void 0) && (!Number.isSafeInteger(ranked.rank) || ranked.rank < 1))
+      return true;
+    if ((versioned || ranked.score !== void 0) && (typeof ranked.score !== "number" || !Number.isFinite(ranked.score)))
+      return true;
+    if ((versioned || ranked.confidence !== void 0) && ranked.confidence !== "high" && ranked.confidence !== "medium" && ranked.confidence !== "low")
+      return true;
+    if ((versioned || ranked.reasons !== void 0) && !isStringArray(ranked.reasons))
+      return true;
+    if (ranked.fusionScore === void 0 !== (ranked.retrieval === void 0))
+      return true;
+    if (ranked.fusionScore !== void 0 && (!isPositiveFiniteNumber(ranked.fusionScore) || !isRetrievalSignal(ranked.retrieval)))
+      return true;
+    return false;
+  });
+  if (invalid !== -1) {
+    return {
+      success: false,
+      message: `${label} has an invalid contextFiles entry at index ${invalid}; each entry needs a non-empty string "path", ${versioned ? "and version 1 requires" : "and optional"} rank, score, confidence, and reasons fields with their documented types.`
+    };
+  }
+  const duplicatePath = contextFiles.findIndex((file, index) => contextFiles.findIndex((candidate2) => candidate2.path === file.path) !== index);
+  if (duplicatePath !== -1) {
+    return {
+      success: false,
+      message: `${label} has a duplicate contextFiles path at index ${duplicatePath}; each ranked path must appear once.`
+    };
+  }
+  if (versioned) {
+    const outOfOrderRank = contextFiles.findIndex((file, index) => file.rank !== index + 1);
+    if (outOfOrderRank !== -1) {
+      return {
+        success: false,
+        message: `${label} has an out-of-order contextFiles rank at index ${outOfOrderRank}; version 1 ranks must be sequential and match array order.`
+      };
+    }
+  }
+  const testRoutes = record3.testRoutes;
+  const invalidRoute = testRoutes.findIndex((route) => {
+    if (!isRecord13(route))
+      return true;
+    return typeof route.command !== "string" || !route.command.trim() || !isRepositoryRelativePathArray(route.relatedFiles) || (versioned || route.kind !== void 0) && route.kind !== "test" && route.kind !== "validation" || (versioned || route.reason !== void 0) && typeof route.reason !== "string";
+  });
+  if (invalidRoute !== -1) {
+    return {
+      success: false,
+      message: `${label} has an invalid testRoutes entry at index ${invalidRoute}; each route needs a string "command" and an array of non-empty string paths named relatedFiles; optional kind and reason fields must use their documented types.`
+    };
+  }
+  const risks = record3.risks;
+  const invalidRisk = risks.findIndex((risk) => {
+    if (!isRecord13(risk))
+      return true;
+    return typeof risk.area !== "string" || !risk.area.trim() || (versioned || risk.reason !== void 0) && typeof risk.reason !== "string" || (versioned || risk.severity !== void 0) && risk.severity !== "low" && risk.severity !== "medium" && risk.severity !== "high";
+  });
+  if (invalidRisk !== -1) {
+    return {
+      success: false,
+      message: `${label} has an invalid risks entry at index ${invalidRisk}; each risk needs a non-empty string "area", and optional reason and severity fields must use their documented types.`
+    };
+  }
+  if (record3.impact !== void 0) {
+    const impact = record3.impact;
+    const history = isRecord13(impact) ? impact.history : void 0;
+    if (!isRecord13(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord13(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
+      return { success: false, message: `${label} has an invalid impact graph envelope.` };
+    }
+    const invalidImpact = impact.files.findIndex((file) => {
+      if (!isRecord13(file) || !isRepositoryRelativePath(file.path) || typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 || file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low" || !Array.isArray(file.evidence))
+        return true;
+      return file.evidence.some((evidence) => !isRecord13(evidence) || !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) || !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() || evidence.occurrences !== void 0 && (!Number.isSafeInteger(evidence.occurrences) || evidence.occurrences < 0) || evidence.seedChanges !== void 0 && (!Number.isSafeInteger(evidence.seedChanges) || evidence.seedChanges < 0));
+    });
+    if (invalidImpact !== -1) {
+      return { success: false, message: `${label} has an invalid impact.files entry at index ${invalidImpact}.` };
+    }
+    if (impact.primaryImports !== void 0) {
+      const primaryPaths = new Set(contextFiles.map((file) => file.path));
+      const seenEdges = /* @__PURE__ */ new Set();
+      if (!Array.isArray(impact.primaryImports) || impact.primaryImports.some((edge) => {
+        if (!isRecord13(edge) || !isRepositoryRelativePath(edge.from) || !isRepositoryRelativePath(edge.to) || edge.from === edge.to || !primaryPaths.has(edge.from) || !primaryPaths.has(edge.to))
+          return true;
+        const key2 = JSON.stringify([edge.from, edge.to]);
+        if (seenEdges.has(key2))
+          return true;
+        seenEdges.add(key2);
+        return false;
+      })) {
+        return { success: false, message: `${label} has invalid impact.primaryImports; each unique edge must join two distinct primary context paths.` };
+      }
+    }
+  }
+  if (!isRepositoryRelativePathArray(record3.changedFiles)) {
+    return { success: false, message: `${label} has invalid changedFiles; every entry must be a safe repository-relative path.` };
+  }
+  if (record3.evidence !== void 0) {
+    const evidence = record3.evidence;
+    const validSubject = (subject) => isRecord13(subject) && typeof subject.kind === "string" && (subject.path === void 0 || isRepositoryRelativePath(subject.path));
+    if (!isRecord13(evidence) || evidence.evidenceVersion !== 1 || typeof evidence.collectedAt !== "string" || !Array.isArray(evidence.sources) || !evidence.sources.every((source) => isRecord13(source) && typeof source.provider === "string" && typeof source.version === "string" && (source.documentSha256 === void 0 || typeof source.documentSha256 === "string" && /^[a-f0-9]{64}$/.test(source.documentSha256))) || !Array.isArray(evidence.items) || evidence.items.length > 50 || !evidence.items.every((item) => isRecord13(item) && typeof item.id === "string" && typeof item.summary === "string" && typeof item.kind === "string" && ["high", "medium", "low"].includes(String(item.confidence)) && isRecord13(item.provider) && Array.isArray(item.subjects) && item.subjects.length > 0 && item.subjects.every(validSubject)) || !Number.isSafeInteger(evidence.omittedItems) || evidence.omittedItems < 0 || !Array.isArray(evidence.diagnostics)) {
+      return { success: false, message: `${label} has invalid evidence; it needs evidenceVersion 1, sources, at most 50 items with safe repository-relative subjects, omittedItems, and diagnostics.` };
+    }
+  }
+  if (record3.sensitiveData !== void 0 && !isReportSensitiveData(record3.sensitiveData)) {
+    return { success: false, message: `${label} has invalid sensitiveData; it needs sensitiveDataVersion 1, the fixmap-sensitive-data provider, counts, and at most 50 flows with safe paths, known categories, and rule ids.` };
+  }
+  if (record3.supplyChain !== void 0 && !isReportSupplyChain(record3.supplyChain)) {
+    return { success: false, message: `${label} has invalid supplyChain; it needs supplyChainVersion 1, tool and bundle provenance, omittedFindings, and at most 50 findings with manifest paths.` };
+  }
+  if (record3.languageAdapters !== void 0) {
+    const adapters = record3.languageAdapters;
+    if (!Array.isArray(adapters) || adapters.length > 32 || !adapters.every((adapter) => isRecord13(adapter) && Object.keys(adapter).every((key2) => key2 === "id" || key2 === "version" || key2 === "extensions") && typeof adapter.id === "string" && /^custom:[a-z][a-z0-9-]{0,63}$/.test(adapter.id) && typeof adapter.version === "string" && /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(adapter.version) && Array.isArray(adapter.extensions) && adapter.extensions.length > 0 && adapter.extensions.length <= 32 && adapter.extensions.every((extension) => typeof extension === "string" && /^\.[a-z0-9][a-z0-9_-]{0,15}$/.test(extension)))) {
+      return { success: false, message: `${label} has invalid languageAdapters; each entry needs a custom: id, a version, and lowercase extensions.` };
+    }
+  }
+  if (record3.annotations !== void 0) {
+    const annotations = record3.annotations;
+    if (!isRecord13(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) || !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) || !Array.isArray(annotations.entries)) {
+      return { success: false, message: `${label} has an invalid annotations envelope.` };
+    }
+    const invalidAnnotation = annotations.entries.findIndex((assessment) => {
+      if (!isRecord13(assessment) || !isRecord13(assessment.annotation) || typeof assessment.message !== "string" || !["active", "expired", "missing-target", "renamed-target"].includes(String(assessment.status)) || assessment.suggestedPath !== void 0 && !isRepositoryRelativePath(assessment.suggestedPath))
+        return true;
+      try {
+        validateAnnotationStore({ annotationStoreVersion: 1, annotations: [assessment.annotation] });
+        return false;
+      } catch {
+        return true;
+      }
+    });
+    if (invalidAnnotation !== -1) {
+      return { success: false, message: `${label} has an invalid annotations entry at index ${invalidAnnotation}.` };
+    }
+  }
+  if (record3.decisions !== void 0) {
+    if (!Array.isArray(record3.decisions))
+      return { success: false, message: `${label} has invalid decisions; expected an array.` };
+    const invalidDecision = record3.decisions.findIndex((decision) => {
+      if (!isRecord13(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.authoredStatus !== void 0 && (typeof decision.authoredStatus !== "string" || !decision.authoredStatus.trim() || decision.authoredStatus.length > 500 || decision.authoredStatus.includes("\0")) || decision.consequences !== void 0 && typeof decision.consequences !== "string" || decision.dependencyRules !== void 0 && (!Array.isArray(decision.dependencyRules) || !decision.dependencyRules.every((rule) => isRecord13(rule) && typeof rule.from === "string" && rule.from.trim() && typeof rule.deny === "string" && rule.deny.trim())))
+        return true;
+      if (decision.source !== void 0 && (!isRecord13(decision.source) || decision.source.kind !== "pull-request" || decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url)))
+        return true;
+      return decision.targets.some((target) => {
+        if (!isRecord13(target) || !["explicit", "literal-mention"].includes(String(target.evidence)))
+          return true;
+        if (target.kind === "file")
+          return !isRepositoryRelativePath(target.path);
+        if (target.kind === "symbol")
+          return typeof target.name !== "string" || !target.name.trim() || target.path !== void 0 && !isRepositoryRelativePath(target.path);
+        return target.kind !== "service" && target.kind !== "contract" || typeof target.name !== "string" || !target.name.trim();
+      });
+    });
+    if (invalidDecision !== -1)
+      return { success: false, message: `${label} has an invalid decisions entry at index ${invalidDecision}.` };
+  }
+  if (record3.policy !== void 0) {
+    const policy = record3.policy;
+    if (!isRecord13(policy) || typeof policy.policyFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
+      return { success: false, message: `${label} has an invalid architecture policy envelope.` };
+    }
+    const invalidPolicyFinding = policy.findings.findIndex((finding) => {
+      if (!isRecord13(finding) || !["boundary-violation", "required-test-missing", "review-required", "breaking-contract"].includes(String(finding.code)) || !["info", "warning", "error"].includes(String(finding.severity)) || typeof finding.ruleId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(finding.ruleId) || typeof finding.message !== "string" || !finding.message.trim() || !isRepositoryRelativePathArray(finding.paths) || !Array.isArray(finding.evidence))
+        return true;
+      return finding.evidence.some((evidence) => !isRecord13(evidence) || !["import", "changed-file", "test-pattern", "reviewer", "contract-change", "decision-record"].includes(String(evidence.kind)) || typeof evidence.detail !== "string" || !evidence.detail.trim() || evidence.path !== void 0 && !isRepositoryRelativePath(evidence.path) || evidence.relatedPath !== void 0 && !isRepositoryRelativePath(evidence.relatedPath));
+    });
+    if (invalidPolicyFinding !== -1) {
+      return { success: false, message: `${label} has an invalid architecture policy finding at index ${invalidPolicyFinding}.` };
+    }
+  }
+  const diagnostics = record3.diagnostics;
+  const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
+    if (!isRecord13(diagnostic))
+      return true;
+    return typeof diagnostic.code !== "string" || !diagnostic.code.trim() || typeof diagnostic.message !== "string" || diagnostic.severity !== "info" && diagnostic.severity !== "warning" && diagnostic.severity !== "error" || diagnostic.paths !== void 0 && !isRepositoryRelativePathArray(diagnostic.paths);
+  });
+  if (invalidDiagnostic !== -1) {
+    return {
+      success: false,
+      message: `${label} has an invalid diagnostics entry at index ${invalidDiagnostic}; each diagnostic needs string code and message fields, an info, warning, or error severity, and optional non-empty string paths.`
+    };
+  }
+  if (record3.analysis !== void 0) {
+    const analysis = record3.analysis;
+    const grounding = isRecord13(analysis) ? analysis.grounding : void 0;
+    const specificity = isRecord13(grounding) ? grounding.specificity : void 0;
+    if (specificity !== "anchored" && specificity !== "descriptive" && specificity !== "vague") {
+      return {
+        success: false,
+        message: `${label} has invalid analysis.grounding.specificity; expected anchored, descriptive, or vague.`
+      };
+    }
+    if (!isRecord13(analysis) || !isRecord13(grounding) || !Array.isArray(grounding.identifiers) || !isStringArray(grounding.unresolvedIdentifiers) || !isStringArray(grounding.partiallyResolvedIdentifiers) || !isStringArray(grounding.unverifiedIdentifiers) || typeof grounding.scanComplete !== "boolean" || !isRecord13(analysis.ranking) || !isNullableFiniteNumber(analysis.ranking.topScore) || !isNullableFiniteNumber(analysis.ranking.runnerUpScore) || !isNullableFiniteNumber(analysis.ranking.topGap) || typeof analysis.ranking.clustered !== "boolean" || typeof analysis.nextAction !== "string") {
+      return {
+        success: false,
+        message: `${label} has incomplete or invalid analysis grounding, ranking, or nextAction fields.`
+      };
+    }
+    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord13(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isRepositoryRelativePathArray(identifier.matchedFiles));
+    if (invalidIdentifier !== -1) {
+      return {
+        success: false,
+        message: `${label} has an invalid analysis.grounding.identifiers entry at index ${invalidIdentifier}.`
+      };
+    }
+    if (analysis.retrievalRanking !== void 0) {
+      const retrievalRanking = analysis.retrievalRanking;
+      if (!isRecord13(retrievalRanking) || !isNullableFiniteNumber(retrievalRanking.topFusionScore) || !isNullableFiniteNumber(retrievalRanking.runnerUpFusionScore) || !isNullableFiniteNumber(retrievalRanking.topGap)) {
+        return { success: false, message: `${label} has invalid analysis.retrievalRanking fields.` };
+      }
+    }
+  }
+  if (record3.retrieval !== void 0) {
+    const retrieval = record3.retrieval;
+    const weights = isRecord13(retrieval) ? retrieval.weights : void 0;
+    if (!isRecord13(retrieval) || retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic" || !isRecord13(weights) || !isPositiveFiniteNumber(weights.structural) || !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) || !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
+      return { success: false, message: `${label} has an invalid retrieval envelope.` };
+    }
+    if (retrieval.mode === "structural-lexical-semantic" && !isSemanticProvenance(retrieval.semantic)) {
+      return { success: false, message: `${label} has invalid or missing semantic retrieval provenance.` };
+    }
+    if (retrieval.mode === "structural-lexical" && retrieval.semantic !== void 0) {
+      return { success: false, message: `${label} carries semantic provenance while declaring structural-lexical retrieval.` };
+    }
+  }
+  return { success: true, report: candidate };
+}
 function isRecord13(candidate) {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
+function isStringArray(candidate) {
+  return Array.isArray(candidate) && candidate.every((entry2) => typeof entry2 === "string");
+}
+function isRepositoryRelativePathArray(candidate) {
+  return Array.isArray(candidate) && candidate.every(isRepositoryRelativePath);
+}
+function isNullableFiniteNumber(candidate) {
+  return candidate === null || typeof candidate === "number" && Number.isFinite(candidate);
+}
+function isIdentifierStatus(candidate) {
+  return candidate === "exact-definition" || candidate === "exact-text" || candidate === "partial-definition" || candidate === "not-found" || candidate === "unverified";
+}
+function isRetrievalSignal(candidate) {
+  if (!isRecord13(candidate))
+    return false;
+  const ranks = [candidate.structuralRank, candidate.lexicalRank, candidate.semanticRank];
+  if (ranks.every((rank) => rank === void 0))
+    return false;
+  if (ranks.some((rank) => rank !== void 0 && (!Number.isSafeInteger(rank) || Number(rank) < 1)))
+    return false;
+  if (candidate.structuralScore !== void 0 && (typeof candidate.structuralScore !== "number" || !Number.isFinite(candidate.structuralScore)))
+    return false;
+  return candidate.semanticSimilarity === void 0 || typeof candidate.semanticSimilarity === "number" && Number.isFinite(candidate.semanticSimilarity) && candidate.semanticSimilarity >= -1 && candidate.semanticSimilarity <= 1;
+}
+function isSemanticProvenance(candidate) {
+  if (!isRecord13(candidate))
+    return false;
+  return typeof candidate.id === "string" && candidate.id.trim().length > 0 && typeof candidate.version === "string" && candidate.version.trim().length > 0 && typeof candidate.model === "string" && candidate.model.trim().length > 0 && typeof candidate.artifactHash === "string" && /^[a-f0-9]{64}$/.test(candidate.artifactHash) && typeof candidate.runtime === "string" && candidate.runtime.trim().length > 0 && Number.isSafeInteger(candidate.dimensions) && Number(candidate.dimensions) > 0 && (candidate.normalization === "l2" || candidate.normalization === "none") && typeof candidate.local === "boolean" && typeof candidate.cacheKey === "string" && candidate.cacheKey.trim().length > 0 && Number.isSafeInteger(candidate.indexedFiles) && Number(candidate.indexedFiles) >= 0 && Number.isSafeInteger(candidate.truncatedFiles) && Number(candidate.truncatedFiles) >= 0;
+}
+function isPositiveFiniteNumber(candidate) {
+  return typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0;
+}
+
+// packages/core/dist/workspace-config.js
+import { readFile as readFile5, realpath as realpath3 } from "node:fs/promises";
+import { homedir as homedir3 } from "node:os";
+import { dirname as dirname3, isAbsolute as isAbsolute3, resolve as resolve6 } from "node:path";
+var REPOSITORY_ID2 = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+var MAX_ALIASES = 256;
+var MAX_PACKAGE_NAME = 214;
+var MAX_REASON = 500;
+var ECOSYSTEMS = /* @__PURE__ */ new Set(["node", "python", "maven"]);
+var ALIAS_KEYS = /* @__PURE__ */ new Set(["consumer", "ecosystem", "package", "provider", "providerPackage", "reason"]);
+function parseWorkspaceConfig(value) {
+  if (!isRecord14(value))
+    throw new Error("Workspace config must be a JSON object.");
+  if (value.workspaceConfigVersion !== 1) {
+    throw new Error("Workspace config workspaceConfigVersion must be 1.");
+  }
+  const workspace = stringField(value.workspace, "workspace");
+  if (!Array.isArray(value.repositories) || value.repositories.length < 1 || value.repositories.length > 32) {
+    throw new Error("Workspace config repositories must contain 1-32 entries.");
+  }
+  const repositories = value.repositories.map((entry2, index) => {
+    if (!isRecord14(entry2))
+      throw new Error(`Workspace repository ${index + 1} must be an object.`);
+    const id = stringField(entry2.id, `repositories[${index}].id`);
+    if (!REPOSITORY_ID2.test(id))
+      throw new Error(`Invalid workspace repository ID: ${id}`);
+    const path = stringField(entry2.path, `repositories[${index}].path`);
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path)) {
+      throw new Error(`Workspace repository ${id} must use a local path, not a URL.`);
+    }
+    const relationship = parseRelationship(entry2.relationship, id);
+    return { id, path, ...relationship ? { relationship } : {} };
+  });
+  const aliases = value.aliases === void 0 ? void 0 : parseAliases(value.aliases, new Set(repositories.map((entry2) => entry2.id)));
+  return { workspaceConfigVersion: 1, workspace, repositories, ...aliases ? { aliases } : {} };
+}
+function parseAliases(value, repositoryIds) {
+  if (!Array.isArray(value) || value.length > MAX_ALIASES) {
+    throw new Error(`Workspace config aliases must be an array of at most ${MAX_ALIASES} entries.`);
+  }
+  const seen = /* @__PURE__ */ new Set();
+  return value.map((entry2, index) => {
+    const where = `aliases[${index}]`;
+    if (!isRecord14(entry2))
+      throw new Error(`Workspace config ${where} must be an object.`);
+    const unknown = Object.keys(entry2).filter((key3) => !ALIAS_KEYS.has(key3));
+    if (unknown.length > 0)
+      throw new Error(`Workspace config ${where} has unknown field${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`);
+    const consumer = stringField(entry2.consumer, `${where}.consumer`);
+    const provider = stringField(entry2.provider, `${where}.provider`);
+    for (const [field, id] of [["consumer", consumer], ["provider", provider]]) {
+      if (!repositoryIds.has(id))
+        throw new Error(`Workspace config ${where}.${field} names unknown repository ${id}.`);
+    }
+    if (consumer === provider)
+      throw new Error(`Workspace config ${where} must link two different repositories.`);
+    if (typeof entry2.ecosystem !== "string" || !ECOSYSTEMS.has(entry2.ecosystem)) {
+      throw new Error(`Workspace config ${where}.ecosystem must be node, python, or maven.`);
+    }
+    const ecosystem = entry2.ecosystem;
+    const pkg = packageName(entry2.package, `${where}.package`);
+    const providerPackage = packageName(entry2.providerPackage, `${where}.providerPackage`);
+    const reason2 = stringField(entry2.reason, `${where}.reason`);
+    if (reason2.length > MAX_REASON || /[\u0000-\u001f\u007f]/.test(reason2)) {
+      throw new Error(`Workspace config ${where}.reason must be one line of at most ${MAX_REASON} characters.`);
+    }
+    const key2 = `${consumer}\0${ecosystem}\0${pkg}`;
+    if (seen.has(key2))
+      throw new Error(`Workspace config ${where} repeats the alias for ${consumer} ${ecosystem}:${pkg}.`);
+    seen.add(key2);
+    return { consumer, ecosystem, package: pkg, provider, providerPackage, reason: reason2 };
+  });
+}
+function packageName(value, name) {
+  const text2 = stringField(value, name);
+  if (text2.length > MAX_PACKAGE_NAME || /[\s\u0000-\u001f\u007f`\\]/.test(text2) || text2.includes("..")) {
+    throw new Error(`Workspace config ${name} must be a package name of at most ${MAX_PACKAGE_NAME} characters without whitespace, backslashes, or "..".`);
+  }
+  return text2;
+}
+function parseRelationship(value, repository) {
+  if (value === void 0)
+    return void 0;
+  if (!isRecord14(value) || value.kind !== "checkout" && value.kind !== "submodule") {
+    throw new Error(`Workspace repository ${repository} relationship.kind must be checkout or submodule.`);
+  }
+  if (value.kind === "checkout")
+    return { kind: "checkout" };
+  const parentRepository = stringField(value.parentRepository, `${repository}.relationship.parentRepository`);
+  const path = typeof value.path === "string" && value.path.trim() ? value.path.trim() : void 0;
+  return { kind: "submodule", parentRepository, ...path ? { path } : {} };
+}
+async function resolveWorkspaceRepositories(repositories, configDirectory) {
+  const ids = /* @__PURE__ */ new Set();
+  const roots = /* @__PURE__ */ new Map();
+  const resolved = [];
+  for (const config of repositories) {
+    if (ids.has(config.id))
+      throw new Error(`Duplicate workspace repository ID: ${config.id}`);
+    ids.add(config.id);
+    const literal = expandHomePath(config.path);
+    const root = resolve6(isAbsolute3(literal) ? literal : resolve6(configDirectory, literal));
+    let canonical;
+    try {
+      canonical = await realpath3(root);
+    } catch (error) {
+      const code = error.code;
+      throw new Error(`Workspace repository ${config.id} could not be opened at "${root}": ${code === "ENOENT" ? "no such file or directory" : error instanceof Error ? error.message : String(error)}`);
+    }
+    const key2 = pathKey(canonical);
+    const collision = roots.get(key2);
+    if (collision)
+      throw new Error(`Workspace repositories ${collision} and ${config.id} resolve to the same checkout.`);
+    roots.set(key2, config.id);
+    resolved.push({ config, root: canonical });
+  }
+  return resolved;
+}
+async function loadWorkspaceConfig(configPath, options = {}) {
+  let raw;
+  try {
+    raw = JSON.parse((await readFile5(configPath, "utf8")).replace(/^﻿/, ""));
+  } catch (error) {
+    throw new Error(`Could not read workspace config "${configPath}": ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const config = parseWorkspaceConfig(raw);
+  const resolved = await resolveWorkspaceRepositories(config.repositories, dirname3(resolve6(configPath)));
+  const scan = options.scanRepository ?? scanRepo;
+  const scanned = [];
+  for (const entry2 of resolved) {
+    const repo = await scan({ repoRoot: entry2.root, includeHistory: false, useCache: options.useCache ?? true });
+    assertWorkspaceScan(entry2.config.id, repo);
+    scanned.push({ id: entry2.config.id, root: entry2.root, repo, relationship: entry2.config.relationship });
+  }
+  const map = buildWorkspaceMap(scanned.map((entry2) => ({ id: entry2.id, repo: entry2.repo, relationship: entry2.relationship ?? { kind: "checkout" } })), { workspace: config.workspace, ...config.aliases ? { aliases: config.aliases } : {} });
+  return { config, repositories: resolved.map((entry2) => ({ id: entry2.config.id, root: entry2.root })), map };
+}
+function assertWorkspaceScan(repository, repo) {
+  const error = repo.diagnostics.find((diagnostic) => diagnostic.severity === "error");
+  if (error)
+    throw new Error(`Workspace repository ${repository} could not be scanned: ${error.message}`);
+  if (repo.files.length === 0)
+    throw new Error(`Workspace repository ${repository} contains no scannable files.`);
+}
+async function findWorkspaceRepository(loaded, repoRoot) {
+  let canonical;
+  try {
+    canonical = await realpath3(resolve6(repoRoot));
+  } catch {
+    return void 0;
+  }
+  return loaded.repositories.find((entry2) => pathKey(entry2.root) === pathKey(canonical))?.id;
+}
+function pathKey(path) {
+  return process.platform === "win32" ? path.toLowerCase() : path;
+}
+function expandHomePath(value) {
+  if (value === "~")
+    return homedir3();
+  if (value.startsWith("~/") || value.startsWith("~\\"))
+    return resolve6(homedir3(), value.slice(2));
+  return value;
+}
+function stringField(value, name) {
+  if (typeof value !== "string" || !value.trim())
+    throw new Error(`Workspace config ${name} must be a non-blank string.`);
+  return value.trim();
+}
+function isRecord14(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// packages/core/dist/annotation-store.js
+import { mkdir as mkdir3, open as open2, readFile as readFile6, realpath as realpath4, rename as rename3, rm, stat as stat3, lstat as lstat2 } from "node:fs/promises";
+import { resolve as resolve7 } from "node:path";
+import { randomUUID as randomUUID3 } from "node:crypto";
+async function readAnnotationStore(repoRoot) {
+  return readStore(await annotationRoot(repoRoot));
+}
+async function updateAnnotationStore(repoRoot, update) {
+  const root = await annotationRoot(repoRoot);
+  return withStoreLock(root, async () => {
+    const updated = validateAnnotationStore(await update(await readStore(root)));
+    await writeStore(root, updated);
+    return updated;
+  });
+}
+async function annotationRoot(path) {
+  const root = await realpath4(path);
+  if (!(await stat3(root)).isDirectory())
+    throw new Error("Annotation repository must be a directory.");
+  return root;
+}
+async function readStore(repoRoot) {
+  await assertStoreBoundary(repoRoot);
+  const path = resolve7(repoRoot, ".fixmap", "annotations.json");
+  try {
+    return validateAnnotationStore(JSON.parse(await readFile6(path, "utf8")));
+  } catch (error) {
+    if (isNodeError(error, "ENOENT"))
+      return emptyAnnotationStore();
+    if (error instanceof SyntaxError)
+      throw new Error(`${path} is not valid JSON; repair it before adding annotations.`);
+    throw error;
+  }
+}
+async function writeStore(repoRoot, store) {
+  const directory = resolve7(repoRoot, ".fixmap");
+  await mkdir3(directory, { recursive: true });
+  await assertStoreBoundary(repoRoot);
+  const target = resolve7(directory, "annotations.json");
+  const temporary = resolve7(directory, `.annotations.${process.pid}.${randomUUID3()}.tmp`);
+  const handle = await open2(temporary, "wx", 384);
+  try {
+    await handle.writeFile(`${JSON.stringify(validateAnnotationStore(store), null, 2)}
+`, "utf8");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  try {
+    await rename3(temporary, target);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
+}
+async function withStoreLock(repoRoot, operation) {
+  await assertStoreBoundary(repoRoot);
+  const directory = resolve7(repoRoot, ".fixmap");
+  await mkdir3(directory, { recursive: true });
+  await assertStoreBoundary(repoRoot);
+  const lockPath = resolve7(directory, "annotations.lock");
+  let handle;
+  try {
+    handle = await open2(lockPath, "wx", 384);
+  } catch (error) {
+    if (!isNodeError(error, "EEXIST"))
+      throw error;
+    throw new Error("Another FixMap annotation update is in progress or left a lock. Retry after it finishes; if interrupted, confirm no annotation writer is running before manually removing .fixmap/annotations.lock.");
+  }
+  try {
+    await handle.writeFile(`${JSON.stringify({ pid: process.pid, createdAt: (/* @__PURE__ */ new Date()).toISOString() })}
+`, "utf8");
+    await handle.sync();
+    return await operation();
+  } finally {
+    try {
+      await handle.close();
+    } finally {
+      await rm(lockPath, { force: true });
+    }
+  }
+}
+async function assertStoreBoundary(repoRoot) {
+  const directory = resolve7(repoRoot, ".fixmap");
+  const directoryInfo = await lstat2(directory).catch((error) => {
+    if (isNodeError(error, "ENOENT"))
+      return void 0;
+    throw error;
+  });
+  if (!directoryInfo)
+    return;
+  if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || await realpath4(directory) !== directory) {
+    throw new Error("Annotation store directory must be a real repository-local .fixmap directory, not a link or junction.");
+  }
+  for (const name of ["annotations.json", "annotations.lock"]) {
+    const info = await lstat2(resolve7(directory, name)).catch((error) => {
+      if (isNodeError(error, "ENOENT"))
+        return void 0;
+      throw error;
+    });
+    if (info && (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1)) {
+      throw new Error("Annotation store and lock must be regular, unlinked repository-local files.");
+    }
+  }
+}
+function isNodeError(error, code) {
+  return error instanceof Error && "code" in error && error.code === code;
+}
+
+// packages/core/dist/sandbox.js
+import { execFile as execFile5, spawn as spawn2 } from "node:child_process";
+import { promisify as promisify5 } from "node:util";
+var exec5 = promisify5(execFile5);
+var DEFAULT_LIMITS = {
+  timeoutMs: 5 * 6e4,
+  outputBytes: 1e6,
+  cpus: 1,
+  memoryMb: 1024,
+  pids: 256,
+  tmpfsMb: 256
+};
+
+// packages/core/dist/ci-matrix.js
+var DIMENSIONS = ["os", "runtime", "database", "browser", "feature-flag", "deployment"];
+var DIMENSION_SET = new Set(DIMENSIONS);
+
+// packages/core/dist/editor-transport.js
+var EDITOR_RESPONSE_MAX_BYTES = 4 * 1024 * 1024;
 
 // packages/core/dist/capability-history.js
 async function compareCapabilityRefs(input) {
@@ -11882,178 +12070,6 @@ function canonicalize4(value) {
     return `{${Object.entries(value).filter(([, entry2]) => entry2 !== void 0).sort(([left], [right]) => left.localeCompare(right)).map(([key2, entry2]) => `${JSON.stringify(key2)}:${canonicalize4(entry2)}`).join(",")}}`;
   }
   return JSON.stringify(value);
-}
-
-// packages/core/dist/workspace-config.js
-import { readFile as readFile6, realpath as realpath4 } from "node:fs/promises";
-import { homedir as homedir3 } from "node:os";
-import { dirname as dirname3, isAbsolute as isAbsolute3, resolve as resolve7 } from "node:path";
-var REPOSITORY_ID2 = /^[a-z0-9][a-z0-9._-]{0,63}$/;
-var MAX_ALIASES = 256;
-var MAX_PACKAGE_NAME = 214;
-var MAX_REASON = 500;
-var ECOSYSTEMS = /* @__PURE__ */ new Set(["node", "python", "maven"]);
-var ALIAS_KEYS = /* @__PURE__ */ new Set(["consumer", "ecosystem", "package", "provider", "providerPackage", "reason"]);
-function parseWorkspaceConfig(value) {
-  if (!isRecord14(value))
-    throw new Error("Workspace config must be a JSON object.");
-  if (value.workspaceConfigVersion !== 1) {
-    throw new Error("Workspace config workspaceConfigVersion must be 1.");
-  }
-  const workspace = stringField(value.workspace, "workspace");
-  if (!Array.isArray(value.repositories) || value.repositories.length < 1 || value.repositories.length > 32) {
-    throw new Error("Workspace config repositories must contain 1-32 entries.");
-  }
-  const repositories = value.repositories.map((entry2, index) => {
-    if (!isRecord14(entry2))
-      throw new Error(`Workspace repository ${index + 1} must be an object.`);
-    const id = stringField(entry2.id, `repositories[${index}].id`);
-    if (!REPOSITORY_ID2.test(id))
-      throw new Error(`Invalid workspace repository ID: ${id}`);
-    const path = stringField(entry2.path, `repositories[${index}].path`);
-    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path)) {
-      throw new Error(`Workspace repository ${id} must use a local path, not a URL.`);
-    }
-    const relationship = parseRelationship(entry2.relationship, id);
-    return { id, path, ...relationship ? { relationship } : {} };
-  });
-  const aliases = value.aliases === void 0 ? void 0 : parseAliases(value.aliases, new Set(repositories.map((entry2) => entry2.id)));
-  return { workspaceConfigVersion: 1, workspace, repositories, ...aliases ? { aliases } : {} };
-}
-function parseAliases(value, repositoryIds) {
-  if (!Array.isArray(value) || value.length > MAX_ALIASES) {
-    throw new Error(`Workspace config aliases must be an array of at most ${MAX_ALIASES} entries.`);
-  }
-  const seen = /* @__PURE__ */ new Set();
-  return value.map((entry2, index) => {
-    const where = `aliases[${index}]`;
-    if (!isRecord14(entry2))
-      throw new Error(`Workspace config ${where} must be an object.`);
-    const unknown = Object.keys(entry2).filter((key3) => !ALIAS_KEYS.has(key3));
-    if (unknown.length > 0)
-      throw new Error(`Workspace config ${where} has unknown field${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`);
-    const consumer = stringField(entry2.consumer, `${where}.consumer`);
-    const provider = stringField(entry2.provider, `${where}.provider`);
-    for (const [field, id] of [["consumer", consumer], ["provider", provider]]) {
-      if (!repositoryIds.has(id))
-        throw new Error(`Workspace config ${where}.${field} names unknown repository ${id}.`);
-    }
-    if (consumer === provider)
-      throw new Error(`Workspace config ${where} must link two different repositories.`);
-    if (typeof entry2.ecosystem !== "string" || !ECOSYSTEMS.has(entry2.ecosystem)) {
-      throw new Error(`Workspace config ${where}.ecosystem must be node, python, or maven.`);
-    }
-    const ecosystem = entry2.ecosystem;
-    const pkg = packageName(entry2.package, `${where}.package`);
-    const providerPackage = packageName(entry2.providerPackage, `${where}.providerPackage`);
-    const reason2 = stringField(entry2.reason, `${where}.reason`);
-    if (reason2.length > MAX_REASON || /[\u0000-\u001f\u007f]/.test(reason2)) {
-      throw new Error(`Workspace config ${where}.reason must be one line of at most ${MAX_REASON} characters.`);
-    }
-    const key2 = `${consumer}\0${ecosystem}\0${pkg}`;
-    if (seen.has(key2))
-      throw new Error(`Workspace config ${where} repeats the alias for ${consumer} ${ecosystem}:${pkg}.`);
-    seen.add(key2);
-    return { consumer, ecosystem, package: pkg, provider, providerPackage, reason: reason2 };
-  });
-}
-function packageName(value, name) {
-  const text2 = stringField(value, name);
-  if (text2.length > MAX_PACKAGE_NAME || /[\s\u0000-\u001f\u007f`\\]/.test(text2) || text2.includes("..")) {
-    throw new Error(`Workspace config ${name} must be a package name of at most ${MAX_PACKAGE_NAME} characters without whitespace, backslashes, or "..".`);
-  }
-  return text2;
-}
-function parseRelationship(value, repository) {
-  if (value === void 0)
-    return void 0;
-  if (!isRecord14(value) || value.kind !== "checkout" && value.kind !== "submodule") {
-    throw new Error(`Workspace repository ${repository} relationship.kind must be checkout or submodule.`);
-  }
-  if (value.kind === "checkout")
-    return { kind: "checkout" };
-  const parentRepository = stringField(value.parentRepository, `${repository}.relationship.parentRepository`);
-  const path = typeof value.path === "string" && value.path.trim() ? value.path.trim() : void 0;
-  return { kind: "submodule", parentRepository, ...path ? { path } : {} };
-}
-async function resolveWorkspaceRepositories(repositories, configDirectory) {
-  const ids = /* @__PURE__ */ new Set();
-  const roots = /* @__PURE__ */ new Map();
-  const resolved = [];
-  for (const config of repositories) {
-    if (ids.has(config.id))
-      throw new Error(`Duplicate workspace repository ID: ${config.id}`);
-    ids.add(config.id);
-    const literal = expandHomePath(config.path);
-    const root = resolve7(isAbsolute3(literal) ? literal : resolve7(configDirectory, literal));
-    let canonical;
-    try {
-      canonical = await realpath4(root);
-    } catch (error) {
-      const code = error.code;
-      throw new Error(`Workspace repository ${config.id} could not be opened at "${root}": ${code === "ENOENT" ? "no such file or directory" : error instanceof Error ? error.message : String(error)}`);
-    }
-    const key2 = pathKey(canonical);
-    const collision = roots.get(key2);
-    if (collision)
-      throw new Error(`Workspace repositories ${collision} and ${config.id} resolve to the same checkout.`);
-    roots.set(key2, config.id);
-    resolved.push({ config, root: canonical });
-  }
-  return resolved;
-}
-async function loadWorkspaceConfig(configPath, options = {}) {
-  let raw;
-  try {
-    raw = JSON.parse((await readFile6(configPath, "utf8")).replace(/^﻿/, ""));
-  } catch (error) {
-    throw new Error(`Could not read workspace config "${configPath}": ${error instanceof Error ? error.message : String(error)}`);
-  }
-  const config = parseWorkspaceConfig(raw);
-  const resolved = await resolveWorkspaceRepositories(config.repositories, dirname3(resolve7(configPath)));
-  const scan = options.scanRepository ?? scanRepo;
-  const scanned = [];
-  for (const entry2 of resolved) {
-    const repo = await scan({ repoRoot: entry2.root, includeHistory: false, useCache: options.useCache ?? true });
-    assertWorkspaceScan(entry2.config.id, repo);
-    scanned.push({ id: entry2.config.id, root: entry2.root, repo, relationship: entry2.config.relationship });
-  }
-  const map = buildWorkspaceMap(scanned.map((entry2) => ({ id: entry2.id, repo: entry2.repo, relationship: entry2.relationship ?? { kind: "checkout" } })), { workspace: config.workspace, ...config.aliases ? { aliases: config.aliases } : {} });
-  return { config, repositories: resolved.map((entry2) => ({ id: entry2.config.id, root: entry2.root })), map };
-}
-function assertWorkspaceScan(repository, repo) {
-  const error = repo.diagnostics.find((diagnostic) => diagnostic.severity === "error");
-  if (error)
-    throw new Error(`Workspace repository ${repository} could not be scanned: ${error.message}`);
-  if (repo.files.length === 0)
-    throw new Error(`Workspace repository ${repository} contains no scannable files.`);
-}
-async function findWorkspaceRepository(loaded, repoRoot) {
-  let canonical;
-  try {
-    canonical = await realpath4(resolve7(repoRoot));
-  } catch {
-    return void 0;
-  }
-  return loaded.repositories.find((entry2) => pathKey(entry2.root) === pathKey(canonical))?.id;
-}
-function pathKey(path) {
-  return process.platform === "win32" ? path.toLowerCase() : path;
-}
-function expandHomePath(value) {
-  if (value === "~")
-    return homedir3();
-  if (value.startsWith("~/") || value.startsWith("~\\"))
-    return resolve7(homedir3(), value.slice(2));
-  return value;
-}
-function stringField(value, name) {
-  if (typeof value !== "string" || !value.trim())
-    throw new Error(`Workspace config ${name} must be a non-blank string.`);
-  return value.trim();
-}
-function isRecord14(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // packages/action/src/workspace-section.ts

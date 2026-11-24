@@ -986,7 +986,24 @@ async function walkFiles(
   let entries;
   try {
     entries = await readdir(current, { withFileTypes: true });
-  } catch {
+  } catch (error) {
+    // Skipping silently made an unreadable checkout look like an empty one ("0 context files").
+    const reason = (error as { code?: string }).code ?? "unreadable";
+    const path = normalizePath(relative(root, current));
+    if (!path) {
+      diagnostics.push({
+        code: "directory-unreadable",
+        severity: "error",
+        message: `Could not read the repository root (${reason}), so nothing was scanned. Check that this user can list the checkout; in a container, make it readable by the container user or run with that user's uid.`
+      });
+    } else if (diagnostics.filter((diagnostic) => diagnostic.code === "directory-unreadable").length < 5) {
+      diagnostics.push({
+        code: "directory-unreadable",
+        severity: "warning",
+        paths: [path],
+        message: `Could not read ${path} (${reason}); files under it were not scanned.`
+      });
+    }
     return [];
   }
   const results: RepoFile[] = [];

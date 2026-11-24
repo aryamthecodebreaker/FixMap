@@ -1,0 +1,87 @@
+{
+  "workspaceVersion": 1,
+  "workspace": "compat",
+  "repositories": [
+    {
+      "id": "app",
+      "identity": "fixmap://workspace/compat/repository/app",
+      "root": "/fixtures/app",
+      "relationship": {
+        "kind": "checkout"
+      },
+      "fileCount": 8
+    }
+  ],
+  "packages": [
+    {
+      "id": "app:node:compat-fixture",
+      "identity": "fixmap://workspace/compat/repository/app/package/node%3Acompat-fixture",
+      "repository": "app",
+      "ecosystem": "node",
+      "name": "compat-fixture",
+      "manifestPath": "package.json",
+      "importNamespaces": [
+        "compat-fixture"
+      ]
+    }
+  ],
+  "dependencies": [],
+  "identityGraph": {
+    "identityGraphVersion": 1,
+    "workspace": "compat",
+    "version": {
+      "sequence": 1,
+      "fingerprint": "993c1da035a5a8ad"
+    },
+    "nodes": [
+      {
+        "id": "fixmap://workspace/compat/repository/app",
+        "kind": "repository",
+        "key": "app",
+        "repository": "app",
+        "attributes": {
+          "relationship": "checkout"
+        },
+        "derivedFrom": []
+      },
+      {
+        "id": "fixmap://workspace/compat/repository/app/package/node%3Acompat-fixture",
+        "kind": "package",
+        "key": "node:compat-fixture",
+        "repository": "app",
+        "parent": "fixmap://workspace/compat/repository/app",
+        "label": "compat-fixture",
+        "attributes": {
+          "ecosystem": "node"
+        },
+        "derivedFrom": [
+          {
+            "kind": "source",
+            "repository": "app",
+            "path": "package.json",
+            "fingerprint": "git:608c7d0414a5a253781001a056753c121a1971cc"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "fixmap-edge:contains:bb984f0cff942092",
+        "kind": "contains",
+        "from": "fixmap://workspace/compat/repository/app",
+        "to": "fixmap://workspace/compat/repository/app/package/node%3Acompat-fixture",
+        "confidence": "high",
+        "reason": "package.json declares node package compat-fixture.",
+        "derivedFrom": [
+          {
+            "kind": "source",
+            "repository": "app",
+            "path": "package.json",
+            "fingerprint": "git:608c7d0414a5a253781001a056753c121a1971cc"
+          }
+        ]
+      }
+    ]
+  },
+  "diagnostics": []
+}

@@ -19,6 +19,7 @@ import {
   renderMarkdownReport,
   scanRepo,
   validateFixMapReport,
+  checkArtifactCompatibility,
   type FixMapReport
 } from "@aryam/fixmap-core";
 import { runDoctorChecks, renderDoctorReport, type DoctorReport } from "./doctor.js";
@@ -138,7 +139,7 @@ Commands:
   plan                Generate a FixMap report for a task or diff
   verify              Compare a saved report against the diff that followed it
   doctor              Check the FixMap install for stale global or npx shadows
-  validate            Validate a saved FixMap JSON report
+  validate            Validate a saved FixMap report or other saved artifact
   benchmark           Backtest BM25, FixMap, and Impact Graph on pre-change snapshots
   change-scope        Preview: Expand explicit planned paths into bounded structural consequences
   reviewers           Preview: Suggest reviewers per changed path from CODEOWNERS, owners, policy, and history
@@ -208,7 +209,7 @@ const DOCTOR_USAGE = `Usage: fixmap doctor [--format markdown|json]\n\nChecks th
 const MCP_USAGE = `Usage: fixmap mcp [--repo <path>]\n\nRuns the FixMap MCP server over stdio. --repo sets the default local repository for tool calls that omit repo.\n`;
 const FEATURES_USAGE = `Usage: fixmap features [--format markdown|json]\n\nLists every FixMap capability and the command that exposes it.\n`;
 const SETUP_USAGE = `Usage: fixmap setup [--agent claude|cursor|copilot|agents|all] [--repo <path>] [--force]\n\nWith no arguments, previews every workflow without writing files. Pass --agent explicitly to install a /fixmap command.\n`;
-const VALIDATE_USAGE = `Usage: fixmap validate <report.json> [--format markdown|json]\n\nChecks a saved report against FixMap's structural compatibility contract.\n`;
+const VALIDATE_USAGE = `Usage: fixmap validate <artifact.json> [--format markdown|json]\n\nChecks a saved report, dossier, outcome, annotation or capability store, policy, workspace config or map, agent intent, or evidence bundle against FixMap's compatibility contract. An artifact from a newer FixMap is rejected with an upgrade message.\n`;
 const BENCHMARK_USAGE = `Usage: fixmap benchmark [--repo <local-path>] [--last <1-100>] [--format markdown|json] [--output <file>]\n\nBacktests BM25, FixMap, and Impact Graph against historical parent snapshots without executing repository code.\n`;
 
 export async function runCli(args: string[], dependencies: CliDependencies = {}): Promise<number> {
@@ -398,6 +399,16 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     if (!reportPath) { stderr(`validate requires a report path.\n\n${VALIDATE_USAGE}`); return 1; }
     try {
       const parsed = JSON.parse(readDecodedTextFile(reportPath)) as unknown;
+      const reportLike = typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) &&
+        ("reportVersion" in parsed || "contextFiles" in parsed);
+      if (!reportLike) {
+        const compatibility = checkArtifactCompatibility(parsed);
+        if (compatibility.status !== "supported") { stderr(`"${reportPath}": ${compatibility.message}\n`); return 1; }
+        stdout(format === "json"
+          ? `${JSON.stringify({ valid: true, path: reportPath, kind: compatibility.kind, versionField: compatibility.versionField, version: compatibility.version }, null, 2)}\n`
+          : `Valid FixMap ${compatibility.kind}: ${reportPath} (${compatibility.versionField} ${String(compatibility.version)}).\n`);
+        return 0;
+      }
       const result = validateFixMapReport(parsed, `"${reportPath}"`);
       if (!result.success) { stderr(`${result.message}\n`); return 1; }
       const payload = {

@@ -1,0 +1,17 @@
+{
+  "capabilityStoreVersion": 1,
+  "workspace": "local",
+  "repository": "fixmap-compat-0.9.5-pqvkeq",
+  "capabilities": [
+    {
+      "id": "password-reset",
+      "name": "Password reset",
+      "anchors": [
+        {
+          "operation": "touch",
+          "path": "src/auth/reset.ts"
+        }
+      ]
+    }
+  ]
+}

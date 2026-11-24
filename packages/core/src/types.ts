@@ -58,6 +58,7 @@ export type ScanDiagnostic = {
     | "linked-paths-skipped"
     | "submodules-skipped"
     | "repo-root-missing"
+    | "directory-unreadable"
     | "gated-test-skipped"
     | "remote-issue-fetched"
     | "remote-pull-fetched"

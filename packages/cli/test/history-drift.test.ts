@@ -10,7 +10,8 @@ import { runCli } from "../src/cli-runner.js";
 import { createFixMapMcpServer, parsePlanArguments } from "../src/mcp.js";
 
 const exec = promisify(execFile);
-const TIMEOUT = process.platform === "win32" ? 60_000 : 30_000;
+// Real Git snapshots at two refs; under the full parallel suite Windows runs exceeded 60 s.
+const TIMEOUT = process.platform === "win32" ? 120_000 : 30_000;
 const ODD = "space dir/ünïcode/deep/er/still";
 const roots: string[] = [];
 let previousCacheDir: string | undefined;

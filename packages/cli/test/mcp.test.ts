@@ -816,7 +816,7 @@ describe("fixmap mcp server", () => {
         expect((result.content as Array<{ text: string }>)[0]!.text).toContain(expected);
       }
     } finally {
-      await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
     }
   }, 30_000);
 

@@ -22,7 +22,13 @@ COPY --from=build --chown=node:node /build/packages/core/package.json ./packages
 COPY --from=build --chown=node:node /build/packages/core/dist ./packages/core/dist
 COPY --from=build --chown=node:node /build/packages/cli/package.json ./packages/cli/package.json
 COPY --from=build --chown=node:node /build/packages/cli/dist ./packages/cli/dist
-RUN mkdir -p /var/lib/fixmap/cache /workspace /tmp/fixmap-home && chown -R node:node /var/lib/fixmap /workspace /tmp/fixmap-home
+# Git reads diffs and history from the mounted repository. That checkout is owned by the host user,
+# not the container's node user, so /workspace is marked safe for git system-wide.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git \
+ && rm -rf /var/lib/apt/lists/* \
+ && git config --system --add safe.directory /workspace \
+ && mkdir -p /var/lib/fixmap/cache /workspace /tmp/fixmap-home && chown -R node:node /var/lib/fixmap /workspace /tmp/fixmap-home
 USER node
 VOLUME ["/var/lib/fixmap/cache", "/workspace"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD ["node", "/opt/fixmap/packages/cli/dist/cli.js", "--version"]

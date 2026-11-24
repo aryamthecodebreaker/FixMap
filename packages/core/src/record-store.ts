@@ -175,12 +175,13 @@ async function withLock<T, R>(kind: Kind<T>, root: string, operation: (directory
   const lockPath = resolve(root, ".fixmap", `${kind.directory}.lock`);
   let handle;
   for (let attempt = 1; !handle; attempt += 1) {
-    const existing = await fileInfo(lockPath);
-    if (existing) assertRegularFile(kind, existing);
+    const existing = await lockInfo(lockPath);
+    if (existing && existing !== "releasing") assertRegularFile(kind, existing);
     try {
       handle = await open(lockPath, "wx", 0o600);
     } catch (error) {
-      if (!isNodeError(error, "EEXIST")) throw error;
+      // EPERM on Windows: the previous lock is still delete-pending; wait for it like a held lock.
+      if (!isNodeError(error, "EEXIST") && !(process.platform === "win32" && isNodeError(error, "EPERM"))) throw error;
       // Age cannot prove that a writer has stopped (it may be suspended), so the lock is never
       // taken over. Wait a bounded time for a live writer, then refuse.
       if (attempt >= LOCK_ATTEMPTS) {
@@ -260,6 +261,22 @@ function recordPath(directory: string, id: string): string {
 function assertId<T>(kind: Kind<T>, id: string): void {
   if (typeof id !== "string" || !isStoredRecordId(id)) {
     throw new Error(`Invalid ${kind.label} id: use letters, digits, '.', '_' or '-' (at most 128 characters, no path separators).`);
+  }
+}
+
+/**
+ * A lock another writer is deleting is briefly "delete pending" on Windows: lstat reports nlink 0
+ * or fails with EPERM. That is a lock being released, not a tampered file; the open("wx") below
+ * then waits for it like any held lock. Hard links (nlink > 1) and non-files are still refused.
+ */
+async function lockInfo(path: string): Promise<Awaited<ReturnType<typeof lstat>> | "releasing" | undefined> {
+  try {
+    const info = await lstat(path);
+    return info.nlink === 0 ? "releasing" : info;
+  } catch (error) {
+    if (isNodeError(error, "ENOENT")) return undefined;
+    if (process.platform === "win32" && isNodeError(error, "EPERM")) return "releasing";
+    throw error;
   }
 }
 

@@ -1,0 +1,20 @@
+{
+  "outcomeRecordVersion": 1,
+  "id": "outcome-20261124T073148Z-3003c9d4",
+  "taskId": "plan-599694ede9449587",
+  "repositoryIdentity": "fixmap://workspace/local/repository/fixmap-compat-0.9.5-PqVkeQ",
+  "planFingerprint": "sha256:599694ede944958740ca9d5fbd1f3cbfd2de24c3b285b4f6431526c51e31d6f2",
+  "recordedAt": "2026-11-24T07:31:48.299Z",
+  "predictedPaths": [
+    "src/auth/reset.ts"
+  ],
+  "editedPaths": [
+    "src/auth/reset.ts"
+  ],
+  "testOutcomes": [],
+  "taskAssessment": {
+    "status": "succeeded",
+    "source": "human",
+    "reason": "Assessed by human."
+  }
+}

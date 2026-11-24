@@ -132,7 +132,7 @@ export function summarizeOutcomeCalibration(store: OutcomeStore): OutcomeCalibra
   };
 }
 
-function validateOutcomeRecord(candidate: unknown): OutcomeRecord {
+export function validateOutcomeRecord(candidate: unknown): OutcomeRecord {
   if (!isRecord(candidate) || candidate.outcomeRecordVersion !== 1 || typeof candidate.id !== "string" || !ID.test(candidate.id) ||
     typeof candidate.taskId !== "string" || !ID.test(candidate.taskId) ||
     typeof candidate.repositoryIdentity !== "string" || !candidate.repositoryIdentity.startsWith("fixmap://") || candidate.repositoryIdentity.length > 2_048 ||

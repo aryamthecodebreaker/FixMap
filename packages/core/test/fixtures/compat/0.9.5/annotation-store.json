@@ -1,0 +1,15 @@
+{
+  "annotationStoreVersion": 1,
+  "annotations": [
+    {
+      "id": "annotation:cc0a28cdd610be7c",
+      "scope": {
+        "kind": "file",
+        "path": "src/auth/reset.ts"
+      },
+      "note": "Keep the email check; support relies on it.",
+      "owner": "auth-team",
+      "createdAt": "2026-11-24T07:31:46.755Z"
+    }
+  ]
+}

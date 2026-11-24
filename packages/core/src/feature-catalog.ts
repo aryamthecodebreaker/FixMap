@@ -39,7 +39,7 @@ export const FIXMAP_FEATURES: readonly FixMapFeature[] = [
   { name: "Explain", command: "fixmap plan --explain <path>", detail: "Show whether a path ranked, tied below the limit, was excluded, or was never scanned." },
   { name: "Compare", command: "fixmap plan --compare <report.json>", detail: "Compare a refined task and current plan with an earlier JSON report." },
   { name: "Verify", command: "fixmap verify --report <report.json>", detail: "Compare the completed diff or working tree with the saved plan; add --fail-on warning for a strict CI gate." },
-  { name: "Validate", command: "fixmap validate <report.json>", detail: "Check a saved report against FixMap's structural compatibility contract." },
+  { name: "Validate", command: "fixmap validate <artifact.json>", detail: "Check a saved report, dossier, outcome, store, policy, workspace config or map, agent intent, or evidence bundle against FixMap's versioned compatibility contract; artifacts from a newer FixMap are rejected with an upgrade message, and real artifacts from 0.9.0, 0.9.5 and 0.9.7 are tested to stay readable." },
   { name: "Doctor", command: "fixmap doctor", detail: "Diagnose stale local, global, PATH, and npx install shadows." },
   { name: "MCP", command: "fixmap mcp", detail: "Expose Plan, Context, Graph, Change Scope, Reviewers, Capability maps, Workspace, Ask, Migrate, Alternatives, Reverse Docs, History, Contracts, Supply Chain, Runtime, Outcomes, Dossiers, Explain, Compare, Verify, and Doctor over local stdio." },
   { name: "Public tasks", command: "fixmap owner/repository#123", detail: "Fetch public GitHub issue or pull-request text anonymously and scan its repository in an isolated checkout." },
