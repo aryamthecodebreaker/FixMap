@@ -12,7 +12,7 @@ const exec = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const suiteIndex = process.argv.indexOf("--suite");
 const suite = suiteIndex === -1 ? "polyglot-dev" : process.argv[suiteIndex + 1];
-if (!suite || !["polyglot-dev", "polyglot-validation", "polyglot-heldout", "java-heldout"].includes(suite)) {
+if (!suite || !["polyglot-dev", "polyglot-validation", "polyglot-heldout", "java-heldout", "polyglot-heldout-2"].includes(suite)) {
   throw new Error(`Unknown polyglot cohort suite: ${suite ?? "(missing)"}.`);
 }
 const suiteDir = join(root, "benchmarks", suite);
@@ -20,6 +20,9 @@ const config = JSON.parse(await readFile(join(suiteDir, "repositories.json"), "u
 const outputPath = join(suiteDir, "dataset.json");
 const mergedAfter = parseOptionalTimestamp(config.mergedAfter, "mergedAfter");
 const excludedPullRequests = await loadExcludedPullRequests(config.excludePullRequestsFrom);
+// Fixes that only create a source file cannot be found by any ranker at the base commit, so a
+// cohort may require every counted fixing file to exist there (set before freezing).
+const modifiedOnly = config.modifiedFilesOnly === true;
 const targetPerLanguage = config.targetPerLanguage === undefined ? Infinity : config.targetPerLanguage;
 if (targetPerLanguage !== Infinity && (!Number.isSafeInteger(targetPerLanguage) || targetPerLanguage < 1)) {
   throw new Error(`Invalid targetPerLanguage in ${suite}/repositories.json.`);
@@ -43,7 +46,7 @@ const query = `query($owner:String!,$name:String!){
       nodes{
         number title baseRefOid mergedAt changedFiles
         closingIssuesReferences(first:5){nodes{number title body}}
-        files(first:20){nodes{path}}
+        files(first:20){nodes{path changeType}}
       }
     }
   }
@@ -77,7 +80,7 @@ for (const configured of config.repositories) {
     continue;
   }
   const issue = selected.closingIssuesReferences.nodes.find((entry) => entry.body.trim().length >= 80);
-  const expected = selected.files.nodes.map((entry) => entry.path).filter((path) => sourceFixPath(path, extension)).sort();
+  const expected = selected.files.nodes.filter((entry) => countedFile(entry)).map((entry) => entry.path).filter((path) => sourceFixPath(path, extension)).sort();
   cases.push({
     slug: configured.slug,
     language: configured.language,
@@ -99,7 +102,8 @@ const dataset = {
   selectionRule:
     "Per configured repository and language: the first of the 100 most recently updated merged pull requests that closes an issue with at least 80 body characters, is not docs-titled, changes no more than 20 files total, and modifies 1-3 non-test implementation files in that language." +
     (config.mergedAfter ? ` It must have merged after ${config.mergedAfter}.` : "") +
-    (config.excludePullRequestsFrom ? ` Pull requests already present in ${config.excludePullRequestsFrom} are excluded.` : "") +
+    (config.excludePullRequestsFrom ? ` Pull requests already present in ${[config.excludePullRequestsFrom].flat().join(", ")} are excluded.` : "") +
+    (modifiedOnly ? " Every counted fixing source file must already exist at the base commit (added files are not counted, and a pull request that adds a source file in that language is not eligible)." : "") +
     (targetPerLanguage !== Infinity ? ` Candidates are walked in their configured order until ${targetPerLanguage} repositories per language yield a case; later candidates are not queried.` : "") +
     " The PR base commit and exact fixing source paths are frozen before FixMap is measured.",
   languages: [...new Set(config.repositories.map((entry) => entry.language))],
@@ -113,8 +117,13 @@ if (process.argv.includes("--record")) await writeFile(outputPath, rendered, "ut
 function eligible(pullRequest, extension) {
   if (!pullRequest?.baseRefOid || pullRequest.changedFiles > 20 || docTitle.test(pullRequest.title ?? "")) return false;
   if (!(pullRequest.closingIssuesReferences?.nodes ?? []).some((issue) => issue.body.trim().length >= 80)) return false;
-  const sources = (pullRequest.files?.nodes ?? []).map((entry) => entry.path).filter((path) => sourceFixPath(path, extension));
+  const files = (pullRequest.files?.nodes ?? []).filter((entry) => sourceFixPath(entry.path, extension));
+  if (modifiedOnly && files.some((entry) => entry.changeType === "ADDED")) return false;
+  const sources = files.filter((entry) => countedFile(entry));
   return sources.length >= 1 && sources.length <= 3;
+}
+function countedFile(entry) {
+  return !modifiedOnly || entry.changeType !== "ADDED";
 }
 function sourceFixPath(path, extension) {
   return extension.test(path) && !excludedPath.test(path) && !generatedPath.test(path);
@@ -153,8 +162,13 @@ function parseOptionalTimestamp(value, field) {
   return timestamp;
 }
 
-async function loadExcludedPullRequests(relativePath) {
-  if (relativePath === undefined) return new Set();
+async function loadExcludedPullRequests(configured) {
+  if (configured === undefined) return new Set();
+  const sets = [];
+  for (const relativePath of [configured].flat()) sets.push(...await loadExcludedFrom(relativePath));
+  return new Set(sets);
+}
+async function loadExcludedFrom(relativePath) {
   if (typeof relativePath !== "string" || !relativePath.trim()) {
     throw new Error(`Invalid excludePullRequestsFrom in ${suite}/repositories.json.`);
   }

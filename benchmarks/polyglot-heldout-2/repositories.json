@@ -1,0 +1,284 @@
+{
+  "status": "held-out",
+  "targetPerLanguage": 4,
+  "modifiedFilesOnly": true,
+  "candidateRule": "Continues each language's frozen candidate list (polyglot-heldout/repositories.json, GitHub stars order on 2026-11-22; for Java, java-heldout/repositories.json, which already continued that list) at the first candidate that no earlier cohort queried. Order is unchanged. None of these repositories appears in any earlier FixMap cohort.",
+  "excludePullRequestsFrom": [
+    "../polyglot-heldout/dataset.json",
+    "../java-heldout/dataset.json"
+  ],
+  "repositories": [
+    {
+      "slug": "huggingface/transformers",
+      "language": "python"
+    },
+    {
+      "slug": "AUTOMATIC1111/stable-diffusion-webui",
+      "language": "python"
+    },
+    {
+      "slug": "langgenius/dify",
+      "language": "python"
+    },
+    {
+      "slug": "langflow-ai/langflow",
+      "language": "python"
+    },
+    {
+      "slug": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "language": "python"
+    },
+    {
+      "slug": "Graphify-Labs/graphify",
+      "language": "python"
+    },
+    {
+      "slug": "github/spec-kit",
+      "language": "python"
+    },
+    {
+      "slug": "langchain-ai/langchain",
+      "language": "python"
+    },
+    {
+      "slug": "Comfy-Org/ComfyUI",
+      "language": "python"
+    },
+    {
+      "slug": "TeamNewPipe/NewPipe",
+      "language": "java"
+    },
+    {
+      "slug": "YunaiV/ruoyi-vue-pro",
+      "language": "java"
+    },
+    {
+      "slug": "halo-dev/halo",
+      "language": "java"
+    },
+    {
+      "slug": "keycloak/keycloak",
+      "language": "java"
+    },
+    {
+      "slug": "alibaba/arthas",
+      "language": "java"
+    },
+    {
+      "slug": "yuliskov/SmartTube",
+      "language": "java"
+    },
+    {
+      "slug": "fatedier/frp",
+      "language": "go"
+    },
+    {
+      "slug": "infiniflow/ragflow",
+      "language": "go"
+    },
+    {
+      "slug": "syncthing/syncthing",
+      "language": "go"
+    },
+    {
+      "slug": "gohugoio/hugo",
+      "language": "go"
+    },
+    {
+      "slug": "junegunn/fzf",
+      "language": "go"
+    },
+    {
+      "slug": "jesseduffield/lazygit",
+      "language": "go"
+    },
+    {
+      "slug": "netdata/netdata",
+      "language": "go"
+    },
+    {
+      "slug": "caddyserver/caddy",
+      "language": "go"
+    },
+    {
+      "slug": "nektos/act",
+      "language": "go"
+    },
+    {
+      "slug": "moby/moby",
+      "language": "go"
+    },
+    {
+      "slug": "pbakaus/impeccable",
+      "language": "rust"
+    },
+    {
+      "slug": "tauri-apps/tauri",
+      "language": "rust"
+    },
+    {
+      "slug": "denoland/deno",
+      "language": "rust"
+    },
+    {
+      "slug": "ruvnet/RuView",
+      "language": "rust"
+    },
+    {
+      "slug": "oven-sh/bun",
+      "language": "rust"
+    },
+    {
+      "slug": "zed-industries/zed",
+      "language": "rust"
+    },
+    {
+      "slug": "astral-sh/uv",
+      "language": "rust"
+    },
+    {
+      "slug": "rtk-ai/rtk",
+      "language": "rust"
+    },
+    {
+      "slug": "storytold/photocraft",
+      "language": "rust"
+    },
+    {
+      "slug": "unionlabs/union",
+      "language": "rust"
+    },
+    {
+      "slug": "fastlane/fastlane",
+      "language": "ruby"
+    },
+    {
+      "slug": "chatwoot/chatwoot",
+      "language": "ruby"
+    },
+    {
+      "slug": "freeCodeCamp/devdocs",
+      "language": "ruby"
+    },
+    {
+      "slug": "rapid7/metasploit-framework",
+      "language": "ruby"
+    },
+    {
+      "slug": "hashicorp/vagrant",
+      "language": "ruby"
+    },
+    {
+      "slug": "gitlabhq/gitlabhq",
+      "language": "ruby"
+    },
+    {
+      "slug": "heartcombo/devise",
+      "language": "ruby"
+    },
+    {
+      "slug": "ruby/ruby",
+      "language": "ruby"
+    },
+    {
+      "slug": "forem/forem",
+      "language": "ruby"
+    },
+    {
+      "slug": "Homebrew/homebrew-cask",
+      "language": "ruby"
+    },
+    {
+      "slug": "lewagon/setup",
+      "language": "ruby"
+    },
+    {
+      "slug": "bagisto/bagisto",
+      "language": "php"
+    },
+    {
+      "slug": "monicahq/monica",
+      "language": "php"
+    },
+    {
+      "slug": "firefly-iii/firefly-iii",
+      "language": "php"
+    },
+    {
+      "slug": "livewire/livewire",
+      "language": "php"
+    },
+    {
+      "slug": "PHPMailer/PHPMailer",
+      "language": "php"
+    },
+    {
+      "slug": "matomo-org/matomo",
+      "language": "php"
+    },
+    {
+      "slug": "WordPress/WordPress",
+      "language": "php"
+    },
+    {
+      "slug": "Seldaek/monolog",
+      "language": "php"
+    },
+    {
+      "slug": "fruitcake/laravel-debugbar",
+      "language": "php"
+    },
+    {
+      "slug": "easychen/howto-make-more-money",
+      "language": "php"
+    },
+    {
+      "slug": "bcit-ci/CodeIgniter",
+      "language": "php"
+    },
+    {
+      "slug": "huiyadanli/RevokeMsgPatcher",
+      "language": "dotnet"
+    },
+    {
+      "slug": "dotnet/aspnetcore",
+      "language": "dotnet"
+    },
+    {
+      "slug": "k1tbyte/Wand-Enhancer",
+      "language": "dotnet"
+    },
+    {
+      "slug": "iOfficeAI/OfficeCLI",
+      "language": "dotnet"
+    },
+    {
+      "slug": "DevToys-app/DevToys",
+      "language": "dotnet"
+    },
+    {
+      "slug": "AvaloniaUI/Avalonia",
+      "language": "dotnet"
+    },
+    {
+      "slug": "microsoft/calculator",
+      "language": "dotnet"
+    },
+    {
+      "slug": "KnifeLemon/Filee",
+      "language": "dotnet"
+    },
+    {
+      "slug": "microsoft/semantic-kernel",
+      "language": "dotnet"
+    },
+    {
+      "slug": "NickeManarin/ScreenToGif",
+      "language": "dotnet"
+    },
+    {
+      "slug": "BeyondDimension/SteamTools",
+      "language": "dotnet"
+    }
+  ]
+}

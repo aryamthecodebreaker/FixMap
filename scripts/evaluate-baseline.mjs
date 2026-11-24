@@ -41,7 +41,7 @@ import { wilsonInterval } from "./lib/wilson.mjs";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
   process.stdout.write(
-    "Usage: node scripts/evaluate-baseline.mjs [--suite external|heldout|multilanguage-dev|polyglot-dev|polyglot-validation|polyglot-heldout] [--case owner/repo] [--reranker-ablations] [--compact] [--record|--check-recorded|--record-ablation|--check-ablation]\n"
+    "Usage: node scripts/evaluate-baseline.mjs [--suite external|heldout|multilanguage-dev|polyglot-dev|polyglot-validation|polyglot-heldout|java-heldout|polyglot-heldout-2] [--case owner/repo] [--reranker-ablations] [--compact] [--record|--check-recorded|--record-ablation|--check-ablation]\n"
   );
   process.exit(0);
 }
@@ -51,8 +51,8 @@ const { scanRepo, rankContextFilesEvidenceDetailed } = await import(
 
 const suiteIndex = process.argv.indexOf("--suite");
 const suite = suiteIndex === -1 ? "external" : process.argv[suiteIndex + 1];
-if (!["external", "heldout", "multilanguage-dev", "polyglot-dev", "polyglot-validation", "polyglot-heldout", "java-heldout"].includes(suite)) {
-  process.stderr.write(`Unknown suite "${suite}"; expected "external", "heldout", "multilanguage-dev", "polyglot-dev", or "polyglot-validation".\n`);
+if (!["external", "heldout", "multilanguage-dev", "polyglot-dev", "polyglot-validation", "polyglot-heldout", "java-heldout", "polyglot-heldout-2"].includes(suite)) {
+  process.stderr.write(`Unknown suite "${suite}"; expected one of the suites in the usage line.\n`);
   process.exit(1);
 }
 

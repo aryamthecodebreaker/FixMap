@@ -6,6 +6,17 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.11 - 2026-11-24
+
+### Changed
+
+- Python, Java, Go, Rust, Ruby, PHP and .NET support is no longer labelled preview. A fresh held-out set (`benchmarks/polyglot-heldout-2`: 28 merged fixes, 4 per language, from repositories FixMap was never tested on) was frozen and committed before FixMap ran, and passed all three pre-registered conditions: 28 of 28 ran without error; every language placed a fixing file in the Top-5 at least once (Python 4/4, Go 4/4, Java 3/4, Rust 3/4, PHP 3/4, .NET 3/4, Ruby 2/4); and FixMap's Top-5 rate, 22 of 28, was not below BM25 over code (19 of 28). The lead over BM25 is not statistically significant (paired McNemar exact, p = 0.45). The first held-out set (22 November) failed on Java and its cases are development cases now.
+- The Evidence page's language section reads the new set.
+
+### Added
+
+- `modifiedFilesOnly` for frozen benchmark cohorts: a fix that only creates a source file is not eligible, since no ranker can find a file that does not exist at the base commit. Set for the new cohort before freezing.
+
 ## 0.9.10 - 2026-11-24
 
 ### Fixed
