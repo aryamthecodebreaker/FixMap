@@ -1,0 +1,50 @@
+name: Container
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "containers/**"
+      - ".dockerignore"
+      - "scripts/container-smoke.mjs"
+      - "packages/core/**"
+      - "packages/cli/**"
+      - "apps/web/**"
+      - "package-lock.json"
+      - ".github/workflows/container.yml"
+  pull_request:
+    paths:
+      - "containers/**"
+      - ".dockerignore"
+      - "scripts/container-smoke.mjs"
+      - "packages/core/**"
+      - "packages/cli/**"
+      - "apps/web/**"
+      - "package-lock.json"
+      - ".github/workflows/container.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Container smoke on ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Native runners for both architectures: the same runtime proof runs on amd64 and arm64.
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - run: node scripts/check-container-policy.mjs
+      - run: node scripts/container-smoke.mjs

@@ -1,0 +1,8 @@
+.git
+**/node_modules
+**/dist
+apps/web/.next
+**/.fixmap-cache
+**/*.log
+.vercel
+codex-briefs
