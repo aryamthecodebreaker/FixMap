@@ -348,7 +348,8 @@ function normalizeStatus(value: string | undefined): DecisionStatus {
   };
   // A status label is not free-text sentiment: negations and history must not
   // turn an unaccepted or superseded proposal into an accepted decision.
-  const match = /^([a-z]+)(?=$|[\s:,(])/.exec(normalized);
+  // "Accepted." and "Accepted;" are common in real records; the punctuation ends the label.
+  const match = /^([a-z]+)(?=$|[\s:,(.;])/.exec(normalized);
   const status = match?.[1] ? labels[match[1]] : undefined;
   if (!status) return "unknown";
   const remainder = normalized.slice(match![0].length);

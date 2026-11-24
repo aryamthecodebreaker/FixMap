@@ -395,7 +395,7 @@ function buildVerifyNarrative(
     if (targetPaths.length > 0 && !targetPaths.some((path) => changed.includes(path))) continue;
     narrative.push({
       classification: "observation",
-      text: `${decision.source ? `Local PR attribution (remote source unverified): ${decision.source.url}. ` : ""}${decision.path} records an ${decision.status} decision${decision.authoredStatus ? ` (authored status: ${JSON.stringify(decision.authoredStatus)})` : ""} relevant to this diff: ${decision.decision.replace(/\s+/g, " ").trim()}`,
+      text: `${decision.source ? `Local PR attribution (remote source unverified): ${decision.source.url}. ` : ""}${decision.path} records ${/^[aeiou]/.test(decision.status) ? "an" : "a"} ${decision.status} decision${decision.authoredStatus ? ` (authored status: ${JSON.stringify(decision.authoredStatus)})` : ""} relevant to this diff: ${decisionSummary(decision.decision)}`,
       evidence: [{
         kind: "decision-record",
         path: decision.path,
@@ -405,6 +405,22 @@ function buildVerifyNarrative(
     });
   }
   return narrative.slice(0, 16);
+}
+
+const DECISION_SUMMARY_CHARS = 280;
+
+/**
+ * Narration points at a decision record; it does not reproduce it. Real records run to
+ * thousands of characters, which made single statements exceed the narrative bound. The first
+ * sentence, capped, is quoted; the cited path holds the rest.
+ */
+function decisionSummary(text: string): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const sentence = /^(.+?[.!?])(?:\s|$)/.exec(flat)?.[1] ?? flat;
+  if (sentence.length <= DECISION_SUMMARY_CHARS) return sentence.length < flat.length ? `${sentence} The record has more.` : sentence;
+  const cut = sentence.slice(0, DECISION_SUMMARY_CHARS);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > DECISION_SUMMARY_CHARS / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:]+$/, "")}… The record has more.`;
 }
 
 function buildVerifySummary(changedCount: number, findings: VerifyFinding[]): string {
