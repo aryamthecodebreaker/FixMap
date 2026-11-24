@@ -34,11 +34,13 @@ export type ArchitecturePolicy = {
     forbidBreaking: boolean;
     reason: string;
     severity: "warning" | "error";
+    /** Reviewed exceptions: an exact contract change id, or a contract path pattern, each with its reason. */
+    allowBreaking: Array<{ id?: string; path?: string; reason: string }>;
   }>;
 };
 
 export type ArchitecturePolicyFinding = {
-  code: "boundary-violation" | "required-test-missing" | "review-required" | "breaking-contract";
+  code: "boundary-violation" | "required-test-missing" | "review-required" | "breaking-contract" | "breaking-contract-allowed";
   severity: "info" | "warning" | "error";
   ruleId: string;
   message: string;
@@ -182,6 +184,18 @@ export function evaluateArchitecturePolicy(
     for (const change of input.contractComparison.changes.filter((candidate) =>
       candidate.compatibility === "breaking" && matchesAny(candidate.path, rule.paths)
     )) {
+      const allowed = rule.allowBreaking.find((entry) => entry.id === change.id || (entry.path !== undefined && matchesAny(change.path, [entry.path])));
+      if (allowed) {
+        findings.push({
+          code: "breaking-contract-allowed",
+          severity: "info",
+          ruleId: rule.id,
+          message: `${change.path} has a breaking contract change that ${rule.id} allows: ${allowed.reason}`,
+          paths: [change.path],
+          evidence: [{ kind: "contract-change", path: change.path, detail: `${change.id}: ${change.reason}` }]
+        });
+        continue;
+      }
       findings.push({
         code: "breaking-contract",
         severity: rule.severity,
@@ -299,8 +313,25 @@ function contractRule(value: unknown, index: number): ArchitecturePolicy["contra
   if (typeof rule.forbidBreaking !== "boolean") throw new Error(`contracts[${index}].forbidBreaking must be boolean.`);
   return {
     id: ruleId(rule.id, "contracts", index), paths: patterns(rule.paths, "contract paths"),
-    forbidBreaking: rule.forbidBreaking, reason: reason(rule.reason), severity: severity(rule.severity)
+    forbidBreaking: rule.forbidBreaking, reason: reason(rule.reason), severity: severity(rule.severity),
+    allowBreaking: allowBreaking(rule.allowBreaking, index)
   };
+}
+
+function allowBreaking(value: unknown, index: number): ArchitecturePolicy["contracts"][number]["allowBreaking"] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 100) throw new Error(`contracts[${index}].allowBreaking must be an array of at most 100 entries.`);
+  return value.map((entry, position) => {
+    const where = `contracts[${index}].allowBreaking[${position}]`;
+    if (!isRecord(entry)) throw new Error(`${where} must be an object.`);
+    const unknown = Object.keys(entry).filter((key) => key !== "id" && key !== "path" && key !== "reason");
+    if (unknown.length > 0) throw new Error(`${where} has unknown field ${unknown[0]}.`);
+    const id = typeof entry.id === "string" && entry.id.trim() ? entry.id.trim() : undefined;
+    if (entry.id !== undefined && (!id || id.length > 500 || /[\0\r\n]/.test(id))) throw new Error(`${where}.id must be one non-blank line.`);
+    const path = entry.path === undefined ? undefined : patterns([entry.path], "allowBreaking path")[0];
+    if ((id === undefined) === (path === undefined)) throw new Error(`${where} needs exactly one of id or path.`);
+    return { ...(id ? { id } : {}), ...(path ? { path } : {}), reason: reason(entry.reason) };
+  });
 }
 
 function ruleRecord(value: unknown, section: string, index: number): Record<string, unknown> {

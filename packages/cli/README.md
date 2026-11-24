@@ -225,6 +225,7 @@ fixmap plan            Generate a FixMap report for a task or diff
 fixmap context         Build a budgeted Markdown or JSON source pack
 fixmap graph           Export the Impact Graph as Mermaid or JSON
 fixmap workspace       Map package dependencies and impact across local repositories
+fixmap policy          Preview: write, check, and explain .fixmap/policy.json
 fixmap ask             Answer report-only structural questions with citations
 fixmap migrate         Build a dependency-ordered, review-only migration plan
 fixmap alternatives    Compare alternative plans side by side without picking a winner

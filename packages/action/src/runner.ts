@@ -9,6 +9,7 @@ import {
   renderMarkdownReport,
   renderVerifyMarkdown,
   compareArchitectureRefs,
+  contractBaselineOrError,
   loadWorkspaceConfig,
   compareCapabilityRefs,
   compareContractRefs,
@@ -372,7 +373,14 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
     throw new Error(`${diffFailure.message} Verification needs a resolvable diff.`);
   }
 
-  const result = verifyPlan(report, repo);
+  const baseline = await contractBaselineOrError(repo, {
+    repoRoot,
+    diffSpec: context.diffSpec,
+    baseRef: context.baseRef,
+    headRef: context.headRef,
+    workingTree: context.workingTree
+  });
+  const result = verifyPlan(report, repo, { ...(baseline.comparison ? { contractComparison: baseline.comparison } : {}), ...(baseline.error ? { contractBaselineError: baseline.error } : {}) });
   // Contract changes are advisory here too: only verify findings decide whether the step fails.
   const contractSections = context.contracts
     ? await buildReviewSections(
@@ -404,15 +412,18 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
     );
   }
 
-  // A generated-location edit is discarded by the next build, so it fails the step rather
-  // than being reported and scrolled past. Everything else stays advisory.
+  // Error findings (an edit the next build discards, a broken policy rule, a mismatched plan) fail
+  // the step rather than being reported and scrolled past. Warnings stay advisory unless fail-on asks.
   if (result.findings.some((finding) =>
     finding.severity === "error" || (context.failOn === "warning" && finding.severity === "warning")
   )) {
+    const errors = result.findings.filter((finding) => finding.severity === "error");
     throw new Error(
-      context.failOn === "warning"
+      errors.length === 0
         ? "FixMap verification found findings at or above the configured warning threshold."
-        : "FixMap verification found an edit in a generated or retired location, which the next build discards."
+        : errors.length === 1 && errors[0]!.code === "edit-in-generated-location"
+          ? "FixMap verification found an edit in a generated or retired location, which the next build discards."
+          : `FixMap verification found ${errors.length} error finding${errors.length === 1 ? "" : "s"}: ${[...new Set(errors.map((finding) => finding.code))].join(", ")}.`
     );
   }
 }

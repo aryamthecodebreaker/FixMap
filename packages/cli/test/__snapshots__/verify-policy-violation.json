@@ -1,0 +1,81 @@
+{
+  "summary": "FixMap verified 3 changed files against the plan and raised 1 error and 1 warning.",
+  "findings": [
+    {
+      "code": "unmapped-change",
+      "severity": "warning",
+      "paths": [
+        "src/ui/view.ts"
+      ],
+      "message": "One file changed that the plan did not rank. Either the task grew beyond the original description, or the ranking missed it; worth checking which."
+    },
+    {
+      "code": "architecture-boundary-violation",
+      "severity": "error",
+      "paths": [
+        "src/ui/view.ts",
+        "src/db/query.ts"
+      ],
+      "message": "src/ui/view.ts imports denied architecture target src/db/query.ts: The UI reads data through the API."
+    }
+  ],
+  "narrative": [
+    {
+      "classification": "observation",
+      "text": "3 files changed: src/ui/view.ts, src/users/list.test.ts, src/users/list.ts.",
+      "evidence": [
+        {
+          "kind": "changed-file",
+          "path": "src/ui/view.ts",
+          "detail": "Present in the resolved verification diff."
+        },
+        {
+          "kind": "changed-file",
+          "path": "src/users/list.test.ts",
+          "detail": "Present in the resolved verification diff."
+        },
+        {
+          "kind": "changed-file",
+          "path": "src/users/list.ts",
+          "detail": "Present in the resolved verification diff."
+        }
+      ]
+    },
+    {
+      "classification": "observation",
+      "text": "The plan did not rank src/ui/view.ts, but the diff changes it.",
+      "evidence": [
+        {
+          "kind": "changed-file",
+          "path": "src/ui/view.ts",
+          "detail": "Changed source file absent from the saved plan."
+        }
+      ]
+    },
+    {
+      "classification": "observation",
+      "text": "Architecture rule ui-no-db is broken: src/ui/view.ts imports denied architecture target src/db/query.ts: The UI reads data through the API.",
+      "evidence": [
+        {
+          "kind": "architecture-policy",
+          "path": "src/ui/view.ts",
+          "relatedPath": "src/db/query.ts",
+          "detail": "ui-no-db: import: src/ui/view.ts imports src/db/query.ts.",
+          "sourceFingerprint": "git:3b5b8c424039b2cda1e11a1f95a5b9027c8bdcd0"
+        }
+      ]
+    },
+    {
+      "classification": "observation",
+      "text": "src/db/query.ts is in the recalculated impact graph because src/ui/view.ts imports this file.",
+      "evidence": [
+        {
+          "kind": "impact-relationship",
+          "path": "src/ui/view.ts",
+          "relatedPath": "src/db/query.ts",
+          "detail": "imports: src/ui/view.ts imports this file"
+        }
+      ]
+    }
+  ]
+}

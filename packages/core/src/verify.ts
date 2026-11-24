@@ -17,6 +17,7 @@ import type { ArchitecturePolicyFinding, ArchitecturePolicyResult } from "./arch
 import { reportPaths } from "./report-evidence.js";
 import { buildReportSensitiveData, renderSensitiveDataMarkdown, sensitiveDataVerifyFinding } from "./report-sensitive-data.js";
 import { buildWorkspaceVerifyNarrative, type WorkspaceMap } from "./workspace.js";
+import type { ContractComparison } from "./contracts.js";
 
 export function verifyPlan(
   report: FixMapReport,
@@ -26,6 +27,10 @@ export function verifyPlan(
     sensitiveData?: boolean;
     /** Add cross-repository narration when this checkout is `repository` in a loaded workspace map. */
     workspace?: { map: WorkspaceMap; repository: string };
+    /** Contract changes between the diff's two states, checked against policy contract rules. */
+    contractComparison?: ContractComparison;
+    /** Why a needed contract comparison could not be built; surfaced as a warning instead of silently passing. */
+    contractBaselineError?: string;
   } = {}
 ): VerifyResult {
   const changed = repo.changedFiles;
@@ -140,7 +145,7 @@ export function verifyPlan(
       paths: unmapped,
       message:
         `${unmapped.length === 1 ? "One file" : `${unmapped.length} files`} changed that the plan did not rank. ` +
-        "Either the task grew beyond the original description, or the ranking missed them — worth checking which."
+        `Either the task grew beyond the original description, or the ranking missed ${unmapped.length === 1 ? "it" : "them"}; worth checking which.`
     });
   }
 
@@ -230,7 +235,11 @@ export function verifyPlan(
   try {
     const architecturePolicy = architecturePolicyFromRepo(repo);
     if (architecturePolicy) {
-      policy = evaluateArchitecturePolicy(architecturePolicy, { repo, focusPaths: changed });
+      policy = evaluateArchitecturePolicy(architecturePolicy, {
+        repo,
+        focusPaths: changed,
+        ...(options.contractComparison ? { contractComparison: options.contractComparison } : {})
+      });
       findings.push(...policy.findings.map(policyVerifyFinding));
     }
   } catch (error) {
@@ -241,6 +250,13 @@ export function verifyPlan(
       message: `.fixmap/policy.json was not applied: ${error instanceof Error ? error.message : String(error)}`
     });
   }
+
+  if (options.contractBaselineError) findings.push({
+    code: "contract-baseline-unavailable",
+    severity: "warning",
+    paths: [".fixmap/policy.json"],
+    message: `Policy contract rules were not checked: ${options.contractBaselineError}`
+  });
 
   // 7. Opt-in and advisory: possible sensitive-data flows the diff added. Lexical evidence only.
   const sensitiveData = options.sensitiveData
@@ -260,7 +276,7 @@ export function verifyPlan(
     diagnostics: repo.diagnostics,
     impact,
     narrative: buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy,
-      options.workspace ? buildWorkspaceVerifyNarrative(options.workspace.map, options.workspace.repository, changed) : []),
+      options.workspace ? buildWorkspaceVerifyNarrative(options.workspace.map, options.workspace.repository, changed) : [], unmapped),
     ...(sensitiveData ? { sensitiveData } : {})
   };
 }
@@ -273,12 +289,22 @@ function policyVerifyFinding(finding: ArchitecturePolicyFinding): VerifyFinding 
         ? "architecture-required-test"
         : finding.code === "review-required"
           ? "architecture-review-required"
-          : "architecture-breaking-contract",
+          : finding.code === "breaking-contract-allowed"
+            ? "architecture-breaking-contract-allowed"
+            : "architecture-breaking-contract",
     severity: finding.severity,
     paths: finding.paths,
     message: finding.message
   };
 }
+
+const POLICY_PHRASES: Record<ArchitecturePolicyFinding["code"], string> = {
+  "boundary-violation": "is broken",
+  "required-test-missing": "wants a changed test",
+  "review-required": "asks for review",
+  "breaking-contract": "forbids this breaking contract change",
+  "breaking-contract-allowed": "allows this breaking contract change"
+};
 
 function buildVerifyNarrative(
   report: FixMapReport,
@@ -288,7 +314,8 @@ function buildVerifyNarrative(
   impact: ImpactMap,
   newRisks: readonly { area: string; reason: string; severity: "low" | "medium" | "high" }[],
   policy?: ArchitecturePolicyResult,
-  crossRepository: readonly VerifyNarrativeStatement[] = []
+  crossRepository: readonly VerifyNarrativeStatement[] = [],
+  unmapped: readonly string[] = []
 ): VerifyNarrativeStatement[] {
   const narrative: VerifyNarrativeStatement[] = [];
   if (changed.length > 0) narrative.push({
@@ -298,10 +325,15 @@ function buildVerifyNarrative(
   });
   // Other checkouts that consume what changed come right after the change itself: the 16-statement cap must not drop them.
   narrative.push(...crossRepository);
+  if (unmapped.length > 0) narrative.push({
+    classification: "observation",
+    text: `The plan did not rank ${unmapped.slice(0, 8).join(", ")}${unmapped.length > 8 ? ", ..." : ""}, but the diff changes ${unmapped.length === 1 ? "it" : "them"}.`,
+    evidence: unmapped.map((path) => ({ kind: "changed-file", path, detail: "Changed source file absent from the saved plan." }))
+  });
   for (const finding of policy?.findings ?? []) {
     narrative.push({
       classification: "observation",
-      text: `Architecture policy ${finding.ruleId} reports ${finding.code}: ${finding.message}`,
+      text: `Architecture rule ${finding.ruleId} ${POLICY_PHRASES[finding.code]}: ${finding.message}`,
       evidence: finding.evidence.map((entry) => ({
         kind: "architecture-policy",
         ...(entry.path ? { path: entry.path } : {}),
@@ -418,7 +450,8 @@ export function renderVerifyMarkdown(result: VerifyResult): string {
     }
   }
   if (result.narrative && result.narrative.length > 0) {
-    lines.push("", "## Why This Diff Needs Attention", "");
+    // A clean diff has nothing needing attention; the heading must not claim otherwise.
+    lines.push("", result.findings.length > 0 ? "## Why This Diff Needs Attention" : "## What Changed", "");
     for (const statement of result.narrative) {
       lines.push(`- **${statement.classification}** ${statement.text}`);
     }
@@ -435,4 +468,32 @@ export function renderVerifyMarkdown(result: VerifyResult): string {
   }
   if (result.sensitiveData) lines.push(...renderSensitiveDataMarkdown(result.sensitiveData));
   return `${lines.join("\n")}\n`;
+}
+
+const NARRATIVE_LIMIT = 16;
+const STATEMENT_LIMIT = 800;
+
+/**
+ * Deterministic quality gate for Verify narration: every statement is classified, bounded, unique,
+ * and cites at least one piece of non-empty evidence. Returns the problems; an empty list passes.
+ */
+export function checkVerifyNarrative(narrative: readonly VerifyNarrativeStatement[]): string[] {
+  const problems: string[] = [];
+  if (narrative.length > NARRATIVE_LIMIT) problems.push(`narrative has ${narrative.length} statements; the bound is ${NARRATIVE_LIMIT}.`);
+  const seen = new Set<string>();
+  narrative.forEach((statement, index) => {
+    const where = `statement ${index + 1}`;
+    if (statement.classification !== "observation" && statement.classification !== "inference") problems.push(`${where} has classification ${String(statement.classification)}.`);
+    const text = statement.text.trim();
+    if (!text) problems.push(`${where} is empty.`);
+    if (text.length > STATEMENT_LIMIT) problems.push(`${where} is ${text.length} characters; the bound is ${STATEMENT_LIMIT}.`);
+    if (!/[.!?]$/.test(text)) problems.push(`${where} does not end as a sentence.`);
+    if (seen.has(text)) problems.push(`${where} repeats an earlier statement.`);
+    seen.add(text);
+    if (statement.evidence.length === 0) problems.push(`${where} cites no evidence.`);
+    statement.evidence.forEach((evidence, position) => {
+      if (!evidence.detail.trim()) problems.push(`${where} evidence ${position + 1} has no detail.`);
+    });
+  });
+  return problems;
 }

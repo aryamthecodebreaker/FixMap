@@ -23,6 +23,7 @@ import { assessAnnotations, validateAnnotationStore } from "./annotations.js";
 import type { AnnotationAssessment, AnnotationRename } from "./annotations.js";
 import { inventoryDecisionRecords, selectDecisionRecords } from "./decisions.js";
 import { architecturePolicyFromRepo, evaluateArchitecturePolicy } from "./architecture.js";
+import type { ContractComparison } from "./contracts.js";
 import type { ArchitecturePolicyResult } from "./architecture.js";
 
 const MAX_REPORTED_TERMS = 8;
@@ -39,6 +40,8 @@ export function buildReportFromRepo(
     exclude?: PathExcluder | undefined;
     annotationAsOf?: string | undefined;
     languageContext?: CustomContext;
+    /** Contract changes between the diff's two states, checked against policy contract rules. */
+    contractComparison?: ContractComparison | undefined;
   }
 ): FixMapReport {
   const grounding = analyzeTaskGrounding(repo, {
@@ -71,6 +74,7 @@ export async function buildHybridReportFromRepo(
     allowRemoteEmbeddings?: boolean;
     annotationAsOf?: string | undefined;
     languageContext?: CustomContext;
+    contractComparison?: ContractComparison | undefined;
   }
 ): Promise<FixMapReport> {
   const grounding = analyzeTaskGrounding(repo, { issueText: input.issueText, diffText: repo.diffText }, input.languageContext);
@@ -111,7 +115,7 @@ export async function buildHybridReportFromRepo(
 
 function assembleReport(
   repo: RepoMap,
-  input: { issueText?: string | undefined; exclude?: PathExcluder | undefined; annotationAsOf?: string | undefined; languageContext?: CustomContext },
+  input: { issueText?: string | undefined; exclude?: PathExcluder | undefined; annotationAsOf?: string | undefined; languageContext?: CustomContext; contractComparison?: ContractComparison | undefined },
   grounding: TaskGrounding,
   contextFiles: RankedFile[],
   ranking: RankingShape,
@@ -140,7 +144,8 @@ function assembleReport(
     const architecturePolicy = architecturePolicyFromRepo(repo);
     if (architecturePolicy) policy = evaluateArchitecturePolicy(architecturePolicy, {
       repo,
-      focusPaths: [...contextPaths, ...repo.changedFiles]
+      focusPaths: [...contextPaths, ...repo.changedFiles],
+      ...(input.contractComparison ? { contractComparison: input.contractComparison } : {})
     });
   } catch (error) {
     policyDiagnostics.push({
@@ -215,6 +220,7 @@ function policyDiagnosticCode(code: import("./architecture.js").ArchitecturePoli
   if (code === "boundary-violation") return "architecture-boundary-violation";
   if (code === "required-test-missing") return "architecture-required-test";
   if (code === "review-required") return "architecture-review-required";
+  if (code === "breaking-contract-allowed") return "architecture-breaking-contract-allowed";
   return "architecture-breaking-contract";
 }
 

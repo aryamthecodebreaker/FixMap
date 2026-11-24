@@ -360,11 +360,18 @@ Architecture rules live in a reviewed `.fixmap/policy.json` file. Every rule has
       "paths": ["openapi.*"],
       "forbidBreaking": true,
       "reason": "Public API removals need a compatibility window.",
-      "severity": "error"
+      "severity": "error",
+      "allowBreaking": [
+        { "path": "openapi.legacy.yaml", "reason": "Deprecated in v3; removal announced in the changelog." }
+      ]
     }
   ]
 }
 ```
+
+Contract rules are checked against the same two states the diff compares (`a...b` from the merge base, `a..b`, base/head, or the working tree), read from Git objects. A reviewed `allowBreaking` entry names an exact contract change id or a path pattern; matching changes are reported as info instead of failing. If the comparison cannot be built, Plan and Verify warn with `contract-baseline-unavailable` rather than passing silently.
+
+Preview: `fixmap policy init` writes a starter policy from the current module layout (one required-test rule per top-level module with tests, plus a contract rule for any contracts found) and never overwrites an existing file. `fixmap policy check` prints each problem with a JSON pointer such as `/boundaries/1` and exits 1 when the file is invalid; `fixmap policy explain <rule-id>` shows what a rule checks and which files it covers now.
 
 - Produces Markdown for people, versioned JSON for tools, or `--format agent` for compact `EDIT CANDIDATE`/`INSPECT`/`TEST`/`RISK`/`AVOID`/`UNCERTAINTY` sections; writes any format with `--output`.
 

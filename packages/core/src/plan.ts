@@ -13,6 +13,8 @@ import type { FixMapInput, FixMapReport } from "./types.js";
 import { fixMapArtifactKind, isFixMapArtifact } from "./artifacts.js";
 import { attachReportEvidence, reportPaths, type ReportEvidenceSource } from "./report-evidence.js";
 import { buildReportSensitiveData } from "./report-sensitive-data.js";
+import { contractBaselineForDiff, type ContractBaselineInput } from "./contract-baseline.js";
+import type { ContractComparison } from "./contracts.js";
 import { buildReportSupplyChain } from "./report-supply-chain.js";
 import type { SupplyChainEvidenceBundle } from "./supply-chain.js";
 
@@ -90,16 +92,24 @@ export async function buildFixMapAnalysis(
 
   const languageContext = input.languageRegistry ? createCustomLanguageContext(input.languageRegistry) : undefined;
   const analyzedRepo = languageContext ? classifyCustomTests(repo, languageContext) : repo;
+  const baseline: { comparison?: ContractComparison; error?: string } = historical ? {} : await contractBaselineOrError(repo, input);
   const reportInput = {
     issueText: input.issueText,
     limit: input.limit,
     exclude,
     annotationAsOf: new Date().toISOString(),
-    ...(languageContext ? { languageContext } : {})
+    ...(languageContext ? { languageContext } : {}),
+    ...(baseline.comparison ? { contractComparison: baseline.comparison } : {})
   };
   const report = input.embeddingProvider
     ? await buildHybridReportFromRepo(analyzedRepo, { ...reportInput, embeddingProvider: input.embeddingProvider })
     : buildReportFromRepo(analyzedRepo, reportInput);
+  if (baseline.error) report.diagnostics.push({
+    code: "contract-baseline-unavailable",
+    severity: "warning",
+    paths: [".fixmap/policy.json"],
+    message: `Policy contract rules were not checked: ${baseline.error}`
+  });
 
   if (input.evidenceSources && input.evidenceSources.length > 0) {
     report.evidence = await attachReportEvidence(report, analyzedRepo, input.evidenceSources, { issueText: input.issueText ?? "" });
@@ -267,4 +277,17 @@ function classifyCustomTests(repo: ScannedRepo, context: ReturnType<typeof creat
     return { ...file, isTest: true };
   });
   return changed ? { ...repo, files } : repo;
+}
+
+/** A needed comparison that fails is reported, never treated as "no breaking changes". */
+export async function contractBaselineOrError(
+  repo: Awaited<ReturnType<typeof scanRepo>>,
+  input: ContractBaselineInput
+): Promise<{ comparison?: ContractComparison; error?: string }> {
+  try {
+    const comparison = await contractBaselineForDiff(repo, input);
+    return comparison ? { comparison } : {};
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
 }

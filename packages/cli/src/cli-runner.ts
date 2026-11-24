@@ -15,6 +15,7 @@ import {
   renderVerifyMarkdown,
   resolveExclusions,
   verifyPlan,
+  contractBaselineOrError,
   renderMarkdownReport,
   scanRepo,
   validateFixMapReport,
@@ -154,6 +155,7 @@ Commands:
   history             Preview: Compare architecture at two committed Git refs without checkout
   contracts           Preview: List API/schema contracts or diff them across Git refs without checkout
   supply-chain        Preview: Import normalized external scanner and SBOM evidence
+  policy              Preview: Write, check, and explain the architecture policy (.fixmap/policy.json)
   runtime             Preview: Map redaction-reviewed runtime evidence to exact files
   sandbox             Preview: Run one explicitly consented command in an isolated container
   watch               Recheck working-tree drift and impact whenever edits change
@@ -598,6 +600,11 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       stderr,
       ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
     });
+  }
+
+  if (args[0] === "policy") {
+    const { runPolicyCommand } = await import("./policy-command.js");
+    return runPolicyCommand(args.slice(1), { stdout, stderr });
   }
 
   if (args[0] === "supply-chain") {
@@ -1615,7 +1622,14 @@ async function runVerify(
       return 1;
     }
 
-    const result = verifyPlan(report, repo, { sensitiveData: options.sensitiveData, ...(workspace ? { workspace } : {}) });
+    const baseline = await contractBaselineOrError(repo, {
+      repoRoot: options.repo ?? process.cwd(),
+      diffSpec: options.diffSpec,
+      baseRef: options.baseRef,
+      headRef: options.headRef,
+      workingTree: options.workingTree
+    });
+    const result = verifyPlan(report, repo, { sensitiveData: options.sensitiveData, ...(workspace ? { workspace } : {}), ...(baseline.comparison ? { contractComparison: baseline.comparison } : {}), ...(baseline.error ? { contractBaselineError: baseline.error } : {}) });
     const rendered = options.format === "json"
       ? `${JSON.stringify(result, null, 2)}\n`
       : renderVerifyMarkdown(result);

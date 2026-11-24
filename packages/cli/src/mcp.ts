@@ -36,6 +36,7 @@ import {
   scanRepo,
   validateFixMapReport,
   verifyPlan,
+  contractBaselineOrError,
   type FixMapReport
 } from "@aryam/fixmap-core";
 import { renderDoctorReport, runDoctorChecks } from "./doctor.js";
@@ -1097,7 +1098,14 @@ export function createFixMapMcpServer(
         if (diffFailure) {
           throw new Error(`${diffFailure.message} Verification needs a resolvable diff.`);
         }
-        const result = verifyPlan(args.report, repo, { sensitiveData: args.sensitiveData === true, ...(workspace ? { workspace } : {}) });
+        const baseline = await contractBaselineOrError(repo, {
+          repoRoot: args.repo ?? defaultRepo,
+          diffSpec: args.diff,
+          baseRef: args.base,
+          headRef: args.head,
+          workingTree: args.workingTree
+        });
+        const result = verifyPlan(args.report, repo, { sensitiveData: args.sensitiveData === true, ...(workspace ? { workspace } : {}), ...(baseline.comparison ? { contractComparison: baseline.comparison } : {}), ...(baseline.error ? { contractBaselineError: baseline.error } : {}) });
         const text = args.format === "json"
           ? `${JSON.stringify(result, null, 2)}\n`
           : renderVerifyMarkdown(result);

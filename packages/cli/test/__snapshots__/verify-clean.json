@@ -1,0 +1,22 @@
+{
+  "summary": "FixMap verified 2 changed files against the plan and found nothing to flag.",
+  "findings": [],
+  "narrative": [
+    {
+      "classification": "observation",
+      "text": "2 files changed: src/users/list.test.ts, src/users/list.ts.",
+      "evidence": [
+        {
+          "kind": "changed-file",
+          "path": "src/users/list.test.ts",
+          "detail": "Present in the resolved verification diff."
+        },
+        {
+          "kind": "changed-file",
+          "path": "src/users/list.ts",
+          "detail": "Present in the resolved verification diff."
+        }
+      ]
+    }
+  ]
+}

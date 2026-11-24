@@ -1,4 +1,6 @@
-export { buildFixMapAnalysis, buildFixMapReport, resolveExclusions } from "./plan.js";
+export { buildFixMapAnalysis, buildFixMapReport, contractBaselineOrError, resolveExclusions } from "./plan.js";
+export { contractBaselineForDiff, diffRange } from "./contract-baseline.js";
+export type { ContractBaselineInput } from "./contract-baseline.js";
 export { fixMapArtifactKind, isFixMapArtifact } from "./artifacts.js";
 export type { FixMapArtifactKind } from "./artifacts.js";
 export { buildPathExcluder, NO_EXCLUSIONS } from "./exclude.js";
@@ -7,7 +9,7 @@ export { compareReports, renderComparisonMarkdown } from "./compare.js";
 export { quoteCliValue } from "./cli-quote.js";
 export type { CliShell } from "./cli-quote.js";
 export type { ReportComparison } from "./compare.js";
-export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
+export { checkVerifyNarrative, renderVerifyMarkdown, verifyPlan } from "./verify.js";
 export { explainFile, renderExplanationMarkdown } from "./explain.js";
 export type { FileExplanation } from "./explain.js";
 export {
