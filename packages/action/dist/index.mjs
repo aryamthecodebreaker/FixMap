@@ -1474,39 +1474,118 @@ function depth(path) {
 
 // packages/core/dist/dotnet-projects.js
 var PROJECT_FILE = /\.(?:csproj|fsproj|vbproj)$/i;
-var SOLUTION_FILE = /\.sln$/i;
+var SOLUTION_FILE = /\.slnx?$/i;
 var PROJECT_REFERENCE = /<ProjectReference\b[^>]*\bInclude\s*=\s*(["'])(.*?)\1/gi;
-var PROJECT_USING = /<Using\b[^>]*\bInclude\s*=\s*(["'])(.*?)\1/gi;
+var USING_ITEM = /<Using\b([^>]*)>/gi;
+var COMPILE_ITEM = /<Compile\b[^>]*\bInclude\s*=\s*(["'])(.*?)\1/gi;
+var IMPLICIT_USINGS = /<ImplicitUsings>\s*([^<\s]+)\s*<\/ImplicitUsings>/gi;
+var IMPORT_ITEM = /<Import\b[^>]*\bProject\s*=\s*(["'])(.*?)\1/gi;
+var PROJECT_SDK = /<Project\b[^>]*\bSdk\s*=\s*(["'])(.*?)\1/i;
 var SOURCE_GLOBAL_USING = /^\s*global\s+using\s+(?:static\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\s*=\s*)?([A-Za-z_][A-Za-z0-9_.]*)\s*;/gm;
 var SOLUTION_PROJECT = /^\s*Project\("[^"]+"\)\s*=\s*"[^"]+",\s*"([^"]+\.(?:csproj|fsproj|vbproj))",\s*"[^"]+"\s*$/gim;
+var SLNX_PROJECT = /<Project\b[^>]*\bPath\s*=\s*(["'])(.*?)\1/gi;
+var IMPORT_FILE_ABOVE = /^\$\(\[MSBuild\]::GetPathOfFileAbove\(\s*'(Directory\.Build\.(?:props|targets))'\s*,\s*'\$\(MSBuildThisFileDirectory\)\.\.\/?'\s*\)\)$/i;
+var MAX_IMPORT_DEPTH = 8;
+var SDK_IMPLICIT_USINGS = {
+  "microsoft.net.sdk": ["System", "System.Collections.Generic", "System.IO", "System.Linq", "System.Net.Http", "System.Threading", "System.Threading.Tasks"],
+  "microsoft.net.sdk.web": [
+    "System",
+    "System.Collections.Generic",
+    "System.IO",
+    "System.Linq",
+    "System.Net.Http",
+    "System.Net.Http.Json",
+    "System.Threading",
+    "System.Threading.Tasks",
+    "Microsoft.AspNetCore.Builder",
+    "Microsoft.AspNetCore.Hosting",
+    "Microsoft.AspNetCore.Http",
+    "Microsoft.AspNetCore.Routing",
+    "Microsoft.Extensions.Configuration",
+    "Microsoft.Extensions.DependencyInjection",
+    "Microsoft.Extensions.Hosting",
+    "Microsoft.Extensions.Logging"
+  ],
+  "microsoft.net.sdk.worker": [
+    "System",
+    "System.Collections.Generic",
+    "System.IO",
+    "System.Linq",
+    "System.Net.Http",
+    "System.Threading",
+    "System.Threading.Tasks",
+    "Microsoft.Extensions.Configuration",
+    "Microsoft.Extensions.DependencyInjection",
+    "Microsoft.Extensions.Hosting",
+    "Microsoft.Extensions.Logging"
+  ]
+};
 function buildDotnetProjects(files) {
   const projectFiles = files.filter((file) => PROJECT_FILE.test(file.path)).sort((left, right) => left.path.localeCompare(right.path));
-  const canonicalPaths = new Map(projectFiles.map((file) => [file.path.toLowerCase(), file.path]));
+  const canonicalPaths = new Map(files.map((file) => [file.path.toLowerCase(), file]));
+  const resolve11 = (from, include) => {
+    const target = literalContainedPath(from, include);
+    return target ? canonicalPaths.get(target.toLowerCase()) : void 0;
+  };
+  const projectTargets = new Map(projectFiles.map((file) => [file.path.toLowerCase(), file.path]));
   const projects = projectFiles.map((file) => {
     const root = directoryOf2(file.path);
     const references = /* @__PURE__ */ new Set();
     PROJECT_REFERENCE.lastIndex = 0;
     for (const match of file.textSample.matchAll(PROJECT_REFERENCE)) {
-      const include = match[2]?.trim();
-      if (!include || /[$*?]/.test(include) || /^[A-Za-z]:[\\/]|^[\\/]/.test(include))
-        continue;
-      const normalized = normalizeRepositoryPath2(root ? `${root}/${include}` : include);
-      const canonical = normalized ? canonicalPaths.get(normalized.toLowerCase()) : void 0;
+      const target = literalContainedPath(root, match[2] ?? "");
+      const canonical = target ? projectTargets.get(target.toLowerCase()) : void 0;
       if (canonical && canonical !== file.path)
         references.add(canonical);
     }
-    const globalUsings = /* @__PURE__ */ new Set();
-    PROJECT_USING.lastIndex = 0;
-    for (const match of file.textSample.matchAll(PROJECT_USING)) {
-      const namespace = match[2]?.trim();
-      if (namespace && validNamespace(namespace))
-        globalUsings.add(namespace);
+    const before = buildFileChain(canonicalPaths, root, "Directory.Build.props");
+    const after = buildFileChain(canonicalPaths, root, "Directory.Build.targets");
+    const evaluated = [...before, file, ...after];
+    const usings = /* @__PURE__ */ new Set();
+    const removed = /* @__PURE__ */ new Set();
+    let implicitUsings = false;
+    for (const document of evaluated) {
+      IMPLICIT_USINGS.lastIndex = 0;
+      for (const match of document.textSample.matchAll(IMPLICIT_USINGS)) {
+        implicitUsings = /^(?:enable|true)$/i.test(match[1] ?? "");
+      }
+      USING_ITEM.lastIndex = 0;
+      for (const match of document.textSample.matchAll(USING_ITEM)) {
+        const attributes = match[1] ?? "";
+        const include = attribute(attributes, "Include");
+        const remove = attribute(attributes, "Remove");
+        if (include && validNamespace(include)) {
+          usings.add(include);
+          removed.delete(include);
+        }
+        if (remove && validNamespace(remove)) {
+          removed.add(remove);
+          usings.delete(remove);
+        }
+      }
+    }
+    if (implicitUsings && /\.csproj$/i.test(file.path)) {
+      const sdk = PROJECT_SDK.exec(file.textSample)?.[2]?.split("/")[0]?.trim().toLowerCase() ?? "";
+      for (const namespace of SDK_IMPLICIT_USINGS[sdk] ?? []) {
+        if (!removed.has(namespace))
+          usings.add(namespace);
+      }
+    }
+    const linkedSources = /* @__PURE__ */ new Set();
+    COMPILE_ITEM.lastIndex = 0;
+    for (const match of file.textSample.matchAll(COMPILE_ITEM)) {
+      const target = resolve11(root, match[2] ?? "");
+      if (target && /\.(?:cs|fs|vb)$/i.test(target.path) && !(root === "" || target.path.startsWith(`${root}/`))) {
+        linkedSources.add(target.path);
+      }
     }
     return {
       path: file.path,
       root,
       references: [...references].sort((left, right) => left.localeCompare(right)),
-      globalUsings: [...globalUsings].sort((left, right) => left.localeCompare(right)),
+      globalUsings: [...usings].sort((left, right) => left.localeCompare(right)),
+      linkedSources: [...linkedSources].sort((left, right) => left.localeCompare(right)),
+      buildFiles: [...before, ...after].map((document) => document.path),
       test: isDotnetTestProject(file)
     };
   });
@@ -1519,7 +1598,7 @@ function buildDotnetProjects(files) {
       projectsByRoot.set(project.root, [project]);
   }
   for (const source of files.filter((file) => file.path.toLowerCase().endsWith(".cs"))) {
-    const owner = dotnetProjectForPathFromRoots(projectsByRoot, source.path);
+    const owner = dotnetProjectForPathFromRoots(projectsByRoot, source.path) ?? dotnetLinkingProject(projects, source.path);
     if (!owner)
       continue;
     SOURCE_GLOBAL_USING.lastIndex = 0;
@@ -1533,18 +1612,58 @@ function buildDotnetProjects(files) {
     project.globalUsings.sort((left, right) => left.localeCompare(right));
   return projects;
 }
+function buildFileChain(files, directory, name) {
+  const start = nearestFileAbove(files, directory, name);
+  if (!start)
+    return [];
+  const ordered = [];
+  const visiting = /* @__PURE__ */ new Set();
+  const visit = (file, depth5) => {
+    if (depth5 > MAX_IMPORT_DEPTH || visiting.has(file.path))
+      return;
+    visiting.add(file.path);
+    const root = directoryOf2(file.path);
+    IMPORT_ITEM.lastIndex = 0;
+    for (const match of [...file.textSample.matchAll(IMPORT_ITEM)]) {
+      const project = (match[2] ?? "").trim();
+      const above = IMPORT_FILE_ABOVE.exec(project);
+      let target;
+      if (above) {
+        target = root ? nearestFileAbove(files, directoryOf2(root), above[1]) : void 0;
+      } else {
+        const include = project.replace(/^\$\(MSBuildThisFileDirectory\)/i, "");
+        const path = literalContainedPath(root, include);
+        target = path ? files.get(path.toLowerCase()) : void 0;
+      }
+      if (target && /\.(?:props|targets)$/i.test(target.path))
+        visit(target, depth5 + 1);
+    }
+    ordered.push(file);
+  };
+  visit(start, 0);
+  return ordered;
+}
+function nearestFileAbove(files, directory, name) {
+  const segments = directory ? directory.split("/") : [];
+  for (let length = segments.length; length >= 0; length -= 1) {
+    const prefix = segments.slice(0, length).join("/");
+    const found = files.get((prefix ? `${prefix}/${name}` : name).toLowerCase());
+    if (found)
+      return found;
+  }
+  return void 0;
+}
 function buildDotnetSolutions(files, projects = buildDotnetProjects(files)) {
   const canonicalProjects = new Map(projects.map((project) => [project.path.toLowerCase(), project.path]));
   return files.filter((file) => SOLUTION_FILE.test(file.path)).sort((left, right) => left.path.localeCompare(right.path)).map((file) => {
     const root = directoryOf2(file.path);
     const members = /* @__PURE__ */ new Set();
-    SOLUTION_PROJECT.lastIndex = 0;
-    for (const match of file.textSample.matchAll(SOLUTION_PROJECT)) {
-      const include = match[1]?.trim();
-      if (!include || /[$*?]/.test(include) || /^[A-Za-z]:[\\/]|^[\\/]/.test(include))
-        continue;
-      const normalized = normalizeRepositoryPath2(root ? `${root}/${include}` : include);
-      const canonical = normalized ? canonicalProjects.get(normalized.toLowerCase()) : void 0;
+    const pattern = /\.slnx$/i.test(file.path) ? SLNX_PROJECT : SOLUTION_PROJECT;
+    const group = pattern === SLNX_PROJECT ? 2 : 1;
+    pattern.lastIndex = 0;
+    for (const match of file.textSample.matchAll(pattern)) {
+      const target = literalContainedPath(root, match[group] ?? "");
+      const canonical = target ? canonicalProjects.get(target.toLowerCase()) : void 0;
       if (canonical)
         members.add(canonical);
     }
@@ -1571,6 +1690,10 @@ function dotnetProjectForPathFromRoots(projectsByRoot, path) {
   }
   return void 0;
 }
+function dotnetLinkingProject(projects, path) {
+  const linking = projects.filter((project) => project.linkedSources.includes(path));
+  return linking.length === 1 ? linking[0] : void 0;
+}
 function validNamespace(value) {
   return /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(value) && !/[$*?]/.test(value);
 }
@@ -1579,7 +1702,7 @@ function dotnetProjectForPath(projects, path) {
     return projects.find((project) => project.path === path);
   const matching = projects.filter((project) => project.root ? path.startsWith(`${project.root}/`) : true);
   if (matching.length === 0)
-    return void 0;
+    return dotnetLinkingProject(projects, path);
   const deepest = Math.max(...matching.map((project) => project.root.split("/").filter(Boolean).length));
   const nearest = matching.filter((project) => project.root.split("/").filter(Boolean).length === deepest);
   return nearest.length === 1 ? nearest[0] : void 0;
@@ -1605,6 +1728,16 @@ function referencingDotnetTestProjects(projects, projectPath) {
 }
 function isDotnetTestProject(file) {
   return /<IsTestProject>\s*true\s*<\/IsTestProject>/i.test(file.textSample) || /<ProjectCapability\b[^>]*\bInclude\s*=\s*["'][^"']*\bTestContainer\b/i.test(file.textSample) || /<PackageReference\b[^>]*\bInclude\s*=\s*["']Microsoft\.NET\.Test\.Sdk["']/i.test(file.textSample) || /(?:^|\/)(?:test|tests)(?:\/|$)/i.test(file.path) || /(?:^|[._-])tests?\.(?:csproj|fsproj|vbproj)$/i.test(file.path.split("/").pop() ?? "");
+}
+function attribute(attributes, name) {
+  const match = new RegExp(`\\b${name}\\s*=\\s*(["'])(.*?)\\1`, "i").exec(attributes);
+  return match?.[2]?.trim() || void 0;
+}
+function literalContainedPath(root, include) {
+  const value = include.trim();
+  if (!value || /[$*?%]/.test(value) || /^[A-Za-z]:[\\/]|^[\\/]/.test(value))
+    return void 0;
+  return normalizeRepositoryPath2(root ? `${root}/${value}` : value);
 }
 function directoryOf2(path) {
   return path.split("/").slice(0, -1).join("/");
@@ -2746,7 +2879,7 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
       const symbols = [...new Set(extractLanguageDefinitions(file).filter((definition) => definition.kind !== "method").map((definition) => definition.name))];
       if (symbols.length > 0)
         dotnetSymbolsByFile.set(file.path, symbols);
-      const owner = projectForSourcePath(file.path, dotnetProjectsByRoot);
+      const owner = projectForSourcePath(file.path, dotnetProjectsByRoot) ?? dotnetLinkingProject(dotnetProjects, file.path);
       if (owner)
         dotnetProjectByFile.set(file.path, owner);
     }
@@ -7574,7 +7707,7 @@ function classifyConventionalTextFile(path) {
     return "documentation";
   if (CONVENTIONAL_CONFIG_NAMES.has(name))
     return "config";
-  if (/\.(?:csproj|fsproj|vbproj|sln)$/.test(name))
+  if (/\.(?:csproj|fsproj|vbproj|sln|slnx|props|targets)$/.test(name))
     return "config";
   return void 0;
 }
