@@ -122,7 +122,7 @@ export type {
 } from "./evidence.js";
 export { detectPrimaryLanguage } from "./languages.js";
 export type { LanguageDetection, PrimaryLanguage } from "./languages.js";
-export { buildDotnetProjects, buildDotnetSolutions, dotnetProjectForPath, dotnetReferenceClosure, dotnetSolutionsContaining, referencingDotnetTestProjects } from "./dotnet-projects.js";
+export { buildDotnetProjects, buildDotnetSolutions, dotnetLinkingProject, dotnetProjectForPath, dotnetReferenceClosure, dotnetSolutionsContaining, referencingDotnetTestProjects } from "./dotnet-projects.js";
 export type { DotnetProject, DotnetSolution } from "./dotnet-projects.js";
 export { buildComposerProjects, composerDependencyClosure, composerProjectForPath, composerTestCommandForProject, resolveComposerSymbol } from "./composer-projects.js";
 export type { ComposerProject } from "./composer-projects.js";

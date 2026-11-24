@@ -450,6 +450,27 @@ describe("buildImportGraph", () => {
     ]);
   });
 
+  it("applies Directory.Build.props usings and gives linked compile items their project's edges", () => {
+    const files = [
+      codeFile("Directory.Build.props", '<Project><ItemGroup><Using Include="Acme.Contracts" /></ItemGroup></Project>'),
+      codeFile("src/App/App.csproj", [
+        "<Project>",
+        '  <ProjectReference Include="..\\Contracts\\Contracts.csproj" />',
+        '  <Compile Include="..\\..\\shared\\Clock.cs" />',
+        "</Project>"
+      ].join("\n")),
+      codeFile("src/App/Service.cs", "namespace Acme.App; public class Service { Contract contract; }"),
+      codeFile("shared/Clock.cs", "namespace Acme.Shared; public class Clock { Contract contract; }"),
+      codeFile("src/Contracts/Contracts.csproj", "<Project />"),
+      codeFile("src/Contracts/Contract.cs", "namespace Acme.Contracts; public class Contract {}")
+    ];
+
+    const graph = buildImportGraph(files);
+
+    expect([...(graph.imports.get("src/App/Service.cs") ?? [])]).toEqual(["src/Contracts/Contract.cs"]);
+    expect([...(graph.imports.get("shared/Clock.cs") ?? [])]).toEqual(["src/Contracts/Contract.cs"]);
+  });
+
   it("reports when the graph file budget truncates parseable modules", () => {
     const files = Array.from({ length: 5_001 }, (_, index) =>
       codeFile(`src/module-${index}.ts`, `export const module${index} = ${index};`)

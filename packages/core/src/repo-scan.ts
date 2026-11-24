@@ -1620,7 +1620,7 @@ function classifyConventionalTextFile(path: string): "documentation" | "config" 
   const name = path.replace(/\\/g, "/").split("/").at(-1)?.toLowerCase() ?? "";
   if (CONVENTIONAL_DOCUMENT_NAMES.has(name)) return "documentation";
   if (CONVENTIONAL_CONFIG_NAMES.has(name)) return "config";
-  if (/\.(?:csproj|fsproj|vbproj|sln)$/.test(name)) return "config";
+  if (/\.(?:csproj|fsproj|vbproj|sln|slnx|props|targets)$/.test(name)) return "config";
   return undefined;
 }
 
