@@ -6,6 +6,18 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.8 - 2026-11-24
+
+### Added
+
+- `fixmap validate` now checks every saved artifact, not only reports: dossiers, outcome records and stores, annotation and capability stores, policies, workspace configs and maps, agent intents, and evidence, supply-chain, runtime and test-history bundles. An artifact written by a newer FixMap is rejected with an upgrade message. Core: `checkArtifactCompatibility`, `supportedArtifactVersions`.
+- Preview: `fixmap ask` flags report evidence that reads like instructions (instruction overrides, role markers, shell commands, remote links, false verification claims, forged citations), warns before quoting it, and defuses image and link markup. Model providers get an `AbortSignal`; a timeout falls back to the deterministic answer and a caller cancellation stops the call.
+
+### Improved
+
+- The self-hosted MCP container now includes git, so diffs and history work against a mounted checkout. Both container targets are built and runtime-tested on amd64 and arm64 in CI with no network and a read-only root filesystem.
+- Real artifacts written by FixMap 0.9.0, 0.9.5 and 0.9.7 are kept as test fixtures and must stay readable.
+
 ## 0.9.7 - 2026-11-24
 
 New additions are previews: they work and are tested, but their output and options may change before v0.10.0.

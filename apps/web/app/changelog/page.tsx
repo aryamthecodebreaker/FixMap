@@ -44,9 +44,30 @@ type Release = {
 
 const releases: Release[] = [
   {
-    version: "0.9.7",
+    version: "0.9.8",
     date: "November 24, 2026",
     label: "Latest release",
+    summary: "Saved FixMap files stay readable across upgrades, fixmap ask resists instructions planted in reports, and the self-hosted container is proven on Intel and ARM.",
+    groups: [
+      {
+        label: "Added",
+        items: [
+          "fixmap validate checks any saved FixMap file and says clearly when one came from a newer FixMap.",
+          "fixmap ask warns when report text looks like instructions to an AI, never follows it, and makes links in answers inert."
+        ]
+      },
+      {
+        label: "Improved",
+        items: [
+          "The self-hosted container now includes git and is tested on both Intel and ARM machines with no network access.",
+          "Files saved by FixMap 0.9.0, 0.9.5 and 0.9.7 are tested to keep working."
+        ]
+      }
+    ]
+  },
+  {
+    version: "0.9.7",
+    date: "November 24, 2026",
     summary: "Cross-repository impact in Verify and pull requests, help writing architecture policy, breaking-contract rules that actually run, coordination between AI agents sharing a checkout, and clearer Verify wording.",
     groups: [
       {
