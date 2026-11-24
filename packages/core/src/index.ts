@@ -1,4 +1,6 @@
-export { buildFixMapAnalysis, buildFixMapReport, resolveExclusions } from "./plan.js";
+export { buildFixMapAnalysis, buildFixMapReport, contractBaselineOrError, resolveExclusions } from "./plan.js";
+export { contractBaselineForDiff, diffRange } from "./contract-baseline.js";
+export type { ContractBaselineInput } from "./contract-baseline.js";
 export { fixMapArtifactKind, isFixMapArtifact } from "./artifacts.js";
 export type { FixMapArtifactKind } from "./artifacts.js";
 export { buildPathExcluder, NO_EXCLUSIONS } from "./exclude.js";
@@ -7,7 +9,7 @@ export { compareReports, renderComparisonMarkdown } from "./compare.js";
 export { quoteCliValue } from "./cli-quote.js";
 export type { CliShell } from "./cli-quote.js";
 export type { ReportComparison } from "./compare.js";
-export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
+export { checkVerifyNarrative, renderVerifyMarkdown, verifyPlan } from "./verify.js";
 export { explainFile, renderExplanationMarkdown } from "./explain.js";
 export type { FileExplanation } from "./explain.js";
 export {
@@ -46,6 +48,16 @@ export { readAnnotationStore, updateAnnotationStore } from "./annotation-store.j
 export { parseEvidenceProviderBundle, readEvidenceProviderBundle, EVIDENCE_BUNDLE_MAX_BYTES } from "./evidence-bundle.js";
 export { detectChangeConflicts } from "./change-conflicts.js";
 export type { ChangeConflict, ChangeConflictAnalysis, ChangeIntent, ChangeZone } from "./change-conflicts.js";
+export {
+  agentIntentToChangeIntent,
+  agentIntentsDirectory,
+  listAgentIntents,
+  pruneAgentIntents,
+  recordAgentIntent,
+  releaseAgentIntent,
+  validateAgentIntent
+} from "./intent-store.js";
+export type { AgentIntent, AgentIntentEdit, AgentIntentListing, RecordAgentIntentInput } from "./intent-store.js";
 export { buildMigrationPlan } from "./migration.js";
 export type { MigrationCompatibility, MigrationPhase, MigrationPlan, MigrationStep } from "./migration.js";
 export { comparePlanAlternatives } from "./plan-alternatives.js";
@@ -174,8 +186,17 @@ export { createLocalTransformersEmbeddingProvider } from "./transformers-embeddi
 export type { LocalTransformersEmbeddingOptions } from "./transformers-embedding.js";
 export { withPersistentEmbeddingCache } from "./semantic-cache.js";
 export type { PersistentEmbeddingCacheOptions } from "./semantic-cache.js";
-export { buildWorkspaceImpact, buildWorkspaceMap } from "./workspace.js";
+export { buildWorkspaceImpact, buildWorkspaceMap, buildWorkspaceVerifyNarrative } from "./workspace.js";
+export {
+  assertWorkspaceScan,
+  findWorkspaceRepository,
+  loadWorkspaceConfig,
+  parseWorkspaceConfig,
+  resolveWorkspaceRepositories
+} from "./workspace-config.js";
+export type { LoadedWorkspace, LoadWorkspaceOptions, WorkspaceConfig, WorkspaceConfigRepository } from "./workspace-config.js";
 export type {
+  WorkspaceAlias,
   WorkspaceDependency,
   WorkspaceDependencyEvidence,
   WorkspaceDiagnostic,

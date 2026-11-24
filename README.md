@@ -207,6 +207,8 @@ Run the checked-in two-service example with `fixmap workspace --config examples/
 
 Repeat `--seed` to trace downstream provider-to-consumer impact from multiple repositories. Duplicate IDs, duplicate real checkout paths, unknown seeds, remote URLs, invalid submodule parents, and ambiguous package providers are rejected or diagnosed instead of silently merged.
 
+Preview: when a consumer declares a package under a different name than the provider publishes, add a reviewed `aliases` entry such as `{ "consumer": "payments", "ecosystem": "node", "package": "acme-auth", "provider": "auth", "providerPackage": "@acme/auth-sdk", "reason": "internal registry name" }`. Only these entries link differently named packages; matching names never create aliases. `fixmap verify --workspace .fixmap/workspace.json` (MCP `fixmap_verify` `workspace`, Action `workspace` input) then adds statements naming the other checkouts that consume a package the diff changes, each citing the changed file and the consumer manifest or import.
+
 Plan a product change from code surfaces you choose explicitly:
 
 ```bash
@@ -358,11 +360,20 @@ Architecture rules live in a reviewed `.fixmap/policy.json` file. Every rule has
       "paths": ["openapi.*"],
       "forbidBreaking": true,
       "reason": "Public API removals need a compatibility window.",
-      "severity": "error"
+      "severity": "error",
+      "allowBreaking": [
+        { "path": "openapi.legacy.yaml", "reason": "Deprecated in v3; removal announced in the changelog." }
+      ]
     }
   ]
 }
 ```
+
+Contract rules are checked against the same two states the diff compares (`a...b` from the merge base, `a..b`, base/head, or the working tree), read from Git objects. A reviewed `allowBreaking` entry names an exact contract change id or a path pattern; matching changes are reported as info instead of failing. If the comparison cannot be built, Plan and Verify warn with `contract-baseline-unavailable` rather than passing silently.
+
+Preview: `fixmap policy init` writes a starter policy from the current module layout (one required-test rule per top-level module with tests, plus a contract rule for any contracts found) and never overwrites an existing file. `fixmap policy check` prints each problem with a JSON pointer such as `/boundaries/1` and exits 1 when the file is invalid; `fixmap policy explain <rule-id>` shows what a rule checks and which files it covers now.
+
+Preview: agents sharing one checkout can coordinate. `fixmap intent record --agent <id> --task <text> --edit src/users.ts:10-40` leaves an expiring note in `.fixmap/intents/` (one atomic file per intent, default 2 hours); `fixmap conflicts` compares every live intent, and with `--report plan.json` a proposed plan, and exits 1 when two intents edit the same file or one edits another's impact or contract zone. Non-overlapping line ranges in the same file and different base commits are warnings. MCP: `fixmap_intent`, `fixmap_conflicts`. Only `.fixmap/intents/` is written.
 
 - Produces Markdown for people, versioned JSON for tools, or `--format agent` for compact `EDIT CANDIDATE`/`INSPECT`/`TEST`/`RISK`/`AVOID`/`UNCERTAINTY` sections; writes any format with `--output`.
 
@@ -469,7 +480,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: aryamthecodebreaker/FixMap@v0.9.6
+      - uses: aryamthecodebreaker/FixMap@v0.9.7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```

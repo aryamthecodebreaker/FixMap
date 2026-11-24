@@ -81,7 +81,7 @@ Map package dependencies and downstream impact across local repositories:
 fixmap workspace --config .fixmap/workspace.json --seed auth --format json
 ```
 
-The JSON config uses `"workspaceConfigVersion": 1`, a stable `workspace` name, and 1–32 `{ "id", "path" }` repository entries. Paths are relative to the config file. Optional submodule entries use `relationship: { "kind": "submodule", "parentRepository": "auth", "path": "vendor/contracts" }`. FixMap scans at most four checkouts concurrently, never executes their code, and resolves Node, Python, and Maven package/version identities plus manifest/import evidence.
+The JSON config uses `"workspaceConfigVersion": 1`, a stable `workspace` name, and 1–32 `{ "id", "path" }` repository entries. Paths are relative to the config file. Optional submodule entries use `relationship: { "kind": "submodule", "parentRepository": "auth", "path": "vendor/contracts" }`. FixMap scans at most four checkouts concurrently, never executes their code, and resolves Node, Python, and Maven package/version identities plus manifest/import evidence. Preview: a reviewed `aliases` list links a consumer package name to a differently named provider package, and `fixmap verify --workspace <config>` names the other checkouts that consume what a diff changed.
 
 Continuously compare agent edits with a saved plan and recalculate impact:
 
@@ -225,6 +225,9 @@ fixmap plan            Generate a FixMap report for a task or diff
 fixmap context         Build a budgeted Markdown or JSON source pack
 fixmap graph           Export the Impact Graph as Mermaid or JSON
 fixmap workspace       Map package dependencies and impact across local repositories
+fixmap policy          Preview: write, check, and explain .fixmap/policy.json
+fixmap intent          Preview: record, list, or release what an agent plans to edit
+fixmap conflicts       Preview: report files more than one agent intent claims
 fixmap ask             Answer report-only structural questions with citations
 fixmap migrate         Build a dependency-ordered, review-only migration plan
 fixmap alternatives    Compare alternative plans side by side without picking a winner

@@ -1,0 +1,49 @@
+{
+  "summary": "FixMap verified 1 changed file against the plan and raised 1 warning.",
+  "findings": [
+    {
+      "code": "no-test-changed",
+      "severity": "warning",
+      "paths": [
+        "src/users/list.test.ts"
+      ],
+      "message": "Code changed but no test did. The plan routed this test as most related."
+    }
+  ],
+  "narrative": [
+    {
+      "classification": "observation",
+      "text": "1 file changed: src/users/list.ts.",
+      "evidence": [
+        {
+          "kind": "changed-file",
+          "path": "src/users/list.ts",
+          "detail": "Present in the resolved verification diff."
+        }
+      ]
+    },
+    {
+      "classification": "observation",
+      "text": "src/users/list.test.ts is in the recalculated impact graph because this file imports src/users/list.ts.",
+      "evidence": [
+        {
+          "kind": "impact-relationship",
+          "path": "src/users/list.ts",
+          "relatedPath": "src/users/list.test.ts",
+          "detail": "imported-by: this file imports src/users/list.ts"
+        }
+      ]
+    },
+    {
+      "classification": "observation",
+      "text": "Source changed without a changed test; FixMap had routed npm run test.",
+      "evidence": [
+        {
+          "kind": "test-route",
+          "path": "src/users/list.test.ts",
+          "detail": "npm run test: repository root script named test"
+        }
+      ]
+    }
+  ]
+}

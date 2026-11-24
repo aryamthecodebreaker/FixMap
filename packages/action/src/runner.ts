@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { buildWorkspaceSection, resolveWorkspaceInput } from "./workspace-section.js";
 import { runAnnotationAction } from "./annotations.js";
 import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
@@ -8,6 +9,8 @@ import {
   renderMarkdownReport,
   renderVerifyMarkdown,
   compareArchitectureRefs,
+  contractBaselineOrError,
+  loadWorkspaceConfig,
   compareCapabilityRefs,
   compareContractRefs,
   scanRepo,
@@ -64,10 +67,11 @@ export type ActionDependencies = {
   compareCapabilityRefs?: typeof compareCapabilityRefs;
   compareContractRefs?: typeof compareContractRefs;
   compareArchitectureRefs?: typeof compareArchitectureRefs;
+  loadWorkspace?: typeof loadWorkspaceConfig;
   now?: () => string;
 };
 
-const SCOPE_INPUTS = ["change-scope-touch", "change-scope-add", "capability"] as const;
+const SCOPE_INPUTS = ["change-scope-touch", "change-scope-add", "capability", "workspace"] as const;
 
 /**
  * Boolean preview inputs default to "false" (and reviewers-history-authors to "true") in
@@ -224,6 +228,16 @@ export async function runAction(
         ...(dependencies.compareCapabilityRefs ? { compareCapabilityRefs: dependencies.compareCapabilityRefs } : {})
       })
     : undefined;
+  // Resolve before scanning so a path outside the job workspace fails as a workflow error.
+  const workspaceConfig = resolveWorkspaceInput(readInput("workspace", env), repoRoot, env.GITHUB_WORKSPACE || repoRoot);
+  const workspaceSection = workspaceConfig
+    ? await buildWorkspaceSection(workspaceConfig, {
+        repoRoot,
+        useCache: !noCache,
+        changedPaths: report.changedFiles,
+        ...(dependencies.loadWorkspace ? { loadWorkspace: dependencies.loadWorkspace } : {})
+      })
+    : undefined;
   const reviewSections = hasReviewSections(reviewRequest)
     ? await buildReviewSections(reviewRequest, {
         repoRoot,
@@ -238,7 +252,7 @@ export async function runAction(
   const planMarkdown = renderMarkdownReport(report);
   // The preview sections join the readable report only; the JSON report keeps the FixMapReport
   // contract that verify mode and downstream tools validate.
-  const extraMarkdown = [scopeSections?.markdown, reviewSections?.markdown].filter(Boolean).join("\n");
+  const extraMarkdown = [scopeSections?.markdown, workspaceSection, reviewSections?.markdown].filter(Boolean).join("\n");
   const markdown = extraMarkdown ? `${planMarkdown.trimEnd()}\n\n${extraMarkdown}` : planMarkdown;
   const output = format === "json" ? renderJsonReport(report) : markdown;
 
@@ -359,7 +373,14 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
     throw new Error(`${diffFailure.message} Verification needs a resolvable diff.`);
   }
 
-  const result = verifyPlan(report, repo);
+  const baseline = await contractBaselineOrError(repo, {
+    repoRoot,
+    diffSpec: context.diffSpec,
+    baseRef: context.baseRef,
+    headRef: context.headRef,
+    workingTree: context.workingTree
+  });
+  const result = verifyPlan(report, repo, { ...(baseline.comparison ? { contractComparison: baseline.comparison } : {}), ...(baseline.error ? { contractBaselineError: baseline.error } : {}) });
   // Contract changes are advisory here too: only verify findings decide whether the step fails.
   const contractSections = context.contracts
     ? await buildReviewSections(
@@ -391,15 +412,18 @@ async function runVerifyMode(context: VerifyModeContext): Promise<void> {
     );
   }
 
-  // A generated-location edit is discarded by the next build, so it fails the step rather
-  // than being reported and scrolled past. Everything else stays advisory.
+  // Error findings (an edit the next build discards, a broken policy rule, a mismatched plan) fail
+  // the step rather than being reported and scrolled past. Warnings stay advisory unless fail-on asks.
   if (result.findings.some((finding) =>
     finding.severity === "error" || (context.failOn === "warning" && finding.severity === "warning")
   )) {
+    const errors = result.findings.filter((finding) => finding.severity === "error");
     throw new Error(
-      context.failOn === "warning"
+      errors.length === 0
         ? "FixMap verification found findings at or above the configured warning threshold."
-        : "FixMap verification found an edit in a generated or retired location, which the next build discards."
+        : errors.length === 1 && errors[0]!.code === "edit-in-generated-location"
+          ? "FixMap verification found an edit in a generated or retired location, which the next build discards."
+          : `FixMap verification found ${errors.length} error finding${errors.length === 1 ? "" : "s"}: ${[...new Set(errors.map((finding) => finding.code))].join(", ")}.`
     );
   }
 }

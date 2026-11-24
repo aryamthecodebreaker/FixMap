@@ -1,0 +1,65 @@
+{
+  "summary": "FixMap verified 3 changed files against the plan and raised 2 warnings.",
+  "findings": [
+    {
+      "code": "unmapped-change",
+      "severity": "warning",
+      "paths": [
+        "src/payments/charge.ts"
+      ],
+      "message": "One file changed that the plan did not rank. Either the task grew beyond the original description, or the ranking missed it; worth checking which."
+    },
+    {
+      "code": "new-risk-area",
+      "severity": "warning",
+      "paths": [
+        "src/payments/charge.ts"
+      ],
+      "message": "The change touches billing, which the original plan did not flag: billing or payment-related files are affected."
+    }
+  ],
+  "narrative": [
+    {
+      "classification": "observation",
+      "text": "3 files changed: src/payments/charge.ts, src/users/list.test.ts, src/users/list.ts.",
+      "evidence": [
+        {
+          "kind": "changed-file",
+          "path": "src/payments/charge.ts",
+          "detail": "Present in the resolved verification diff."
+        },
+        {
+          "kind": "changed-file",
+          "path": "src/users/list.test.ts",
+          "detail": "Present in the resolved verification diff."
+        },
+        {
+          "kind": "changed-file",
+          "path": "src/users/list.ts",
+          "detail": "Present in the resolved verification diff."
+        }
+      ]
+    },
+    {
+      "classification": "observation",
+      "text": "The plan did not rank src/payments/charge.ts, but the diff changes it.",
+      "evidence": [
+        {
+          "kind": "changed-file",
+          "path": "src/payments/charge.ts",
+          "detail": "Changed source file absent from the saved plan."
+        }
+      ]
+    },
+    {
+      "classification": "inference",
+      "text": "The diff may introduce billing risk: billing or payment-related files are affected.",
+      "evidence": [
+        {
+          "kind": "risk-rule",
+          "detail": "high billing: billing or payment-related files are affected"
+        }
+      ]
+    }
+  ]
+}

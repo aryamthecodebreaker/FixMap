@@ -6,6 +6,26 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.7 - 2026-11-24
+
+New additions are previews: they work and are tested, but their output and options may change before v0.10.0.
+
+### Added
+
+- Workspace configs accept a reviewed `aliases` list linking a consumer's declared package name to a differently named provider package; matching names never create links. `fixmap verify --workspace <config>` (MCP `fixmap_verify` `workspace`) names the other checkouts that consume a package the diff changed, citing the change and the consumer's manifest or import. The GitHub Action `workspace` input adds a "Cross-repository impact" section.
+- `fixmap policy init` writes a starter `.fixmap/policy.json` from the module layout without overwriting; `fixmap policy check` reports each problem with a JSON pointer; `fixmap policy explain <rule-id>` shows what a rule checks and the files it covers.
+- Policy contract rules now run in Plan and Verify (CLI, MCP, Action) against the diff's two states, read from Git objects. Reviewed `allowBreaking` entries downgrade a break to info; a comparison that cannot be built warns with `contract-baseline-unavailable`.
+- `fixmap intent record|list|release|prune` and `fixmap conflicts` (MCP `fixmap_intent`, `fixmap_conflicts`) let agents sharing a checkout record expiring edit intents in `.fixmap/intents/` and check them for overlap; non-overlapping line ranges in one file are warnings.
+
+### Improved
+
+- Verify narration is covered by golden snapshots across CLI Markdown, JSON, MCP, and the Action, plus a quality check (`checkVerifyNarrative`). A clean diff is headed "What Changed" instead of "Why This Diff Needs Attention", policy statements use plain words, and files changed outside the plan are narrated.
+
+### Fixed
+
+- The GitHub Action blamed every failing Verify finding on an edit in a generated location; it now names the failing finding codes.
+- Reading historical sources no longer crashes with an unhandled EPIPE when Git exits early.
+
 ## 0.9.6 - 2026-11-23
 
 Every addition in this release is a preview: it works and is tested, but its output and options may change before v0.10.0.

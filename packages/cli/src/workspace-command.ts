@@ -1,11 +1,16 @@
-import { realpath, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import {
   buildWorkspaceImpact,
   buildWorkspaceMap,
+  assertWorkspaceScan,
+  findWorkspaceRepository,
+  loadWorkspaceConfig,
+  parseWorkspaceConfig,
+  resolveWorkspaceRepositories,
   scanRepo,
-  type RepoMap,
+  type WorkspaceConfig,
   type WorkspaceImpact,
   type WorkspaceMap,
   type WorkspaceRepositoryInput
@@ -14,22 +19,8 @@ import { describeInputReadError, readDecodedTextFile } from "./decode-input.js";
 
 export const WORKSPACE_USAGE = `Usage: fixmap workspace --config <workspace.json> [--seed <repository-id>] [--format markdown|json] [--output <file>] [--no-cache]
 
-Builds a deterministic impact graph across 1-32 local repository checkouts. Repository paths are resolved relative to the config file. Repeat --seed to trace provider-to-consumer impact from more than one repository. FixMap scans source and manifests locally and never executes repository code.
+Builds a deterministic impact graph across 1-32 local repository checkouts. Repository paths are resolved relative to the config file. An optional "aliases" list links a consumer's declared package name to a differently named provider package; only these reviewed entries do, never matching names. Repeat --seed to trace provider-to-consumer impact from more than one repository. FixMap scans source and manifests locally and never executes repository code.
 `;
-
-const REPOSITORY_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
-
-type WorkspaceConfigRepository = {
-  id: string;
-  path: string;
-  relationship?: { kind: "checkout" | "submodule"; parentRepository?: string; path?: string };
-};
-
-type WorkspaceConfig = {
-  workspaceConfigVersion: 1;
-  workspace: string;
-  repositories: WorkspaceConfigRepository[];
-};
 
 export type WorkspaceCommandReport = WorkspaceMap & { impact?: WorkspaceImpact };
 
@@ -72,7 +63,7 @@ export async function runWorkspaceCommand(
 
   try {
     const configDirectory = dirname(resolve(parsed.configPath));
-    const resolvedRepositories = await resolveRepositories(config.repositories, configDirectory);
+    const resolvedRepositories = await resolveWorkspaceRepositories(config.repositories, configDirectory);
     const seeds = [...new Set(parsed.seeds)].sort();
     const known = new Set(resolvedRepositories.map((repository) => repository.config.id));
     const unknownSeeds = seeds.filter((seed) => !known.has(seed));
@@ -85,14 +76,14 @@ export async function runWorkspaceCommand(
       repository,
       repo: await scan({ repoRoot: repository.root, includeHistory: false, useCache: !parsed.noCache })
     }));
-    for (const entry of scanned) assertScanned(entry.repository.config.id, entry.repo);
+    for (const entry of scanned) assertWorkspaceScan(entry.repository.config.id, entry.repo);
 
     const inputs: WorkspaceRepositoryInput[] = scanned.map(({ repository, repo }) => ({
       id: repository.config.id,
       repo,
       relationship: repository.config.relationship ?? { kind: "checkout" }
     }));
-    const workspace = buildWorkspaceMap(inputs, { workspace: config.workspace });
+    const workspace = buildWorkspaceMap(inputs, { workspace: config.workspace, ...(config.aliases ? { aliases: config.aliases } : {}) });
     const report: WorkspaceCommandReport = {
       ...workspace,
       ...(seeds.length > 0 ? { impact: buildWorkspaceImpact(workspace, seeds) } : {})
@@ -167,76 +158,6 @@ function parseWorkspaceArgs(args: string[]): WorkspaceArgs {
   return { ok: true, configPath, seeds, format, ...(output ? { output } : {}), noCache };
 }
 
-function parseWorkspaceConfig(value: unknown): WorkspaceConfig {
-  if (!isRecord(value)) throw new Error("Workspace config must be a JSON object.");
-  if (value.workspaceConfigVersion !== 1) {
-    throw new Error("Workspace config workspaceConfigVersion must be 1.");
-  }
-  const workspace = stringField(value.workspace, "workspace");
-  if (!Array.isArray(value.repositories) || value.repositories.length < 1 || value.repositories.length > 32) {
-    throw new Error("Workspace config repositories must contain 1-32 entries.");
-  }
-  const repositories = value.repositories.map((entry, index): WorkspaceConfigRepository => {
-    if (!isRecord(entry)) throw new Error(`Workspace repository ${index + 1} must be an object.`);
-    const id = stringField(entry.id, `repositories[${index}].id`);
-    if (!REPOSITORY_ID.test(id)) throw new Error(`Invalid workspace repository ID: ${id}`);
-    const path = stringField(entry.path, `repositories[${index}].path`);
-    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path)) {
-      throw new Error(`Workspace repository ${id} must use a local path, not a URL.`);
-    }
-    const relationship = parseRelationship(entry.relationship, id);
-    return { id, path, ...(relationship ? { relationship } : {}) };
-  });
-  return { workspaceConfigVersion: 1, workspace, repositories };
-}
-
-function parseRelationship(
-  value: unknown,
-  repository: string
-): WorkspaceConfigRepository["relationship"] | undefined {
-  if (value === undefined) return undefined;
-  if (!isRecord(value) || (value.kind !== "checkout" && value.kind !== "submodule")) {
-    throw new Error(`Workspace repository ${repository} relationship.kind must be checkout or submodule.`);
-  }
-  if (value.kind === "checkout") return { kind: "checkout" };
-  const parentRepository = stringField(value.parentRepository, `${repository}.relationship.parentRepository`);
-  const path = typeof value.path === "string" && value.path.trim() ? value.path.trim() : undefined;
-  return { kind: "submodule", parentRepository, ...(path ? { path } : {}) };
-}
-
-async function resolveRepositories(
-  repositories: WorkspaceConfigRepository[],
-  configDirectory: string
-): Promise<Array<{ config: WorkspaceConfigRepository; root: string }>> {
-  const ids = new Set<string>();
-  const roots = new Map<string, string>();
-  const resolved = [];
-  for (const config of repositories) {
-    if (ids.has(config.id)) throw new Error(`Duplicate workspace repository ID: ${config.id}`);
-    ids.add(config.id);
-    const literal = expandHomePath(config.path);
-    const root = resolve(isAbsolute(literal) ? literal : resolve(configDirectory, literal));
-    let canonical: string;
-    try {
-      canonical = await realpath(root);
-    } catch (error) {
-      throw new Error(`Workspace repository ${config.id} could not be opened at "${root}": ${describeInputReadError(root, error)}`);
-    }
-    const key = process.platform === "win32" ? canonical.toLowerCase() : canonical;
-    const collision = roots.get(key);
-    if (collision) throw new Error(`Workspace repositories ${collision} and ${config.id} resolve to the same checkout.`);
-    roots.set(key, config.id);
-    resolved.push({ config, root: canonical });
-  }
-  return resolved;
-}
-
-function assertScanned(repository: string, repo: RepoMap): void {
-  const error = repo.diagnostics.find((diagnostic) => diagnostic.severity === "error");
-  if (error) throw new Error(`Workspace repository ${repository} could not be scanned: ${error.message}`);
-  if (repo.files.length === 0) throw new Error(`Workspace repository ${repository} contains no scannable files.`);
-}
-
 async function mapWithConcurrency<T, R>(
   values: readonly T[],
   concurrency: number,
@@ -284,7 +205,7 @@ export function renderWorkspaceReport(report: WorkspaceCommandReport): string {
     "",
     ...(report.dependencies.length > 0
       ? report.dependencies.map((dependency) =>
-        `- ${code(dependency.consumerRepository)} depends on ${code(dependency.package)} from ${code(dependency.providerRepository)} via ${dependency.evidence.map((entry) => code(entry.path)).join(", ")}`
+        `- ${code(dependency.consumerRepository)} depends on ${code(dependency.package)} from ${code(dependency.providerRepository)} via ${dependency.evidence.map((entry) => code(entry.path)).join(", ")}${dependency.alias ? ` (reviewed alias: declared as ${code(dependency.alias.declaredPackage)})` : ""}`
       )
       : ["No cross-repository package or import dependency was resolved."])
   ];
@@ -318,15 +239,6 @@ function code(value: string): string {
   return `\`${value.replaceAll("`", "'")}\``;
 }
 
-function stringField(value: unknown, name: string): string {
-  if (typeof value !== "string" || !value.trim()) throw new Error(`Workspace config ${name} must be a non-blank string.`);
-  return value.trim();
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function samePath(left: string, right: string): boolean {
   return process.platform === "win32" ? left.toLowerCase() === right.toLowerCase() : left === right;
 }
@@ -335,4 +247,14 @@ function expandHomePath(value: string): string {
   if (value === "~") return homedir();
   if (value.startsWith("~/") || value.startsWith("~\\")) return resolve(homedir(), value.slice(2));
   return value;
+}
+
+/** The verified checkout must itself be one of the workspace repositories; otherwise nothing it changes can be traced. */
+export async function loadVerifyWorkspace(configPath: string, repoRoot: string, useCache: boolean): Promise<{ map: WorkspaceMap; repository: string }> {
+  const loaded = await loadWorkspaceConfig(configPath, { useCache });
+  const repository = await findWorkspaceRepository(loaded, repoRoot);
+  if (!repository) {
+    throw new Error(`--workspace: the verified checkout "${repoRoot}" is not one of the repositories in "${configPath}". Add it to the config, or verify one of the listed checkouts.`);
+  }
+  return { map: loaded.map, repository };
 }

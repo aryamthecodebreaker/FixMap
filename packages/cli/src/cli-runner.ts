@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { loadVerifyWorkspace } from "./workspace-command.js";
 import { realpath, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -14,6 +15,7 @@ import {
   renderVerifyMarkdown,
   resolveExclusions,
   verifyPlan,
+  contractBaselineOrError,
   renderMarkdownReport,
   scanRepo,
   validateFixMapReport,
@@ -59,6 +61,7 @@ export type CliOptions = {
   evidencePaths: string[];
   sensitiveData: boolean;
   supplyChainPath?: string | undefined;
+  workspacePath?: string | undefined;
   unknownArgs: string[];
   invalidValues: string[];
 };
@@ -152,6 +155,9 @@ Commands:
   history             Preview: Compare architecture at two committed Git refs without checkout
   contracts           Preview: List API/schema contracts or diff them across Git refs without checkout
   supply-chain        Preview: Import normalized external scanner and SBOM evidence
+  policy              Preview: Write, check, and explain the architecture policy (.fixmap/policy.json)
+  intent              Preview: Record, list, or release what an agent plans to edit (.fixmap/intents/)
+  conflicts           Preview: Report files that more than one agent intent claims
   runtime             Preview: Map redaction-reviewed runtime evidence to exact files
   sandbox             Preview: Run one explicitly consented command in an isolated container
   watch               Recheck working-tree drift and impact whenever edits change
@@ -175,6 +181,7 @@ Options:
   --semantic-model <dir> Use an existing local embedding model; never downloads or uploads source
   --evidence <file>   Attach a version-1 evidence bundle from another tool (repeatable; data only, never executed)
   --sensitive-data    Preview: Attach possible sensitive-data source-to-sink flows (locations and kinds only); with verify, flag flows the diff adds
+  --workspace <file>  Preview: With verify, name other checkouts in a workspace config that consume packages this diff changes
   --supply-chain <file> Preview: Attach findings from a normalized scanner/SBOM bundle for packages in manifests among the report's files
   --repo <source>     Local path or public GitHub HTTPS URL (defaults to current directory)
   --ref <branch|tag>  Branch or tag to scan when --repo is a remote GitHub URL
@@ -597,6 +604,16 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
     });
   }
 
+  if (args[0] === "intent" || args[0] === "conflicts") {
+    const { runConflictsCommand, runIntentCommand } = await import("./intent-command.js");
+    return args[0] === "intent" ? runIntentCommand(args.slice(1), { stdout, stderr }) : runConflictsCommand(args.slice(1), { stdout, stderr });
+  }
+
+  if (args[0] === "policy") {
+    const { runPolicyCommand } = await import("./policy-command.js");
+    return runPolicyCommand(args.slice(1), { stdout, stderr });
+  }
+
   if (args[0] === "supply-chain") {
     const { runSupplyChainCommand } = await import("./supply-chain-command.js");
     return runSupplyChainCommand(args.slice(1), {
@@ -696,6 +713,10 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
   }
   if (options.failOn) {
     stderr(withUsageHint("--fail-on is a verify option. Use it with fixmap verify."));
+    return 1;
+  }
+  if (options.workspacePath) {
+    stderr(withUsageHint("--workspace is a verify option. Use fixmap workspace --config for the workspace map itself."));
     return 1;
   }
 
@@ -1099,6 +1120,7 @@ const SINGLE_VALUE_FLAGS = new Set([
   "--semantic-model",
   "--evidence",
   "--supply-chain",
+  "--workspace",
   "--format",
   "--report",
   "--explain",
@@ -1153,6 +1175,7 @@ export function parseArgs(args: string[]): CliOptions {
   const evidencePaths: string[] = [];
   let sensitiveData = false;
   let supplyChainPath: string | undefined;
+  let workspacePath: string | undefined;
   const unknownArgs: string[] = [];
   const invalidValues: string[] = [];
   const flagCounts = new Map<string, number>();
@@ -1243,6 +1266,10 @@ export function parseArgs(args: string[]): CliOptions {
       consumeValue();
       if (value?.trim()) supplyChainPath = expandHomePath(value.trim());
       else invalidValues.push("--supply-chain requires a local supply-chain bundle file");
+    } else if (arg === "--workspace") {
+      consumeValue();
+      if (value?.trim()) workspacePath = expandHomePath(value.trim());
+      else invalidValues.push("--workspace requires a local workspace config file");
     } else if (arg === "--format") {
       consumeValue();
       const normalized = value?.trim().toLowerCase();
@@ -1337,6 +1364,7 @@ export function parseArgs(args: string[]): CliOptions {
     evidencePaths,
     sensitiveData,
     supplyChainPath,
+    workspacePath,
     unknownArgs,
     invalidValues
   };
@@ -1583,6 +1611,7 @@ async function runVerify(
   report = loaded.report;
 
   try {
+    const workspace = options.workspacePath ? await loadVerifyWorkspace(options.workspacePath, options.repo ?? process.cwd(), !options.noCache) : undefined;
     const repo = await scanRepo({
       repoRoot: options.repo ?? process.cwd(),
       diffSpec: options.diffSpec,
@@ -1600,7 +1629,14 @@ async function runVerify(
       return 1;
     }
 
-    const result = verifyPlan(report, repo, { sensitiveData: options.sensitiveData });
+    const baseline = await contractBaselineOrError(repo, {
+      repoRoot: options.repo ?? process.cwd(),
+      diffSpec: options.diffSpec,
+      baseRef: options.baseRef,
+      headRef: options.headRef,
+      workingTree: options.workingTree
+    });
+    const result = verifyPlan(report, repo, { sensitiveData: options.sensitiveData, ...(workspace ? { workspace } : {}), ...(baseline.comparison ? { contractComparison: baseline.comparison } : {}), ...(baseline.error ? { contractBaselineError: baseline.error } : {}) });
     const rendered = options.format === "json"
       ? `${JSON.stringify(result, null, 2)}\n`
       : renderVerifyMarkdown(result);

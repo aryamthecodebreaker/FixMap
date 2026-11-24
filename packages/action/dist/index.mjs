@@ -3,13 +3,12 @@ import { createRequire as __fixmapCreateRequire } from 'module'; const require =
 // packages/action/src/runner.ts
 import { randomUUID as randomUUID4 } from "node:crypto";
 
-// packages/action/src/annotations.ts
-import { realpath as realpath3, stat as stat4 } from "node:fs/promises";
-import { isAbsolute as isAbsolute3, relative as relative4, resolve as resolve6 } from "node:path";
+// packages/action/src/workspace-section.ts
+import { isAbsolute as isAbsolute4, relative as relative4, resolve as resolve8 } from "node:path";
 
 // packages/core/dist/plan.js
-import { readFile as readFile3 } from "node:fs/promises";
-import { join as join3, resolve as resolve3 } from "node:path";
+import { readFile as readFile4 } from "node:fs/promises";
+import { join as join3, resolve as resolve5 } from "node:path";
 
 // packages/core/dist/exclude.js
 var COMMENT = /^\s*#/;
@@ -164,7 +163,7 @@ function maskPythonNonCode(text2) {
       continue;
     }
     const delimiter = text2.startsWith(quote.repeat(3), index) ? quote.repeat(3) : quote;
-    for (let count2 = 0; count2 < delimiter.length; count2++)
+    for (let count3 = 0; count3 < delimiter.length; count3++)
       hide(index++);
     while (index < text2.length) {
       if (text2[index] === "\\") {
@@ -176,7 +175,7 @@ function maskPythonNonCode(text2) {
             hide(index++);
         }
       } else if (text2.startsWith(delimiter, index)) {
-        for (let count2 = 0; count2 < delimiter.length; count2++)
+        for (let count3 = 0; count3 < delimiter.length; count3++)
           hide(index++);
         break;
       } else {
@@ -1303,11 +1302,11 @@ function buildComposerProjects(files) {
   });
   for (const project of projects) {
     const dependencies = [];
-    for (const packageName of project.requiredPackages) {
-      const candidates = projects.filter((candidate) => candidate.path !== project.path && candidate.name === packageName && project.pathRepositoryPatterns.some((pattern) => matchesRepositoryPattern(pattern, candidate.root)));
+    for (const packageName2 of project.requiredPackages) {
+      const candidates = projects.filter((candidate) => candidate.path !== project.path && candidate.name === packageName2 && project.pathRepositoryPatterns.some((pattern) => matchesRepositoryPattern(pattern, candidate.root)));
       if (candidates.length === 1) {
         const target = candidates[0];
-        dependencies.push({ package: packageName, projectPath: target.path, root: target.root });
+        dependencies.push({ package: packageName2, projectPath: target.path, root: target.root });
       }
     }
     project.pathDependencies = dependencies.sort((left, right) => left.package.localeCompare(right.package) || left.projectPath.localeCompare(right.projectPath));
@@ -1343,11 +1342,11 @@ function resolveComposerSymbol(project, symbol, repoPaths, suffixPaths) {
   for (const mapping of project.psr4) {
     if (!symbol.startsWith(mapping.prefix))
       continue;
-    const relative5 = symbol.slice(mapping.prefix.length).replace(/\\/g, "/");
-    if (!relative5)
+    const relative6 = symbol.slice(mapping.prefix.length).replace(/\\/g, "/");
+    if (!relative6)
       continue;
     for (const root of mapping.roots) {
-      const candidate = [root, `${relative5}.php`].filter(Boolean).join("/");
+      const candidate = [root, `${relative6}.php`].filter(Boolean).join("/");
       if (repoPaths.has(candidate))
         targets.add(candidate);
     }
@@ -1647,23 +1646,23 @@ function buildRubyProjects(files) {
     if (/^\s*gem\s*(?:\(|\s)\s*["']rails["']/im.test(manifest.textSample))
       railsEvidence.add(manifest.path);
     for (const file of scoped) {
-      const relative5 = root ? file.path.slice(root.length + 1) : file.path;
-      if (relative5.toLowerCase() === ".rspec" || /(?:^|\/)spec\/(?:spec_helper|rails_helper)\.rb$/i.test(relative5) || /_spec\.rb$/i.test(relative5)) {
+      const relative6 = root ? file.path.slice(root.length + 1) : file.path;
+      if (relative6.toLowerCase() === ".rspec" || /(?:^|\/)spec\/(?:spec_helper|rails_helper)\.rb$/i.test(relative6) || /_spec\.rb$/i.test(relative6)) {
         rspecEvidence.add(file.path);
       }
-      if (/(?:^|\/)test\/test_helper\.rb$/i.test(relative5) || /_test\.rb$/i.test(relative5) || /^(?:\s*require\s*\(?\s*["']minitest|\s*class\s+[^\n<]+<\s*(?:Minitest::Test|MiniTest::Unit)\b)/m.test(file.textSample)) {
+      if (/(?:^|\/)test\/test_helper\.rb$/i.test(relative6) || /_test\.rb$/i.test(relative6) || /^(?:\s*require\s*\(?\s*["']minitest|\s*class\s+[^\n<]+<\s*(?:Minitest::Test|MiniTest::Unit)\b)/m.test(file.textSample)) {
         minitestEvidence.add(file.path);
       }
     }
     const application = scoped.find((file) => {
-      const relative5 = root ? file.path.slice(root.length + 1) : file.path;
-      return relative5.toLowerCase() === "config/application.rb" && /\bclass\s+Application\s*<\s*Rails::Application\b/.test(file.textSample);
+      const relative6 = root ? file.path.slice(root.length + 1) : file.path;
+      return relative6.toLowerCase() === "config/application.rb" && /\bclass\s+Application\s*<\s*Rails::Application\b/.test(file.textSample);
     });
     if (application)
       railsEvidence.add(application.path);
     const autoloadFiles = railsEvidence.size === 2 ? scoped.filter((file) => {
-      const relative5 = root ? file.path.slice(root.length + 1) : file.path;
-      return /^app\/(?!assets(?:\/|$)|javascript(?:\/|$)|views(?:\/|$))[^/]+\/.+\.rb$/i.test(relative5);
+      const relative6 = root ? file.path.slice(root.length + 1) : file.path;
+      return /^app\/(?!assets(?:\/|$)|javascript(?:\/|$)|views(?:\/|$))[^/]+\/.+\.rb$/i.test(relative6);
     }).map((file) => file.path).sort((left, right) => left.localeCompare(right)) : [];
     const rakefile = scoped.find((file) => file.path.split("/").pop()?.toLowerCase() === "rakefile");
     const rakeTestPath = rakefile && /\b(?:Rake::TestTask|task\s*(?:\(|\s)\s*:test\b)/.test(rakefile.textSample) ? rakefile.path : void 0;
@@ -1711,9 +1710,9 @@ function rubyTestCommandForProject(project, relatedTests = []) {
     const testPath = relatedMinitest[0] ?? project.minitestEvidence.find((path) => /_test\.rb$/i.test(path));
     if (!testPath)
       return void 0;
-    const relative5 = project.root ? testPath.slice(project.root.length + 1) : testPath;
+    const relative6 = project.root ? testPath.slice(project.root.length + 1) : testPath;
     return {
-      command: scopedBundleCommand(project.root, `ruby -Itest ${relative5}`),
+      command: scopedBundleCommand(project.root, `ruby -Itest ${relative6}`),
       reason: `${testPath} provides executable Minitest evidence for ${project.path}`,
       scopeDir: project.root
     };
@@ -1777,7 +1776,7 @@ function detectPrimaryLanguage(repo) {
   if (!leader || leader.count === 0) {
     return { language: "unknown", evidence: "no root manifest and no recognizable source files" };
   }
-  const total = [...shares.values()].reduce((sum, count2) => sum + count2, 0);
+  const total = [...shares.values()].reduce((sum, count3) => sum + count3, 0);
   const share = Math.round(leader.count / total * 100);
   const manifest = manifests.get(leader.language);
   if (manifest) {
@@ -2245,7 +2244,7 @@ function parseManifest(file, manifestRoots) {
       continue;
     const alias = rustIdentifier(match[1]);
     const fields2 = match[2];
-    const packageName = /(?:^|,)\s*package\s*=\s*["']([^"']+)["']/.exec(fields2)?.[1]?.trim();
+    const packageName2 = /(?:^|,)\s*package\s*=\s*["']([^"']+)["']/.exec(fields2)?.[1]?.trim();
     const rawPath = /(?:^|,)\s*path\s*=\s*["']([^"']+)["']/.exec(fields2)?.[1]?.trim();
     if (rawPath) {
       const targetRoot = normalizeRelativeRoot2(root, rawPath);
@@ -2253,7 +2252,7 @@ function parseManifest(file, manifestRoots) {
         continue;
       const dependency = {
         alias,
-        ...packageName ? { package: packageName } : {},
+        ...packageName2 ? { package: packageName2 } : {},
         root: targetRoot,
         evidencePath: file.path
       };
@@ -4082,7 +4081,7 @@ function findCommonTokens(contentTokensByPath) {
       frequency.set(token, (frequency.get(token) ?? 0) + 1);
     }
   }
-  return new Set([...frequency].filter(([, count2]) => count2 >= threshold).map(([token]) => token));
+  return new Set([...frequency].filter(([, count3]) => count3 >= threshold).map(([token]) => token));
 }
 function isNearbyChangedFile(path, changedFiles) {
   const folder = path.split("/").slice(0, -1).join("/");
@@ -5509,6 +5508,18 @@ function evaluateArchitecturePolicy(policy, input) {
     if (!rule.forbidBreaking || !input.contractComparison)
       continue;
     for (const change of input.contractComparison.changes.filter((candidate) => candidate.compatibility === "breaking" && matchesAny(candidate.path, rule.paths))) {
+      const allowed = rule.allowBreaking.find((entry2) => entry2.id === change.id || entry2.path !== void 0 && matchesAny(change.path, [entry2.path]));
+      if (allowed) {
+        findings.push({
+          code: "breaking-contract-allowed",
+          severity: "info",
+          ruleId: rule.id,
+          message: `${change.path} has a breaking contract change that ${rule.id} allows: ${allowed.reason}`,
+          paths: [change.path],
+          evidence: [{ kind: "contract-change", path: change.path, detail: `${change.id}: ${change.reason}` }]
+        });
+        continue;
+      }
       findings.push({
         code: "breaking-contract",
         severity: rule.severity,
@@ -5613,8 +5624,30 @@ function contractRule(value, index) {
     paths: patterns(rule.paths, "contract paths"),
     forbidBreaking: rule.forbidBreaking,
     reason: reason(rule.reason),
-    severity: severity(rule.severity)
+    severity: severity(rule.severity),
+    allowBreaking: allowBreaking(rule.allowBreaking, index)
   };
+}
+function allowBreaking(value, index) {
+  if (value === void 0)
+    return [];
+  if (!Array.isArray(value) || value.length > 100)
+    throw new Error(`contracts[${index}].allowBreaking must be an array of at most 100 entries.`);
+  return value.map((entry2, position) => {
+    const where = `contracts[${index}].allowBreaking[${position}]`;
+    if (!isRecord6(entry2))
+      throw new Error(`${where} must be an object.`);
+    const unknown = Object.keys(entry2).filter((key2) => key2 !== "id" && key2 !== "path" && key2 !== "reason");
+    if (unknown.length > 0)
+      throw new Error(`${where} has unknown field ${unknown[0]}.`);
+    const id = typeof entry2.id === "string" && entry2.id.trim() ? entry2.id.trim() : void 0;
+    if (entry2.id !== void 0 && (!id || id.length > 500 || /[\0\r\n]/.test(id)))
+      throw new Error(`${where}.id must be one non-blank line.`);
+    const path = entry2.path === void 0 ? void 0 : patterns([entry2.path], "allowBreaking path")[0];
+    if (id === void 0 === (path === void 0))
+      throw new Error(`${where} needs exactly one of id or path.`);
+    return { ...id ? { id } : {}, ...path ? { path } : {}, reason: reason(entry2.reason) };
+  });
 }
 function ruleRecord(value, section2, index) {
   if (!isRecord6(value))
@@ -5818,7 +5851,8 @@ function assembleReport(repo, input, grounding, contextFiles, ranking, rankingDi
     if (architecturePolicy)
       policy = evaluateArchitecturePolicy(architecturePolicy, {
         repo,
-        focusPaths: [...contextPaths, ...repo.changedFiles]
+        focusPaths: [...contextPaths, ...repo.changedFiles],
+        ...input.contractComparison ? { contractComparison: input.contractComparison } : {}
       });
   } catch (error) {
     policyDiagnostics.push({
@@ -5887,6 +5921,8 @@ function policyDiagnosticCode(code) {
     return "architecture-required-test";
   if (code === "review-required")
     return "architecture-review-required";
+  if (code === "breaking-contract-allowed")
+    return "architecture-breaking-contract-allowed";
   return "architecture-breaking-contract";
 }
 function buildReportAnnotations(repo, relevantPaths, issueText, asOf) {
@@ -6262,7 +6298,7 @@ function packageProximity(packageDir, contextPaths) {
   const matches = contextPaths.filter((path) => path === packageDir || path.startsWith(`${packageDir}/`));
   return matches.length > 0 ? 10 + packageDir.split("/").length : -1;
 }
-function formatScriptCommand(manager, packageDir, script, packageName) {
+function formatScriptCommand(manager, packageDir, script, packageName2) {
   if (!packageDir)
     return `${manager} run ${script}`;
   if (manager === "npm")
@@ -6270,7 +6306,7 @@ function formatScriptCommand(manager, packageDir, script, packageName) {
   if (manager === "pnpm")
     return `pnpm --dir ${packageDir} run ${script}`;
   if (manager === "yarn") {
-    return packageName ? `yarn workspace ${packageName} run ${script}` : `yarn --cwd ${packageDir} ${script}`;
+    return packageName2 ? `yarn workspace ${packageName2} run ${script}` : `yarn --cwd ${packageDir} ${script}`;
   }
   return `bun --cwd ${packageDir} run ${script}`;
 }
@@ -7187,7 +7223,7 @@ function summarizeSkippedScope(paths) {
     const scope = path.includes("/") && head ? `${head}/` : "the repository root";
     counts.set(scope, (counts.get(scope) ?? 0) + 1);
   }
-  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3).map(([scope, count2]) => `${scope} (${count2.toLocaleString()})`).join(", ");
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3).map(([scope, count3]) => `${scope} (${count3.toLocaleString()})`).join(", ");
 }
 async function readPackageScripts(root, files, diagnostics) {
   const manifests = files.filter((file) => file.path === "package.json" || file.path.endsWith("/package.json"));
@@ -7210,12 +7246,12 @@ async function readPackageScripts(root, files, diagnostics) {
       decoded = decodeManifest(bytes);
       const parsed2 = JSON.parse(decoded.text);
       const packageDir = normalizePath3(dirname(manifest.path));
-      const packageName = typeof parsed2.name === "string" && parsed2.name.trim() ? parsed2.name.trim() : void 0;
+      const packageName2 = typeof parsed2.name === "string" && parsed2.name.trim() ? parsed2.name.trim() : void 0;
       scripts.push(...Object.entries(parsed2.scripts ?? {}).map(([name, command]) => ({
         name,
         command,
         packageDir: packageDir === "." ? "" : packageDir,
-        ...packageName ? { packageName } : {}
+        ...packageName2 ? { packageName: packageName2 } : {}
       })));
     } catch {
       diagnostics.push({
@@ -7793,9 +7829,9 @@ function historicalPackageScripts(files, diagnostics) {
     try {
       const parsed2 = JSON.parse(manifest.textSample.replace(/^﻿/, ""));
       const packageDir = manifest.path.includes("/") ? manifest.path.slice(0, manifest.path.lastIndexOf("/")) : "";
-      const packageName = typeof parsed2.name === "string" && parsed2.name.trim() ? parsed2.name.trim() : void 0;
+      const packageName2 = typeof parsed2.name === "string" && parsed2.name.trim() ? parsed2.name.trim() : void 0;
       const scripts = isRecord8(parsed2.scripts) ? parsed2.scripts : {};
-      return Object.entries(scripts).flatMap(([name, command]) => typeof command === "string" ? [{ name, command, packageDir, ...packageName ? { packageName } : {} }] : []);
+      return Object.entries(scripts).flatMap(([name, command]) => typeof command === "string" ? [{ name, command, packageDir, ...packageName2 ? { packageName: packageName2 } : {} }] : []);
     } catch {
       diagnostics.push({
         code: "package-json-invalid",
@@ -8266,14 +8302,14 @@ function positiveInteger2(value, fallback) {
   return value !== void 0 && Number.isSafeInteger(value) && value > 0 ? value : fallback;
 }
 function withTimeout(promise, timeoutMs, controller) {
-  return new Promise((resolve8, reject) => {
+  return new Promise((resolve11, reject) => {
     const timer = setTimeout(() => {
       controller.abort();
       reject(new Error(`timed out after ${timeoutMs.toLocaleString()} ms`));
     }, timeoutMs);
     promise.then((value) => {
       clearTimeout(timer);
-      resolve8(value);
+      resolve11(value);
     }, (error) => {
       clearTimeout(timer);
       reject(error);
@@ -8312,799 +8348,14 @@ function reportPaths(report) {
   ]);
 }
 
-// packages/core/dist/plan.js
-async function buildFixMapReport(input) {
-  return (await buildFixMapAnalysis(input)).report;
-}
-async function buildFixMapAnalysis(input) {
-  const historical = input.atRef === void 0 ? void 0 : await scanHistoricalRepo(input.repoRoot, input.atRef, input);
-  const scannedRepo = historical?.repo ?? await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
-  const generatedArtifacts = scannedRepo.files.filter(isFixMapArtifact);
-  const generatedPaths = new Set(generatedArtifacts.map((file) => file.path));
-  const repo = generatedArtifacts.length === 0 ? scannedRepo : {
-    ...scannedRepo,
-    files: scannedRepo.files.filter((file) => !generatedPaths.has(file.path)),
-    changedFiles: scannedRepo.changedFiles.filter((path) => !generatedPaths.has(path)),
-    ...scannedRepo.trackedFiles ? { trackedFiles: scannedRepo.trackedFiles.filter((path) => !generatedPaths.has(path)) } : {}
-  };
-  const requestedExclude = historical ? excluderFor(input.repoRoot, [...parseIgnoreFile(historical.ignoreFile ?? ""), ...input.exclude ?? []]) : await resolveExclusions(input.repoRoot, input.exclude ?? []);
-  const internalExclude = buildPathExcluder((input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern)));
-  const exclude = combineExclusions(requestedExclude, internalExclude);
-  const languageContext = input.languageRegistry ? createCustomLanguageContext(input.languageRegistry) : void 0;
-  const analyzedRepo = languageContext ? classifyCustomTests(repo, languageContext) : repo;
-  const reportInput = {
-    issueText: input.issueText,
-    limit: input.limit,
-    exclude,
-    annotationAsOf: (/* @__PURE__ */ new Date()).toISOString(),
-    ...languageContext ? { languageContext } : {}
-  };
-  const report = input.embeddingProvider ? await buildHybridReportFromRepo(analyzedRepo, { ...reportInput, embeddingProvider: input.embeddingProvider }) : buildReportFromRepo(analyzedRepo, reportInput);
-  if (input.evidenceSources && input.evidenceSources.length > 0) {
-    report.evidence = await attachReportEvidence(report, analyzedRepo, input.evidenceSources, { issueText: input.issueText ?? "" });
-  }
-  if (input.sensitiveData) {
-    report.sensitiveData = buildReportSensitiveData(analyzedRepo, reportPaths(report));
-  }
-  if (input.supplyChain) {
-    report.supplyChain = buildReportSupplyChain(input.supplyChain.bundle, input.supplyChain.documentSha256, reportPaths(report));
-  }
-  if (input.languageRegistry && languageContext) {
-    report.languageAdapters = input.languageRegistry.customAdapters.map((adapter) => ({
-      id: adapter.id,
-      version: adapter.version,
-      extensions: [...adapter.extensions]
-    }));
-    const { total, entries } = languageContext.failures();
-    if (total > 0) {
-      const shown = entries.slice(0, 8);
-      report.diagnostics.push({
-        code: "language-adapter-failed",
-        severity: "warning",
-        message: `${total} custom language adapter ${total === 1 ? "call" : "calls"} failed or returned invalid results, so ${total === 1 ? "that file was" : "those files were"} analyzed without custom facts: ` + shown.map((entry2) => `${markdownCode(entry2.path)} (${entry2.adapter}, ${entry2.code})`).join(", ") + `${total > shown.length ? ", ..." : ""}.`,
-        paths: shown.map((entry2) => entry2.path)
-      });
-    }
-  }
-  if (generatedArtifacts.length > 0) {
-    const described = generatedArtifacts.slice(0, 8).map((file) => `${markdownCode(file.path)} (${fixMapArtifactKind(file)})`);
-    report.diagnostics.push({
-      code: "fixmap-artifact-excluded",
-      severity: "info",
-      message: `Excluded ${generatedArtifacts.length} previously generated FixMap ${generatedArtifacts.length === 1 ? "artifact" : "artifacts"} from ranking, impact analysis, and context packing: ${described.join(", ")}${generatedArtifacts.length > 8 ? ", ..." : ""}.`,
-      paths: generatedArtifacts.slice(0, 8).map((file) => file.path)
-    });
-  }
-  if (requestedExclude.patterns.length > 0) {
-    const excludedPaths = repo.files.filter((file) => requestedExclude.excludes(file.path)).map((file) => file.path);
-    const effectivePatterns = [...new Set(repo.files.map((file) => requestedExclude.reasonFor(file.path)).filter((pattern) => pattern !== void 0))];
-    const unmatchedPatterns = requestedExclude.patterns.filter((pattern) => !pattern.startsWith("!") && !requestedExclude.matchedPatterns.has(pattern));
-    if (unmatchedPatterns.length > 0) {
-      const sample = unmatchedPatterns.slice(0, 5).map(markdownCode).join(", ");
-      report.diagnostics.push({
-        code: "exclusion-no-match",
-        severity: "warning",
-        message: `${unmatchedPatterns.length} exclusion ${unmatchedPatterns.length === 1 ? "pattern matched" : "patterns matched"} no scanned paths: ${sample}${unmatchedPatterns.length > 5 ? ", ..." : ""}. Check that patterns are repository-relative or run --explain on an expected file.`
-      });
-    }
-    if (excludedPaths.length > 0) {
-      report.diagnostics.push({
-        code: "paths-excluded",
-        severity: report.contextFiles.length === 0 ? "warning" : "info",
-        message: `${effectivePatterns.length} exclusion ${effectivePatterns.length === 1 ? "pattern" : "patterns"} removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${effectivePatterns.map(markdownCode).join(", ")}. Run --explain on a file you expected to see if this is why it is absent.`,
-        paths: excludedPaths.slice(0, 8)
-      });
-    }
-  }
-  return { report, repo: analyzedRepo, exclusions: exclude };
-}
-function combineExclusions(primary, internal) {
-  if (internal.patterns.length === 0)
-    return primary;
-  if (primary.patterns.length === 0)
-    return internal;
-  return {
-    excludes: (path) => primary.excludes(path) || internal.excludes(path),
-    reasonFor: (path) => primary.reasonFor(path) ?? internal.reasonFor(path),
-    patterns: [...primary.patterns, ...internal.patterns],
-    matchedPatterns: /* @__PURE__ */ new Set([...primary.matchedPatterns, ...internal.matchedPatterns])
-  };
-}
-async function resolveExclusions(repoRoot, patterns2) {
-  return excluderFor(repoRoot, [...await readIgnoreFile(repoRoot), ...patterns2]);
-}
-function excluderFor(repoRoot, patterns2) {
-  const combined = patterns2.map((pattern) => normalizeAbsolutePattern(repoRoot, pattern));
-  return combined.length > 0 ? buildPathExcluder(combined) : NO_EXCLUSIONS;
-}
-async function scanHistoricalRepo(repoRoot, ref, input) {
-  if (input.diffSpec !== void 0 || input.baseRef !== void 0 || input.headRef !== void 0 || input.workingTree || input.includeUntracked) {
-    throw new Error("A historical plan ranks one committed state, so it cannot be combined with a diff or the working tree.");
-  }
-  const historical = await scanRepoAtRef({ repoRoot, ref });
-  historical.repo.diagnostics.unshift({
-    code: "historical-plan",
-    severity: "info",
-    message: `Preview: ranked against ${markdownCode(historical.requestedRef)} at commit ${markdownCode(historical.commit)}, read from committed Git objects without checking out or changing the worktree. Co-change history and uncommitted files were not used.`
-  });
-  return historical;
-}
-function normalizeAbsolutePattern(repoRoot, pattern) {
-  const trimmed = pattern.trim();
-  const negated = trimmed.startsWith("!");
-  const body = (negated ? trimmed.slice(1) : trimmed).replace(/\\/g, "/");
-  const normalizedRoot = resolve3(repoRoot).replace(/\\/g, "/").replace(/\/$/, "");
-  const caseInsensitive = /^[A-Za-z]:\//.test(normalizedRoot);
-  const comparableBody = caseInsensitive ? body.toLowerCase() : body;
-  const comparableRoot = caseInsensitive ? normalizedRoot.toLowerCase() : normalizedRoot;
-  if (!comparableBody.startsWith(`${comparableRoot}/`))
-    return pattern;
-  return `${negated ? "!" : ""}/${body.slice(normalizedRoot.length + 1)}`;
-}
-async function readIgnoreFile(repoRoot) {
-  try {
-    return parseIgnoreFile(await readFile3(join3(repoRoot, ".fixmapignore"), "utf8"));
-  } catch {
-    return [];
-  }
-}
-function classifyCustomTests(repo, context) {
-  let changed = false;
-  const files = repo.files.map((file) => {
-    if (file.isTest || !context.supports(file.extension))
-      return file;
-    const extracted = context.extract(file);
-    if (extracted.status !== "ok" || !extracted.facts.isTest)
-      return file;
-    changed = true;
-    return { ...file, isTest: true };
-  });
-  return changed ? { ...repo, files } : repo;
-}
-
-// packages/core/dist/verify.js
-function verifyPlan(report, repo, options = {}) {
-  const changed = repo.changedFiles;
-  const findings = [];
-  const fileByPath = new Map(repo.files.map((file) => [file.path, file]));
-  const plannedPaths = report.contextFiles.map((file) => file.path);
-  const missingPlanned = plannedPaths.filter((path) => !fileByPath.has(path));
-  const changedMissingPlanned = missingPlanned.filter((path) => changed.includes(path));
-  const unexplainedMissingPlanned = missingPlanned.filter((path) => !changed.includes(path));
-  if (plannedPaths.length > 0 && unexplainedMissingPlanned.length === plannedPaths.length) {
-    const mismatch = {
-      code: "plan-repository-mismatch",
-      severity: "error",
-      paths: plannedPaths.slice(0, 8),
-      message: `Verification was not attempted: none of the ${plannedPaths.length} planned files exist in ${repo.root}. This plan appears to be for a different repository or revision; check --repo or regenerate the plan against this checkout.`
-    };
-    return {
-      summary: `None of the ${plannedPaths.length} planned files exist in ${repo.root}; the plan and repository do not match.`,
-      changedFiles: changed,
-      findings: [mismatch],
-      diagnostics: repo.diagnostics
-    };
-  }
-  if (unexplainedMissingPlanned.length > 0) {
-    findings.push({
-      code: "plan-partially-stale",
-      severity: "warning",
-      paths: unexplainedMissingPlanned.slice(0, 8),
-      message: `${unexplainedMissingPlanned.length} of ${plannedPaths.length} planned paths no longer exist and are not explained by this diff. The plan may predate a rebase or rename; regenerate it before relying on the missing entries.`
-    });
-  }
-  if (changedMissingPlanned.length > 0) {
-    findings.push({
-      code: "planned-file-deleted",
-      severity: "info",
-      paths: changedMissingPlanned.slice(0, 8),
-      message: `${changedMissingPlanned.length === 1 ? "A planned file was" : `${changedMissingPlanned.length} planned files were`} removed by this diff. The deletion accounts for the missing path, so verification continued.`
-    });
-  }
-  if (changed.length === 0) {
-    return {
-      summary: "No changes to verify: the diff resolved to zero files.",
-      changedFiles: [],
-      findings,
-      diagnostics: repo.diagnostics
-    };
-  }
-  const planned = new Set(plannedPaths);
-  const isTest = (path) => fileByPath.get(path)?.isTest === true;
-  const maintainedStems = new Set(repo.files.filter((file) => file.isSource && !isGeneratedPath(file.path) && !isBackupPath(file.path)).map((file) => moduleStem(file.path)));
-  const tracked = new Set(repo.trackedFiles ?? []);
-  const discardedEdits = changed.filter((path) => isBackupPath(path) || isGeneratedPath(path) && maintainedStems.has(moduleStem(path)) && !tracked.has(path));
-  if (discardedEdits.length > 0) {
-    findings.push({
-      code: "edit-in-generated-location",
-      severity: "error",
-      paths: discardedEdits,
-      message: `${discardedEdits.length === 1 ? "A file was" : `${discardedEdits.length} files were`} edited in a generated or retired location. A build regenerates these, so the change will be lost. Edit the source they are produced from.`
-    });
-  }
-  const trackedGeneratedEdits = changed.filter((path) => isGeneratedPath(path) && maintainedStems.has(moduleStem(path)) && tracked.has(path));
-  if (trackedGeneratedEdits.length > 0) {
-    findings.push({
-      code: "tracked-generated-edit",
-      severity: "warning",
-      paths: trackedGeneratedEdits,
-      message: `${trackedGeneratedEdits.length === 1 ? "A committed generated artifact was" : `${trackedGeneratedEdits.length} committed generated artifacts were`} edited. Confirm the maintained source changed too and the artifact was rebuilt; tracked release artifacts are not treated as discarded edits.`
-    });
-  }
-  const unmapped = changed.filter((path) => !planned.has(path) && !isTest(path) && !discardedEdits.includes(path) && !trackedGeneratedEdits.includes(path) && fileByPath.get(path)?.isSource === true);
-  if (unmapped.length > 0) {
-    findings.push({
-      code: "unmapped-change",
-      severity: "warning",
-      paths: unmapped,
-      message: `${unmapped.length === 1 ? "One file" : `${unmapped.length} files`} changed that the plan did not rank. Either the task grew beyond the original description, or the ranking missed them \u2014 worth checking which.`
-    });
-  }
-  const unscanned = changed.filter((path) => !fileByPath.has(path) && !planned.has(path));
-  if (unscanned.length > 0) {
-    findings.push({
-      code: "unscanned-change",
-      severity: "warning",
-      paths: unscanned,
-      message: `${unscanned.length === 1 ? "One changed path was" : `${unscanned.length} changed paths were`} outside the scanned file set. FixMap cannot judge whether the plan covered these changes; inspect scan-limit, sparse-checkout, binary, deletion, and exclusion diagnostics.`
-    });
-  }
-  const leading = report.contextFiles[0];
-  if (leading && !changed.includes(leading.path)) {
-    findings.push({
-      code: "leading-file-untouched",
-      severity: leading.confidence === "high" ? "warning" : "info",
-      paths: [leading.path],
-      message: `The highest-ranked file was not changed (${leading.confidence} confidence). That is expected if it was only read for context, and worth a second look if it was not opened at all.`
-    });
-  }
-  const changedSource = changed.filter((path) => !isTest(path) && !trackedGeneratedEdits.includes(path) && !discardedEdits.includes(path) && fileByPath.get(path)?.kind === "code");
-  const changedTests = changed.filter(isTest);
-  if (changedSource.length > 0 && changedTests.length === 0) {
-    const suggested = [...new Set(report.testRoutes.flatMap((route) => route.relatedFiles))].filter(isTest);
-    const anchors = suggested.length > 0 ? suggested : changedSource;
-    findings.push({
-      code: "no-test-changed",
-      severity: "warning",
-      paths: anchors,
-      message: suggested.length > 0 ? `Code changed but no test did. The plan routed ${suggested.length === 1 ? "this test" : "these tests"} as most related.` : report.testRoutes.length > 0 ? `Code changed but no test did. Run the routed ${report.testRoutes.length === 1 ? "command" : "commands"}: ${report.testRoutes.map((route) => route.command).join(", ")}.` : "Code changed but no test did, and the plan found no related test to point at."
-    });
-  }
-  const impact = buildImpactMap(repo, changed, report.testRoutes);
-  const highImpactOutsidePlan = impact.files.filter((entry2) => entry2.confidence === "high" && !planned.has(entry2.path) && !changed.includes(entry2.path) && !isTest(entry2.path));
-  if (highImpactOutsidePlan.length > 0) {
-    findings.push({
-      code: "impact-file-unreviewed",
-      severity: "info",
-      paths: highImpactOutsidePlan.slice(0, 8).map((entry2) => entry2.path),
-      message: `${highImpactOutsidePlan.length === 1 ? "One high-evidence impact file is" : `${highImpactOutsidePlan.length} high-evidence impact files are`} outside both the original plan and this diff. They are not required edits, but inspect the recorded import/history evidence before finishing.`
-    });
-  }
-  const plannedAreas = new Set(report.risks.map((risk) => risk.area));
-  const newRisks = buildRiskNotes(changed, changed).filter((risk) => !plannedAreas.has(risk.area));
-  for (const risk of newRisks) {
-    findings.push({
-      code: "new-risk-area",
-      severity: "warning",
-      paths: pathsForRiskArea(risk.area, changed),
-      message: `The change touches ${risk.area}, which the original plan did not flag: ${risk.reason}.`
-    });
-  }
-  let policy;
-  try {
-    const architecturePolicy = architecturePolicyFromRepo(repo);
-    if (architecturePolicy) {
-      policy = evaluateArchitecturePolicy(architecturePolicy, { repo, focusPaths: changed });
-      findings.push(...policy.findings.map(policyVerifyFinding));
-    }
-  } catch (error) {
-    findings.push({
-      code: "architecture-policy-invalid",
-      severity: "error",
-      paths: [".fixmap/policy.json"],
-      message: `.fixmap/policy.json was not applied: ${error instanceof Error ? error.message : String(error)}`
-    });
-  }
-  const sensitiveData = options.sensitiveData ? buildReportSensitiveData(repo, /* @__PURE__ */ new Set([...reportPaths(report), ...changed, ...impact.files.map((file) => file.path)]), { compareWithDiff: true }) : void 0;
-  const sensitiveFinding = sensitiveData ? sensitiveDataVerifyFinding(sensitiveData) : void 0;
-  if (sensitiveFinding)
-    findings.push(sensitiveFinding);
-  return {
-    summary: buildVerifySummary(changed.length, findings),
-    changedFiles: changed,
-    findings,
-    diagnostics: repo.diagnostics,
-    impact,
-    narrative: buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy),
-    ...sensitiveData ? { sensitiveData } : {}
-  };
-}
-function policyVerifyFinding(finding) {
-  return {
-    code: finding.code === "boundary-violation" ? "architecture-boundary-violation" : finding.code === "required-test-missing" ? "architecture-required-test" : finding.code === "review-required" ? "architecture-review-required" : "architecture-breaking-contract",
-    severity: finding.severity,
-    paths: finding.paths,
-    message: finding.message
-  };
-}
-function buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy) {
-  const narrative = [];
-  if (changed.length > 0)
-    narrative.push({
-      classification: "observation",
-      text: `${changed.length} file${changed.length === 1 ? "" : "s"} changed: ${changed.slice(0, 8).join(", ")}${changed.length > 8 ? ", ..." : ""}.`,
-      evidence: changed.map((path) => ({ kind: "changed-file", path, detail: "Present in the resolved verification diff." }))
-    });
-  for (const finding of policy?.findings ?? []) {
-    narrative.push({
-      classification: "observation",
-      text: `Architecture policy ${finding.ruleId} reports ${finding.code}: ${finding.message}`,
-      evidence: finding.evidence.map((entry2) => ({
-        kind: "architecture-policy",
-        ...entry2.path ? { path: entry2.path } : {},
-        ...entry2.relatedPath ? { relatedPath: entry2.relatedPath } : {},
-        detail: `${finding.ruleId}: ${entry2.kind}: ${entry2.detail}`,
-        sourceFingerprint: policy.policyFingerprint
-      }))
-    });
-  }
-  for (const file of impact.files.slice(0, 8)) {
-    const relationship = file.evidence[0];
-    if (!relationship)
-      continue;
-    narrative.push({
-      classification: relationship.kind === "co-change" ? "inference" : "observation",
-      text: `${file.path} is in the recalculated impact graph because ${relationship.reason}.`,
-      evidence: [{
-        kind: "impact-relationship",
-        path: relationship.seed,
-        relatedPath: file.path,
-        detail: `${relationship.kind}: ${relationship.reason}`
-      }]
-    });
-  }
-  if (changedSource.length > 0 && changedTests.length === 0 && report.testRoutes.length > 0) {
-    narrative.push({
-      classification: "observation",
-      text: `Source changed without a changed test; FixMap had routed ${report.testRoutes.map((route) => route.command).join(", ")}.`,
-      evidence: report.testRoutes.map((route) => ({
-        kind: "test-route",
-        ...route.relatedFiles[0] ? { path: route.relatedFiles[0] } : {},
-        detail: `${route.command}: ${route.reason}`
-      }))
-    });
-  }
-  for (const risk of newRisks)
-    narrative.push({
-      classification: "inference",
-      text: `The diff may introduce ${risk.area} risk: ${risk.reason}.`,
-      evidence: [{ kind: "risk-rule", detail: `${risk.severity} ${risk.area}: ${risk.reason}` }]
-    });
-  for (const assessment of report.annotations?.entries ?? []) {
-    const scope = assessment.annotation.scope;
-    const path = scope.kind === "file" || scope.kind === "symbol" || scope.kind === "contract" ? scope.path : void 0;
-    if (path && !changed.includes(path))
-      continue;
-    narrative.push({
-      classification: "observation",
-      text: `Repository annotation ${assessment.annotation.id} is ${assessment.status}: ${assessment.annotation.note}`,
-      evidence: [{
-        kind: "annotation",
-        ...path ? { path } : {},
-        detail: assessment.message,
-        sourceFingerprint: report.annotations.sourceFingerprint
-      }]
-    });
-  }
-  for (const decision of report.decisions ?? []) {
-    const targetPaths = decision.targets.flatMap((target) => target.kind === "file" ? [target.path] : target.kind === "symbol" && target.path ? [target.path] : []);
-    if (targetPaths.length > 0 && !targetPaths.some((path) => changed.includes(path)))
-      continue;
-    narrative.push({
-      classification: "observation",
-      text: `${decision.source ? `Local PR attribution (remote source unverified): ${decision.source.url}. ` : ""}${decision.path} records an ${decision.status} decision${decision.authoredStatus ? ` (authored status: ${JSON.stringify(decision.authoredStatus)})` : ""} relevant to this diff: ${decision.decision.replace(/\s+/g, " ").trim()}`,
-      evidence: [{
-        kind: "decision-record",
-        path: decision.path,
-        detail: decision.title,
-        sourceFingerprint: decision.sourceFingerprint
-      }]
-    });
-  }
-  return narrative.slice(0, 16);
-}
-function buildVerifySummary(changedCount, findings) {
-  const files = `${changedCount} changed ${changedCount === 1 ? "file" : "files"}`;
-  if (findings.length === 0) {
-    return `FixMap verified ${files} against the plan and found nothing to flag.`;
-  }
-  const errors = findings.filter((finding) => finding.severity === "error").length;
-  const warnings = findings.filter((finding) => finding.severity === "warning").length;
-  const counts = [
-    errors > 0 ? `${errors} ${errors === 1 ? "error" : "errors"}` : "",
-    warnings > 0 ? `${warnings} ${warnings === 1 ? "warning" : "warnings"}` : ""
-  ].filter(Boolean);
-  const tail = counts.length > 0 ? counts.join(" and ") : `${findings.length} note${findings.length === 1 ? "" : "s"}`;
-  return `FixMap verified ${files} against the plan and raised ${tail}.`;
-}
-function renderVerifyMarkdown(result) {
-  if (result.changedFiles.length === 0) {
-    return [
-      "# FixMap Verification",
-      "",
-      result.summary,
-      "",
-      "Nothing was compared against the plan. Run verify with a diff that contains the edit, such as `--diff HEAD~1...HEAD`.",
-      ""
-    ].join("\n");
-  }
-  const lines = ["# FixMap Verification", "", result.summary, "", "## Findings", ""];
-  if (result.findings.length === 0) {
-    lines.push("- None found");
-  } else {
-    for (const finding of result.findings) {
-      lines.push(`- **${finding.severity}** ${finding.message}`);
-      for (const path of finding.paths.slice(0, 8)) {
-        lines.push(`  - ${markdownCode(path)}`);
-      }
-    }
-  }
-  if (result.narrative && result.narrative.length > 0) {
-    lines.push("", "## Why This Diff Needs Attention", "");
-    for (const statement of result.narrative) {
-      lines.push(`- **${statement.classification}** ${statement.text}`);
-    }
-  }
-  lines.push("", "## Changed Files", "");
-  lines.push(...result.changedFiles.length > 0 ? result.changedFiles.map((path) => `- ${markdownCode(path)}`) : ["- None found"]);
-  if (result.impact) {
-    lines.push("", "## Recalculated Impact", "");
-    lines.push(...result.impact.files.length > 0 ? result.impact.files.map((file) => `- ${markdownCode(file.path)} (${file.confidence} confidence): ${file.evidence.map((entry2) => entry2.reason).join("; ")}`) : ["- None found"]);
-  }
-  if (result.sensitiveData)
-    lines.push(...renderSensitiveDataMarkdown(result.sensitiveData));
-  return `${lines.join("\n")}
-`;
-}
-
-// packages/core/dist/annotation-store.js
-import { mkdir as mkdir3, open as open2, readFile as readFile4, realpath as realpath2, rename as rename3, rm, stat as stat3, lstat } from "node:fs/promises";
+// packages/core/dist/contract-baseline.js
+import { execFile as execFile4 } from "node:child_process";
 import { resolve as resolve4 } from "node:path";
-import { randomUUID as randomUUID3 } from "node:crypto";
-async function readAnnotationStore(repoRoot) {
-  return readStore(await annotationRoot(repoRoot));
-}
-async function updateAnnotationStore(repoRoot, update) {
-  const root = await annotationRoot(repoRoot);
-  return withStoreLock(root, async () => {
-    const updated = validateAnnotationStore(await update(await readStore(root)));
-    await writeStore(root, updated);
-    return updated;
-  });
-}
-async function annotationRoot(path) {
-  const root = await realpath2(path);
-  if (!(await stat3(root)).isDirectory())
-    throw new Error("Annotation repository must be a directory.");
-  return root;
-}
-async function readStore(repoRoot) {
-  await assertStoreBoundary(repoRoot);
-  const path = resolve4(repoRoot, ".fixmap", "annotations.json");
-  try {
-    return validateAnnotationStore(JSON.parse(await readFile4(path, "utf8")));
-  } catch (error) {
-    if (isNodeError(error, "ENOENT"))
-      return emptyAnnotationStore();
-    if (error instanceof SyntaxError)
-      throw new Error(`${path} is not valid JSON; repair it before adding annotations.`);
-    throw error;
-  }
-}
-async function writeStore(repoRoot, store) {
-  const directory = resolve4(repoRoot, ".fixmap");
-  await mkdir3(directory, { recursive: true });
-  await assertStoreBoundary(repoRoot);
-  const target = resolve4(directory, "annotations.json");
-  const temporary = resolve4(directory, `.annotations.${process.pid}.${randomUUID3()}.tmp`);
-  const handle = await open2(temporary, "wx", 384);
-  try {
-    await handle.writeFile(`${JSON.stringify(validateAnnotationStore(store), null, 2)}
-`, "utf8");
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-  try {
-    await rename3(temporary, target);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    throw error;
-  }
-}
-async function withStoreLock(repoRoot, operation) {
-  await assertStoreBoundary(repoRoot);
-  const directory = resolve4(repoRoot, ".fixmap");
-  await mkdir3(directory, { recursive: true });
-  await assertStoreBoundary(repoRoot);
-  const lockPath = resolve4(directory, "annotations.lock");
-  let handle;
-  try {
-    handle = await open2(lockPath, "wx", 384);
-  } catch (error) {
-    if (!isNodeError(error, "EEXIST"))
-      throw error;
-    throw new Error("Another FixMap annotation update is in progress or left a lock. Retry after it finishes; if interrupted, confirm no annotation writer is running before manually removing .fixmap/annotations.lock.");
-  }
-  try {
-    await handle.writeFile(`${JSON.stringify({ pid: process.pid, createdAt: (/* @__PURE__ */ new Date()).toISOString() })}
-`, "utf8");
-    await handle.sync();
-    return await operation();
-  } finally {
-    try {
-      await handle.close();
-    } finally {
-      await rm(lockPath, { force: true });
-    }
-  }
-}
-async function assertStoreBoundary(repoRoot) {
-  const directory = resolve4(repoRoot, ".fixmap");
-  const directoryInfo = await lstat(directory).catch((error) => {
-    if (isNodeError(error, "ENOENT"))
-      return void 0;
-    throw error;
-  });
-  if (!directoryInfo)
-    return;
-  if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || await realpath2(directory) !== directory) {
-    throw new Error("Annotation store directory must be a real repository-local .fixmap directory, not a link or junction.");
-  }
-  for (const name of ["annotations.json", "annotations.lock"]) {
-    const info = await lstat(resolve4(directory, name)).catch((error) => {
-      if (isNodeError(error, "ENOENT"))
-        return void 0;
-      throw error;
-    });
-    if (info && (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1)) {
-      throw new Error("Annotation store and lock must be regular, unlinked repository-local files.");
-    }
-  }
-}
-function isNodeError(error, code) {
-  return error instanceof Error && "code" in error && error.code === code;
-}
-
-// packages/core/dist/ownership.js
-var CODEOWNERS_PATHS = [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"];
-var MAX_RULES = 1e4;
-var MAX_HISTORY_COMMITS2 = 250;
-function routeReviewers(repo, input) {
-  if (!Number.isFinite(Date.parse(input.now)))
-    throw new Error("Review routing requires a valid assessment time.");
-  const changedPaths = normalizePaths(input.changedPaths ?? repo.changedFiles);
-  const diagnostics = [];
-  const accumulated = /* @__PURE__ */ new Map();
-  addCodeOwners(repo, changedPaths, accumulated, diagnostics);
-  addAnnotations(repo, changedPaths, input.now, accumulated, diagnostics);
-  addPolicy(repo, changedPaths, accumulated, diagnostics);
-  if (input.includeHistoryAuthors === false) {
-    diagnostics.push({ source: "git-history", severity: "info", message: "Commit-author suggestions were turned off; only CODEOWNERS, annotations, and architecture policy were used." });
-  } else {
-    addHistory(repo, changedPaths, accumulated, diagnostics);
-  }
-  const suggestions = [...accumulated].map(([reviewer, value]) => ({
-    reviewer,
-    confidence: value.confidence,
-    paths: [...value.paths].sort(),
-    evidence: value.evidence.sort(evidenceOrder),
-    availabilityInferred: false
-  })).sort((a, b) => confidenceOrder(a.confidence) - confidenceOrder(b.confidence) || a.reviewer.localeCompare(b.reviewer));
-  return { reviewRoutingVersion: 1, changedPaths, suggestions, diagnostics };
-}
-function addCodeOwners(repo, paths, accumulated, diagnostics) {
-  const source = CODEOWNERS_PATHS.map((path) => repo.files.find((file) => file.path === path)).find(Boolean);
-  if (!source)
-    return;
-  if (source.textSampleComplete === false || !source.contentFingerprint) {
-    diagnostics.push({ source: source.path, severity: "warning", message: `${source.path} is incomplete or lacks an exact fingerprint; CODEOWNERS routing was skipped.` });
-    return;
-  }
-  const parsed2 = parseCodeOwners(source.textSample);
-  diagnostics.push(...parsed2.diagnostics.map((message2) => ({ source: source.path, severity: "warning", message: message2 })));
-  for (const path of paths) {
-    const rule = [...parsed2.rules].reverse().find((candidate) => matchesCodeOwners(path, candidate.pattern));
-    if (!rule)
-      continue;
-    for (const owner of rule.owners)
-      add(accumulated, owner, "high", path, {
-        kind: "codeowners",
-        sourceFingerprint: source.contentFingerprint,
-        path: source.path,
-        line: rule.line,
-        detail: `${source.path}:${rule.line} assigns ${owner} through pattern ${rule.pattern}.`
-      });
-  }
-}
-function parseCodeOwners(content) {
-  const rules = [];
-  const diagnostics = [];
-  for (const [index, raw] of content.split(/\r?\n/).entries()) {
-    const lineNumber = index + 1;
-    const trimmed = raw.trim();
-    if (!trimmed || trimmed.startsWith("#"))
-      continue;
-    const tokens = trimmed.split(/\s+/);
-    const pattern = tokens.shift() ?? "";
-    const owners = [...new Set(tokens.filter(validOwner))].sort();
-    if (!pattern || pattern.startsWith("!") || pattern.includes("[") || owners.length === 0) {
-      diagnostics.push(`Ignored unsupported or ownerless CODEOWNERS rule at line ${lineNumber}.`);
-      continue;
-    }
-    if (rules.length >= MAX_RULES) {
-      diagnostics.push(`CODEOWNERS rules were bounded to ${MAX_RULES.toLocaleString()} entries.`);
-      break;
-    }
-    rules.push({ pattern, owners, line: lineNumber });
-  }
-  return { rules, diagnostics };
-}
-function matchesCodeOwners(path, pattern) {
-  try {
-    const normalized = pattern.startsWith("/") ? pattern.slice(1) : pattern;
-    return buildPathExcluder([normalized]).excludes(path);
-  } catch {
-    return false;
-  }
-}
-function addAnnotations(repo, paths, now, accumulated, diagnostics) {
-  const source = repo.files.find((file) => file.path === ".fixmap/annotations.json");
-  if (!source)
-    return;
-  if (source.textSampleComplete === false || !source.contentFingerprint) {
-    diagnostics.push({ source: source.path, severity: "warning", message: "Annotation owners were skipped because the store is incomplete or unversioned." });
-    return;
-  }
-  try {
-    const assessments = assessAnnotations(validateAnnotationStore(JSON.parse(source.textSample)), repo, { now });
-    for (const assessment of assessments) {
-      const annotation = assessment.annotation;
-      if (assessment.status !== "active" || !annotation.owner)
-        continue;
-      const scopePath2 = annotation.scope.kind === "file" || annotation.scope.kind === "symbol" || annotation.scope.kind === "contract" ? annotation.scope.path : void 0;
-      const matchedPaths = scopePath2 ? paths.filter((path) => path === scopePath2) : [];
-      for (const path of matchedPaths)
-        add(accumulated, annotation.owner, "high", path, {
-          kind: "annotation",
-          sourceFingerprint: source.contentFingerprint,
-          path: source.path,
-          detail: `${annotation.id} explicitly names ${annotation.owner} for ${path}.`
-        });
-    }
-  } catch (error) {
-    diagnostics.push({ source: source.path, severity: "warning", message: `Annotation owners were skipped: ${error instanceof Error ? error.message : String(error)}` });
-  }
-}
-function addPolicy(repo, paths, accumulated, diagnostics) {
-  try {
-    const policy = architecturePolicyFromRepo(repo);
-    if (!policy)
-      return;
-    const policyRepo = { ...repo, changedFiles: [...paths] };
-    const findings = evaluateArchitecturePolicy(policy, { repo: policyRepo, focusPaths: paths }).findings;
-    for (const finding of findings.filter((entry2) => entry2.code === "review-required")) {
-      for (const evidence of finding.evidence.filter((entry2) => entry2.kind === "reviewer")) {
-        for (const path of finding.paths)
-          add(accumulated, evidence.detail, "high", path, {
-            kind: "architecture-policy",
-            sourceFingerprint: policy.source.fingerprint,
-            path: policy.source.path,
-            detail: `${finding.ruleId} requires ${evidence.detail} for ${path}.`
-          });
-      }
-    }
-  } catch (error) {
-    diagnostics.push({ source: ".fixmap/policy.json", severity: "warning", message: `Policy reviewers were skipped: ${error instanceof Error ? error.message : String(error)}` });
-  }
-}
-function addHistory(repo, paths, accumulated, diagnostics) {
-  if (repo.history?.shallow) {
-    diagnostics.push({ source: "git-history", severity: "warning", message: "Commit history is shallow, so commit-author suggestions only reflect the commits present in this clone." });
-  } else if (repo.history?.truncated) {
-    diagnostics.push({ source: "git-history", severity: "info", message: `Commit-author suggestions use only the newest ${Math.min(repo.history.inspectedCommits, MAX_HISTORY_COMMITS2).toLocaleString()} non-merge commits.` });
-  }
-  for (const path of paths) {
-    const counts = /* @__PURE__ */ new Map();
-    for (const commit of (repo.history?.commits ?? []).slice(0, MAX_HISTORY_COMMITS2)) {
-      if (!commit.author || !commit.files.includes(path))
-        continue;
-      const previous = counts.get(commit.author);
-      counts.set(commit.author, {
-        count: (previous?.count ?? 0) + 1,
-        latest: Math.max(previous?.latest ?? 0, commit.committedAt),
-        hash: previous && previous.latest > commit.committedAt ? previous.hash : commit.hash
-      });
-    }
-    for (const [author, evidence] of [...counts].sort((a, b) => b[1].count - a[1].count || b[1].latest - a[1].latest || a[0].localeCompare(b[0])).slice(0, 3)) {
-      add(accumulated, author, "low", path, {
-        kind: "git-history",
-        sourceFingerprint: `git:${evidence.hash}`,
-        path,
-        detail: `${author} authored ${evidence.count} bounded non-merge commit${evidence.count === 1 ? "" : "s"} touching ${path}; current availability or employment is not inferred.`
-      });
-    }
-  }
-}
-function add(accumulated, reviewer, confidence, path, evidence) {
-  const identity = reviewer.trim();
-  if (!identity || identity.length > 200 || /[\0-\x1f\x7f]/.test(identity))
-    return;
-  const existing = accumulated.get(identity) ?? { confidence, paths: /* @__PURE__ */ new Set(), evidence: [] };
-  if (confidenceOrder(confidence) < confidenceOrder(existing.confidence))
-    existing.confidence = confidence;
-  existing.paths.add(path);
-  const routed = { ...evidence, changedPath: path };
-  if (!existing.evidence.some((entry2) => evidenceKey(entry2) === evidenceKey(routed)))
-    existing.evidence.push(routed);
-  accumulated.set(identity, existing);
-}
-function normalizePaths(values) {
-  const normalized = values.map((value) => value.replace(/\\/g, "/"));
-  const invalid = normalized.find((value) => !safePath2(value));
-  if (invalid !== void 0)
-    throw new Error(`Invalid review-routing path: ${String(invalid)}`);
-  return [...new Set(normalized)].sort();
-}
-function safePath2(value) {
-  return Boolean(value) && value.length <= 1e3 && !value.includes("\0") && !/^(?:[\/]|[A-Za-z]:)/.test(value) && value.split("/").every((part) => part && part !== "." && part !== "..");
-}
-function validOwner(value) {
-  return value.length <= 200 && (/^@[A-Za-z0-9][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9][A-Za-z0-9_.-]*)?$/.test(value) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
-}
-function evidenceKey(value) {
-  return `${value.kind}\0${value.sourceFingerprint}\0${value.path ?? ""}\0${value.line ?? ""}\0${value.changedPath ?? ""}\0${value.detail}`;
-}
-function evidenceOrder(a, b) {
-  return a.kind.localeCompare(b.kind) || (a.changedPath ?? "").localeCompare(b.changedPath ?? "") || (a.path ?? "").localeCompare(b.path ?? "") || (a.line ?? 0) - (b.line ?? 0);
-}
-function confidenceOrder(value) {
-  return value === "high" ? 0 : value === "medium" ? 1 : 2;
-}
-function withoutMentions(value) {
-  return value.replace(/(^|[^A-Za-z0-9_.+-])@+(?=[A-Za-z0-9])/g, "$1");
-}
-function reviewRoutingWithoutMentions(result) {
-  return {
-    ...result,
-    suggestions: result.suggestions.map((suggestion) => ({
-      ...suggestion,
-      reviewer: withoutMentions(suggestion.reviewer),
-      evidence: suggestion.evidence.map((entry2) => ({ ...entry2, detail: withoutMentions(entry2.detail) }))
-    })).sort((a, b) => confidenceOrder(a.confidence) - confidenceOrder(b.confidence) || a.reviewer.localeCompare(b.reviewer)),
-    diagnostics: result.diagnostics.map((entry2) => ({ ...entry2, message: withoutMentions(entry2.message) }))
-  };
-}
-
-// packages/core/dist/sandbox.js
-import { execFile as execFile3, spawn as spawn2 } from "node:child_process";
-import { promisify as promisify3 } from "node:util";
-var exec3 = promisify3(execFile3);
-var DEFAULT_LIMITS = {
-  timeoutMs: 5 * 6e4,
-  outputBytes: 1e6,
-  cpus: 1,
-  memoryMb: 1024,
-  pids: 256,
-  tmpfsMb: 256
-};
-
-// packages/core/dist/ci-matrix.js
-var DIMENSIONS = ["os", "runtime", "database", "browser", "feature-flag", "deployment"];
-var DIMENSION_SET = new Set(DIMENSIONS);
+import { promisify as promisify4 } from "node:util";
 
 // packages/core/dist/identity-graph.js
 var ID_SCOPE = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/;
+var FINGERPRINT = /^[A-Za-z0-9][A-Za-z0-9._:-]{5,255}$/;
 var ENTITY_KINDS = /* @__PURE__ */ new Set([
   "repository",
   "service",
@@ -9115,6 +8366,19 @@ var ENTITY_KINDS = /* @__PURE__ */ new Set([
   "contract",
   "runtime-component",
   "deployment"
+]);
+var RELATIONSHIP_KINDS = /* @__PURE__ */ new Set([
+  "contains",
+  "depends-on",
+  "rationale-for",
+  "mentions",
+  "imports",
+  "implements",
+  "publishes",
+  "observed-as",
+  "deployed-as",
+  "aliases",
+  "equivalent-to"
 ]);
 function createGraphIdentity(input) {
   if (!ENTITY_KINDS.has(input.kind))
@@ -9131,6 +8395,114 @@ function createGraphIdentity(input) {
   const scope = input.parent ? input.parent : input.repository ? `${base}/repository/${encodePart(input.repository)}` : base;
   return `${scope}/${input.kind}/${encodePart(input.key)}`;
 }
+function createGraphEdgeIdentity(kind, from, to) {
+  if (!RELATIONSHIP_KINDS.has(kind))
+    throw new Error(`Invalid graph relationship kind: ${String(kind)}`);
+  if (!from.startsWith("fixmap://") || !to.startsWith("fixmap://"))
+    throw new Error("Graph edges require FixMap node identities.");
+  const [left, right] = kind === "aliases" || kind === "equivalent-to" ? [from, to].sort() : [from, to];
+  return `fixmap-edge:${kind}:${stableHash4(`${left}\0${right}`)}`;
+}
+function buildIdentityGraph(input) {
+  validateIdentityScope(input.workspace, "workspace");
+  const nodes = [...input.nodes].map(copyNode).sort((a, b) => a.id.localeCompare(b.id));
+  const edges = [...input.edges].map(copyEdge).sort((a, b) => a.id.localeCompare(b.id));
+  validateGraphElements(input.workspace, nodes, edges);
+  const fingerprint = stableHash4(canonicalize3({ workspace: input.workspace, nodes, edges }));
+  return {
+    identityGraphVersion: 1,
+    workspace: input.workspace,
+    version: {
+      sequence: input.sequence ?? 1,
+      fingerprint,
+      ...input.parentFingerprint ? { parentFingerprint: input.parentFingerprint } : {}
+    },
+    nodes,
+    edges
+  };
+}
+function validateGraphElements(workspace, nodes, edges) {
+  const workspacePrefix = `fixmap://workspace/${encodePart(workspace)}/`;
+  const nodeIds = /* @__PURE__ */ new Set();
+  const repositoryKeys = /* @__PURE__ */ new Set();
+  for (const node of nodes) {
+    if (!node.id.startsWith(workspacePrefix))
+      throw new Error(`Graph node identity does not belong to workspace ${workspace}: ${node.id}`);
+    const canonicalId = createGraphIdentity({
+      workspace,
+      kind: node.kind,
+      key: node.key,
+      ...node.repository ? { repository: node.repository } : {},
+      ...node.parent ? { parent: node.parent } : {}
+    });
+    if (node.id !== canonicalId)
+      throw new Error(`Graph node ${node.id} is not canonically identified.`);
+    if (node.kind === "repository" && node.parent)
+      throw new Error(`Repository node ${node.id} cannot have a parent.`);
+    if (node.kind !== "repository" && !node.parent)
+      throw new Error(`Graph node ${node.id} requires a hierarchical parent.`);
+    if (node.kind === "repository")
+      repositoryKeys.add(node.key);
+    if (nodeIds.has(node.id))
+      throw new Error(`Duplicate graph node identity: ${node.id}`);
+    nodeIds.add(node.id);
+    validateDerivations(node.derivedFrom);
+  }
+  const edgeIds = /* @__PURE__ */ new Set();
+  for (const edge of edges) {
+    if (!RELATIONSHIP_KINDS.has(edge.kind))
+      throw new Error(`Invalid graph relationship kind: ${String(edge.kind)}`);
+    if (!["high", "medium", "low"].includes(edge.confidence)) {
+      throw new Error(`Graph edge ${edge.id} has invalid confidence.`);
+    }
+    if (edge.id !== createGraphEdgeIdentity(edge.kind, edge.from, edge.to))
+      throw new Error(`Graph edge ${edge.id} is not canonically identified.`);
+    if (edgeIds.has(edge.id))
+      throw new Error(`Duplicate graph edge identity: ${edge.id}`);
+    if (!nodeIds.has(edge.from) || !nodeIds.has(edge.to))
+      throw new Error(`Graph edge ${edge.id} references an unknown node.`);
+    if (!edge.reason.trim())
+      throw new Error(`Graph edge ${edge.id} needs a reason.`);
+    validateDerivations(edge.derivedFrom);
+    edgeIds.add(edge.id);
+  }
+  for (const node of nodes) {
+    if (node.parent && !nodeIds.has(node.parent))
+      throw new Error(`Graph node ${node.id} references an unknown parent.`);
+    for (const derivation of node.derivedFrom)
+      validateDerivationReference(derivation, nodeIds, edgeIds, repositoryKeys);
+  }
+  for (const edge of edges) {
+    for (const derivation of edge.derivedFrom)
+      validateDerivationReference(derivation, nodeIds, edgeIds, repositoryKeys);
+  }
+}
+function validateDerivationReference(derivation, nodes, edges, repositories) {
+  if (derivation.kind === "source" && !repositories.has(derivation.repository)) {
+    throw new Error(`Graph derivation references unknown repository ${derivation.repository}.`);
+  }
+  if (derivation.kind === "node" && !nodes.has(derivation.id))
+    throw new Error(`Graph derivation references unknown node ${derivation.id}.`);
+  if (derivation.kind === "edge" && !edges.has(derivation.id))
+    throw new Error(`Graph derivation references unknown edge ${derivation.id}.`);
+}
+function validateDerivations(derivations) {
+  for (const derivation of derivations) {
+    if (derivation.kind === "source") {
+      validateIdentityScope(derivation.repository, "source repository");
+      validateSourcePath(derivation.path);
+      if (!FINGERPRINT.test(derivation.fingerprint))
+        throw new Error(`Invalid graph source fingerprint for ${derivation.path}.`);
+    } else if (!derivation.id.trim()) {
+      throw new Error("Graph element derivation needs an identity.");
+    }
+  }
+}
+function validateSourcePath(path) {
+  if (!path.trim() || path.includes("\0") || /^[\\/]/.test(path) || /^[A-Za-z]:/.test(path) || path.replace(/\\/g, "/").split("/").some((segment) => !segment || segment === "." || segment === "..")) {
+    throw new Error(`Invalid graph source path: ${path}`);
+  }
+}
 function validateIdentityScope(value, label) {
   if (!ID_SCOPE.test(value) || value === "." || value === "..")
     throw new Error(`Invalid graph identity ${label}: ${value}`);
@@ -9143,6 +8515,38 @@ function validateIdentityKey(value, label) {
 }
 function encodePart(value) {
   return value.split("/").map(encodeURIComponent).join("/");
+}
+function copyNode(node) {
+  return {
+    ...node,
+    ...node.attributes ? { attributes: { ...node.attributes } } : {},
+    derivedFrom: normalizeDerivations(node.derivedFrom)
+  };
+}
+function copyEdge(edge) {
+  return { ...edge, derivedFrom: normalizeDerivations(edge.derivedFrom) };
+}
+function normalizeDerivations(derivations) {
+  const byIdentity = /* @__PURE__ */ new Map();
+  for (const derivation of derivations)
+    byIdentity.set(canonicalize3(derivation), { ...derivation });
+  return [...byIdentity.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([, derivation]) => derivation);
+}
+function canonicalize3(value) {
+  if (Array.isArray(value))
+    return `[${value.map(canonicalize3).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value).filter(([, entry2]) => entry2 !== void 0).sort(([left], [right]) => left.localeCompare(right)).map(([key2, entry2]) => `${JSON.stringify(key2)}:${canonicalize3(entry2)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+function stableHash4(value) {
+  let hash = 0xcbf29ce484222325n;
+  for (const byte of new TextEncoder().encode(value)) {
+    hash ^= BigInt(byte);
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return hash.toString(16).padStart(16, "0");
 }
 
 // packages/core/dist/yaml-subset.js
@@ -9680,7 +9084,7 @@ function contractChange(before, after, change, compatibility, reason2, entry2, b
   const surface = after ?? before;
   const key2 = `${surface.id}\0${change}\0${entry2?.key ?? ""}\0${beforeSignature ?? ""}\0${afterSignature ?? ""}`;
   return {
-    id: `contract-change:${stableHash4(key2)}`,
+    id: `contract-change:${stableHash5(key2)}`,
     contractId: surface.id,
     contractKind: surface.kind,
     path: surface.path,
@@ -9948,7 +9352,7 @@ function parseMigration(content) {
   const statements = content.split(";").map((statement) => statement.replace(/--[^\r\n]*/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean);
   for (const statement of statements) {
     const destructive = /\bDROP\s+(?:TABLE|COLUMN|TYPE|INDEX|CONSTRAINT)\b|\bALTER\s+(?:TABLE\s+)?[^;]+\b(?:SET\s+NOT\s+NULL|TYPE\s+)\b|\bTRUNCATE\b/i.test(statement);
-    entries.push(entry(`migration:${stableHash4(statement.toLowerCase())}`, "migration", `${destructive ? "destructive" : "additive"}:${statement}`, false));
+    entries.push(entry(`migration:${stableHash5(statement.toLowerCase())}`, "migration", `${destructive ? "destructive" : "additive"}:${statement}`, false));
   }
   return { entries };
 }
@@ -10025,7 +9429,7 @@ function isRecord10(value) {
 function severityOrder2(value) {
   return value === "breaking" ? 0 : value === "unknown" ? 1 : 2;
 }
-function stableHash4(value) {
+function stableHash5(value) {
   let hash = 0xcbf29ce484222325n;
   for (const byte of new TextEncoder().encode(value)) {
     hash ^= BigInt(byte);
@@ -10033,6 +9437,1645 @@ function stableHash4(value) {
   }
   return hash.toString(16).padStart(16, "0");
 }
+
+// packages/core/dist/contracts-repository.js
+import { execFile as execFile3 } from "node:child_process";
+import { createHash as createHash3 } from "node:crypto";
+import { lstat, readFile as readFile3, realpath as realpath2 } from "node:fs/promises";
+import { relative as relative3, resolve as resolve3, sep as sep3 } from "node:path";
+import { promisify as promisify3 } from "node:util";
+var exec3 = promisify3(execFile3);
+var MAX_CONTRACT_BYTES = 2 * 1024 * 1024;
+var MAX_TREE_BYTES2 = 32 * 1024 * 1024;
+var MAX_TOTAL_BYTES = 64 * 1024 * 1024;
+var STRUCTURED_EXTENSION = /\.(?:json|ya?ml)$/i;
+async function inventoryWorkingTreeContracts(repo) {
+  const root = await realpath2(resolve3(repo.root));
+  const sources = [];
+  const diagnostics = [];
+  let totalBytes = 0;
+  for (const file of repo.files) {
+    const byPath = CONTRACT_PATH.test(file.path);
+    if (!byPath && !(STRUCTURED_EXTENSION.test(file.path) && isContractCandidate(file.path, file.textSample)))
+      continue;
+    const absolute = resolve3(root, file.path);
+    const inside = relative3(root, absolute);
+    if (!inside || inside.startsWith(`..${sep3}`) || inside === "..")
+      continue;
+    let bytes;
+    try {
+      const info = await lstat(absolute);
+      if (info.isFile() && info.size <= MAX_CONTRACT_BYTES && totalBytes + info.size <= MAX_TOTAL_BYTES) {
+        bytes = await readFile3(absolute);
+        totalBytes += bytes.length;
+      }
+    } catch {
+      bytes = void 0;
+    }
+    const decoded = bytes ? decodeUtf8(bytes) : void 0;
+    if (bytes === void 0 || decoded === void 0 || bytes.length > MAX_CONTRACT_BYTES) {
+      diagnostics.push(unread(file.path));
+      continue;
+    }
+    if (!byPath && !isContractCandidate(file.path, decoded))
+      continue;
+    sources.push({ path: file.path, content: decoded, fingerprint: `worktree:${createHash3("sha256").update(bytes).digest("hex")}` });
+  }
+  return inventoryContracts(sources, diagnostics);
+}
+async function inventoryContractsAtRef(input) {
+  const repoRoot = resolve3(input.repoRoot);
+  const requestedRef = validateRef(input.ref);
+  const commit = await resolveCommit(repoRoot, requestedRef);
+  const { stdout } = await exec3("git", ["ls-tree", "-r", "-z", "-l", "--full-tree", commit, "--"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: MAX_TREE_BYTES2
+  });
+  const candidates = parseTree(stdout).filter((entry2) => entry2.mode !== "120000" && entry2.mode !== "160000").filter((entry2) => CONTRACT_PATH.test(entry2.path) || STRUCTURED_EXTENSION.test(entry2.path));
+  const diagnostics = [];
+  const readable = [];
+  let totalBytes = 0;
+  for (const entry2 of candidates) {
+    if (entry2.size <= MAX_CONTRACT_BYTES && totalBytes + entry2.size <= MAX_TOTAL_BYTES) {
+      readable.push(entry2);
+      totalBytes += entry2.size;
+    } else if (CONTRACT_PATH.test(entry2.path)) {
+      diagnostics.push(unread(entry2.path));
+    }
+  }
+  const blobs = await readBlobs(repoRoot, readable);
+  const sources = [];
+  for (const entry2 of readable) {
+    const byPath = CONTRACT_PATH.test(entry2.path);
+    const content = decodeUtf8(blobs.get(entry2.oid));
+    if (content === void 0) {
+      if (byPath)
+        diagnostics.push(unread(entry2.path));
+      continue;
+    }
+    if (!byPath && !isContractCandidate(entry2.path, content))
+      continue;
+    sources.push({ path: entry2.path, content, fingerprint: `git:${entry2.oid}` });
+  }
+  return { requestedRef, commit, inventory: inventoryContracts(sources, diagnostics) };
+}
+async function compareContractRefs(input) {
+  const [from, to] = await Promise.all([
+    inventoryContractsAtRef({ repoRoot: input.repoRoot, ref: input.fromRef }),
+    inventoryContractsAtRef({ repoRoot: input.repoRoot, ref: input.toRef })
+  ]);
+  return {
+    contractDiffVersion: 1,
+    from: { requestedRef: from.requestedRef, commit: from.commit },
+    to: { requestedRef: to.requestedRef, commit: to.commit },
+    comparison: compareContractInventories(from.inventory, to.inventory)
+  };
+}
+function decodeUtf8(bytes) {
+  if (!bytes)
+    return void 0;
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return void 0;
+  }
+}
+function unread(path) {
+  return {
+    code: "contract-source-incomplete",
+    severity: "warning",
+    path,
+    message: `${path} looks like a contract, but it is larger than ${MAX_CONTRACT_BYTES / 1024 / 1024} MB, not UTF-8 text, or unreadable, so FixMap did not parse it.`
+  };
+}
+
+// packages/core/dist/contract-baseline.js
+var exec4 = promisify4(execFile4);
+async function contractBaselineForDiff(repo, input) {
+  let needed = false;
+  try {
+    needed = architecturePolicyFromRepo(repo)?.contracts.some((rule) => rule.forbidBreaking) ?? false;
+  } catch {
+    return void 0;
+  }
+  if (!needed)
+    return void 0;
+  const range = diffRange(input);
+  if (!range)
+    return void 0;
+  const repoRoot = resolve4(input.repoRoot);
+  const fromRef = range.mergeBase ? await mergeBase(repoRoot, range.from, range.to ?? "HEAD") : range.from;
+  const from = await inventoryContractsAtRef({ repoRoot, ref: fromRef });
+  const to = range.to === void 0 ? await inventoryWorkingTreeContracts(repo) : (await inventoryContractsAtRef({ repoRoot, ref: range.to })).inventory;
+  return compareContractInventories(from.inventory, to);
+}
+function diffRange(input) {
+  if (input.workingTree)
+    return { from: "HEAD", mergeBase: false };
+  const spec = input.diffSpec?.trim() ?? (input.baseRef ? `${input.baseRef}...${input.headRef ?? "HEAD"}` : void 0);
+  if (!spec)
+    return void 0;
+  const threeDot = /^(.*?)\.\.\.(.*)$/.exec(spec);
+  if (threeDot)
+    return { from: validateRef(threeDot[1] || "HEAD"), to: validateRef(threeDot[2] || "HEAD"), mergeBase: true };
+  const twoDot = /^(.*?)\.\.(.*)$/.exec(spec);
+  if (twoDot)
+    return { from: validateRef(twoDot[1] || "HEAD"), to: validateRef(twoDot[2] || "HEAD"), mergeBase: false };
+  return { from: validateRef(spec), mergeBase: false };
+}
+async function mergeBase(repoRoot, left, right) {
+  const [from, to] = await Promise.all([resolveCommit(repoRoot, left), resolveCommit(repoRoot, right)]);
+  const { stdout } = await exec4("git", ["merge-base", from, to], { cwd: repoRoot, encoding: "utf8", windowsHide: true });
+  const commit = stdout.trim();
+  if (!/^[0-9a-f]{40,64}$/.test(commit))
+    throw new Error(`git merge-base returned no commit for ${left}...${right}.`);
+  return commit;
+}
+
+// packages/core/dist/plan.js
+async function buildFixMapReport(input) {
+  return (await buildFixMapAnalysis(input)).report;
+}
+async function buildFixMapAnalysis(input) {
+  const historical = input.atRef === void 0 ? void 0 : await scanHistoricalRepo(input.repoRoot, input.atRef, input);
+  const scannedRepo = historical?.repo ?? await scanRepo({ ...input, includeHistory: input.includeHistory !== false });
+  const generatedArtifacts = scannedRepo.files.filter(isFixMapArtifact);
+  const generatedPaths = new Set(generatedArtifacts.map((file) => file.path));
+  const repo = generatedArtifacts.length === 0 ? scannedRepo : {
+    ...scannedRepo,
+    files: scannedRepo.files.filter((file) => !generatedPaths.has(file.path)),
+    changedFiles: scannedRepo.changedFiles.filter((path) => !generatedPaths.has(path)),
+    ...scannedRepo.trackedFiles ? { trackedFiles: scannedRepo.trackedFiles.filter((path) => !generatedPaths.has(path)) } : {}
+  };
+  const requestedExclude = historical ? excluderFor(input.repoRoot, [...parseIgnoreFile(historical.ignoreFile ?? ""), ...input.exclude ?? []]) : await resolveExclusions(input.repoRoot, input.exclude ?? []);
+  const internalExclude = buildPathExcluder((input.internalExclude ?? []).map((pattern) => normalizeAbsolutePattern(input.repoRoot, pattern)));
+  const exclude = combineExclusions(requestedExclude, internalExclude);
+  const languageContext = input.languageRegistry ? createCustomLanguageContext(input.languageRegistry) : void 0;
+  const analyzedRepo = languageContext ? classifyCustomTests(repo, languageContext) : repo;
+  const baseline = historical ? {} : await contractBaselineOrError(repo, input);
+  const reportInput = {
+    issueText: input.issueText,
+    limit: input.limit,
+    exclude,
+    annotationAsOf: (/* @__PURE__ */ new Date()).toISOString(),
+    ...languageContext ? { languageContext } : {},
+    ...baseline.comparison ? { contractComparison: baseline.comparison } : {}
+  };
+  const report = input.embeddingProvider ? await buildHybridReportFromRepo(analyzedRepo, { ...reportInput, embeddingProvider: input.embeddingProvider }) : buildReportFromRepo(analyzedRepo, reportInput);
+  if (baseline.error)
+    report.diagnostics.push({
+      code: "contract-baseline-unavailable",
+      severity: "warning",
+      paths: [".fixmap/policy.json"],
+      message: `Policy contract rules were not checked: ${baseline.error}`
+    });
+  if (input.evidenceSources && input.evidenceSources.length > 0) {
+    report.evidence = await attachReportEvidence(report, analyzedRepo, input.evidenceSources, { issueText: input.issueText ?? "" });
+  }
+  if (input.sensitiveData) {
+    report.sensitiveData = buildReportSensitiveData(analyzedRepo, reportPaths(report));
+  }
+  if (input.supplyChain) {
+    report.supplyChain = buildReportSupplyChain(input.supplyChain.bundle, input.supplyChain.documentSha256, reportPaths(report));
+  }
+  if (input.languageRegistry && languageContext) {
+    report.languageAdapters = input.languageRegistry.customAdapters.map((adapter) => ({
+      id: adapter.id,
+      version: adapter.version,
+      extensions: [...adapter.extensions]
+    }));
+    const { total, entries } = languageContext.failures();
+    if (total > 0) {
+      const shown = entries.slice(0, 8);
+      report.diagnostics.push({
+        code: "language-adapter-failed",
+        severity: "warning",
+        message: `${total} custom language adapter ${total === 1 ? "call" : "calls"} failed or returned invalid results, so ${total === 1 ? "that file was" : "those files were"} analyzed without custom facts: ` + shown.map((entry2) => `${markdownCode(entry2.path)} (${entry2.adapter}, ${entry2.code})`).join(", ") + `${total > shown.length ? ", ..." : ""}.`,
+        paths: shown.map((entry2) => entry2.path)
+      });
+    }
+  }
+  if (generatedArtifacts.length > 0) {
+    const described = generatedArtifacts.slice(0, 8).map((file) => `${markdownCode(file.path)} (${fixMapArtifactKind(file)})`);
+    report.diagnostics.push({
+      code: "fixmap-artifact-excluded",
+      severity: "info",
+      message: `Excluded ${generatedArtifacts.length} previously generated FixMap ${generatedArtifacts.length === 1 ? "artifact" : "artifacts"} from ranking, impact analysis, and context packing: ${described.join(", ")}${generatedArtifacts.length > 8 ? ", ..." : ""}.`,
+      paths: generatedArtifacts.slice(0, 8).map((file) => file.path)
+    });
+  }
+  if (requestedExclude.patterns.length > 0) {
+    const excludedPaths = repo.files.filter((file) => requestedExclude.excludes(file.path)).map((file) => file.path);
+    const effectivePatterns = [...new Set(repo.files.map((file) => requestedExclude.reasonFor(file.path)).filter((pattern) => pattern !== void 0))];
+    const unmatchedPatterns = requestedExclude.patterns.filter((pattern) => !pattern.startsWith("!") && !requestedExclude.matchedPatterns.has(pattern));
+    if (unmatchedPatterns.length > 0) {
+      const sample = unmatchedPatterns.slice(0, 5).map(markdownCode).join(", ");
+      report.diagnostics.push({
+        code: "exclusion-no-match",
+        severity: "warning",
+        message: `${unmatchedPatterns.length} exclusion ${unmatchedPatterns.length === 1 ? "pattern matched" : "patterns matched"} no scanned paths: ${sample}${unmatchedPatterns.length > 5 ? ", ..." : ""}. Check that patterns are repository-relative or run --explain on an expected file.`
+      });
+    }
+    if (excludedPaths.length > 0) {
+      report.diagnostics.push({
+        code: "paths-excluded",
+        severity: report.contextFiles.length === 0 ? "warning" : "info",
+        message: `${effectivePatterns.length} exclusion ${effectivePatterns.length === 1 ? "pattern" : "patterns"} removed ${excludedPaths.length} ${excludedPaths.length === 1 ? "path" : "paths"} from ranking: ${effectivePatterns.map(markdownCode).join(", ")}. Run --explain on a file you expected to see if this is why it is absent.`,
+        paths: excludedPaths.slice(0, 8)
+      });
+    }
+  }
+  return { report, repo: analyzedRepo, exclusions: exclude };
+}
+function combineExclusions(primary, internal) {
+  if (internal.patterns.length === 0)
+    return primary;
+  if (primary.patterns.length === 0)
+    return internal;
+  return {
+    excludes: (path) => primary.excludes(path) || internal.excludes(path),
+    reasonFor: (path) => primary.reasonFor(path) ?? internal.reasonFor(path),
+    patterns: [...primary.patterns, ...internal.patterns],
+    matchedPatterns: /* @__PURE__ */ new Set([...primary.matchedPatterns, ...internal.matchedPatterns])
+  };
+}
+async function resolveExclusions(repoRoot, patterns2) {
+  return excluderFor(repoRoot, [...await readIgnoreFile(repoRoot), ...patterns2]);
+}
+function excluderFor(repoRoot, patterns2) {
+  const combined = patterns2.map((pattern) => normalizeAbsolutePattern(repoRoot, pattern));
+  return combined.length > 0 ? buildPathExcluder(combined) : NO_EXCLUSIONS;
+}
+async function scanHistoricalRepo(repoRoot, ref, input) {
+  if (input.diffSpec !== void 0 || input.baseRef !== void 0 || input.headRef !== void 0 || input.workingTree || input.includeUntracked) {
+    throw new Error("A historical plan ranks one committed state, so it cannot be combined with a diff or the working tree.");
+  }
+  const historical = await scanRepoAtRef({ repoRoot, ref });
+  historical.repo.diagnostics.unshift({
+    code: "historical-plan",
+    severity: "info",
+    message: `Preview: ranked against ${markdownCode(historical.requestedRef)} at commit ${markdownCode(historical.commit)}, read from committed Git objects without checking out or changing the worktree. Co-change history and uncommitted files were not used.`
+  });
+  return historical;
+}
+function normalizeAbsolutePattern(repoRoot, pattern) {
+  const trimmed = pattern.trim();
+  const negated = trimmed.startsWith("!");
+  const body = (negated ? trimmed.slice(1) : trimmed).replace(/\\/g, "/");
+  const normalizedRoot = resolve5(repoRoot).replace(/\\/g, "/").replace(/\/$/, "");
+  const caseInsensitive = /^[A-Za-z]:\//.test(normalizedRoot);
+  const comparableBody = caseInsensitive ? body.toLowerCase() : body;
+  const comparableRoot = caseInsensitive ? normalizedRoot.toLowerCase() : normalizedRoot;
+  if (!comparableBody.startsWith(`${comparableRoot}/`))
+    return pattern;
+  return `${negated ? "!" : ""}/${body.slice(normalizedRoot.length + 1)}`;
+}
+async function readIgnoreFile(repoRoot) {
+  try {
+    return parseIgnoreFile(await readFile4(join3(repoRoot, ".fixmapignore"), "utf8"));
+  } catch {
+    return [];
+  }
+}
+function classifyCustomTests(repo, context) {
+  let changed = false;
+  const files = repo.files.map((file) => {
+    if (file.isTest || !context.supports(file.extension))
+      return file;
+    const extracted = context.extract(file);
+    if (extracted.status !== "ok" || !extracted.facts.isTest)
+      return file;
+    changed = true;
+    return { ...file, isTest: true };
+  });
+  return changed ? { ...repo, files } : repo;
+}
+async function contractBaselineOrError(repo, input) {
+  try {
+    const comparison = await contractBaselineForDiff(repo, input);
+    return comparison ? { comparison } : {};
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+// packages/core/dist/workspace.js
+var REPOSITORY_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+function buildWorkspaceMap(inputs, options) {
+  validateRepositoryInputs(inputs);
+  const ordered = [...inputs].sort((a, b) => a.id.localeCompare(b.id));
+  const repositories = ordered.map((input) => ({
+    id: input.id,
+    identity: createGraphIdentity({ workspace: options.workspace, kind: "repository", key: input.id }),
+    root: input.repo.root,
+    ...input.revision ? { revision: input.revision } : {},
+    ...input.remote ? { remote: input.remote } : {},
+    relationship: input.relationship ?? { kind: "checkout" },
+    fileCount: input.repo.files.length
+  }));
+  const diagnostics = [];
+  const repositoryIds = new Set(repositories.map((repository) => repository.id));
+  for (const repository of repositories) {
+    if (repository.relationship.kind === "submodule" && (!repository.relationship.parentRepository || !repositoryIds.has(repository.relationship.parentRepository))) {
+      diagnostics.push({
+        code: "invalid-submodule-parent",
+        severity: "warning",
+        message: `Submodule repository ${repository.id} names a parent that is not in this workspace.`,
+        repositories: [repository.id]
+      });
+    }
+  }
+  const packages = ordered.flatMap((input) => extractRepositoryPackages(input, options.workspace)).sort((a, b) => a.id.localeCompare(b.id));
+  const packageIndex = /* @__PURE__ */ new Map();
+  for (const pkg of packages) {
+    for (const namespace of packageLookupKeys(pkg)) {
+      const existing = packageIndex.get(namespace) ?? [];
+      existing.push(pkg);
+      packageIndex.set(namespace, existing);
+    }
+  }
+  for (const [key2, candidates] of packageIndex) {
+    const repositoriesForPackage = [...new Set(candidates.map((candidate) => candidate.repository))];
+    if (repositoriesForPackage.length > 1 && key2.startsWith(`${candidates[0]?.ecosystem}:`)) {
+      diagnostics.push({
+        code: "duplicate-package",
+        severity: "warning",
+        message: `Workspace package identity ${key2} is provided by multiple repositories; automatic links remain unresolved.`,
+        repositories: repositoriesForPackage.sort()
+      });
+    }
+  }
+  const aliases = resolveAliases(options.aliases ?? [], repositoryIds, packages, diagnostics);
+  const edges = /* @__PURE__ */ new Map();
+  for (const input of ordered) {
+    for (const declaration of extractManifestDependencies(input)) {
+      const alias = aliases.get(aliasKey(input.id, declaration.ecosystem, declaration.package));
+      if (alias)
+        linkAliasedDependency(edges, input.id, declaration, alias);
+      else
+        linkDependency(edges, diagnostics, packageIndex, input.id, declaration);
+    }
+    for (const declaration of extractImportDependencies(input, packages)) {
+      linkDependency(edges, diagnostics, packageIndex, input.id, declaration);
+    }
+  }
+  const repositoryIdentityById = new Map(repositories.map((repository) => [repository.id, repository.identity]));
+  const packageIdentityByProvider = new Map(packages.map((pkg) => [
+    `${pkg.repository}\0${pkg.ecosystem}\0${pkg.name}`,
+    pkg.identity
+  ]));
+  const dependencies = [...edges.values()].map((dependency) => {
+    const consumer = repositoryIdentityById.get(dependency.consumerRepository);
+    const provider = packageIdentityByProvider.get(`${dependency.providerRepository}\0${dependency.ecosystem}\0${dependency.package}`);
+    return {
+      ...dependency,
+      identity: createGraphEdgeIdentity("depends-on", consumer, provider),
+      evidence: dependency.evidence.sort((a, b) => a.kind.localeCompare(b.kind) || a.path.localeCompare(b.path))
+    };
+  }).sort((a, b) => a.consumerRepository.localeCompare(b.consumerRepository) || a.providerRepository.localeCompare(b.providerRepository) || a.package.localeCompare(b.package));
+  const identityGraph = buildWorkspaceIdentityGraph(options, ordered, repositories, packages, dependencies, diagnostics);
+  return {
+    workspaceVersion: 1,
+    workspace: options.workspace,
+    repositories,
+    packages,
+    dependencies,
+    identityGraph,
+    diagnostics: deduplicateDiagnostics2(diagnostics)
+  };
+}
+function buildWorkspaceImpact(workspace, seedRepositories) {
+  const known = new Set(workspace.repositories.map((repository) => repository.id));
+  const seeds = [...new Set(seedRepositories)].filter((seed) => known.has(seed)).sort();
+  const queue = seeds.map((repository) => ({ repository, distance: 0 }));
+  const visited = new Set(seeds);
+  const impacted = [];
+  while (queue.length > 0) {
+    const current2 = queue.shift();
+    for (const edge of workspace.dependencies.filter((candidate) => candidate.providerRepository === current2.repository)) {
+      if (visited.has(edge.consumerRepository))
+        continue;
+      visited.add(edge.consumerRepository);
+      const distance = current2.distance + 1;
+      impacted.push({
+        repository: edge.consumerRepository,
+        distance,
+        via: `${edge.consumerRepository} depends on ${edge.package} from ${edge.providerRepository}`,
+        evidence: edge.evidence
+      });
+      queue.push({ repository: edge.consumerRepository, distance });
+    }
+  }
+  return {
+    seeds,
+    repositories: impacted.sort((a, b) => a.distance - b.distance || a.repository.localeCompare(b.repository))
+  };
+}
+function aliasKey(consumer, ecosystem, name) {
+  return `${consumer}\0${ecosystem}\0${ecosystem === "python" ? normalizePythonName(name) : name}`;
+}
+function resolveAliases(aliases, repositoryIds, packages, diagnostics) {
+  const resolved = /* @__PURE__ */ new Map();
+  for (const alias of aliases) {
+    if (!repositoryIds.has(alias.consumer) || !repositoryIds.has(alias.provider) || alias.consumer === alias.provider) {
+      throw new Error(`Workspace alias for ${alias.consumer} ${alias.ecosystem}:${alias.package} must link two repositories in this workspace.`);
+    }
+    const key2 = aliasKey(alias.consumer, alias.ecosystem, alias.package);
+    if (resolved.has(key2))
+      throw new Error(`Workspace alias for ${alias.consumer} ${alias.ecosystem}:${alias.package} is declared more than once.`);
+    const wanted = alias.ecosystem === "python" ? normalizePythonName(alias.providerPackage) : alias.providerPackage;
+    const provider = packages.find((pkg) => pkg.repository === alias.provider && pkg.ecosystem === alias.ecosystem && (pkg.ecosystem === "python" ? normalizePythonName(pkg.name) : pkg.name) === wanted);
+    if (!provider) {
+      diagnostics.push({
+        code: "alias-unresolved",
+        severity: "warning",
+        message: `Alias for ${alias.consumer} ${alias.package} names ${alias.ecosystem} package ${alias.providerPackage}, which ${alias.provider} does not provide; no link was made.`,
+        repositories: [alias.consumer, alias.provider].sort()
+      });
+      continue;
+    }
+    resolved.set(key2, { alias, provider });
+  }
+  return resolved;
+}
+function linkAliasedDependency(edges, consumerRepository, declaration, resolved) {
+  const provider = resolved.provider;
+  const evidence = {
+    ...declaration.evidence,
+    detail: `${declaration.evidence.detail}; reviewed alias to ${provider.name} from ${provider.repository}: ${resolved.alias.reason}`
+  };
+  const key2 = `${consumerRepository}\0${provider.repository}\0${provider.ecosystem}\0${provider.name}`;
+  const existing = edges.get(key2);
+  if (existing) {
+    existing.evidence.push(evidence);
+    existing.alias ??= { declaredPackage: declaration.package, reason: resolved.alias.reason };
+    return;
+  }
+  edges.set(key2, {
+    consumerRepository,
+    providerRepository: provider.repository,
+    package: provider.name,
+    ecosystem: provider.ecosystem,
+    ...declaration.requestedVersion ? { requestedVersion: declaration.requestedVersion } : {},
+    evidence: [evidence],
+    alias: { declaredPackage: declaration.package, reason: resolved.alias.reason }
+  });
+}
+var MAX_WORKSPACE_STATEMENTS = 8;
+function buildWorkspaceVerifyNarrative(workspace, repository, changedPaths) {
+  const owned = workspace.packages.filter((pkg) => pkg.repository === repository);
+  const changedByPackage = /* @__PURE__ */ new Map();
+  for (const path of changedPaths) {
+    const owner = owned.filter((pkg) => containsPath(manifestDirectory(pkg.manifestPath), path)).sort((a, b) => manifestDirectory(b.manifestPath).length - manifestDirectory(a.manifestPath).length)[0];
+    if (!owner)
+      continue;
+    changedByPackage.set(owner.id, [...changedByPackage.get(owner.id) ?? [], path]);
+  }
+  const statements = [];
+  const direct = /* @__PURE__ */ new Set();
+  for (const pkg of owned) {
+    const changed = changedByPackage.get(pkg.id);
+    if (!changed)
+      continue;
+    for (const dependency of workspace.dependencies.filter((entry2) => entry2.providerRepository === repository && entry2.package === pkg.name && entry2.ecosystem === pkg.ecosystem)) {
+      direct.add(dependency.consumerRepository);
+      const consumerEvidence = dependency.evidence[0];
+      const shown = changed.slice(0, 4);
+      statements.push({
+        classification: dependency.evidence.some((entry2) => entry2.kind === "manifest") ? "observation" : "inference",
+        text: `${dependency.consumerRepository} depends on ${pkg.name}${dependency.alias ? ` (declared as ${dependency.alias.declaredPackage})` : ""}, and this diff changes ${changed.length} file${changed.length === 1 ? "" : "s"} in it: ${shown.join(", ")}${changed.length > shown.length ? ", ..." : ""}.`,
+        evidence: [
+          ...shown.map((path) => ({ kind: "changed-file", path, detail: `Inside ${pkg.name} (${pkg.manifestPath}) in ${repository}.` })),
+          { kind: "cross-repository", path: consumerEvidence.path, detail: `${dependency.consumerRepository}: ${consumerEvidence.detail}` }
+        ]
+      });
+    }
+  }
+  if (direct.size > 0) {
+    const transitive = buildWorkspaceImpact(workspace, [...direct]).repositories.filter((entry2) => entry2.repository !== repository && !direct.has(entry2.repository));
+    for (const entry2 of transitive)
+      statements.push({
+        classification: "inference",
+        text: `${entry2.repository} may also be affected indirectly: ${entry2.via}.`,
+        evidence: entry2.evidence.slice(0, 2).map((evidence) => ({
+          kind: "cross-repository",
+          path: evidence.path,
+          detail: `${entry2.repository}: ${evidence.detail}`
+        }))
+      });
+  }
+  return statements.slice(0, MAX_WORKSPACE_STATEMENTS);
+}
+function containsPath(directory, path) {
+  return directory === "" || path === directory || path.startsWith(`${directory}/`);
+}
+function extractRepositoryPackages(input, workspace) {
+  const packages = [];
+  for (const file of input.repo.files) {
+    const name = file.path.split("/").at(-1)?.toLowerCase() ?? "";
+    if (name === "package.json") {
+      const manifest = parseJson2(file.textSample);
+      if (manifest && typeof manifest.name === "string" && manifest.name.trim()) {
+        packages.push(workspacePackage(workspace, input.id, "node", manifest.name.trim(), stringValue(manifest.version), file.path, [manifest.name.trim()]));
+      }
+    } else if (name === "pyproject.toml") {
+      const project = tomlProject(file.textSample);
+      if (project.name) {
+        const namespaces = pythonNamespaces(input.repo.files, manifestDirectory(file.path));
+        packages.push(workspacePackage(workspace, input.id, "python", project.name, project.version, file.path, namespaces.length > 0 ? namespaces : [normalizePythonName(project.name)]));
+      }
+    } else if (name === "pom.xml") {
+      const project = mavenProject(file.textSample);
+      if (project.artifactId) {
+        const identity = project.groupId ? `${project.groupId}:${project.artifactId}` : project.artifactId;
+        packages.push(workspacePackage(workspace, input.id, "maven", identity, project.version, file.path, javaPackages(input.repo.files, manifestDirectory(file.path))));
+      }
+    }
+  }
+  return packages;
+}
+function workspacePackage(workspace, repository, ecosystem, name, version, manifestPath, importNamespaces) {
+  const repositoryIdentity = createGraphIdentity({ workspace, kind: "repository", key: repository });
+  return {
+    id: `${repository}:${ecosystem}:${name}`,
+    identity: createGraphIdentity({
+      workspace,
+      kind: "package",
+      key: `${ecosystem}:${name}`,
+      repository,
+      parent: repositoryIdentity
+    }),
+    repository,
+    ecosystem,
+    name,
+    ...version ? { version } : {},
+    manifestPath,
+    importNamespaces: [...new Set(importNamespaces)].sort()
+  };
+}
+function extractManifestDependencies(input) {
+  const declarations = [];
+  for (const file of input.repo.files) {
+    const name = file.path.split("/").at(-1)?.toLowerCase() ?? "";
+    if (name === "package.json") {
+      const manifest = parseJson2(file.textSample);
+      for (const section2 of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
+        const dependencies = manifest?.[section2];
+        if (!isRecord11(dependencies))
+          continue;
+        for (const [dependency, version] of Object.entries(dependencies)) {
+          if (typeof version !== "string")
+            continue;
+          declarations.push({
+            ecosystem: "node",
+            lookup: `node:${dependency}`,
+            package: dependency,
+            requestedVersion: version,
+            evidence: { kind: "manifest", path: file.path, detail: `${section2} declares ${dependency}@${version}` }
+          });
+        }
+      }
+    } else if (name === "pyproject.toml") {
+      for (const dependency of tomlDependencies(file.textSample))
+        declarations.push({
+          ecosystem: "python",
+          lookup: `python:${normalizePythonName(dependency.name)}`,
+          package: dependency.name,
+          ...dependency.version ? { requestedVersion: dependency.version } : {},
+          evidence: { kind: "manifest", path: file.path, detail: `pyproject declares ${dependency.raw}` }
+        });
+    } else if (name === "pom.xml") {
+      for (const dependency of mavenDependencies(file.textSample))
+        declarations.push({
+          ecosystem: "maven",
+          lookup: `maven:${dependency.groupId}:${dependency.artifactId}`,
+          package: `${dependency.groupId}:${dependency.artifactId}`,
+          ...dependency.version ? { requestedVersion: dependency.version } : {},
+          evidence: { kind: "manifest", path: file.path, detail: `pom dependency declares ${dependency.groupId}:${dependency.artifactId}${dependency.version ? `:${dependency.version}` : ""}` }
+        });
+    }
+  }
+  return declarations;
+}
+function extractImportDependencies(input, packages) {
+  const declarations = [];
+  for (const file of input.repo.files.filter((candidate) => candidate.isSource && candidate.kind === "code")) {
+    for (const imported of extractLanguageImports(file)) {
+      if (imported.specifier.startsWith("."))
+        continue;
+      for (const pkg of packages.filter((candidate) => candidate.repository !== input.id)) {
+        const namespace = pkg.importNamespaces.find((candidate) => importMatches(pkg.ecosystem, imported.specifier, candidate));
+        if (!namespace)
+          continue;
+        declarations.push({
+          ecosystem: pkg.ecosystem,
+          lookup: `${pkg.ecosystem}:${pkg.ecosystem === "python" ? normalizePythonName(namespace) : namespace}`,
+          package: pkg.name,
+          evidence: { kind: "import", path: file.path, detail: `${file.path} imports ${imported.specifier}` }
+        });
+      }
+    }
+  }
+  return declarations;
+}
+function linkDependency(edges, diagnostics, packageIndex, consumerRepository, declaration) {
+  const candidates = (packageIndex.get(declaration.lookup) ?? []).filter((candidate) => candidate.repository !== consumerRepository);
+  const providers = [...new Map(candidates.map((candidate) => [candidate.repository, candidate])).values()];
+  if (providers.length !== 1) {
+    if (declaration.evidence.kind === "manifest")
+      diagnostics.push({
+        code: "unresolved-dependency",
+        severity: "info",
+        message: providers.length === 0 ? `${consumerRepository} declares ${declaration.package}, but no workspace repository provides it.` : `${consumerRepository} declares ${declaration.package}, but multiple workspace repositories provide it.`,
+        repositories: [consumerRepository, ...providers.map((provider2) => provider2.repository)].sort()
+      });
+    return;
+  }
+  const provider = providers[0];
+  const key2 = `${consumerRepository}\0${provider.repository}\0${provider.ecosystem}\0${provider.name}`;
+  const existing = edges.get(key2);
+  if (existing) {
+    if (!existing.evidence.some((evidence) => evidence.kind === declaration.evidence.kind && evidence.path === declaration.evidence.path && evidence.detail === declaration.evidence.detail)) {
+      existing.evidence.push(declaration.evidence);
+    }
+    if (!existing.requestedVersion && declaration.requestedVersion)
+      existing.requestedVersion = declaration.requestedVersion;
+    return;
+  }
+  edges.set(key2, {
+    consumerRepository,
+    providerRepository: provider.repository,
+    package: provider.name,
+    ecosystem: provider.ecosystem,
+    ...declaration.requestedVersion ? { requestedVersion: declaration.requestedVersion } : {},
+    evidence: [declaration.evidence]
+  });
+}
+function buildWorkspaceIdentityGraph(options, inputs, repositories, packages, dependencies, diagnostics) {
+  const repositoryById = new Map(repositories.map((repository) => [repository.id, repository]));
+  const inputById = new Map(inputs.map((input) => [input.id, input]));
+  const packageByProvider = new Map(packages.map((pkg) => [`${pkg.repository}\0${pkg.ecosystem}\0${pkg.name}`, pkg]));
+  const nodes = repositories.map((repository) => ({
+    id: repository.identity,
+    kind: "repository",
+    key: repository.id,
+    repository: repository.id,
+    attributes: {
+      ...repository.revision ? { revision: repository.revision } : {},
+      ...repository.remote ? { remote: repository.remote } : {},
+      relationship: repository.relationship.kind
+    },
+    derivedFrom: []
+  }));
+  const graphEdges = [];
+  for (const pkg of packages) {
+    const input = inputById.get(pkg.repository);
+    const source = workspaceSource(input, pkg.manifestPath);
+    nodes.push({
+      id: pkg.identity,
+      kind: "package",
+      key: `${pkg.ecosystem}:${pkg.name}`,
+      repository: pkg.repository,
+      parent: repositoryById.get(pkg.repository).identity,
+      label: pkg.name,
+      attributes: { ecosystem: pkg.ecosystem, ...pkg.version ? { version: pkg.version } : {} },
+      derivedFrom: [source]
+    });
+    graphEdges.push({
+      id: createGraphEdgeIdentity("contains", repositoryById.get(pkg.repository).identity, pkg.identity),
+      kind: "contains",
+      from: repositoryById.get(pkg.repository).identity,
+      to: pkg.identity,
+      confidence: "high",
+      reason: `${pkg.manifestPath} declares ${pkg.ecosystem} package ${pkg.name}.`,
+      derivedFrom: [source]
+    });
+  }
+  for (const repository of repositories) {
+    if (repository.relationship.kind !== "submodule" || !repository.relationship.parentRepository)
+      continue;
+    const parent = repositoryById.get(repository.relationship.parentRepository);
+    if (!parent)
+      continue;
+    graphEdges.push({
+      id: createGraphEdgeIdentity("contains", parent.identity, repository.identity),
+      kind: "contains",
+      from: parent.identity,
+      to: repository.identity,
+      confidence: "high",
+      reason: `${repository.id} is checked out as submodule ${repository.relationship.path ?? repository.id}.`,
+      derivedFrom: []
+    });
+  }
+  for (const dependency of dependencies) {
+    const consumer = repositoryById.get(dependency.consumerRepository);
+    const provider = packageByProvider.get(`${dependency.providerRepository}\0${dependency.ecosystem}\0${dependency.package}`);
+    const derivations = dependency.evidence.map((evidence) => workspaceSource(inputById.get(dependency.consumerRepository), evidence.path));
+    graphEdges.push({
+      id: dependency.identity,
+      kind: "depends-on",
+      from: consumer.identity,
+      to: provider.identity,
+      confidence: dependency.evidence.some((evidence) => evidence.kind === "manifest") ? "high" : "medium",
+      reason: `${dependency.consumerRepository} depends on ${dependency.package} from ${dependency.providerRepository}.`,
+      derivedFrom: derivations
+    });
+  }
+  nodes.push(...(options.identityNodes ?? []).map((entry2) => ({
+    ...entry2,
+    derivedFrom: entry2.derivedFrom.map((derivation) => ({ ...derivation }))
+  })));
+  graphEdges.push(...(options.identityEdges ?? []).map((entry2) => ({
+    ...entry2,
+    derivedFrom: entry2.derivedFrom.map((derivation) => ({ ...derivation }))
+  })));
+  for (const input of inputs) {
+    const files = new Map(input.repo.files.map((file) => [file.path, file]));
+    const ensureFile = (path) => {
+      const id = createGraphIdentity({ workspace: options.workspace, repository: input.id, kind: "file", key: path });
+      if (!nodes.some((node) => node.id === id))
+        nodes.push({
+          id,
+          kind: "file",
+          key: path,
+          repository: input.id,
+          parent: repositoryById.get(input.id).identity,
+          derivedFrom: [workspaceSource(input, path)]
+        });
+      return id;
+    };
+    const inventory = inventoryDecisionRecords(input.repo);
+    for (const diagnostic of inventory.diagnostics) {
+      diagnostics.push({ code: "decision-source-invalid", severity: diagnostic.severity, message: diagnostic.message, repositories: [input.id] });
+    }
+    for (const record3 of inventory.records) {
+      for (const target of record3.targets) {
+        const unresolved = (reason2) => {
+          diagnostics.push({
+            code: "decision-unresolved-target",
+            severity: "warning",
+            message: `${record3.path}: ${target.kind}:${target.kind === "file" ? target.path : target.name} has no rationale edge: ${reason2}.`,
+            repositories: [input.id]
+          });
+        };
+        let to;
+        let description;
+        let targetDerivation;
+        if (target.kind === "file") {
+          if (!files.get(target.path)?.contentFingerprint || target.path === record3.path) {
+            unresolved(target.path === record3.path ? "self-reference" : "missing file or exact source fingerprint");
+            continue;
+          }
+          to = ensureFile(target.path);
+          description = target.path;
+          targetDerivation = workspaceSource(input, target.path);
+        } else {
+          const candidates = nodes.filter((node) => node.repository === input.id && node.kind === target.kind && node.key === target.name && (target.kind !== "symbol" || !target.path || node.derivedFrom.some((source) => source.kind === "source" && source.repository === input.id && source.path === target.path && files.get(target.path)?.contentFingerprint === source.fingerprint)));
+          if (candidates.length !== 1) {
+            unresolved(candidates.length === 0 ? "no exact repository-local identity with matching provenance" : "ambiguous repository-local identities");
+            continue;
+          }
+          to = candidates[0].id;
+          description = `${target.kind}:${target.name}`;
+          targetDerivation = { kind: "node", id: to };
+        }
+        const from = ensureFile(record3.path);
+        const kind = target.evidence === "explicit" ? "rationale-for" : "mentions";
+        graphEdges.push({
+          id: createGraphEdgeIdentity(kind, from, to),
+          kind,
+          from,
+          to,
+          confidence: "high",
+          reason: target.evidence === "explicit" ? `${record3.path} explicitly declares authored scope for ${description}; decision status: ${record3.status}. This is not a code dependency or proof that the decision is enforced.` : `${record3.path} literally mentions ${description}; this does not establish authored scope or a code dependency.`,
+          derivedFrom: [workspaceSource(input, record3.path), targetDerivation]
+        });
+      }
+    }
+  }
+  return buildIdentityGraph({ workspace: options.workspace, nodes, edges: graphEdges });
+}
+function workspaceSource(input, path) {
+  const file = input.repo.files.find((candidate) => candidate.path === path);
+  if (!file)
+    throw new Error(`Workspace evidence references missing file ${input.id}:${path}.`);
+  if (!file.contentFingerprint) {
+    throw new Error(`Workspace evidence requires an exact content fingerprint for ${input.id}:${path}.`);
+  }
+  return {
+    kind: "source",
+    repository: input.id,
+    path,
+    fingerprint: file.contentFingerprint
+  };
+}
+function packageLookupKeys(pkg) {
+  const keys = [`${pkg.ecosystem}:${pkg.ecosystem === "python" ? normalizePythonName(pkg.name) : pkg.name}`];
+  for (const namespace of pkg.importNamespaces) {
+    keys.push(`${pkg.ecosystem}:${pkg.ecosystem === "python" ? normalizePythonName(namespace) : namespace}`);
+  }
+  return [...new Set(keys)];
+}
+function importMatches(ecosystem, source, namespace) {
+  if (ecosystem === "node")
+    return nodePackageName(source) === namespace;
+  if (ecosystem === "python")
+    return normalizePythonName(source.split(".")[0] ?? "") === normalizePythonName(namespace);
+  return source === namespace || source.startsWith(`${namespace}.`);
+}
+function nodePackageName(source) {
+  const parts = source.split("/");
+  return source.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0] ?? source;
+}
+function pythonNamespaces(files, directory) {
+  const prefix = directory ? `${directory}/` : "";
+  return [...new Set(files.flatMap((file) => {
+    if (!file.path.startsWith(prefix) || file.extension !== ".py")
+      return [];
+    const relative6 = file.path.slice(prefix.length);
+    const first = relative6.split("/")[0] ?? "";
+    if (!first || ["tests", "test", "scripts"].includes(first))
+      return [];
+    return [first.replace(/\.py$/, "")];
+  }))];
+}
+function javaPackages(files, directory) {
+  const prefix = directory ? `${directory}/` : "";
+  return [...new Set(files.flatMap((file) => {
+    if (!file.path.startsWith(prefix) || file.extension !== ".java")
+      return [];
+    const match = file.textSample.match(/\bpackage\s+([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*;/);
+    return match?.[1] ? [match[1]] : [];
+  }))];
+}
+function tomlProject(text2) {
+  const section2 = sectionText(text2, "project") || sectionText(text2, "tool.poetry");
+  const name = tomlScalar(section2, "name");
+  const version = tomlScalar(section2, "version");
+  return { ...name ? { name } : {}, ...version ? { version } : {} };
+}
+function tomlDependencies(text2) {
+  const results = [];
+  const project = sectionText(text2, "project");
+  const array2 = project.match(/(?:^|\n)\s*dependencies\s*=\s*\[([\s\S]*?)\]/i)?.[1] ?? "";
+  for (const match of array2.matchAll(/["']([^"']+)["']/g)) {
+    const raw = match[1]?.trim();
+    if (!raw)
+      continue;
+    const parsed2 = raw.match(/^([A-Za-z0-9_.-]+)(.*)$/);
+    if (parsed2?.[1])
+      results.push({ name: parsed2[1], ...parsed2[2]?.trim() ? { version: parsed2[2].trim() } : {}, raw });
+  }
+  const poetry = sectionText(text2, "tool.poetry.dependencies");
+  for (const match of poetry.matchAll(/^\s*([A-Za-z0-9_.-]+)\s*=\s*["']([^"']+)["']/gm)) {
+    if (match[1]?.toLowerCase() === "python")
+      continue;
+    if (match[1] && match[2])
+      results.push({ name: match[1], version: match[2], raw: `${match[1]} ${match[2]}` });
+  }
+  return results;
+}
+function mavenProject(text2) {
+  const withoutDependencies = text2.replace(/<dependencies\b[\s\S]*?<\/dependencies>/gi, "");
+  const groupId = xmlValue(withoutDependencies, "groupId");
+  const artifactId = xmlValue(withoutDependencies, "artifactId");
+  const version = xmlValue(withoutDependencies, "version");
+  return {
+    ...groupId ? { groupId } : {},
+    ...artifactId ? { artifactId } : {},
+    ...version ? { version } : {}
+  };
+}
+function mavenDependencies(text2) {
+  return [...text2.matchAll(/<dependency\b[^>]*>([\s\S]*?)<\/dependency>/gi)].flatMap((match) => {
+    const groupId = xmlValue(match[1] ?? "", "groupId");
+    const artifactId = xmlValue(match[1] ?? "", "artifactId");
+    if (!groupId || !artifactId)
+      return [];
+    const version = xmlValue(match[1] ?? "", "version");
+    return [{ groupId, artifactId, ...version ? { version } : {} }];
+  });
+}
+function sectionText(text2, section2) {
+  const escaped = section2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return text2.match(new RegExp(`(?:^|\\n)\\s*\\[${escaped}\\]\\s*\\n([\\s\\S]*?)(?=\\n\\s*\\[|$)`, "i"))?.[1] ?? "";
+}
+function tomlScalar(section2, key2) {
+  return section2.match(new RegExp(`(?:^|\\n)\\s*${key2}\\s*=\\s*["']([^"']+)["']`, "i"))?.[1]?.trim();
+}
+function xmlValue(text2, tag) {
+  return text2.match(new RegExp(`<${tag}\\b[^>]*>\\s*([^<]+?)\\s*</${tag}>`, "i"))?.[1]?.trim();
+}
+function parseJson2(text2) {
+  try {
+    const parsed2 = JSON.parse(text2);
+    return isRecord11(parsed2) ? parsed2 : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function stringValue(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function normalizePythonName(name) {
+  return name.toLowerCase().replace(/[-_.]+/g, "-");
+}
+function manifestDirectory(path) {
+  return path.split("/").slice(0, -1).join("/");
+}
+function validateRepositoryInputs(inputs) {
+  const ids = /* @__PURE__ */ new Set();
+  for (const input of inputs) {
+    if (!REPOSITORY_ID.test(input.id))
+      throw new Error(`Invalid workspace repository ID: ${input.id}`);
+    if (ids.has(input.id))
+      throw new Error(`Duplicate workspace repository ID: ${input.id}`);
+    ids.add(input.id);
+  }
+}
+function deduplicateDiagnostics2(diagnostics) {
+  const seen = /* @__PURE__ */ new Set();
+  return diagnostics.filter((diagnostic) => {
+    const key2 = `${diagnostic.code}\0${diagnostic.message}\0${diagnostic.repositories.join("\0")}`;
+    if (seen.has(key2))
+      return false;
+    seen.add(key2);
+    return true;
+  }).sort((a, b) => a.code.localeCompare(b.code) || a.message.localeCompare(b.message));
+}
+function isRecord11(candidate) {
+  return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
+}
+
+// packages/core/dist/verify.js
+function verifyPlan(report, repo, options = {}) {
+  const changed = repo.changedFiles;
+  const findings = [];
+  const fileByPath = new Map(repo.files.map((file) => [file.path, file]));
+  const plannedPaths = report.contextFiles.map((file) => file.path);
+  const missingPlanned = plannedPaths.filter((path) => !fileByPath.has(path));
+  const changedMissingPlanned = missingPlanned.filter((path) => changed.includes(path));
+  const unexplainedMissingPlanned = missingPlanned.filter((path) => !changed.includes(path));
+  if (plannedPaths.length > 0 && unexplainedMissingPlanned.length === plannedPaths.length) {
+    const mismatch = {
+      code: "plan-repository-mismatch",
+      severity: "error",
+      paths: plannedPaths.slice(0, 8),
+      message: `Verification was not attempted: none of the ${plannedPaths.length} planned files exist in ${repo.root}. This plan appears to be for a different repository or revision; check --repo or regenerate the plan against this checkout.`
+    };
+    return {
+      summary: `None of the ${plannedPaths.length} planned files exist in ${repo.root}; the plan and repository do not match.`,
+      changedFiles: changed,
+      findings: [mismatch],
+      diagnostics: repo.diagnostics
+    };
+  }
+  if (unexplainedMissingPlanned.length > 0) {
+    findings.push({
+      code: "plan-partially-stale",
+      severity: "warning",
+      paths: unexplainedMissingPlanned.slice(0, 8),
+      message: `${unexplainedMissingPlanned.length} of ${plannedPaths.length} planned paths no longer exist and are not explained by this diff. The plan may predate a rebase or rename; regenerate it before relying on the missing entries.`
+    });
+  }
+  if (changedMissingPlanned.length > 0) {
+    findings.push({
+      code: "planned-file-deleted",
+      severity: "info",
+      paths: changedMissingPlanned.slice(0, 8),
+      message: `${changedMissingPlanned.length === 1 ? "A planned file was" : `${changedMissingPlanned.length} planned files were`} removed by this diff. The deletion accounts for the missing path, so verification continued.`
+    });
+  }
+  if (changed.length === 0) {
+    return {
+      summary: "No changes to verify: the diff resolved to zero files.",
+      changedFiles: [],
+      findings,
+      diagnostics: repo.diagnostics
+    };
+  }
+  const planned = new Set(plannedPaths);
+  const isTest = (path) => fileByPath.get(path)?.isTest === true;
+  const maintainedStems = new Set(repo.files.filter((file) => file.isSource && !isGeneratedPath(file.path) && !isBackupPath(file.path)).map((file) => moduleStem(file.path)));
+  const tracked = new Set(repo.trackedFiles ?? []);
+  const discardedEdits = changed.filter((path) => isBackupPath(path) || isGeneratedPath(path) && maintainedStems.has(moduleStem(path)) && !tracked.has(path));
+  if (discardedEdits.length > 0) {
+    findings.push({
+      code: "edit-in-generated-location",
+      severity: "error",
+      paths: discardedEdits,
+      message: `${discardedEdits.length === 1 ? "A file was" : `${discardedEdits.length} files were`} edited in a generated or retired location. A build regenerates these, so the change will be lost. Edit the source they are produced from.`
+    });
+  }
+  const trackedGeneratedEdits = changed.filter((path) => isGeneratedPath(path) && maintainedStems.has(moduleStem(path)) && tracked.has(path));
+  if (trackedGeneratedEdits.length > 0) {
+    findings.push({
+      code: "tracked-generated-edit",
+      severity: "warning",
+      paths: trackedGeneratedEdits,
+      message: `${trackedGeneratedEdits.length === 1 ? "A committed generated artifact was" : `${trackedGeneratedEdits.length} committed generated artifacts were`} edited. Confirm the maintained source changed too and the artifact was rebuilt; tracked release artifacts are not treated as discarded edits.`
+    });
+  }
+  const unmapped = changed.filter((path) => !planned.has(path) && !isTest(path) && !discardedEdits.includes(path) && !trackedGeneratedEdits.includes(path) && fileByPath.get(path)?.isSource === true);
+  if (unmapped.length > 0) {
+    findings.push({
+      code: "unmapped-change",
+      severity: "warning",
+      paths: unmapped,
+      message: `${unmapped.length === 1 ? "One file" : `${unmapped.length} files`} changed that the plan did not rank. Either the task grew beyond the original description, or the ranking missed ${unmapped.length === 1 ? "it" : "them"}; worth checking which.`
+    });
+  }
+  const unscanned = changed.filter((path) => !fileByPath.has(path) && !planned.has(path));
+  if (unscanned.length > 0) {
+    findings.push({
+      code: "unscanned-change",
+      severity: "warning",
+      paths: unscanned,
+      message: `${unscanned.length === 1 ? "One changed path was" : `${unscanned.length} changed paths were`} outside the scanned file set. FixMap cannot judge whether the plan covered these changes; inspect scan-limit, sparse-checkout, binary, deletion, and exclusion diagnostics.`
+    });
+  }
+  const leading = report.contextFiles[0];
+  if (leading && !changed.includes(leading.path)) {
+    findings.push({
+      code: "leading-file-untouched",
+      severity: leading.confidence === "high" ? "warning" : "info",
+      paths: [leading.path],
+      message: `The highest-ranked file was not changed (${leading.confidence} confidence). That is expected if it was only read for context, and worth a second look if it was not opened at all.`
+    });
+  }
+  const changedSource = changed.filter((path) => !isTest(path) && !trackedGeneratedEdits.includes(path) && !discardedEdits.includes(path) && fileByPath.get(path)?.kind === "code");
+  const changedTests = changed.filter(isTest);
+  if (changedSource.length > 0 && changedTests.length === 0) {
+    const suggested = [...new Set(report.testRoutes.flatMap((route) => route.relatedFiles))].filter(isTest);
+    const anchors = suggested.length > 0 ? suggested : changedSource;
+    findings.push({
+      code: "no-test-changed",
+      severity: "warning",
+      paths: anchors,
+      message: suggested.length > 0 ? `Code changed but no test did. The plan routed ${suggested.length === 1 ? "this test" : "these tests"} as most related.` : report.testRoutes.length > 0 ? `Code changed but no test did. Run the routed ${report.testRoutes.length === 1 ? "command" : "commands"}: ${report.testRoutes.map((route) => route.command).join(", ")}.` : "Code changed but no test did, and the plan found no related test to point at."
+    });
+  }
+  const impact = buildImpactMap(repo, changed, report.testRoutes);
+  const highImpactOutsidePlan = impact.files.filter((entry2) => entry2.confidence === "high" && !planned.has(entry2.path) && !changed.includes(entry2.path) && !isTest(entry2.path));
+  if (highImpactOutsidePlan.length > 0) {
+    findings.push({
+      code: "impact-file-unreviewed",
+      severity: "info",
+      paths: highImpactOutsidePlan.slice(0, 8).map((entry2) => entry2.path),
+      message: `${highImpactOutsidePlan.length === 1 ? "One high-evidence impact file is" : `${highImpactOutsidePlan.length} high-evidence impact files are`} outside both the original plan and this diff. They are not required edits, but inspect the recorded import/history evidence before finishing.`
+    });
+  }
+  const plannedAreas = new Set(report.risks.map((risk) => risk.area));
+  const newRisks = buildRiskNotes(changed, changed).filter((risk) => !plannedAreas.has(risk.area));
+  for (const risk of newRisks) {
+    findings.push({
+      code: "new-risk-area",
+      severity: "warning",
+      paths: pathsForRiskArea(risk.area, changed),
+      message: `The change touches ${risk.area}, which the original plan did not flag: ${risk.reason}.`
+    });
+  }
+  let policy;
+  try {
+    const architecturePolicy = architecturePolicyFromRepo(repo);
+    if (architecturePolicy) {
+      policy = evaluateArchitecturePolicy(architecturePolicy, {
+        repo,
+        focusPaths: changed,
+        ...options.contractComparison ? { contractComparison: options.contractComparison } : {}
+      });
+      findings.push(...policy.findings.map(policyVerifyFinding));
+    }
+  } catch (error) {
+    findings.push({
+      code: "architecture-policy-invalid",
+      severity: "error",
+      paths: [".fixmap/policy.json"],
+      message: `.fixmap/policy.json was not applied: ${error instanceof Error ? error.message : String(error)}`
+    });
+  }
+  if (options.contractBaselineError)
+    findings.push({
+      code: "contract-baseline-unavailable",
+      severity: "warning",
+      paths: [".fixmap/policy.json"],
+      message: `Policy contract rules were not checked: ${options.contractBaselineError}`
+    });
+  const sensitiveData = options.sensitiveData ? buildReportSensitiveData(repo, /* @__PURE__ */ new Set([...reportPaths(report), ...changed, ...impact.files.map((file) => file.path)]), { compareWithDiff: true }) : void 0;
+  const sensitiveFinding = sensitiveData ? sensitiveDataVerifyFinding(sensitiveData) : void 0;
+  if (sensitiveFinding)
+    findings.push(sensitiveFinding);
+  return {
+    summary: buildVerifySummary(changed.length, findings),
+    changedFiles: changed,
+    findings,
+    diagnostics: repo.diagnostics,
+    impact,
+    narrative: buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy, options.workspace ? buildWorkspaceVerifyNarrative(options.workspace.map, options.workspace.repository, changed) : [], unmapped),
+    ...sensitiveData ? { sensitiveData } : {}
+  };
+}
+function policyVerifyFinding(finding) {
+  return {
+    code: finding.code === "boundary-violation" ? "architecture-boundary-violation" : finding.code === "required-test-missing" ? "architecture-required-test" : finding.code === "review-required" ? "architecture-review-required" : finding.code === "breaking-contract-allowed" ? "architecture-breaking-contract-allowed" : "architecture-breaking-contract",
+    severity: finding.severity,
+    paths: finding.paths,
+    message: finding.message
+  };
+}
+var POLICY_PHRASES = {
+  "boundary-violation": "is broken",
+  "required-test-missing": "wants a changed test",
+  "review-required": "asks for review",
+  "breaking-contract": "forbids this breaking contract change",
+  "breaking-contract-allowed": "allows this breaking contract change"
+};
+function buildVerifyNarrative(report, changed, changedSource, changedTests, impact, newRisks, policy, crossRepository = [], unmapped = []) {
+  const narrative = [];
+  if (changed.length > 0)
+    narrative.push({
+      classification: "observation",
+      text: `${changed.length} file${changed.length === 1 ? "" : "s"} changed: ${changed.slice(0, 8).join(", ")}${changed.length > 8 ? ", ..." : ""}.`,
+      evidence: changed.map((path) => ({ kind: "changed-file", path, detail: "Present in the resolved verification diff." }))
+    });
+  narrative.push(...crossRepository);
+  if (unmapped.length > 0)
+    narrative.push({
+      classification: "observation",
+      text: `The plan did not rank ${unmapped.slice(0, 8).join(", ")}${unmapped.length > 8 ? ", ..." : ""}, but the diff changes ${unmapped.length === 1 ? "it" : "them"}.`,
+      evidence: unmapped.map((path) => ({ kind: "changed-file", path, detail: "Changed source file absent from the saved plan." }))
+    });
+  for (const finding of policy?.findings ?? []) {
+    narrative.push({
+      classification: "observation",
+      text: `Architecture rule ${finding.ruleId} ${POLICY_PHRASES[finding.code]}: ${finding.message}`,
+      evidence: finding.evidence.map((entry2) => ({
+        kind: "architecture-policy",
+        ...entry2.path ? { path: entry2.path } : {},
+        ...entry2.relatedPath ? { relatedPath: entry2.relatedPath } : {},
+        detail: `${finding.ruleId}: ${entry2.kind}: ${entry2.detail}`,
+        sourceFingerprint: policy.policyFingerprint
+      }))
+    });
+  }
+  for (const file of impact.files.slice(0, 8)) {
+    const relationship = file.evidence[0];
+    if (!relationship)
+      continue;
+    narrative.push({
+      classification: relationship.kind === "co-change" ? "inference" : "observation",
+      text: `${file.path} is in the recalculated impact graph because ${relationship.reason}.`,
+      evidence: [{
+        kind: "impact-relationship",
+        path: relationship.seed,
+        relatedPath: file.path,
+        detail: `${relationship.kind}: ${relationship.reason}`
+      }]
+    });
+  }
+  if (changedSource.length > 0 && changedTests.length === 0 && report.testRoutes.length > 0) {
+    narrative.push({
+      classification: "observation",
+      text: `Source changed without a changed test; FixMap had routed ${report.testRoutes.map((route) => route.command).join(", ")}.`,
+      evidence: report.testRoutes.map((route) => ({
+        kind: "test-route",
+        ...route.relatedFiles[0] ? { path: route.relatedFiles[0] } : {},
+        detail: `${route.command}: ${route.reason}`
+      }))
+    });
+  }
+  for (const risk of newRisks)
+    narrative.push({
+      classification: "inference",
+      text: `The diff may introduce ${risk.area} risk: ${risk.reason}.`,
+      evidence: [{ kind: "risk-rule", detail: `${risk.severity} ${risk.area}: ${risk.reason}` }]
+    });
+  for (const assessment of report.annotations?.entries ?? []) {
+    const scope = assessment.annotation.scope;
+    const path = scope.kind === "file" || scope.kind === "symbol" || scope.kind === "contract" ? scope.path : void 0;
+    if (path && !changed.includes(path))
+      continue;
+    narrative.push({
+      classification: "observation",
+      text: `Repository annotation ${assessment.annotation.id} is ${assessment.status}: ${assessment.annotation.note}`,
+      evidence: [{
+        kind: "annotation",
+        ...path ? { path } : {},
+        detail: assessment.message,
+        sourceFingerprint: report.annotations.sourceFingerprint
+      }]
+    });
+  }
+  for (const decision of report.decisions ?? []) {
+    const targetPaths = decision.targets.flatMap((target) => target.kind === "file" ? [target.path] : target.kind === "symbol" && target.path ? [target.path] : []);
+    if (targetPaths.length > 0 && !targetPaths.some((path) => changed.includes(path)))
+      continue;
+    narrative.push({
+      classification: "observation",
+      text: `${decision.source ? `Local PR attribution (remote source unverified): ${decision.source.url}. ` : ""}${decision.path} records an ${decision.status} decision${decision.authoredStatus ? ` (authored status: ${JSON.stringify(decision.authoredStatus)})` : ""} relevant to this diff: ${decision.decision.replace(/\s+/g, " ").trim()}`,
+      evidence: [{
+        kind: "decision-record",
+        path: decision.path,
+        detail: decision.title,
+        sourceFingerprint: decision.sourceFingerprint
+      }]
+    });
+  }
+  return narrative.slice(0, 16);
+}
+function buildVerifySummary(changedCount, findings) {
+  const files = `${changedCount} changed ${changedCount === 1 ? "file" : "files"}`;
+  if (findings.length === 0) {
+    return `FixMap verified ${files} against the plan and found nothing to flag.`;
+  }
+  const errors = findings.filter((finding) => finding.severity === "error").length;
+  const warnings = findings.filter((finding) => finding.severity === "warning").length;
+  const counts = [
+    errors > 0 ? `${errors} ${errors === 1 ? "error" : "errors"}` : "",
+    warnings > 0 ? `${warnings} ${warnings === 1 ? "warning" : "warnings"}` : ""
+  ].filter(Boolean);
+  const tail = counts.length > 0 ? counts.join(" and ") : `${findings.length} note${findings.length === 1 ? "" : "s"}`;
+  return `FixMap verified ${files} against the plan and raised ${tail}.`;
+}
+function renderVerifyMarkdown(result) {
+  if (result.changedFiles.length === 0) {
+    return [
+      "# FixMap Verification",
+      "",
+      result.summary,
+      "",
+      "Nothing was compared against the plan. Run verify with a diff that contains the edit, such as `--diff HEAD~1...HEAD`.",
+      ""
+    ].join("\n");
+  }
+  const lines = ["# FixMap Verification", "", result.summary, "", "## Findings", ""];
+  if (result.findings.length === 0) {
+    lines.push("- None found");
+  } else {
+    for (const finding of result.findings) {
+      lines.push(`- **${finding.severity}** ${finding.message}`);
+      for (const path of finding.paths.slice(0, 8)) {
+        lines.push(`  - ${markdownCode(path)}`);
+      }
+    }
+  }
+  if (result.narrative && result.narrative.length > 0) {
+    lines.push("", result.findings.length > 0 ? "## Why This Diff Needs Attention" : "## What Changed", "");
+    for (const statement of result.narrative) {
+      lines.push(`- **${statement.classification}** ${statement.text}`);
+    }
+  }
+  lines.push("", "## Changed Files", "");
+  lines.push(...result.changedFiles.length > 0 ? result.changedFiles.map((path) => `- ${markdownCode(path)}`) : ["- None found"]);
+  if (result.impact) {
+    lines.push("", "## Recalculated Impact", "");
+    lines.push(...result.impact.files.length > 0 ? result.impact.files.map((file) => `- ${markdownCode(file.path)} (${file.confidence} confidence): ${file.evidence.map((entry2) => entry2.reason).join("; ")}`) : ["- None found"]);
+  }
+  if (result.sensitiveData)
+    lines.push(...renderSensitiveDataMarkdown(result.sensitiveData));
+  return `${lines.join("\n")}
+`;
+}
+
+// packages/core/dist/annotation-store.js
+import { mkdir as mkdir3, open as open2, readFile as readFile5, realpath as realpath3, rename as rename3, rm, stat as stat3, lstat as lstat2 } from "node:fs/promises";
+import { resolve as resolve6 } from "node:path";
+import { randomUUID as randomUUID3 } from "node:crypto";
+async function readAnnotationStore(repoRoot) {
+  return readStore(await annotationRoot(repoRoot));
+}
+async function updateAnnotationStore(repoRoot, update) {
+  const root = await annotationRoot(repoRoot);
+  return withStoreLock(root, async () => {
+    const updated = validateAnnotationStore(await update(await readStore(root)));
+    await writeStore(root, updated);
+    return updated;
+  });
+}
+async function annotationRoot(path) {
+  const root = await realpath3(path);
+  if (!(await stat3(root)).isDirectory())
+    throw new Error("Annotation repository must be a directory.");
+  return root;
+}
+async function readStore(repoRoot) {
+  await assertStoreBoundary(repoRoot);
+  const path = resolve6(repoRoot, ".fixmap", "annotations.json");
+  try {
+    return validateAnnotationStore(JSON.parse(await readFile5(path, "utf8")));
+  } catch (error) {
+    if (isNodeError(error, "ENOENT"))
+      return emptyAnnotationStore();
+    if (error instanceof SyntaxError)
+      throw new Error(`${path} is not valid JSON; repair it before adding annotations.`);
+    throw error;
+  }
+}
+async function writeStore(repoRoot, store) {
+  const directory = resolve6(repoRoot, ".fixmap");
+  await mkdir3(directory, { recursive: true });
+  await assertStoreBoundary(repoRoot);
+  const target = resolve6(directory, "annotations.json");
+  const temporary = resolve6(directory, `.annotations.${process.pid}.${randomUUID3()}.tmp`);
+  const handle = await open2(temporary, "wx", 384);
+  try {
+    await handle.writeFile(`${JSON.stringify(validateAnnotationStore(store), null, 2)}
+`, "utf8");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  try {
+    await rename3(temporary, target);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
+}
+async function withStoreLock(repoRoot, operation) {
+  await assertStoreBoundary(repoRoot);
+  const directory = resolve6(repoRoot, ".fixmap");
+  await mkdir3(directory, { recursive: true });
+  await assertStoreBoundary(repoRoot);
+  const lockPath = resolve6(directory, "annotations.lock");
+  let handle;
+  try {
+    handle = await open2(lockPath, "wx", 384);
+  } catch (error) {
+    if (!isNodeError(error, "EEXIST"))
+      throw error;
+    throw new Error("Another FixMap annotation update is in progress or left a lock. Retry after it finishes; if interrupted, confirm no annotation writer is running before manually removing .fixmap/annotations.lock.");
+  }
+  try {
+    await handle.writeFile(`${JSON.stringify({ pid: process.pid, createdAt: (/* @__PURE__ */ new Date()).toISOString() })}
+`, "utf8");
+    await handle.sync();
+    return await operation();
+  } finally {
+    try {
+      await handle.close();
+    } finally {
+      await rm(lockPath, { force: true });
+    }
+  }
+}
+async function assertStoreBoundary(repoRoot) {
+  const directory = resolve6(repoRoot, ".fixmap");
+  const directoryInfo = await lstat2(directory).catch((error) => {
+    if (isNodeError(error, "ENOENT"))
+      return void 0;
+    throw error;
+  });
+  if (!directoryInfo)
+    return;
+  if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || await realpath3(directory) !== directory) {
+    throw new Error("Annotation store directory must be a real repository-local .fixmap directory, not a link or junction.");
+  }
+  for (const name of ["annotations.json", "annotations.lock"]) {
+    const info = await lstat2(resolve6(directory, name)).catch((error) => {
+      if (isNodeError(error, "ENOENT"))
+        return void 0;
+      throw error;
+    });
+    if (info && (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1)) {
+      throw new Error("Annotation store and lock must be regular, unlinked repository-local files.");
+    }
+  }
+}
+function isNodeError(error, code) {
+  return error instanceof Error && "code" in error && error.code === code;
+}
+
+// packages/core/dist/intent-store.js
+var MAX_TTL_MINUTES = 7 * 24 * 60;
+
+// packages/core/dist/ownership.js
+var CODEOWNERS_PATHS = [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"];
+var MAX_RULES = 1e4;
+var MAX_HISTORY_COMMITS2 = 250;
+function routeReviewers(repo, input) {
+  if (!Number.isFinite(Date.parse(input.now)))
+    throw new Error("Review routing requires a valid assessment time.");
+  const changedPaths = normalizePaths(input.changedPaths ?? repo.changedFiles);
+  const diagnostics = [];
+  const accumulated = /* @__PURE__ */ new Map();
+  addCodeOwners(repo, changedPaths, accumulated, diagnostics);
+  addAnnotations(repo, changedPaths, input.now, accumulated, diagnostics);
+  addPolicy(repo, changedPaths, accumulated, diagnostics);
+  if (input.includeHistoryAuthors === false) {
+    diagnostics.push({ source: "git-history", severity: "info", message: "Commit-author suggestions were turned off; only CODEOWNERS, annotations, and architecture policy were used." });
+  } else {
+    addHistory(repo, changedPaths, accumulated, diagnostics);
+  }
+  const suggestions = [...accumulated].map(([reviewer, value]) => ({
+    reviewer,
+    confidence: value.confidence,
+    paths: [...value.paths].sort(),
+    evidence: value.evidence.sort(evidenceOrder),
+    availabilityInferred: false
+  })).sort((a, b) => confidenceOrder(a.confidence) - confidenceOrder(b.confidence) || a.reviewer.localeCompare(b.reviewer));
+  return { reviewRoutingVersion: 1, changedPaths, suggestions, diagnostics };
+}
+function addCodeOwners(repo, paths, accumulated, diagnostics) {
+  const source = CODEOWNERS_PATHS.map((path) => repo.files.find((file) => file.path === path)).find(Boolean);
+  if (!source)
+    return;
+  if (source.textSampleComplete === false || !source.contentFingerprint) {
+    diagnostics.push({ source: source.path, severity: "warning", message: `${source.path} is incomplete or lacks an exact fingerprint; CODEOWNERS routing was skipped.` });
+    return;
+  }
+  const parsed2 = parseCodeOwners(source.textSample);
+  diagnostics.push(...parsed2.diagnostics.map((message2) => ({ source: source.path, severity: "warning", message: message2 })));
+  for (const path of paths) {
+    const rule = [...parsed2.rules].reverse().find((candidate) => matchesCodeOwners(path, candidate.pattern));
+    if (!rule)
+      continue;
+    for (const owner of rule.owners)
+      add(accumulated, owner, "high", path, {
+        kind: "codeowners",
+        sourceFingerprint: source.contentFingerprint,
+        path: source.path,
+        line: rule.line,
+        detail: `${source.path}:${rule.line} assigns ${owner} through pattern ${rule.pattern}.`
+      });
+  }
+}
+function parseCodeOwners(content) {
+  const rules = [];
+  const diagnostics = [];
+  for (const [index, raw] of content.split(/\r?\n/).entries()) {
+    const lineNumber = index + 1;
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith("#"))
+      continue;
+    const tokens = trimmed.split(/\s+/);
+    const pattern = tokens.shift() ?? "";
+    const owners = [...new Set(tokens.filter(validOwner))].sort();
+    if (!pattern || pattern.startsWith("!") || pattern.includes("[") || owners.length === 0) {
+      diagnostics.push(`Ignored unsupported or ownerless CODEOWNERS rule at line ${lineNumber}.`);
+      continue;
+    }
+    if (rules.length >= MAX_RULES) {
+      diagnostics.push(`CODEOWNERS rules were bounded to ${MAX_RULES.toLocaleString()} entries.`);
+      break;
+    }
+    rules.push({ pattern, owners, line: lineNumber });
+  }
+  return { rules, diagnostics };
+}
+function matchesCodeOwners(path, pattern) {
+  try {
+    const normalized = pattern.startsWith("/") ? pattern.slice(1) : pattern;
+    return buildPathExcluder([normalized]).excludes(path);
+  } catch {
+    return false;
+  }
+}
+function addAnnotations(repo, paths, now, accumulated, diagnostics) {
+  const source = repo.files.find((file) => file.path === ".fixmap/annotations.json");
+  if (!source)
+    return;
+  if (source.textSampleComplete === false || !source.contentFingerprint) {
+    diagnostics.push({ source: source.path, severity: "warning", message: "Annotation owners were skipped because the store is incomplete or unversioned." });
+    return;
+  }
+  try {
+    const assessments = assessAnnotations(validateAnnotationStore(JSON.parse(source.textSample)), repo, { now });
+    for (const assessment of assessments) {
+      const annotation = assessment.annotation;
+      if (assessment.status !== "active" || !annotation.owner)
+        continue;
+      const scopePath2 = annotation.scope.kind === "file" || annotation.scope.kind === "symbol" || annotation.scope.kind === "contract" ? annotation.scope.path : void 0;
+      const matchedPaths = scopePath2 ? paths.filter((path) => path === scopePath2) : [];
+      for (const path of matchedPaths)
+        add(accumulated, annotation.owner, "high", path, {
+          kind: "annotation",
+          sourceFingerprint: source.contentFingerprint,
+          path: source.path,
+          detail: `${annotation.id} explicitly names ${annotation.owner} for ${path}.`
+        });
+    }
+  } catch (error) {
+    diagnostics.push({ source: source.path, severity: "warning", message: `Annotation owners were skipped: ${error instanceof Error ? error.message : String(error)}` });
+  }
+}
+function addPolicy(repo, paths, accumulated, diagnostics) {
+  try {
+    const policy = architecturePolicyFromRepo(repo);
+    if (!policy)
+      return;
+    const policyRepo = { ...repo, changedFiles: [...paths] };
+    const findings = evaluateArchitecturePolicy(policy, { repo: policyRepo, focusPaths: paths }).findings;
+    for (const finding of findings.filter((entry2) => entry2.code === "review-required")) {
+      for (const evidence of finding.evidence.filter((entry2) => entry2.kind === "reviewer")) {
+        for (const path of finding.paths)
+          add(accumulated, evidence.detail, "high", path, {
+            kind: "architecture-policy",
+            sourceFingerprint: policy.source.fingerprint,
+            path: policy.source.path,
+            detail: `${finding.ruleId} requires ${evidence.detail} for ${path}.`
+          });
+      }
+    }
+  } catch (error) {
+    diagnostics.push({ source: ".fixmap/policy.json", severity: "warning", message: `Policy reviewers were skipped: ${error instanceof Error ? error.message : String(error)}` });
+  }
+}
+function addHistory(repo, paths, accumulated, diagnostics) {
+  if (repo.history?.shallow) {
+    diagnostics.push({ source: "git-history", severity: "warning", message: "Commit history is shallow, so commit-author suggestions only reflect the commits present in this clone." });
+  } else if (repo.history?.truncated) {
+    diagnostics.push({ source: "git-history", severity: "info", message: `Commit-author suggestions use only the newest ${Math.min(repo.history.inspectedCommits, MAX_HISTORY_COMMITS2).toLocaleString()} non-merge commits.` });
+  }
+  for (const path of paths) {
+    const counts = /* @__PURE__ */ new Map();
+    for (const commit of (repo.history?.commits ?? []).slice(0, MAX_HISTORY_COMMITS2)) {
+      if (!commit.author || !commit.files.includes(path))
+        continue;
+      const previous = counts.get(commit.author);
+      counts.set(commit.author, {
+        count: (previous?.count ?? 0) + 1,
+        latest: Math.max(previous?.latest ?? 0, commit.committedAt),
+        hash: previous && previous.latest > commit.committedAt ? previous.hash : commit.hash
+      });
+    }
+    for (const [author, evidence] of [...counts].sort((a, b) => b[1].count - a[1].count || b[1].latest - a[1].latest || a[0].localeCompare(b[0])).slice(0, 3)) {
+      add(accumulated, author, "low", path, {
+        kind: "git-history",
+        sourceFingerprint: `git:${evidence.hash}`,
+        path,
+        detail: `${author} authored ${evidence.count} bounded non-merge commit${evidence.count === 1 ? "" : "s"} touching ${path}; current availability or employment is not inferred.`
+      });
+    }
+  }
+}
+function add(accumulated, reviewer, confidence, path, evidence) {
+  const identity = reviewer.trim();
+  if (!identity || identity.length > 200 || /[\0-\x1f\x7f]/.test(identity))
+    return;
+  const existing = accumulated.get(identity) ?? { confidence, paths: /* @__PURE__ */ new Set(), evidence: [] };
+  if (confidenceOrder(confidence) < confidenceOrder(existing.confidence))
+    existing.confidence = confidence;
+  existing.paths.add(path);
+  const routed = { ...evidence, changedPath: path };
+  if (!existing.evidence.some((entry2) => evidenceKey(entry2) === evidenceKey(routed)))
+    existing.evidence.push(routed);
+  accumulated.set(identity, existing);
+}
+function normalizePaths(values) {
+  const normalized = values.map((value) => value.replace(/\\/g, "/"));
+  const invalid = normalized.find((value) => !safePath2(value));
+  if (invalid !== void 0)
+    throw new Error(`Invalid review-routing path: ${String(invalid)}`);
+  return [...new Set(normalized)].sort();
+}
+function safePath2(value) {
+  return Boolean(value) && value.length <= 1e3 && !value.includes("\0") && !/^(?:[\/]|[A-Za-z]:)/.test(value) && value.split("/").every((part) => part && part !== "." && part !== "..");
+}
+function validOwner(value) {
+  return value.length <= 200 && (/^@[A-Za-z0-9][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9][A-Za-z0-9_.-]*)?$/.test(value) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
+}
+function evidenceKey(value) {
+  return `${value.kind}\0${value.sourceFingerprint}\0${value.path ?? ""}\0${value.line ?? ""}\0${value.changedPath ?? ""}\0${value.detail}`;
+}
+function evidenceOrder(a, b) {
+  return a.kind.localeCompare(b.kind) || (a.changedPath ?? "").localeCompare(b.changedPath ?? "") || (a.path ?? "").localeCompare(b.path ?? "") || (a.line ?? 0) - (b.line ?? 0);
+}
+function confidenceOrder(value) {
+  return value === "high" ? 0 : value === "medium" ? 1 : 2;
+}
+function withoutMentions(value) {
+  return value.replace(/(^|[^A-Za-z0-9_.+-])@+(?=[A-Za-z0-9])/g, "$1");
+}
+function reviewRoutingWithoutMentions(result) {
+  return {
+    ...result,
+    suggestions: result.suggestions.map((suggestion) => ({
+      ...suggestion,
+      reviewer: withoutMentions(suggestion.reviewer),
+      evidence: suggestion.evidence.map((entry2) => ({ ...entry2, detail: withoutMentions(entry2.detail) }))
+    })).sort((a, b) => confidenceOrder(a.confidence) - confidenceOrder(b.confidence) || a.reviewer.localeCompare(b.reviewer)),
+    diagnostics: result.diagnostics.map((entry2) => ({ ...entry2, message: withoutMentions(entry2.message) }))
+  };
+}
+
+// packages/core/dist/sandbox.js
+import { execFile as execFile5, spawn as spawn2 } from "node:child_process";
+import { promisify as promisify5 } from "node:util";
+var exec5 = promisify5(execFile5);
+var DEFAULT_LIMITS = {
+  timeoutMs: 5 * 6e4,
+  outputBytes: 1e6,
+  cpus: 1,
+  memoryMb: 1024,
+  pids: 256,
+  tmpfsMb: 256
+};
+
+// packages/core/dist/ci-matrix.js
+var DIMENSIONS = ["os", "runtime", "database", "browser", "feature-flag", "deployment"];
+var DIMENSION_SET = new Set(DIMENSIONS);
 
 // packages/core/dist/change-scope.js
 var MAX_ANCHORS = 64;
@@ -10297,7 +11340,7 @@ function validateFixMapReport(candidate, label) {
   }
   const versioned = record3.reportVersion === 1;
   const contextFiles = candidate.contextFiles;
-  const unsafeContextPath = contextFiles.findIndex((file) => isRecord11(file) && typeof file.path === "string" && file.path.trim().length > 0 && !isRepositoryRelativePath(file.path));
+  const unsafeContextPath = contextFiles.findIndex((file) => isRecord12(file) && typeof file.path === "string" && file.path.trim().length > 0 && !isRepositoryRelativePath(file.path));
   if (unsafeContextPath !== -1) {
     const path = contextFiles[unsafeContextPath].path;
     return {
@@ -10306,7 +11349,7 @@ function validateFixMapReport(candidate, label) {
     };
   }
   const invalid = contextFiles.findIndex((file) => {
-    if (!isRecord11(file))
+    if (!isRecord12(file))
       return true;
     const ranked = file;
     if (!isRepositoryRelativePath(ranked.path))
@@ -10349,7 +11392,7 @@ function validateFixMapReport(candidate, label) {
   }
   const testRoutes = record3.testRoutes;
   const invalidRoute = testRoutes.findIndex((route) => {
-    if (!isRecord11(route))
+    if (!isRecord12(route))
       return true;
     return typeof route.command !== "string" || !route.command.trim() || !isRepositoryRelativePathArray(route.relatedFiles) || (versioned || route.kind !== void 0) && route.kind !== "test" && route.kind !== "validation" || (versioned || route.reason !== void 0) && typeof route.reason !== "string";
   });
@@ -10361,7 +11404,7 @@ function validateFixMapReport(candidate, label) {
   }
   const risks = record3.risks;
   const invalidRisk = risks.findIndex((risk) => {
-    if (!isRecord11(risk))
+    if (!isRecord12(risk))
       return true;
     return typeof risk.area !== "string" || !risk.area.trim() || (versioned || risk.reason !== void 0) && typeof risk.reason !== "string" || (versioned || risk.severity !== void 0) && risk.severity !== "low" && risk.severity !== "medium" && risk.severity !== "high";
   });
@@ -10373,14 +11416,14 @@ function validateFixMapReport(candidate, label) {
   }
   if (record3.impact !== void 0) {
     const impact = record3.impact;
-    const history = isRecord11(impact) ? impact.history : void 0;
-    if (!isRecord11(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord11(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
+    const history = isRecord12(impact) ? impact.history : void 0;
+    if (!isRecord12(impact) || !isRepositoryRelativePathArray(impact.seeds) || !Array.isArray(impact.files) || !isRepositoryRelativePathArray(impact.inspectionOrder) || !isRecord12(history) || typeof history.available !== "boolean" || typeof history.eligibleCommits !== "number" || !Number.isSafeInteger(history.eligibleCommits) || history.eligibleCommits < 0 || typeof history.shallow !== "boolean" || typeof history.truncated !== "boolean") {
       return { success: false, message: `${label} has an invalid impact graph envelope.` };
     }
     const invalidImpact = impact.files.findIndex((file) => {
-      if (!isRecord11(file) || !isRepositoryRelativePath(file.path) || typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 || file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low" || !Array.isArray(file.evidence))
+      if (!isRecord12(file) || !isRepositoryRelativePath(file.path) || typeof file.score !== "number" || !Number.isFinite(file.score) || file.score < 0 || file.confidence !== "high" && file.confidence !== "medium" && file.confidence !== "low" || !Array.isArray(file.evidence))
         return true;
-      return file.evidence.some((evidence) => !isRecord11(evidence) || !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) || !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() || evidence.occurrences !== void 0 && (!Number.isSafeInteger(evidence.occurrences) || evidence.occurrences < 0) || evidence.seedChanges !== void 0 && (!Number.isSafeInteger(evidence.seedChanges) || evidence.seedChanges < 0));
+      return file.evidence.some((evidence) => !isRecord12(evidence) || !["imports", "imported-by", "co-change", "test-route"].includes(String(evidence.kind)) || !isRepositoryRelativePath(evidence.seed) || typeof evidence.reason !== "string" || !evidence.reason.trim() || evidence.occurrences !== void 0 && (!Number.isSafeInteger(evidence.occurrences) || evidence.occurrences < 0) || evidence.seedChanges !== void 0 && (!Number.isSafeInteger(evidence.seedChanges) || evidence.seedChanges < 0));
     });
     if (invalidImpact !== -1) {
       return { success: false, message: `${label} has an invalid impact.files entry at index ${invalidImpact}.` };
@@ -10389,7 +11432,7 @@ function validateFixMapReport(candidate, label) {
       const primaryPaths = new Set(contextFiles.map((file) => file.path));
       const seenEdges = /* @__PURE__ */ new Set();
       if (!Array.isArray(impact.primaryImports) || impact.primaryImports.some((edge) => {
-        if (!isRecord11(edge) || !isRepositoryRelativePath(edge.from) || !isRepositoryRelativePath(edge.to) || edge.from === edge.to || !primaryPaths.has(edge.from) || !primaryPaths.has(edge.to))
+        if (!isRecord12(edge) || !isRepositoryRelativePath(edge.from) || !isRepositoryRelativePath(edge.to) || edge.from === edge.to || !primaryPaths.has(edge.from) || !primaryPaths.has(edge.to))
           return true;
         const key2 = JSON.stringify([edge.from, edge.to]);
         if (seenEdges.has(key2))
@@ -10406,8 +11449,8 @@ function validateFixMapReport(candidate, label) {
   }
   if (record3.evidence !== void 0) {
     const evidence = record3.evidence;
-    const validSubject = (subject) => isRecord11(subject) && typeof subject.kind === "string" && (subject.path === void 0 || isRepositoryRelativePath(subject.path));
-    if (!isRecord11(evidence) || evidence.evidenceVersion !== 1 || typeof evidence.collectedAt !== "string" || !Array.isArray(evidence.sources) || !evidence.sources.every((source) => isRecord11(source) && typeof source.provider === "string" && typeof source.version === "string" && (source.documentSha256 === void 0 || typeof source.documentSha256 === "string" && /^[a-f0-9]{64}$/.test(source.documentSha256))) || !Array.isArray(evidence.items) || evidence.items.length > 50 || !evidence.items.every((item) => isRecord11(item) && typeof item.id === "string" && typeof item.summary === "string" && typeof item.kind === "string" && ["high", "medium", "low"].includes(String(item.confidence)) && isRecord11(item.provider) && Array.isArray(item.subjects) && item.subjects.length > 0 && item.subjects.every(validSubject)) || !Number.isSafeInteger(evidence.omittedItems) || evidence.omittedItems < 0 || !Array.isArray(evidence.diagnostics)) {
+    const validSubject = (subject) => isRecord12(subject) && typeof subject.kind === "string" && (subject.path === void 0 || isRepositoryRelativePath(subject.path));
+    if (!isRecord12(evidence) || evidence.evidenceVersion !== 1 || typeof evidence.collectedAt !== "string" || !Array.isArray(evidence.sources) || !evidence.sources.every((source) => isRecord12(source) && typeof source.provider === "string" && typeof source.version === "string" && (source.documentSha256 === void 0 || typeof source.documentSha256 === "string" && /^[a-f0-9]{64}$/.test(source.documentSha256))) || !Array.isArray(evidence.items) || evidence.items.length > 50 || !evidence.items.every((item) => isRecord12(item) && typeof item.id === "string" && typeof item.summary === "string" && typeof item.kind === "string" && ["high", "medium", "low"].includes(String(item.confidence)) && isRecord12(item.provider) && Array.isArray(item.subjects) && item.subjects.length > 0 && item.subjects.every(validSubject)) || !Number.isSafeInteger(evidence.omittedItems) || evidence.omittedItems < 0 || !Array.isArray(evidence.diagnostics)) {
       return { success: false, message: `${label} has invalid evidence; it needs evidenceVersion 1, sources, at most 50 items with safe repository-relative subjects, omittedItems, and diagnostics.` };
     }
   }
@@ -10419,17 +11462,17 @@ function validateFixMapReport(candidate, label) {
   }
   if (record3.languageAdapters !== void 0) {
     const adapters = record3.languageAdapters;
-    if (!Array.isArray(adapters) || adapters.length > 32 || !adapters.every((adapter) => isRecord11(adapter) && Object.keys(adapter).every((key2) => key2 === "id" || key2 === "version" || key2 === "extensions") && typeof adapter.id === "string" && /^custom:[a-z][a-z0-9-]{0,63}$/.test(adapter.id) && typeof adapter.version === "string" && /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(adapter.version) && Array.isArray(adapter.extensions) && adapter.extensions.length > 0 && adapter.extensions.length <= 32 && adapter.extensions.every((extension) => typeof extension === "string" && /^\.[a-z0-9][a-z0-9_-]{0,15}$/.test(extension)))) {
+    if (!Array.isArray(adapters) || adapters.length > 32 || !adapters.every((adapter) => isRecord12(adapter) && Object.keys(adapter).every((key2) => key2 === "id" || key2 === "version" || key2 === "extensions") && typeof adapter.id === "string" && /^custom:[a-z][a-z0-9-]{0,63}$/.test(adapter.id) && typeof adapter.version === "string" && /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(adapter.version) && Array.isArray(adapter.extensions) && adapter.extensions.length > 0 && adapter.extensions.length <= 32 && adapter.extensions.every((extension) => typeof extension === "string" && /^\.[a-z0-9][a-z0-9_-]{0,15}$/.test(extension)))) {
       return { success: false, message: `${label} has invalid languageAdapters; each entry needs a custom: id, a version, and lowercase extensions.` };
     }
   }
   if (record3.annotations !== void 0) {
     const annotations = record3.annotations;
-    if (!isRecord11(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) || !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) || !Array.isArray(annotations.entries)) {
+    if (!isRecord12(annotations) || typeof annotations.asOf !== "string" || !Number.isFinite(Date.parse(annotations.asOf)) || !isRepositoryRelativePath(annotations.sourcePath) || typeof annotations.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(annotations.sourceFingerprint) || !Array.isArray(annotations.entries)) {
       return { success: false, message: `${label} has an invalid annotations envelope.` };
     }
     const invalidAnnotation = annotations.entries.findIndex((assessment) => {
-      if (!isRecord11(assessment) || !isRecord11(assessment.annotation) || typeof assessment.message !== "string" || !["active", "expired", "missing-target", "renamed-target"].includes(String(assessment.status)) || assessment.suggestedPath !== void 0 && !isRepositoryRelativePath(assessment.suggestedPath))
+      if (!isRecord12(assessment) || !isRecord12(assessment.annotation) || typeof assessment.message !== "string" || !["active", "expired", "missing-target", "renamed-target"].includes(String(assessment.status)) || assessment.suggestedPath !== void 0 && !isRepositoryRelativePath(assessment.suggestedPath))
         return true;
       try {
         validateAnnotationStore({ annotationStoreVersion: 1, annotations: [assessment.annotation] });
@@ -10446,12 +11489,12 @@ function validateFixMapReport(candidate, label) {
     if (!Array.isArray(record3.decisions))
       return { success: false, message: `${label} has invalid decisions; expected an array.` };
     const invalidDecision = record3.decisions.findIndex((decision) => {
-      if (!isRecord11(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.authoredStatus !== void 0 && (typeof decision.authoredStatus !== "string" || !decision.authoredStatus.trim() || decision.authoredStatus.length > 500 || decision.authoredStatus.includes("\0")) || decision.consequences !== void 0 && typeof decision.consequences !== "string" || decision.dependencyRules !== void 0 && (!Array.isArray(decision.dependencyRules) || !decision.dependencyRules.every((rule) => isRecord11(rule) && typeof rule.from === "string" && rule.from.trim() && typeof rule.deny === "string" && rule.deny.trim())))
+      if (!isRecord12(decision) || typeof decision.id !== "string" || !/^decision:[a-f0-9]{16}$/.test(decision.id) || !isRepositoryRelativePath(decision.path) || typeof decision.title !== "string" || !decision.title.trim() || !["proposed", "accepted", "rejected", "deprecated", "superseded", "unknown"].includes(String(decision.status)) || typeof decision.decision !== "string" || !decision.decision.trim() || typeof decision.sourceFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(decision.sourceFingerprint) || !Array.isArray(decision.targets) || !Array.isArray(decision.supersedes) || !decision.supersedes.every((value) => typeof value === "string" && value.trim()) || decision.date !== void 0 && (typeof decision.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(decision.date)) || decision.context !== void 0 && typeof decision.context !== "string" || decision.authoredStatus !== void 0 && (typeof decision.authoredStatus !== "string" || !decision.authoredStatus.trim() || decision.authoredStatus.length > 500 || decision.authoredStatus.includes("\0")) || decision.consequences !== void 0 && typeof decision.consequences !== "string" || decision.dependencyRules !== void 0 && (!Array.isArray(decision.dependencyRules) || !decision.dependencyRules.every((rule) => isRecord12(rule) && typeof rule.from === "string" && rule.from.trim() && typeof rule.deny === "string" && rule.deny.trim())))
         return true;
-      if (decision.source !== void 0 && (!isRecord11(decision.source) || decision.source.kind !== "pull-request" || decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url)))
+      if (decision.source !== void 0 && (!isRecord12(decision.source) || decision.source.kind !== "pull-request" || decision.source.verification !== "unverified-local-attribution" || !isDecisionPullRequestUrl(decision.source.url)))
         return true;
       return decision.targets.some((target) => {
-        if (!isRecord11(target) || !["explicit", "literal-mention"].includes(String(target.evidence)))
+        if (!isRecord12(target) || !["explicit", "literal-mention"].includes(String(target.evidence)))
           return true;
         if (target.kind === "file")
           return !isRepositoryRelativePath(target.path);
@@ -10465,13 +11508,13 @@ function validateFixMapReport(candidate, label) {
   }
   if (record3.policy !== void 0) {
     const policy = record3.policy;
-    if (!isRecord11(policy) || typeof policy.policyFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
+    if (!isRecord12(policy) || typeof policy.policyFingerprint !== "string" || !/^(?:git|worktree):[a-f0-9]{40,64}$/i.test(policy.policyFingerprint) || !Array.isArray(policy.findings)) {
       return { success: false, message: `${label} has an invalid architecture policy envelope.` };
     }
     const invalidPolicyFinding = policy.findings.findIndex((finding) => {
-      if (!isRecord11(finding) || !["boundary-violation", "required-test-missing", "review-required", "breaking-contract"].includes(String(finding.code)) || !["info", "warning", "error"].includes(String(finding.severity)) || typeof finding.ruleId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(finding.ruleId) || typeof finding.message !== "string" || !finding.message.trim() || !isRepositoryRelativePathArray(finding.paths) || !Array.isArray(finding.evidence))
+      if (!isRecord12(finding) || !["boundary-violation", "required-test-missing", "review-required", "breaking-contract"].includes(String(finding.code)) || !["info", "warning", "error"].includes(String(finding.severity)) || typeof finding.ruleId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(finding.ruleId) || typeof finding.message !== "string" || !finding.message.trim() || !isRepositoryRelativePathArray(finding.paths) || !Array.isArray(finding.evidence))
         return true;
-      return finding.evidence.some((evidence) => !isRecord11(evidence) || !["import", "changed-file", "test-pattern", "reviewer", "contract-change", "decision-record"].includes(String(evidence.kind)) || typeof evidence.detail !== "string" || !evidence.detail.trim() || evidence.path !== void 0 && !isRepositoryRelativePath(evidence.path) || evidence.relatedPath !== void 0 && !isRepositoryRelativePath(evidence.relatedPath));
+      return finding.evidence.some((evidence) => !isRecord12(evidence) || !["import", "changed-file", "test-pattern", "reviewer", "contract-change", "decision-record"].includes(String(evidence.kind)) || typeof evidence.detail !== "string" || !evidence.detail.trim() || evidence.path !== void 0 && !isRepositoryRelativePath(evidence.path) || evidence.relatedPath !== void 0 && !isRepositoryRelativePath(evidence.relatedPath));
     });
     if (invalidPolicyFinding !== -1) {
       return { success: false, message: `${label} has an invalid architecture policy finding at index ${invalidPolicyFinding}.` };
@@ -10479,7 +11522,7 @@ function validateFixMapReport(candidate, label) {
   }
   const diagnostics = record3.diagnostics;
   const invalidDiagnostic = diagnostics.findIndex((diagnostic) => {
-    if (!isRecord11(diagnostic))
+    if (!isRecord12(diagnostic))
       return true;
     return typeof diagnostic.code !== "string" || !diagnostic.code.trim() || typeof diagnostic.message !== "string" || diagnostic.severity !== "info" && diagnostic.severity !== "warning" && diagnostic.severity !== "error" || diagnostic.paths !== void 0 && !isRepositoryRelativePathArray(diagnostic.paths);
   });
@@ -10491,21 +11534,21 @@ function validateFixMapReport(candidate, label) {
   }
   if (record3.analysis !== void 0) {
     const analysis = record3.analysis;
-    const grounding = isRecord11(analysis) ? analysis.grounding : void 0;
-    const specificity = isRecord11(grounding) ? grounding.specificity : void 0;
+    const grounding = isRecord12(analysis) ? analysis.grounding : void 0;
+    const specificity = isRecord12(grounding) ? grounding.specificity : void 0;
     if (specificity !== "anchored" && specificity !== "descriptive" && specificity !== "vague") {
       return {
         success: false,
         message: `${label} has invalid analysis.grounding.specificity; expected anchored, descriptive, or vague.`
       };
     }
-    if (!isRecord11(analysis) || !isRecord11(grounding) || !Array.isArray(grounding.identifiers) || !isStringArray(grounding.unresolvedIdentifiers) || !isStringArray(grounding.partiallyResolvedIdentifiers) || !isStringArray(grounding.unverifiedIdentifiers) || typeof grounding.scanComplete !== "boolean" || !isRecord11(analysis.ranking) || !isNullableFiniteNumber(analysis.ranking.topScore) || !isNullableFiniteNumber(analysis.ranking.runnerUpScore) || !isNullableFiniteNumber(analysis.ranking.topGap) || typeof analysis.ranking.clustered !== "boolean" || typeof analysis.nextAction !== "string") {
+    if (!isRecord12(analysis) || !isRecord12(grounding) || !Array.isArray(grounding.identifiers) || !isStringArray(grounding.unresolvedIdentifiers) || !isStringArray(grounding.partiallyResolvedIdentifiers) || !isStringArray(grounding.unverifiedIdentifiers) || typeof grounding.scanComplete !== "boolean" || !isRecord12(analysis.ranking) || !isNullableFiniteNumber(analysis.ranking.topScore) || !isNullableFiniteNumber(analysis.ranking.runnerUpScore) || !isNullableFiniteNumber(analysis.ranking.topGap) || typeof analysis.ranking.clustered !== "boolean" || typeof analysis.nextAction !== "string") {
       return {
         success: false,
         message: `${label} has incomplete or invalid analysis grounding, ranking, or nextAction fields.`
       };
     }
-    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord11(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isRepositoryRelativePathArray(identifier.matchedFiles));
+    const invalidIdentifier = grounding.identifiers.findIndex((identifier) => !isRecord12(identifier) || typeof identifier.identifier !== "string" || !identifier.identifier.trim() || !isIdentifierStatus(identifier.status) || !isRepositoryRelativePathArray(identifier.matchedFiles));
     if (invalidIdentifier !== -1) {
       return {
         success: false,
@@ -10514,15 +11557,15 @@ function validateFixMapReport(candidate, label) {
     }
     if (analysis.retrievalRanking !== void 0) {
       const retrievalRanking = analysis.retrievalRanking;
-      if (!isRecord11(retrievalRanking) || !isNullableFiniteNumber(retrievalRanking.topFusionScore) || !isNullableFiniteNumber(retrievalRanking.runnerUpFusionScore) || !isNullableFiniteNumber(retrievalRanking.topGap)) {
+      if (!isRecord12(retrievalRanking) || !isNullableFiniteNumber(retrievalRanking.topFusionScore) || !isNullableFiniteNumber(retrievalRanking.runnerUpFusionScore) || !isNullableFiniteNumber(retrievalRanking.topGap)) {
         return { success: false, message: `${label} has invalid analysis.retrievalRanking fields.` };
       }
     }
   }
   if (record3.retrieval !== void 0) {
     const retrieval = record3.retrieval;
-    const weights = isRecord11(retrieval) ? retrieval.weights : void 0;
-    if (!isRecord11(retrieval) || retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic" || !isRecord11(weights) || !isPositiveFiniteNumber(weights.structural) || !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) || !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
+    const weights = isRecord12(retrieval) ? retrieval.weights : void 0;
+    if (!isRecord12(retrieval) || retrieval.mode !== "structural-lexical" && retrieval.mode !== "structural-lexical-semantic" || !isRecord12(weights) || !isPositiveFiniteNumber(weights.structural) || !isPositiveFiniteNumber(weights.lexical) || !isPositiveFiniteNumber(weights.semantic) || !isPositiveFiniteNumber(weights.reciprocalRankConstant)) {
       return { success: false, message: `${label} has an invalid retrieval envelope.` };
     }
     if (retrieval.mode === "structural-lexical-semantic" && !isSemanticProvenance(retrieval.semantic)) {
@@ -10534,7 +11577,7 @@ function validateFixMapReport(candidate, label) {
   }
   return { success: true, report: candidate };
 }
-function isRecord11(candidate) {
+function isRecord12(candidate) {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
 function isStringArray(candidate) {
@@ -10550,7 +11593,7 @@ function isIdentifierStatus(candidate) {
   return candidate === "exact-definition" || candidate === "exact-text" || candidate === "partial-definition" || candidate === "not-found" || candidate === "unverified";
 }
 function isRetrievalSignal(candidate) {
-  if (!isRecord11(candidate))
+  if (!isRecord12(candidate))
     return false;
   const ranks = [candidate.structuralRank, candidate.lexicalRank, candidate.semanticRank];
   if (ranks.every((rank) => rank === void 0))
@@ -10562,7 +11605,7 @@ function isRetrievalSignal(candidate) {
   return candidate.semanticSimilarity === void 0 || typeof candidate.semanticSimilarity === "number" && Number.isFinite(candidate.semanticSimilarity) && candidate.semanticSimilarity >= -1 && candidate.semanticSimilarity <= 1;
 }
 function isSemanticProvenance(candidate) {
-  if (!isRecord11(candidate))
+  if (!isRecord12(candidate))
     return false;
   return typeof candidate.id === "string" && candidate.id.trim().length > 0 && typeof candidate.version === "string" && candidate.version.trim().length > 0 && typeof candidate.model === "string" && candidate.model.trim().length > 0 && typeof candidate.artifactHash === "string" && /^[a-f0-9]{64}$/.test(candidate.artifactHash) && typeof candidate.runtime === "string" && candidate.runtime.trim().length > 0 && Number.isSafeInteger(candidate.dimensions) && Number(candidate.dimensions) > 0 && (candidate.normalization === "l2" || candidate.normalization === "none") && typeof candidate.local === "boolean" && typeof candidate.cacheKey === "string" && candidate.cacheKey.trim().length > 0 && Number.isSafeInteger(candidate.indexedFiles) && Number(candidate.indexedFiles) >= 0 && Number.isSafeInteger(candidate.truncatedFiles) && Number(candidate.truncatedFiles) >= 0;
 }
@@ -10579,7 +11622,7 @@ var CAPABILITY_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 var MAX_CAPABILITIES = 256;
 var MAX_ANCHORS2 = 64;
 function validateCapabilityStore(candidate) {
-  if (!isRecord12(candidate) || candidate.capabilityStoreVersion !== 1 || typeof candidate.workspace !== "string" || typeof candidate.repository !== "string" || !Array.isArray(candidate.capabilities)) {
+  if (!isRecord13(candidate) || candidate.capabilityStoreVersion !== 1 || typeof candidate.workspace !== "string" || typeof candidate.repository !== "string" || !Array.isArray(candidate.capabilities)) {
     throw new Error("Capability store must be a version-1 object with workspace, repository, and capabilities fields.");
   }
   assertOnlyKeys(candidate, ["capabilityStoreVersion", "workspace", "repository", "capabilities"], "capability store");
@@ -10644,7 +11687,7 @@ function buildCapabilityMap(repo, input) {
   };
 }
 function validateDefinition(candidate, index) {
-  if (!isRecord12(candidate))
+  if (!isRecord13(candidate))
     throw new Error(`Capability at index ${index} must be an object.`);
   assertOnlyKeys(candidate, ["id", "name", "anchors", "traversal"], `capability at index ${index}`);
   if (typeof candidate.id !== "string" || !CAPABILITY_ID.test(candidate.id)) {
@@ -10673,7 +11716,7 @@ function validateDefinition(candidate, index) {
   };
 }
 function validateAnchor(candidate, capability, index) {
-  if (!isRecord12(candidate))
+  if (!isRecord13(candidate))
     throw new Error(`Capability ${capability} anchor at index ${index} must be an object.`);
   assertOnlyKeys(candidate, ["operation", "path"], `capability ${capability} anchor at index ${index}`);
   if (candidate.operation !== "touch" && candidate.operation !== "add") {
@@ -10685,7 +11728,7 @@ function validateAnchor(candidate, capability, index) {
   return { operation: candidate.operation, path };
 }
 function validateTraversal(candidate, capability) {
-  if (!isRecord12(candidate))
+  if (!isRecord13(candidate))
     throw new Error(`Capability ${capability} traversal must be an object.`);
   assertOnlyKeys(candidate, ["direction", "maxDepth", "maxNodes"], `capability ${capability} traversal`);
   const direction = candidate.direction;
@@ -10724,7 +11767,7 @@ function assertOnlyKeys(record3, allowed, label) {
   if (unknown.length > 0)
     throw new Error(`${label} has unknown field${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`);
 }
-function isRecord12(candidate) {
+function isRecord13(candidate) {
   return typeof candidate === "object" && candidate !== null && !Array.isArray(candidate);
 }
 
@@ -10743,12 +11786,12 @@ async function compareCapabilityRefs(input) {
   const to = capabilitySnapshot(historicalTo, id, input.asOf);
   const selected = comparePaths(from.map?.scope.selected ?? [], to.map?.scope.selected ?? []);
   const affected = comparePaths(from.map?.scope.affected ?? [], to.map?.scope.affected ?? []);
-  const contracts = compareEntities(from.map?.scope.contracts.map((entry2) => ({ id: entry2.id, fingerprint: `${entry2.sourceFingerprint}\0${canonicalize3(entry2.entries)}` })) ?? [], to.map?.scope.contracts.map((entry2) => ({ id: entry2.id, fingerprint: `${entry2.sourceFingerprint}\0${canonicalize3(entry2.entries)}` })) ?? []);
+  const contracts = compareEntities(from.map?.scope.contracts.map((entry2) => ({ id: entry2.id, fingerprint: `${entry2.sourceFingerprint}\0${canonicalize4(entry2.entries)}` })) ?? [], to.map?.scope.contracts.map((entry2) => ({ id: entry2.id, fingerprint: `${entry2.sourceFingerprint}\0${canonicalize4(entry2.entries)}` })) ?? []);
   const decisions = compareEntities(from.map?.scope.decisions.map((entry2) => ({ id: entry2.id, fingerprint: entry2.sourceFingerprint })) ?? [], to.map?.scope.decisions.map((entry2) => ({ id: entry2.id, fingerprint: entry2.sourceFingerprint })) ?? []);
   const testAssociations = compareEntities(from.testAssociations.map((entry2) => ({ id: entry2.path, fingerprint: entry2.sourceFingerprint })), to.testAssociations.map((entry2) => ({ id: entry2.path, fingerprint: entry2.sourceFingerprint })));
   const reviewers = compareEntities(reviewerEntities(from.map), reviewerEntities(to.map));
   const architectureFindings = compareEntities(findingEntities(from.map), findingEntities(to.map));
-  const definitionChanged = canonicalize3(from.capability ?? null) !== canonicalize3(to.capability ?? null);
+  const definitionChanged = canonicalize4(from.capability ?? null) !== canonicalize4(to.capability ?? null);
   const totalChanges = [selected, affected, contracts, decisions, testAssociations, reviewers, architectureFindings].reduce((total, diff) => total + diff.added.length + diff.removed.length + diff.modified.length, definitionChanged ? 1 : 0);
   return {
     capabilityHistoryVersion: 1,
@@ -10823,101 +11866,251 @@ function compareMaps(previous, current2) {
 function reviewerEntities(map) {
   return (map?.scope.reviewers ?? []).map((reviewer) => ({
     id: reviewer.reviewer,
-    fingerprint: canonicalize3({ paths: reviewer.paths, evidence: reviewer.evidence })
+    fingerprint: canonicalize4({ paths: reviewer.paths, evidence: reviewer.evidence })
   }));
 }
 function findingEntities(map) {
   return (map?.scope.architectureFindings ?? []).map((finding) => ({
     id: `${finding.ruleId}:${finding.code}:${finding.paths.join("|")}`,
-    fingerprint: canonicalize3(finding)
+    fingerprint: canonicalize4(finding)
   }));
 }
-function canonicalize3(value) {
+function canonicalize4(value) {
   if (Array.isArray(value))
-    return `[${value.map(canonicalize3).join(",")}]`;
+    return `[${value.map(canonicalize4).join(",")}]`;
   if (value && typeof value === "object") {
-    return `{${Object.entries(value).filter(([, entry2]) => entry2 !== void 0).sort(([left], [right]) => left.localeCompare(right)).map(([key2, entry2]) => `${JSON.stringify(key2)}:${canonicalize3(entry2)}`).join(",")}}`;
+    return `{${Object.entries(value).filter(([, entry2]) => entry2 !== void 0).sort(([left], [right]) => left.localeCompare(right)).map(([key2, entry2]) => `${JSON.stringify(key2)}:${canonicalize4(entry2)}`).join(",")}}`;
   }
   return JSON.stringify(value);
 }
 
-// packages/core/dist/contracts-repository.js
-import { execFile as execFile4 } from "node:child_process";
-import { relative as relative3, resolve as resolve5, sep as sep3 } from "node:path";
-import { promisify as promisify4 } from "node:util";
-var exec4 = promisify4(execFile4);
-var MAX_CONTRACT_BYTES = 2 * 1024 * 1024;
-var MAX_TREE_BYTES2 = 32 * 1024 * 1024;
-var MAX_TOTAL_BYTES = 64 * 1024 * 1024;
-var STRUCTURED_EXTENSION = /\.(?:json|ya?ml)$/i;
-async function inventoryContractsAtRef(input) {
-  const repoRoot = resolve5(input.repoRoot);
-  const requestedRef = validateRef(input.ref);
-  const commit = await resolveCommit(repoRoot, requestedRef);
-  const { stdout } = await exec4("git", ["ls-tree", "-r", "-z", "-l", "--full-tree", commit, "--"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    maxBuffer: MAX_TREE_BYTES2
+// packages/core/dist/workspace-config.js
+import { readFile as readFile6, realpath as realpath4 } from "node:fs/promises";
+import { homedir as homedir3 } from "node:os";
+import { dirname as dirname3, isAbsolute as isAbsolute3, resolve as resolve7 } from "node:path";
+var REPOSITORY_ID2 = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+var MAX_ALIASES = 256;
+var MAX_PACKAGE_NAME = 214;
+var MAX_REASON = 500;
+var ECOSYSTEMS = /* @__PURE__ */ new Set(["node", "python", "maven"]);
+var ALIAS_KEYS = /* @__PURE__ */ new Set(["consumer", "ecosystem", "package", "provider", "providerPackage", "reason"]);
+function parseWorkspaceConfig(value) {
+  if (!isRecord14(value))
+    throw new Error("Workspace config must be a JSON object.");
+  if (value.workspaceConfigVersion !== 1) {
+    throw new Error("Workspace config workspaceConfigVersion must be 1.");
+  }
+  const workspace = stringField(value.workspace, "workspace");
+  if (!Array.isArray(value.repositories) || value.repositories.length < 1 || value.repositories.length > 32) {
+    throw new Error("Workspace config repositories must contain 1-32 entries.");
+  }
+  const repositories = value.repositories.map((entry2, index) => {
+    if (!isRecord14(entry2))
+      throw new Error(`Workspace repository ${index + 1} must be an object.`);
+    const id = stringField(entry2.id, `repositories[${index}].id`);
+    if (!REPOSITORY_ID2.test(id))
+      throw new Error(`Invalid workspace repository ID: ${id}`);
+    const path = stringField(entry2.path, `repositories[${index}].path`);
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path)) {
+      throw new Error(`Workspace repository ${id} must use a local path, not a URL.`);
+    }
+    const relationship = parseRelationship(entry2.relationship, id);
+    return { id, path, ...relationship ? { relationship } : {} };
   });
-  const candidates = parseTree(stdout).filter((entry2) => entry2.mode !== "120000" && entry2.mode !== "160000").filter((entry2) => CONTRACT_PATH.test(entry2.path) || STRUCTURED_EXTENSION.test(entry2.path));
-  const diagnostics = [];
-  const readable = [];
-  let totalBytes = 0;
-  for (const entry2 of candidates) {
-    if (entry2.size <= MAX_CONTRACT_BYTES && totalBytes + entry2.size <= MAX_TOTAL_BYTES) {
-      readable.push(entry2);
-      totalBytes += entry2.size;
-    } else if (CONTRACT_PATH.test(entry2.path)) {
-      diagnostics.push(unread(entry2.path));
-    }
-  }
-  const blobs = await readBlobs(repoRoot, readable);
-  const sources = [];
-  for (const entry2 of readable) {
-    const byPath = CONTRACT_PATH.test(entry2.path);
-    const content = decodeUtf8(blobs.get(entry2.oid));
-    if (content === void 0) {
-      if (byPath)
-        diagnostics.push(unread(entry2.path));
-      continue;
-    }
-    if (!byPath && !isContractCandidate(entry2.path, content))
-      continue;
-    sources.push({ path: entry2.path, content, fingerprint: `git:${entry2.oid}` });
-  }
-  return { requestedRef, commit, inventory: inventoryContracts(sources, diagnostics) };
+  const aliases = value.aliases === void 0 ? void 0 : parseAliases(value.aliases, new Set(repositories.map((entry2) => entry2.id)));
+  return { workspaceConfigVersion: 1, workspace, repositories, ...aliases ? { aliases } : {} };
 }
-async function compareContractRefs(input) {
-  const [from, to] = await Promise.all([
-    inventoryContractsAtRef({ repoRoot: input.repoRoot, ref: input.fromRef }),
-    inventoryContractsAtRef({ repoRoot: input.repoRoot, ref: input.toRef })
-  ]);
-  return {
-    contractDiffVersion: 1,
-    from: { requestedRef: from.requestedRef, commit: from.commit },
-    to: { requestedRef: to.requestedRef, commit: to.commit },
-    comparison: compareContractInventories(from.inventory, to.inventory)
-  };
+function parseAliases(value, repositoryIds) {
+  if (!Array.isArray(value) || value.length > MAX_ALIASES) {
+    throw new Error(`Workspace config aliases must be an array of at most ${MAX_ALIASES} entries.`);
+  }
+  const seen = /* @__PURE__ */ new Set();
+  return value.map((entry2, index) => {
+    const where = `aliases[${index}]`;
+    if (!isRecord14(entry2))
+      throw new Error(`Workspace config ${where} must be an object.`);
+    const unknown = Object.keys(entry2).filter((key3) => !ALIAS_KEYS.has(key3));
+    if (unknown.length > 0)
+      throw new Error(`Workspace config ${where} has unknown field${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`);
+    const consumer = stringField(entry2.consumer, `${where}.consumer`);
+    const provider = stringField(entry2.provider, `${where}.provider`);
+    for (const [field, id] of [["consumer", consumer], ["provider", provider]]) {
+      if (!repositoryIds.has(id))
+        throw new Error(`Workspace config ${where}.${field} names unknown repository ${id}.`);
+    }
+    if (consumer === provider)
+      throw new Error(`Workspace config ${where} must link two different repositories.`);
+    if (typeof entry2.ecosystem !== "string" || !ECOSYSTEMS.has(entry2.ecosystem)) {
+      throw new Error(`Workspace config ${where}.ecosystem must be node, python, or maven.`);
+    }
+    const ecosystem = entry2.ecosystem;
+    const pkg = packageName(entry2.package, `${where}.package`);
+    const providerPackage = packageName(entry2.providerPackage, `${where}.providerPackage`);
+    const reason2 = stringField(entry2.reason, `${where}.reason`);
+    if (reason2.length > MAX_REASON || /[\u0000-\u001f\u007f]/.test(reason2)) {
+      throw new Error(`Workspace config ${where}.reason must be one line of at most ${MAX_REASON} characters.`);
+    }
+    const key2 = `${consumer}\0${ecosystem}\0${pkg}`;
+    if (seen.has(key2))
+      throw new Error(`Workspace config ${where} repeats the alias for ${consumer} ${ecosystem}:${pkg}.`);
+    seen.add(key2);
+    return { consumer, ecosystem, package: pkg, provider, providerPackage, reason: reason2 };
+  });
 }
-function decodeUtf8(bytes) {
-  if (!bytes)
+function packageName(value, name) {
+  const text2 = stringField(value, name);
+  if (text2.length > MAX_PACKAGE_NAME || /[\s\u0000-\u001f\u007f`\\]/.test(text2) || text2.includes("..")) {
+    throw new Error(`Workspace config ${name} must be a package name of at most ${MAX_PACKAGE_NAME} characters without whitespace, backslashes, or "..".`);
+  }
+  return text2;
+}
+function parseRelationship(value, repository) {
+  if (value === void 0)
     return void 0;
+  if (!isRecord14(value) || value.kind !== "checkout" && value.kind !== "submodule") {
+    throw new Error(`Workspace repository ${repository} relationship.kind must be checkout or submodule.`);
+  }
+  if (value.kind === "checkout")
+    return { kind: "checkout" };
+  const parentRepository = stringField(value.parentRepository, `${repository}.relationship.parentRepository`);
+  const path = typeof value.path === "string" && value.path.trim() ? value.path.trim() : void 0;
+  return { kind: "submodule", parentRepository, ...path ? { path } : {} };
+}
+async function resolveWorkspaceRepositories(repositories, configDirectory) {
+  const ids = /* @__PURE__ */ new Set();
+  const roots = /* @__PURE__ */ new Map();
+  const resolved = [];
+  for (const config of repositories) {
+    if (ids.has(config.id))
+      throw new Error(`Duplicate workspace repository ID: ${config.id}`);
+    ids.add(config.id);
+    const literal = expandHomePath(config.path);
+    const root = resolve7(isAbsolute3(literal) ? literal : resolve7(configDirectory, literal));
+    let canonical;
+    try {
+      canonical = await realpath4(root);
+    } catch (error) {
+      const code = error.code;
+      throw new Error(`Workspace repository ${config.id} could not be opened at "${root}": ${code === "ENOENT" ? "no such file or directory" : error instanceof Error ? error.message : String(error)}`);
+    }
+    const key2 = pathKey(canonical);
+    const collision = roots.get(key2);
+    if (collision)
+      throw new Error(`Workspace repositories ${collision} and ${config.id} resolve to the same checkout.`);
+    roots.set(key2, config.id);
+    resolved.push({ config, root: canonical });
+  }
+  return resolved;
+}
+async function loadWorkspaceConfig(configPath, options = {}) {
+  let raw;
   try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    raw = JSON.parse((await readFile6(configPath, "utf8")).replace(/^﻿/, ""));
+  } catch (error) {
+    throw new Error(`Could not read workspace config "${configPath}": ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const config = parseWorkspaceConfig(raw);
+  const resolved = await resolveWorkspaceRepositories(config.repositories, dirname3(resolve7(configPath)));
+  const scan = options.scanRepository ?? scanRepo;
+  const scanned = [];
+  for (const entry2 of resolved) {
+    const repo = await scan({ repoRoot: entry2.root, includeHistory: false, useCache: options.useCache ?? true });
+    assertWorkspaceScan(entry2.config.id, repo);
+    scanned.push({ id: entry2.config.id, root: entry2.root, repo, relationship: entry2.config.relationship });
+  }
+  const map = buildWorkspaceMap(scanned.map((entry2) => ({ id: entry2.id, repo: entry2.repo, relationship: entry2.relationship ?? { kind: "checkout" } })), { workspace: config.workspace, ...config.aliases ? { aliases: config.aliases } : {} });
+  return { config, repositories: resolved.map((entry2) => ({ id: entry2.config.id, root: entry2.root })), map };
+}
+function assertWorkspaceScan(repository, repo) {
+  const error = repo.diagnostics.find((diagnostic) => diagnostic.severity === "error");
+  if (error)
+    throw new Error(`Workspace repository ${repository} could not be scanned: ${error.message}`);
+  if (repo.files.length === 0)
+    throw new Error(`Workspace repository ${repository} contains no scannable files.`);
+}
+async function findWorkspaceRepository(loaded, repoRoot) {
+  let canonical;
+  try {
+    canonical = await realpath4(resolve7(repoRoot));
   } catch {
     return void 0;
   }
+  return loaded.repositories.find((entry2) => pathKey(entry2.root) === pathKey(canonical))?.id;
 }
-function unread(path) {
-  return {
-    code: "contract-source-incomplete",
-    severity: "warning",
-    path,
-    message: `${path} looks like a contract, but it is larger than ${MAX_CONTRACT_BYTES / 1024 / 1024} MB, not UTF-8 text, or unreadable, so FixMap did not parse it.`
-  };
+function pathKey(path) {
+  return process.platform === "win32" ? path.toLowerCase() : path;
+}
+function expandHomePath(value) {
+  if (value === "~")
+    return homedir3();
+  if (value.startsWith("~/") || value.startsWith("~\\"))
+    return resolve7(homedir3(), value.slice(2));
+  return value;
+}
+function stringField(value, name) {
+  if (typeof value !== "string" || !value.trim())
+    throw new Error(`Workspace config ${name} must be a non-blank string.`);
+  return value.trim();
+}
+function isRecord14(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// packages/action/src/workspace-section.ts
+var WORKSPACE_STATEMENT_LIMIT = 8;
+function resolveWorkspaceInput(raw, repoRoot, jobRoot = repoRoot) {
+  const value = raw?.trim();
+  if (!value) return void 0;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) throw new Error("workspace must be a path to a workspace config file in the job workspace, not a URL.");
+  const path = resolve8(repoRoot, value);
+  const offset = relative4(resolve8(jobRoot), path);
+  if (offset === "" || offset.startsWith("..") || isAbsolute4(offset)) {
+    throw new Error("workspace must name a config file inside the job workspace.");
+  }
+  return path;
+}
+async function buildWorkspaceSection(configPath, context) {
+  const loaded = await (context.loadWorkspace ?? loadWorkspaceConfig)(configPath, { useCache: context.useCache });
+  const repository = await findWorkspaceRepository(loaded, context.repoRoot);
+  if (!repository) {
+    throw new Error("workspace config does not list this checkout; add its path so FixMap can trace what depends on it.");
+  }
+  const statements = buildWorkspaceVerifyNarrative(loaded.map, repository, context.changedPaths);
+  const lines = [
+    "## Cross-repository impact (preview)",
+    "",
+    `Workspace ${markdownCode2(loaded.map.workspace)}, this checkout ${markdownCode2(repository)}, ${count2(loaded.map.repositories.length, "repository", "repositories")}, ${count2(loaded.map.dependencies.length, "cross-repository dependency", "cross-repository dependencies")}.`,
+    ""
+  ];
+  if (context.changedPaths.length === 0) {
+    lines.push("- No changed files to trace.");
+  } else if (statements.length === 0) {
+    lines.push("- No other workspace checkout consumes a package this pull request changes.");
+  } else {
+    for (const statement of statements.slice(0, WORKSPACE_STATEMENT_LIMIT)) {
+      const source = statement.evidence.find((entry2) => entry2.kind === "cross-repository");
+      lines.push(`- **${statement.classification}** ${safeText(statement.text)}${source?.path ? ` (evidence: ${markdownCode2(source.path)})` : ""}`);
+    }
+  }
+  return `${lines.join("\n")}
+`;
+}
+function safeText(text2) {
+  return text2.split(/(@[A-Za-z0-9][\w.-]*\/[\w.-]+)/g).map((part, index) => index % 2 === 1 ? markdownCode2(part) : withoutMentions(part).replace(/[\\`*_[\]<>|]/g, (character) => `\\${character}`)).join("");
+}
+function count2(value, one, many) {
+  return `${value.toLocaleString()} ${value === 1 ? one : many}`;
+}
+function markdownCode2(value) {
+  const longestRun = Math.max(0, ...(value.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = "`".repeat(longestRun + 1);
+  const pad = /^[` ]|[` ]$/.test(value) ? " " : "";
+  return `${fence}${pad}${value}${pad}${fence}`;
 }
 
 // packages/action/src/annotations.ts
+import { realpath as realpath5, stat as stat4 } from "node:fs/promises";
+import { isAbsolute as isAbsolute5, relative as relative5, resolve as resolve9 } from "node:path";
 async function runAnnotationAction(input, repoRoot, allowWrite) {
   if (Buffer.byteLength(input, "utf8") > 32768) throw new Error("annotation-request exceeds 32 KiB.");
   let request;
@@ -10958,10 +12151,10 @@ async function runAnnotationAction(input, repoRoot, allowWrite) {
     ...request.expiresAt !== void 0 ? { expiresAt: request.expiresAt } : {}
   });
   if ("path" in annotation.scope && annotation.scope.path) {
-    const root = await realpath3(repoRoot);
-    const target = await realpath3(resolve6(root, annotation.scope.path));
-    const inside = relative4(root, target);
-    if (!inside || isAbsolute3(inside) || inside === ".." || inside.startsWith("../") || inside.startsWith("..\\") || !(await stat4(target)).isFile()) {
+    const root = await realpath5(repoRoot);
+    const target = await realpath5(resolve9(root, annotation.scope.path));
+    const inside = relative5(root, target);
+    if (!inside || isAbsolute5(inside) || inside === ".." || inside.startsWith("../") || inside.startsWith("..\\") || !(await stat4(target)).isFile()) {
       throw new Error("Annotation target must be an existing file inside the checkout.");
     }
   }
@@ -10975,7 +12168,7 @@ function record2(value) {
 
 // packages/action/src/runner.ts
 import { appendFileSync, readFileSync, statSync } from "node:fs";
-import { resolve as resolve7 } from "node:path";
+import { resolve as resolve10 } from "node:path";
 
 // packages/action/src/github.ts
 var FIXMAP_REPORT_MARKER = "<!-- fixmap-report -->";
@@ -11159,7 +12352,7 @@ function renderChangeScopeSection(scope, heading = "## Change scope (preview)") 
   ];
   if (scope.affected.length > 0) {
     lines.push("Top affected paths:", "");
-    lines.push(...scope.affected.slice(0, SECTION_PATH_LIMIT).map((entry2) => `- ${markdownCode2(entry2.path)} (distance ${entry2.distance})`));
+    lines.push(...scope.affected.slice(0, SECTION_PATH_LIMIT).map((entry2) => `- ${markdownCode3(entry2.path)} (distance ${entry2.distance})`));
     if (scope.affected.length > SECTION_PATH_LIMIT) {
       lines.push(`- \u2026and ${(scope.affected.length - SECTION_PATH_LIMIT).toLocaleString()} more`);
     }
@@ -11167,7 +12360,7 @@ function renderChangeScopeSection(scope, heading = "## Change scope (preview)") 
   }
   if (unresolved.length > 0) {
     lines.push("Unresolved anchors:", "");
-    lines.push(...unresolved.slice(0, SECTION_PATH_LIMIT).map((anchor) => `- ${anchor.operation} ${markdownCode2(anchor.path)}`));
+    lines.push(...unresolved.slice(0, SECTION_PATH_LIMIT).map((anchor) => `- ${anchor.operation} ${markdownCode3(anchor.path)}`));
     if (unresolved.length > SECTION_PATH_LIMIT) {
       lines.push(`- \u2026and ${(unresolved.length - SECTION_PATH_LIMIT).toLocaleString()} more`);
     }
@@ -11180,7 +12373,7 @@ function renderChangeScopeSection(scope, heading = "## Change scope (preview)") 
   return lines.join("\n");
 }
 async function buildCapabilitySection(repo, id, context) {
-  const heading = `## Capability (preview): ${markdownCode2(id)}`;
+  const heading = `## Capability (preview): ${markdownCode3(id)}`;
   let storePresent;
   try {
     storePresent = capabilityStoreFromRepo(repo) !== void 0;
@@ -11210,7 +12403,7 @@ async function buildCapabilitySection(repo, id, context) {
   }
   if (map) {
     lines.push(
-      `**${escapeMarkdown(map.capability.name)}**, defined in ${markdownCode2(map.source.path)} (${map.source.fingerprint}).`,
+      `**${escapeMarkdown(map.capability.name)}**, defined in ${markdownCode3(map.source.path)} (${map.source.fingerprint}).`,
       "",
       renderChangeScopeSection(map.scope, "### Current map").trimEnd(),
       ""
@@ -11243,8 +12436,8 @@ function renderCapabilityDiffSection(diff) {
     "",
     diff.summary,
     "",
-    `- Base ${markdownCode2(diff.from.requestedRef)}: ${diff.from.state}`,
-    `- Head ${markdownCode2(diff.to.requestedRef)}: ${diff.to.state}`,
+    `- Base ${markdownCode3(diff.from.requestedRef)}: ${diff.from.state}`,
+    `- Head ${markdownCode3(diff.to.requestedRef)}: ${diff.to.state}`,
     `- Definition changed: ${diff.definitionChanged ? "yes" : "no"}`
   ];
   const categories2 = [
@@ -11261,10 +12454,10 @@ function renderCapabilityDiffSection(diff) {
     lines.push(`- ${label}: +${entry2.added.length} \u2212${entry2.removed.length} ~${entry2.modified.length}`);
   }
   const pathChanges = [
-    ...diff.selected.added.map((path) => `added selected ${markdownCode2(path)}`),
-    ...diff.selected.removed.map((path) => `removed selected ${markdownCode2(path)}`),
-    ...diff.affected.added.map((path) => `added affected ${markdownCode2(path)}`),
-    ...diff.affected.removed.map((path) => `removed affected ${markdownCode2(path)}`)
+    ...diff.selected.added.map((path) => `added selected ${markdownCode3(path)}`),
+    ...diff.selected.removed.map((path) => `removed selected ${markdownCode3(path)}`),
+    ...diff.affected.added.map((path) => `added affected ${markdownCode3(path)}`),
+    ...diff.affected.removed.map((path) => `removed affected ${markdownCode3(path)}`)
   ];
   if (pathChanges.length > 0) {
     lines.push("", "Path changes:", "", ...pathChanges.slice(0, SECTION_PATH_LIMIT).map((entry2) => `- ${entry2}`));
@@ -11280,7 +12473,7 @@ function renderCapabilityDiffSection(diff) {
 function repositoryId(value) {
   return value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "").slice(0, 64) || "repository";
 }
-function markdownCode2(value) {
+function markdownCode3(value) {
   const longestRun = Math.max(0, ...[...value.matchAll(/`+/g)].map((match) => match[0].length));
   const fence = "`".repeat(longestRun + 1);
   const pad = /^[` ]|[` ]$/.test(value) ? " " : "";
@@ -11375,22 +12568,22 @@ async function buildReviewSections(request, context) {
 var COMPATIBILITY_ORDER = { breaking: 0, unknown: 1, compatible: 2 };
 function renderContractSection(result) {
   const { changes } = result.comparison;
-  const count2 = (compatibility) => changes.filter((change) => change.compatibility === compatibility).length;
+  const count3 = (compatibility) => changes.filter((change) => change.compatibility === compatibility).length;
   const lines = [
     "## Contract changes (preview)",
     "",
     // Reasons quote contract text, where a GraphQL directive such as `@deprecated` would mention someone.
     withoutMentions(result.comparison.summary),
     "",
-    `- Breaking: ${count2("breaking").toLocaleString()}`,
-    `- Unknown: ${count2("unknown").toLocaleString()}`,
-    `- Compatible: ${count2("compatible").toLocaleString()}`,
+    `- Breaking: ${count3("breaking").toLocaleString()}`,
+    `- Unknown: ${count3("unknown").toLocaleString()}`,
+    `- Compatible: ${count3("compatible").toLocaleString()}`,
     ""
   ];
   if (changes.length > 0) {
     const ordered = [...changes].sort((a, b) => COMPATIBILITY_ORDER[a.compatibility] - COMPATIBILITY_ORDER[b.compatibility] || a.path.localeCompare(b.path));
     lines.push("Top changes:", "");
-    lines.push(...ordered.slice(0, SECTION_PATH_LIMIT).map((change) => `- ${change.compatibility} ${markdownCode2(change.path)} (${change.contractKind}): ${withoutMentions(change.reason)}`));
+    lines.push(...ordered.slice(0, SECTION_PATH_LIMIT).map((change) => `- ${change.compatibility} ${markdownCode3(change.path)} (${change.contractKind}): ${withoutMentions(change.reason)}`));
     if (changes.length > SECTION_PATH_LIMIT) lines.push(`- \u2026and ${(changes.length - SECTION_PATH_LIMIT).toLocaleString()} more`);
     lines.push("");
   }
@@ -11398,7 +12591,7 @@ function renderContractSection(result) {
     lines.push(`Contracts not compared: ${result.comparison.diagnostics.length.toLocaleString()}; run the CLI for details.`, "");
   }
   lines.push(
-    `Base ${markdownCode2(result.from.requestedRef)} at ${markdownCode2(result.from.commit)}; head ${markdownCode2(result.to.requestedRef)} at ${markdownCode2(result.to.commit)}. Both sides were read from Git objects without a checkout. Breaking changes are advisory and never fail this step. Run \`fixmap contracts diff\` for the complete comparison.`,
+    `Base ${markdownCode3(result.from.requestedRef)} at ${markdownCode3(result.from.commit)}; head ${markdownCode3(result.to.requestedRef)} at ${markdownCode3(result.to.commit)}. Both sides were read from Git objects without a checkout. Breaking changes are advisory and never fail this step. Run \`fixmap contracts diff\` for the complete comparison.`,
     ""
   );
   return lines.join("\n");
@@ -11431,9 +12624,9 @@ function renderReviewerSection(input) {
     if (result.suggestions.length > 0) {
       for (const suggestion of result.suggestions.slice(0, SECTION_PATH_LIMIT)) {
         const sources = [...new Set(suggestion.evidence.map((entry2) => EVIDENCE_LABEL[entry2.kind]))].join(", ");
-        const paths = suggestion.paths.slice(0, 3).map(markdownCode2).join(", ");
+        const paths = suggestion.paths.slice(0, 3).map(markdownCode3).join(", ");
         const more = suggestion.paths.length > 3 ? ` and ${(suggestion.paths.length - 3).toLocaleString()} more` : "";
-        lines.push(`- ${markdownCode2(suggestion.reviewer)} (${suggestion.confidence}; ${sources}): ${paths}${more}`);
+        lines.push(`- ${markdownCode3(suggestion.reviewer)} (${suggestion.confidence}; ${sources}): ${paths}${more}`);
       }
       if (result.suggestions.length > SECTION_PATH_LIMIT) {
         lines.push(`- \u2026and ${(result.suggestions.length - SECTION_PATH_LIMIT).toLocaleString()} more`);
@@ -11443,14 +12636,14 @@ function renderReviewerSection(input) {
   }
   const warnings = result.diagnostics.filter((entry2) => entry2.severity === "warning");
   if (warnings.length > 0) {
-    lines.push(...warnings.slice(0, SECTION_PATH_LIMIT).map((entry2) => `- warning (${markdownCode2(entry2.source)}): ${entry2.message}`), "");
+    lines.push(...warnings.slice(0, SECTION_PATH_LIMIT).map((entry2) => `- warning (${markdownCode3(entry2.source)}): ${entry2.message}`), "");
   }
   lines.push("Run `fixmap reviewers` for the per-path evidence.", "");
   return lines.join("\n");
 }
 function renderArchitectureDriftSection(result) {
   const { drift } = result;
-  const edge = (entry2) => `${markdownCode2(entry2.from)} -> ${markdownCode2(entry2.to)}`;
+  const edge = (entry2) => `${markdownCode3(entry2.from)} -> ${markdownCode3(entry2.to)}`;
   const lines = [
     "## Architecture drift (preview)",
     "",
@@ -11467,13 +12660,13 @@ function renderArchitectureDriftSection(result) {
     if (values.length > SECTION_PATH_LIMIT) lines.push(`- \u2026and ${(values.length - SECTION_PATH_LIMIT).toLocaleString()} more`);
     lines.push("");
   };
-  list("New cycles", drift.newCycles, (cycle) => cycle.map(markdownCode2).join(" -> "));
-  list("New policy violations", drift.newBoundaryViolations, (entry2) => `${markdownCode2(entry2.ruleId)}: ${edge(entry2)}`);
-  list("Decision disagreements", result.decisionDisagreements, (entry2) => `${markdownCode2(entry2.decisionPath)} denies ${markdownCode2(entry2.rule.from)} -> ${markdownCode2(entry2.rule.deny)}; ${edge(entry2.edge)} ${entry2.introduced ? "was introduced in this range" : "already existed at the base"}`);
+  list("New cycles", drift.newCycles, (cycle) => cycle.map(markdownCode3).join(" -> "));
+  list("New policy violations", drift.newBoundaryViolations, (entry2) => `${markdownCode3(entry2.ruleId)}: ${edge(entry2)}`);
+  list("Decision disagreements", result.decisionDisagreements, (entry2) => `${markdownCode3(entry2.decisionPath)} denies ${markdownCode3(entry2.rule.from)} -> ${markdownCode3(entry2.rule.deny)}; ${edge(entry2.edge)} ${entry2.introduced ? "was introduced in this range" : "already existed at the base"}`);
   list("Added edges", drift.addedEdges, edge);
   list("Removed edges", drift.removedEdges, edge);
   lines.push(
-    `Base ${markdownCode2(result.from.requestedRef)} at ${markdownCode2(result.from.commit)}; head ${markdownCode2(result.to.requestedRef)} at ${markdownCode2(result.to.commit)}. Both sides were read from Git objects without a checkout. Run \`fixmap history\` for the complete comparison.`,
+    `Base ${markdownCode3(result.from.requestedRef)} at ${markdownCode3(result.from.commit)}; head ${markdownCode3(result.to.requestedRef)} at ${markdownCode3(result.to.commit)}. Both sides were read from Git objects without a checkout. Run \`fixmap history\` for the complete comparison.`,
     ""
   );
   return lines.join("\n");
@@ -11601,7 +12794,7 @@ var STEP_SUMMARY_LIMIT_BYTES = 1024 * 1024;
 var TRUNCATION_FOOTER = "\n\n> FixMap report truncated to fit GitHub's 1 MiB step-summary limit. Run FixMap locally with `--output` to retain a complete report.\n";
 var ACTION_OUTPUT_REPORT_LIMIT_BYTES = 900 * 1024;
 var OUTPUT_TRUNCATION_FOOTER = "\n\n[FixMap report truncated to fit the GitHub Actions output limit. Run FixMap locally with --output for a complete report.]\n";
-var SCOPE_INPUTS = ["change-scope-touch", "change-scope-add", "capability"];
+var SCOPE_INPUTS = ["change-scope-touch", "change-scope-add", "capability", "workspace"];
 function readReviewSectionRequest(env) {
   const historyAuthors = readInput("reviewers-history-authors", env);
   const request = {
@@ -11620,7 +12813,7 @@ function readReviewSectionRequest(env) {
 }
 async function runAction(env = process.env, dependencies = {}) {
   const appendFile = dependencies.appendFile ?? ((path, contents) => appendFileSync(path, contents));
-  const readFile5 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
+  const readFile7 = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
   const stdout = dependencies.stdout ?? ((text2) => process.stdout.write(text2));
   if (readInput("mode", env)?.toLowerCase() === "annotate") {
     const incompatible = ["issue", "diff", "base", "head", "limit", "exclude", "report-path", "comment-author", ...SCOPE_INPUTS].filter((name) => readInput(name, env));
@@ -11647,7 +12840,7 @@ ${delimiter}
     return;
   }
   if (readInput("annotation-request", env) || readInput("allow-annotation-write", env) === "true") throw new Error("Annotation inputs require mode: annotate.");
-  const event = readEvent(env.GITHUB_EVENT_PATH, readFile5);
+  const event = readEvent(env.GITHUB_EVENT_PATH, readFile7);
   const rawIssue = readInput("issue", env) || buildPullRequestIssueText(event);
   const diffSpec = readInput("diff", env);
   const workingTree = parseBooleanInput("working-tree", readInput("working-tree", env));
@@ -11681,7 +12874,7 @@ ${delimiter}
         `FixMap verify mode does not use plan-only input${planOnly.length === 1 ? "" : "s"}: ${planOnly.join(", ")}. Remove them, or set mode: plan.`
       );
     }
-    return runVerifyMode({ env, dependencies, readFile: readFile5, appendFile, stdout, format, failOn, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache, contracts: reviewRequest.contracts, diffRefs });
+    return runVerifyMode({ env, dependencies, readFile: readFile7, appendFile, stdout, format, failOn, diffSpec, baseRef, headRef, workingTree, includeUntracked, noCache, contracts: reviewRequest.contracts, diffRefs });
   }
   if (failOn === "warning") throw new Error("fail-on: warning is a verify-mode input; remove it or set mode: verify.");
   const issueSource = rawIssue ? parseActionIssueSource(rawIssue) : void 0;
@@ -11729,6 +12922,13 @@ ${delimiter}
     ...dependencies.scanRepo ? { scanRepo: dependencies.scanRepo } : {},
     ...dependencies.compareCapabilityRefs ? { compareCapabilityRefs: dependencies.compareCapabilityRefs } : {}
   }) : void 0;
+  const workspaceConfig = resolveWorkspaceInput(readInput("workspace", env), repoRoot, env.GITHUB_WORKSPACE || repoRoot);
+  const workspaceSection = workspaceConfig ? await buildWorkspaceSection(workspaceConfig, {
+    repoRoot,
+    useCache: !noCache,
+    changedPaths: report.changedFiles,
+    ...dependencies.loadWorkspace ? { loadWorkspace: dependencies.loadWorkspace } : {}
+  }) : void 0;
   const reviewSections = hasReviewSections(reviewRequest) ? await buildReviewSections(reviewRequest, {
     repoRoot,
     useCache: !noCache,
@@ -11740,7 +12940,7 @@ ${delimiter}
   for (const warning of [...scopeSections?.warnings ?? [], ...reviewSections?.warnings ?? []]) stdout(`::warning::${warning}
 `);
   const planMarkdown = renderMarkdownReport(report);
-  const extraMarkdown = [scopeSections?.markdown, reviewSections?.markdown].filter(Boolean).join("\n");
+  const extraMarkdown = [scopeSections?.markdown, workspaceSection, reviewSections?.markdown].filter(Boolean).join("\n");
   const markdown = extraMarkdown ? `${planMarkdown.trimEnd()}
 
 ${extraMarkdown}` : planMarkdown;
@@ -11827,13 +13027,20 @@ async function runVerifyMode(context) {
     includeUntracked: context.includeUntracked,
     useCache: !context.noCache,
     includeHistory: true,
-    internalExclude: [resolve7(repoRoot, reportPath)]
+    internalExclude: [resolve10(repoRoot, reportPath)]
   });
   const diffFailure = repo.diagnostics.find((diagnostic) => diagnostic.code === "diff-unavailable");
   if (diffFailure) {
     throw new Error(`${diffFailure.message} Verification needs a resolvable diff.`);
   }
-  const result = verifyPlan(report, repo);
+  const baseline = await contractBaselineOrError(repo, {
+    repoRoot,
+    diffSpec: context.diffSpec,
+    baseRef: context.baseRef,
+    headRef: context.headRef,
+    workingTree: context.workingTree
+  });
+  const result = verifyPlan(report, repo, { ...baseline.comparison ? { contractComparison: baseline.comparison } : {}, ...baseline.error ? { contractBaselineError: baseline.error } : {} });
   const contractSections = context.contracts ? await buildReviewSections(
     { contracts: true, reviewers: false, reviewersHistoryAuthors: true, architectureDrift: false },
     {
@@ -11866,8 +13073,9 @@ ${contractSections.markdown}` : verifyMarkdown;
   if (result.findings.some(
     (finding) => finding.severity === "error" || context.failOn === "warning" && finding.severity === "warning"
   )) {
+    const errors = result.findings.filter((finding) => finding.severity === "error");
     throw new Error(
-      context.failOn === "warning" ? "FixMap verification found findings at or above the configured warning threshold." : "FixMap verification found an edit in a generated or retired location, which the next build discards."
+      errors.length === 0 ? "FixMap verification found findings at or above the configured warning threshold." : errors.length === 1 && errors[0].code === "edit-in-generated-location" ? "FixMap verification found an edit in a generated or retired location, which the next build discards." : `FixMap verification found ${errors.length} error finding${errors.length === 1 ? "" : "s"}: ${[...new Set(errors.map((finding) => finding.code))].join(", ")}.`
     );
   }
 }
@@ -12014,12 +13222,12 @@ function readInput(name, env) {
   const value = env[githubName] || env[shellSafeName];
   return value?.trim() || void 0;
 }
-function readEvent(eventPath, readFile5) {
+function readEvent(eventPath, readFile7) {
   if (!eventPath) {
     return void 0;
   }
   try {
-    return JSON.parse(readFile5(eventPath));
+    return JSON.parse(readFile7(eventPath));
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`FixMap could not read the GitHub event payload: ${detail}`);

@@ -109,7 +109,9 @@ export type ScanDiagnostic = {
     | "architecture-boundary-violation"
     | "architecture-required-test"
     | "architecture-review-required"
-    | "architecture-breaking-contract";
+    | "architecture-breaking-contract"
+    | "architecture-breaking-contract-allowed"
+    | "contract-baseline-unavailable";
   message: string;
   severity: "info" | "warning" | "error";
   /**
@@ -328,6 +330,8 @@ export type VerifyFinding = {
     | "architecture-required-test"
     | "architecture-review-required"
     | "architecture-breaking-contract"
+    | "architecture-breaking-contract-allowed"
+    | "contract-baseline-unavailable"
     | "sensitive-data-flow-introduced";
   severity: "info" | "warning" | "error";
   paths: string[];
@@ -352,7 +356,7 @@ export type VerifyResult = {
 };
 
 export type VerifyNarrativeEvidence = {
-  kind: "changed-file" | "impact-relationship" | "test-route" | "risk-rule" | "annotation" | "decision-record" | "architecture-policy";
+  kind: "changed-file" | "impact-relationship" | "test-route" | "risk-rule" | "annotation" | "decision-record" | "architecture-policy" | "cross-repository";
   path?: string;
   relatedPath?: string;
   detail: string;

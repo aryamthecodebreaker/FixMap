@@ -122,7 +122,7 @@ export { sensitiveDataFlowEvidenceProvider } from "./sensitive-data.js";
 export type { SensitiveDataCategory, SensitiveSinkCategory } from "./sensitive-data.js";
 export { createSupplyChainEvidenceProvider, validateSupplyChainEvidenceBundle } from "./supply-chain.js";
 export type { SupplyChainEvidenceBundle, SupplyChainFindingKind, SupplyChainSeverity } from "./supply-chain.js";
-export { renderVerifyMarkdown, verifyPlan } from "./verify.js";
+export { checkVerifyNarrative, renderVerifyMarkdown, verifyPlan } from "./verify.js";
 export { validateFixMapReport } from "./validate.js";
 export {
   architecturePolicyFromRepo,

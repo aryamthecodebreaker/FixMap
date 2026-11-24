@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { loadVerifyWorkspace } from "./workspace-command.js";
 import { ANNOTATION_TOOL, runAnnotationTool } from "./annotation-tool.js";
 import { DOSSIER_TOOL, OUTCOMES_TOOL, runDossierTool, runOutcomesTool } from "./record-tools.js";
 import { dirname, join, resolve } from "node:path";
@@ -35,6 +36,7 @@ import {
   scanRepo,
   validateFixMapReport,
   verifyPlan,
+  contractBaselineOrError,
   type FixMapReport
 } from "@aryam/fixmap-core";
 import { renderDoctorReport, runDoctorChecks } from "./doctor.js";
@@ -52,6 +54,7 @@ import { runChangeScopeCommand } from "./change-scope-command.js";
 import { runReviewersCommand } from "./reviewers-command.js";
 import { runCapabilitiesCommand, runCapabilityCommand } from "./capability-command.js";
 import { compareAlternativesFromSources, renderAlternativesMarkdown } from "./alternatives-command.js";
+import { runConflictsCommand, runIntentCommand } from "./intent-command.js";
 import { runContractsCommand } from "./contracts-command.js";
 import {
   buildReportForRepository,
@@ -118,6 +121,7 @@ type VerifyArguments = {
   includeUntracked?: boolean;
   noCache?: boolean;
   sensitiveData?: boolean;
+  workspace?: string;
 };
 
 const PLAN_TOOL = {
@@ -402,6 +406,55 @@ const ALTERNATIVES_TOOL = {
   }
 };
 
+const INTENT_TOOL = {
+  name: "fixmap_intent",
+  title: "FixMap agent intents",
+  description:
+    "Preview (may change before v0.10.0): Coordinate agents sharing one checkout. record leaves an expiring note in .fixmap/intents/ saying which files (optionally which line ranges) this agent plans to edit; list shows live intents; release removes one. " +
+    "Only .fixmap/intents/ is written; source files are never edited. Call fixmap_conflicts before editing to check for overlap.",
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      action: { type: "string", enum: ["record", "list", "release"], description: "record, list, or release" },
+      repo: { type: "string", description: "Local repository path, defaults to the server working directory" },
+      agent: { type: "string", description: "record: this agent's id (letters, numbers, dot, dash, underscore)" },
+      task: { type: "string", description: "record: one line saying what the agent is doing" },
+      edits: {
+        type: "array",
+        description: "record: files to edit, each a repository-relative path or { path, ranges: [{ start, end }] }",
+        items: { anyOf: [{ type: "string" }, { type: "object" }] }
+      },
+      impacts: { type: "array", items: { type: "string" }, description: "record: files the change may affect but will not edit" },
+      contracts: { type: "array", items: { type: "string" }, description: "record: contract files the change touches" },
+      id: { type: "string", description: "record: intent id to create or replace; release: the intent to remove" },
+      ttlMinutes: { type: "integer", description: "record: minutes until the intent expires (default 120, max 10080)" },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    required: ["action"],
+    additionalProperties: false
+  }
+};
+
+const CONFLICTS_TOOL = {
+  name: "fixmap_conflicts",
+  title: "FixMap conflicts",
+  description:
+    "Preview (may change before v0.10.0): Compare every live intent in .fixmap/intents/, plus an optional saved plan as a proposal, and report overlapping files and who holds them. " +
+    "Same-file edits and edits into another intent's impact or contract zone block; disjoint line ranges and different base commits are warnings. Read-only.",
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      repo: { type: "string", description: "Local repository path, defaults to the server working directory" },
+      report: { type: "string", description: "Path to a saved FixMap JSON plan to check as a proposal" },
+      agent: { type: "string", description: "With report, the proposing agent's id" },
+      format: { type: "string", description: "Output format: markdown (default) or json, case-insensitive" }
+    },
+    additionalProperties: false
+  }
+};
+
 const ASK_TOOL = {
   name: "fixmap_ask",
   title: "FixMap ask",
@@ -577,6 +630,10 @@ const VERIFY_TOOL = {
       sensitiveData: {
         type: "boolean",
         description: "Preview: attach possible sensitive-data flows touching the plan or diff and add an advisory finding when the diff adds one. Locations and kinds only."
+      },
+      workspace: {
+        type: "string",
+        description: "Preview (may change before v0.10.0): path to a fixmap workspace config that lists this checkout; adds narration naming other checkouts that consume packages the diff changes."
       }
     },
     required: ["report"],
@@ -622,7 +679,7 @@ export function createFixMapMcpServer(
   const server = new Server({ name: "fixmap", version: readVersion() }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, REVIEWERS_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, ALTERNATIVES_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, CONTRACTS_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL, ANNOTATION_TOOL, OUTCOMES_TOOL, DOSSIER_TOOL]
+    tools: [PLAN_TOOL, CONTEXT_TOOL, GRAPH_TOOL, CHANGE_SCOPE_TOOL, REVIEWERS_TOOL, CAPABILITY_TOOL, WORKSPACE_TOOL, ASK_TOOL, MIGRATION_TOOL, ALTERNATIVES_TOOL, REVERSE_DOCS_TOOL, HISTORY_TOOL, CONTRACTS_TOOL, SUPPLY_CHAIN_TOOL, RUNTIME_TOOL, VERIFY_TOOL, EXPLAIN_TOOL, COMPARE_TOOL, DOCTOR_TOOL, ANNOTATION_TOOL, OUTCOMES_TOOL, DOSSIER_TOOL, INTENT_TOOL, CONFLICTS_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -724,6 +781,19 @@ export function createFixMapMcpServer(
       const stderr: string[] = [];
       const exitCode = await runReviewersCommand(commandArgs, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) });
       return { ...(exitCode === 0 ? {} : { isError: true }), content: [{ type: "text", text: exitCode === 0 ? stdout.join("") : stderr.join("") }] };
+    }
+    if (request.params.name === INTENT_TOOL.name || request.params.name === CONFLICTS_TOOL.name) {
+      const record = (request.params.arguments ?? {}) as Record<string, unknown>;
+      const isIntent = request.params.name === INTENT_TOOL.name;
+      const parsed = isIntent ? intentToolArgs(record, defaultRepo) : conflictsToolArgs(record, defaultRepo);
+      if (typeof parsed === "string") return { isError: true, content: [{ type: "text", text: `Invalid arguments: ${parsed}` }] };
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const io = { stdout: (value: string) => stdout.push(value), stderr: (value: string) => stderr.push(value) };
+      const exitCode = isIntent ? await runIntentCommand(parsed, io) : await runConflictsCommand(parsed, io);
+      // Blocking overlaps are a result to act on, not a tool failure.
+      const failed = exitCode !== 0 && (isIntent || stderr.length > 0);
+      return { ...(failed ? { isError: true } : {}), content: [{ type: "text", text: failed ? stderr.join("").trim() : stdout.join("") }] };
     }
     if (request.params.name === ALTERNATIVES_TOOL.name) {
       const record = request.params.arguments as Record<string, unknown> | undefined;
@@ -1075,6 +1145,7 @@ export function createFixMapMcpServer(
       }
       const args = parsed.value;
       try {
+        const workspace = args.workspace ? await loadVerifyWorkspace(args.workspace, args.repo ?? defaultRepo, !args.noCache) : undefined;
         const repo = await scanRepo({
           repoRoot: args.repo ?? defaultRepo,
           diffSpec: args.diff,
@@ -1090,7 +1161,14 @@ export function createFixMapMcpServer(
         if (diffFailure) {
           throw new Error(`${diffFailure.message} Verification needs a resolvable diff.`);
         }
-        const result = verifyPlan(args.report, repo, { sensitiveData: args.sensitiveData === true });
+        const baseline = await contractBaselineOrError(repo, {
+          repoRoot: args.repo ?? defaultRepo,
+          diffSpec: args.diff,
+          baseRef: args.base,
+          headRef: args.head,
+          workingTree: args.workingTree
+        });
+        const result = verifyPlan(args.report, repo, { sensitiveData: args.sensitiveData === true, ...(workspace ? { workspace } : {}), ...(baseline.comparison ? { contractComparison: baseline.comparison } : {}), ...(baseline.error ? { contractBaselineError: baseline.error } : {}) });
         const text = args.format === "json"
           ? `${JSON.stringify(result, null, 2)}\n`
           : renderVerifyMarkdown(result);
@@ -1468,7 +1546,7 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
     return { success: false, message: "tool arguments must be an object." };
   }
   const record = input as Record<string, unknown>;
-  const allowed = new Set(["report", "diff", "base", "head", "repo", "format", "workingTree", "includeUntracked", "noCache", "sensitiveData"]);
+  const allowed = new Set(["report", "diff", "base", "head", "repo", "format", "workingTree", "includeUntracked", "noCache", "sensitiveData", "workspace"]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     return { success: false, message: `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.` };
@@ -1495,11 +1573,15 @@ export function parseVerifyArguments(input: unknown): VerifyArgumentsValidation 
   if (record.workingTree === true && (record.diff || record.base || record.head)) return { success: false, message: 'use either "workingTree" or diff/base/head, not both.' };
   if (record.diff && (record.base || record.head)) return { success: false, message: 'use either "diff" or base/head, not both.' };
   if (record.head && !record.base) return { success: false, message: '"head" requires "base".' };
+  if (record.workspace !== undefined && (typeof record.workspace !== "string" || !record.workspace.trim())) {
+    return { success: false, message: '"workspace" must be a non-blank path to a local workspace config.' };
+  }
   const format = normalizeFormat(record.format); if (!format.success) return format;
   return {
     success: true,
     value: {
       report,
+      ...(typeof record.workspace === "string" ? { workspace: record.workspace.trim() } : {}),
       ...(loaded.sourcePath ? { reportPath: loaded.sourcePath } : {}),
       ...(typeof record.diff === "string" ? { diff: record.diff.trim() } : {}),
       ...(typeof record.base === "string" ? { base: record.base.trim() } : {}),
@@ -1703,4 +1785,64 @@ function readVersion(): string {
     readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")
   ) as { version: string };
   return packageJson.version;
+}
+
+/** MCP arguments become the same CLI arguments, so both surfaces share one validated path. */
+function intentToolArgs(record: Record<string, unknown>, defaultRepo: string): string[] | string {
+  const allowed = ["action", "repo", "agent", "task", "edits", "impacts", "contracts", "id", "ttlMinutes", "format"];
+  const unknown = Object.keys(record).filter((key) => !allowed.includes(key));
+  if (unknown.length > 0) return `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`;
+  const action = record.action;
+  if (action !== "record" && action !== "list" && action !== "release") return '"action" must be record, list, or release.';
+  const text = (key: string): string | undefined => typeof record[key] === "string" && (record[key] as string).trim() ? (record[key] as string).trim() : undefined;
+  for (const key of ["repo", "agent", "task", "id", "format"]) {
+    if (record[key] !== undefined && text(key) === undefined) return `"${key}" must be a non-blank string.`;
+  }
+  const args: string[] = [action, "--repo", text("repo") ?? defaultRepo];
+  if (action === "release") {
+    if (!text("id")) return 'release needs "id".';
+    return [...args, text("id")!];
+  }
+  if (text("format")) args.push("--format", text("format")!.toLowerCase());
+  if (action === "list") return args;
+  if (!text("agent") || !text("task")) return 'record needs "agent" and "task".';
+  args.push("--agent", text("agent")!, "--task", text("task")!);
+  if (!Array.isArray(record.edits) || record.edits.length === 0) return 'record needs a non-empty "edits" array.';
+  for (const [index, entry] of record.edits.entries()) {
+    if (typeof entry === "string" && entry.trim()) { args.push("--edit", entry.trim()); continue; }
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return `edits[${index}] must be a path or { path, ranges }.`;
+    const edit = entry as { path?: unknown; ranges?: unknown };
+    if (typeof edit.path !== "string" || !edit.path.trim()) return `edits[${index}].path must be a non-blank string.`;
+    if (edit.ranges === undefined) { args.push("--edit", edit.path.trim()); continue; }
+    if (!Array.isArray(edit.ranges) || edit.ranges.length === 0 ||
+      !edit.ranges.every((range: { start?: unknown; end?: unknown }) => Number.isInteger(range?.start) && Number.isInteger(range?.end))) {
+      return `edits[${index}].ranges must be a non-empty list of { start, end } whole numbers.`;
+    }
+    args.push("--edit", `${edit.path.trim()}:${(edit.ranges as Array<{ start: number; end: number }>).map((range) => `${range.start}-${range.end}`).join(",")}`);
+  }
+  for (const key of ["impacts", "contracts"] as const) {
+    if (record[key] === undefined) continue;
+    if (!Array.isArray(record[key]) || !(record[key] as unknown[]).every((value) => typeof value === "string" && value.trim())) return `"${key}" must be a list of paths.`;
+    for (const value of record[key] as string[]) args.push(key === "impacts" ? "--impact" : "--contract", value.trim());
+  }
+  if (text("id")) args.push("--id", text("id")!);
+  if (record.ttlMinutes !== undefined) {
+    if (!Number.isInteger(record.ttlMinutes)) return '"ttlMinutes" must be a whole number.';
+    args.push("--ttl", String(record.ttlMinutes));
+  }
+  return args;
+}
+
+function conflictsToolArgs(record: Record<string, unknown>, defaultRepo: string): string[] | string {
+  const unknown = Object.keys(record).filter((key) => !["repo", "report", "agent", "format"].includes(key));
+  if (unknown.length > 0) return `unknown argument${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`;
+  const args = ["--repo", defaultRepo];
+  for (const key of ["repo", "report", "agent", "format"]) {
+    const value = record[key];
+    if (value === undefined) continue;
+    if (typeof value !== "string" || !value.trim()) return `"${key}" must be a non-blank string.`;
+    if (key === "repo") args[1] = value.trim();
+    else args.push(`--${key}`, key === "format" ? value.trim().toLowerCase() : value.trim());
+  }
+  return args;
 }
