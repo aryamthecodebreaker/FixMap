@@ -373,6 +373,8 @@ Contract rules are checked against the same two states the diff compares (`a...b
 
 Preview: `fixmap policy init` writes a starter policy from the current module layout (one required-test rule per top-level module with tests, plus a contract rule for any contracts found) and never overwrites an existing file. `fixmap policy check` prints each problem with a JSON pointer such as `/boundaries/1` and exits 1 when the file is invalid; `fixmap policy explain <rule-id>` shows what a rule checks and which files it covers now.
 
+Preview: agents sharing one checkout can coordinate. `fixmap intent record --agent <id> --task <text> --edit src/users.ts:10-40` leaves an expiring note in `.fixmap/intents/` (one atomic file per intent, default 2 hours); `fixmap conflicts` compares every live intent, and with `--report plan.json` a proposed plan, and exits 1 when two intents edit the same file or one edits another's impact or contract zone. Non-overlapping line ranges in the same file and different base commits are warnings. MCP: `fixmap_intent`, `fixmap_conflicts`. Only `.fixmap/intents/` is written.
+
 - Produces Markdown for people, versioned JSON for tools, or `--format agent` for compact `EDIT CANDIDATE`/`INSPECT`/`TEST`/`RISK`/`AVOID`/`UNCERTAINTY` sections; writes any format with `--output`.
 
 ### Explain, Compare, Verify, Validate, and Doctor

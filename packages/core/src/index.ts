@@ -48,6 +48,16 @@ export { readAnnotationStore, updateAnnotationStore } from "./annotation-store.j
 export { parseEvidenceProviderBundle, readEvidenceProviderBundle, EVIDENCE_BUNDLE_MAX_BYTES } from "./evidence-bundle.js";
 export { detectChangeConflicts } from "./change-conflicts.js";
 export type { ChangeConflict, ChangeConflictAnalysis, ChangeIntent, ChangeZone } from "./change-conflicts.js";
+export {
+  agentIntentToChangeIntent,
+  agentIntentsDirectory,
+  listAgentIntents,
+  pruneAgentIntents,
+  recordAgentIntent,
+  releaseAgentIntent,
+  validateAgentIntent
+} from "./intent-store.js";
+export type { AgentIntent, AgentIntentEdit, AgentIntentListing, RecordAgentIntentInput } from "./intent-store.js";
 export { buildMigrationPlan } from "./migration.js";
 export type { MigrationCompatibility, MigrationPhase, MigrationPlan, MigrationStep } from "./migration.js";
 export { comparePlanAlternatives } from "./plan-alternatives.js";

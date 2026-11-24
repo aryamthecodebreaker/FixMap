@@ -156,6 +156,8 @@ Commands:
   contracts           Preview: List API/schema contracts or diff them across Git refs without checkout
   supply-chain        Preview: Import normalized external scanner and SBOM evidence
   policy              Preview: Write, check, and explain the architecture policy (.fixmap/policy.json)
+  intent              Preview: Record, list, or release what an agent plans to edit (.fixmap/intents/)
+  conflicts           Preview: Report files that more than one agent intent claims
   runtime             Preview: Map redaction-reviewed runtime evidence to exact files
   sandbox             Preview: Run one explicitly consented command in an isolated container
   watch               Recheck working-tree drift and impact whenever edits change
@@ -600,6 +602,11 @@ export async function runCli(args: string[], dependencies: CliDependencies = {})
       stderr,
       ...(dependencies.writeReport ? { writeOutput: dependencies.writeReport } : {})
     });
+  }
+
+  if (args[0] === "intent" || args[0] === "conflicts") {
+    const { runConflictsCommand, runIntentCommand } = await import("./intent-command.js");
+    return args[0] === "intent" ? runIntentCommand(args.slice(1), { stdout, stderr }) : runConflictsCommand(args.slice(1), { stdout, stderr });
   }
 
   if (args[0] === "policy") {

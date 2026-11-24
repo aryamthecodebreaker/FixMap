@@ -10847,6 +10847,9 @@ function isNodeError(error, code) {
   return error instanceof Error && "code" in error && error.code === code;
 }
 
+// packages/core/dist/intent-store.js
+var MAX_TTL_MINUTES = 7 * 24 * 60;
+
 // packages/core/dist/ownership.js
 var CODEOWNERS_PATHS = [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"];
 var MAX_RULES = 1e4;

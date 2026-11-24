@@ -1,6 +1,7 @@
 import type { IdentityGraph } from "./identity-graph.js";
 
-export type ChangeZone = { identity: string; label?: string };
+/** Optional line ranges narrow an edit zone; two edits of one identity with disjoint ranges are a warning, not a conflict. */
+export type ChangeZone = { identity: string; label?: string; ranges?: Array<{ startLine: number; endLine: number }> };
 
 export type ChangeIntent = {
   changeIntentVersion: 1;
@@ -13,7 +14,7 @@ export type ChangeIntent = {
 
 export type ChangeConflict = {
   id: string;
-  kind: "edit-edit" | "edit-impact" | "contract-contract" | "stale-baseline";
+  kind: "edit-edit" | "edit-disjoint-ranges" | "edit-impact" | "contract-contract" | "stale-baseline";
   severity: "warning" | "error";
   intents: [string, string];
   identities: string[];
@@ -62,9 +63,15 @@ export function detectChangeConflicts(
       const rightContracts = zoneMap(right.contracts, canonical);
 
       const sharedEdits = intersection(leftEdits, rightEdits);
-      if (sharedEdits.length > 0) conflicts.push(zoneConflict(
-        "edit-edit", "error", left, right, sharedEdits, "edit", "edit",
+      const disjoint = sharedEdits.filter((identity) => rangesDisjoint(leftEdits.get(identity)!, rightEdits.get(identity)!));
+      const overlapping = sharedEdits.filter((identity) => !disjoint.includes(identity));
+      if (overlapping.length > 0) conflicts.push(zoneConflict(
+        "edit-edit", "error", left, right, overlapping, "edit", "edit",
         "Both plans intend to edit the same graph identity."
+      ));
+      if (disjoint.length > 0) conflicts.push(zoneConflict(
+        "edit-disjoint-ranges", "warning", left, right, disjoint, "edit", "edit",
+        "Both plans edit the same file, in line ranges that do not overlap; coordinate the merge."
       ));
       const leftIntoRight = intersection(leftEdits, rightImpacts);
       if (leftIntoRight.length > 0) conflicts.push(zoneConflict(
@@ -112,9 +119,25 @@ function validateZones(zones: readonly ChangeZone[], label: string): ChangeZone[
       (zone.label !== undefined && (typeof zone.label !== "string" || !zone.label.trim() || zone.label.length > 500))) {
       throw new Error(`Invalid ${label} change zone.`);
     }
-    return { identity: zone.identity, ...(zone.label ? { label: zone.label.trim() } : {}) };
+    return { identity: zone.identity, ...(zone.label ? { label: zone.label.trim() } : {}), ...(zone.ranges !== undefined ? { ranges: validateRanges(zone.ranges, label) } : {}) };
   }).sort((a, b) => a.identity.localeCompare(b.identity));
   return result.filter((zone, index) => result.findIndex((value) => value.identity === zone.identity) === index);
+}
+
+function validateRanges(ranges: unknown, label: string): Array<{ startLine: number; endLine: number }> {
+  if (!Array.isArray(ranges) || ranges.length === 0 || ranges.length > 50) throw new Error(`Invalid ${label} change zone ranges.`);
+  return ranges.map((range: { startLine?: unknown; endLine?: unknown }) => {
+    if (!Number.isInteger(range?.startLine) || !Number.isInteger(range?.endLine) || (range.startLine as number) < 1 || (range.endLine as number) < (range.startLine as number)) {
+      throw new Error(`Invalid ${label} change zone range.`);
+    }
+    return { startLine: range.startLine as number, endLine: range.endLine as number };
+  }).sort((a, b) => a.startLine - b.startLine || a.endLine - b.endLine);
+}
+
+/** Only provably separate edits are disjoint: both sides must name ranges, and no pair may overlap. */
+function rangesDisjoint(left: ChangeZone, right: ChangeZone): boolean {
+  if (!left.ranges || !right.ranges) return false;
+  return left.ranges.every((a) => right.ranges!.every((b) => a.endLine < b.startLine || b.endLine < a.startLine));
 }
 
 function equivalenceResolver(graph?: IdentityGraph): (identity: string) => string {

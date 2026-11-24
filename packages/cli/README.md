@@ -226,6 +226,8 @@ fixmap context         Build a budgeted Markdown or JSON source pack
 fixmap graph           Export the Impact Graph as Mermaid or JSON
 fixmap workspace       Map package dependencies and impact across local repositories
 fixmap policy          Preview: write, check, and explain .fixmap/policy.json
+fixmap intent          Preview: record, list, or release what an agent plans to edit
+fixmap conflicts       Preview: report files more than one agent intent claims
 fixmap ask             Answer report-only structural questions with citations
 fixmap migrate         Build a dependency-ordered, review-only migration plan
 fixmap alternatives    Compare alternative plans side by side without picking a winner
