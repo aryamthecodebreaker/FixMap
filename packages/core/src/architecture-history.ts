@@ -99,23 +99,35 @@ async function scanCommit(repoRoot: string, requestedRef: string, commit: string
     message: `Historical scan stopped after ${MAX_FILES.toLocaleString()} files at ${commit}.`
   });
 
-  const readable: TreeEntry[] = [];
-  let scheduledBytes = 0;
-  for (const entry of entries) {
-    // The same source rule as the checkout scan decides what is read.
-    const wanted = entry.path === ".fixmapignore" || describeFileFromBytes(entry.path, entry.size, undefined).isSource;
-    if (!wanted || entry.size > MAX_HISTORICAL_BLOB_BYTES) continue;
-    if (scheduledBytes + entry.size > MAX_BATCH_BYTES) continue;
-    readable.push(entry);
-    scheduledBytes += entry.size;
+  // The same source rule as the checkout scan decides what is read. Blobs are read in batches of
+  // at most MAX_BATCH_BYTES and reduced to their samples at once, so memory stays bounded while
+  // every readable file gets content, as on a checkout (a single 64 MB budget left 14,850 files of
+  // a 213 MB repository without content).
+  const wanted = entries.filter((entry) =>
+    (entry.path === ".fixmapignore" || describeFileFromBytes(entry.path, entry.size, undefined).isSource) &&
+    entry.size <= MAX_HISTORICAL_BLOB_BYTES);
+  const described = new Map<string, RepoFile>();
+  let ignoreBytes: Buffer | undefined;
+  for (let start = 0; start < wanted.length;) {
+    const batch: TreeEntry[] = [];
+    let batchBytes = 0;
+    while (start < wanted.length && (batch.length === 0 || batchBytes + wanted[start]!.size <= MAX_BATCH_BYTES)) {
+      batch.push(wanted[start]!);
+      batchBytes += wanted[start]!.size;
+      start += 1;
+    }
+    const content = await readBlobs(repoRoot, batch);
+    for (const entry of batch) {
+      const bytes = content.get(entry.oid);
+      if (entry.path === ".fixmapignore") ignoreBytes = bytes;
+      described.set(entry.path, describeFileFromBytes(entry.path, entry.size, bytes, `git:${entry.oid}`));
+    }
   }
-  const content = await readBlobs(repoRoot, readable);
-  const files = entries.map((entry): RepoFile => describeFileFromBytes(entry.path, entry.size, content.get(entry.oid), `git:${entry.oid}`));
+  const files = entries.map((entry): RepoFile =>
+    described.get(entry.path) ?? describeFileFromBytes(entry.path, entry.size, undefined, `git:${entry.oid}`));
   const history = options.includeHistory
     ? await readRepositoryHistory(repoRoot, new Set(files.map((file) => file.path)), diagnostics, commit)
     : undefined;
-  const ignoreEntry = entries.find((entry) => entry.path === ".fixmapignore");
-  const ignoreBytes = ignoreEntry ? content.get(ignoreEntry.oid) : undefined;
   return {
     requestedRef,
     commit,
