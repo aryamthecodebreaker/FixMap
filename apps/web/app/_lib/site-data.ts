@@ -4,8 +4,8 @@ import heldoutBaseline from "../../../../benchmarks/heldout/baseline-results.jso
 import regressionBaseline from "../../../../benchmarks/external/baseline-results.json";
 import savings from "../../../../benchmarks/external/savings-results.json";
 import adversarial from "../../../../benchmarks/adversarial/results.json";
-import polyglotBaseline from "../../../../benchmarks/polyglot-heldout/baseline-results.json";
-import polyglotDataset from "../../../../benchmarks/polyglot-heldout/dataset.json";
+import polyglotBaseline from "../../../../benchmarks/polyglot-heldout-2/baseline-results.json";
+import polyglotDataset from "../../../../benchmarks/polyglot-heldout-2/dataset.json";
 import featureBench from "../../../../benchmarks/feature-bench/results.json";
 import cli from "../../../../packages/cli/package.json";
 
@@ -69,7 +69,7 @@ const baselineOf = (suite: BaselineSuite) => ({
 
 const LANGUAGE_LABELS: Record<string, string> = { python: "Python", java: "Java", go: "Go", rust: "Rust", ruby: "Ruby", php: "PHP", dotnet: ".NET (C#)" };
 
-/** Held-out cases in seven more languages, read straight from the recorded run (no case was tuned on). */
+/** Fresh held-out cases in seven more languages (polyglot-heldout-2, measured once), read straight from the recorded run. */
 const languages = (() => {
   type ArmResult = { top5Hit: boolean };
   const results = polyglotBaseline.results as Array<{ slug: string; arms: Record<string, ArmResult> }>;

@@ -78,3 +78,6 @@ case rule did not exclude new-file fixes; it is not changed after measurement.
 
 Per the bar above, the Java cases now move to development use. A newly frozen cohort is
 required before language support can leave preview.
+
+The fresh cohort this result called for is `benchmarks/polyglot-heldout-2` (2026-11-24),
+which passed all three conditions.

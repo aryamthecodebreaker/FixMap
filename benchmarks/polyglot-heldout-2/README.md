@@ -62,3 +62,25 @@ published as measured, and the misses become development cases.
 
 This collection uses public GitHub metadata during development only. It adds no network,
 API, account, or upload behavior to the FixMap product.
+
+## Result, 2026-11-24 (measured once, FixMap 0.9.10 ranking)
+
+The run finished in one pass with no errors and no ranking change before or during it.
+
+| Condition | Outcome |
+| --- | --- |
+| 1. No silent failures | Pass: 28 of 28 cases scanned and ranked without error. |
+| 2. Every language works | Pass: Python 4/4, Go 4/4, Java 3/4, Rust 3/4, PHP 3/4, .NET 3/4, Ruby 2/4. |
+| 3. Not worse than keyword search | Pass: FixMap Top-5 78.6% (22/28) vs BM25-over-code 67.9% (19/28). Top-1 tied at 12/28. |
+
+**Decision: language support for Python, Java, Go, Rust, Ruby, PHP and .NET leaves preview.**
+
+FixMap's Top-5 lead over BM25 is not statistically significant (paired McNemar exact test,
+5 FixMap-only wins vs 2 BM25-only wins, p = 0.45; FixMap's 95% interval 60.5-89.8%). The bar
+asked for "not worse", not for a significant win, and the result is reported that way.
+
+Misses (now development cases): `keycloak/keycloak` (Java), `denoland/deno` (Rust),
+`rapid7/metasploit-framework` and `hashicorp/vagrant` (Ruby), `monicahq/monica` (PHP), and
+`huiyadanli/RevokeMsgPatcher` (.NET). Five are rerank misses (the fixing file was a
+candidate but ranked below the Top-5); one is a candidate-recall miss. Ruby is the weakest
+language here (2 of 4, BM25 3 of 4).
