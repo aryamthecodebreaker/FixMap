@@ -1,0 +1,1734 @@
+{
+  "featureBenchVersion": 1,
+  "recordedAt": "2026-11-24",
+  "summary": {
+    "cases": 40,
+    "available": 40,
+    "unavailable": 0,
+    "bars": {
+      "verify": {
+        "passed": 39,
+        "of": 40,
+        "meetsBar": false
+      },
+      "changeScope": {
+        "cases": 11,
+        "fixmapRecall": 0.099,
+        "baselineRecall": 0.099,
+        "meetsBar": false
+      },
+      "reviewers": {
+        "cases": 20,
+        "excluded": 20,
+        "fixmapHitRate": 0.4,
+        "baselineHitRate": 0.6,
+        "meetsBar": false
+      },
+      "historicalPlans": {
+        "passed": 18,
+        "of": 40,
+        "meetsBar": false
+      }
+    }
+  },
+  "cases": [
+    {
+      "slug": "Automattic/mongoose",
+      "language": "typescript/javascript",
+      "pullRequest": 16388,
+      "status": "ok",
+      "head": "39883df3f95adca076859f5d6e3b2bcdbc9cb90f",
+      "mergeBase": "0c3034d2886b5ff11eac8f3749cb33a896f53a57",
+      "changed": 1,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": true,
+        "baselineHit": true,
+        "suggestions": 2
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "lib/document.js",
+          "lib/helpers/setDefaultsOnInsert.js",
+          "lib/helpers/update/modifiedPaths.js",
+          "lib/types/subdocument.js",
+          "lib/types/array/methods/index.js"
+        ],
+        "atRef": [
+          "lib/document.js",
+          "lib/helpers/setDefaultsOnInsert.js",
+          "lib/helpers/update/modifiedPaths.js",
+          "lib/types/subdocument.js",
+          "lib/types/array/methods/index.js"
+        ]
+      }
+    },
+    {
+      "slug": "immerjs/immer",
+      "language": "typescript/javascript",
+      "pullRequest": 1249,
+      "status": "ok",
+      "head": "45b079974579c3be0d1eef83093b3d07e864e1d0",
+      "mergeBase": "bf2d15439259887f98f2737cf7ebde4234d5adea",
+      "changed": 2,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 9
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "src/immer.ts",
+          "src/types/types-external.ts",
+          "src/plugins/patches.ts",
+          "src/core/immerClass.ts",
+          "src/core/proxy.ts"
+        ],
+        "atRef": [
+          "src/immer.ts",
+          "src/types/types-external.ts",
+          "src/plugins/patches.ts",
+          "src/core/immerClass.ts",
+          "src/core/proxy.ts"
+        ]
+      }
+    },
+    {
+      "slug": "jestjs/jest",
+      "language": "typescript/javascript",
+      "pullRequest": 16237,
+      "status": "ok",
+      "head": "89c792e6d8153415e2ab988bf906ff0efc638acf",
+      "mergeBase": "4c3091b4204d703f4ebe343b8ac9d8a28ac4388e",
+      "changed": 3,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": true,
+        "anchor": "packages/jest-mock/src/index.ts",
+        "others": 1,
+        "k": 20,
+        "fixmapRecall": 0,
+        "baselineRecall": 0
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "packages/jest-core/src/TestScheduler.ts",
+          "packages/jest-runner/src/runTest.ts",
+          "packages/jest-test-sequencer/src/index.ts",
+          "packages/jest-worker/src/workers/threadChild.ts",
+          "packages/jest-worker/src/workers/processChild.ts"
+        ],
+        "atRef": [
+          "packages/jest-core/src/TestScheduler.ts",
+          "packages/jest-runner/src/runTest.ts",
+          "packages/jest-test-sequencer/src/index.ts",
+          "packages/jest-worker/src/workers/threadChild.ts",
+          "packages/jest-worker/src/workers/processChild.ts"
+        ]
+      }
+    },
+    {
+      "slug": "knex/knex",
+      "language": "typescript/javascript",
+      "pullRequest": 5791,
+      "status": "ok",
+      "head": "a4a5cc0620e1a1324423dde752121ad96e8eea37",
+      "mergeBase": "6f42421e595e47653b131a621c2bd20fcb3337a4",
+      "changed": 3,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 9
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": false,
+        "baselineHit": true,
+        "suggestions": 3
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "lib/knex-builder/make-knex.js",
+          "lib/dialects/postgres/index.js",
+          "lib/dialects/oracledb/index.js",
+          "bin/cli.js",
+          "lib/dialects/mysql/index.js"
+        ],
+        "atRef": [
+          "lib/knex-builder/make-knex.js",
+          "lib/dialects/postgres/index.js",
+          "lib/dialects/oracledb/index.js",
+          "bin/cli.js",
+          "lib/dialects/mysql/index.js"
+        ]
+      }
+    },
+    {
+      "slug": "mochajs/mocha",
+      "language": "typescript/javascript",
+      "pullRequest": 6107,
+      "status": "ok",
+      "head": "24844493c19c5763559a61c0968c7a6c7674f5d7",
+      "mergeBase": "f3e7d374c717cb1a61297233237c8be53ba5e68e",
+      "changed": 2,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 9
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "lib/reporters/xunit.js",
+          "lib/mocha.cjs",
+          "lib/reporters/html.js",
+          "lib/reporters/base.js",
+          "lib/nodejs/parallel-buffered-runner.cjs"
+        ],
+        "atRef": [
+          "lib/reporters/xunit.js",
+          "lib/mocha.cjs",
+          "lib/reporters/html.js",
+          "lib/reporters/base.js",
+          "lib/nodejs/parallel-buffered-runner.cjs"
+        ]
+      }
+    },
+    {
+      "slug": "react-hook-form/react-hook-form",
+      "language": "typescript/javascript",
+      "pullRequest": 13612,
+      "status": "ok",
+      "head": "90f43c2a3c8c03c8a5a2680c51ddb2ce239ff51a",
+      "mergeBase": "ee7593ec554c7f2cb74a8ace5984bcb8cb136633",
+      "changed": 2,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 9
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "src/logic/createFormControl.ts",
+          "src/useController.ts",
+          "src/types/form.ts",
+          "src/useFormState.ts",
+          "app/src/useFormState.tsx"
+        ],
+        "atRef": [
+          "src/logic/createFormControl.ts",
+          "src/useController.ts",
+          "src/types/form.ts",
+          "src/useFormState.ts",
+          "app/src/useFormState.tsx"
+        ]
+      }
+    },
+    {
+      "slug": "socketio/socket.io",
+      "language": "typescript/javascript",
+      "pullRequest": 5501,
+      "status": "ok",
+      "head": "87d702612a97cf69d7ba1cc18b9450154bf88388",
+      "mergeBase": "0e591b92d727b1ca84e530d4ab65fa21cfdc4ae6",
+      "changed": 2,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 9
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "packages/engine.io-client/lib/transports/polling-xhr.ts",
+          "packages/engine.io-client/lib/socket.ts",
+          "packages/socket.io-client/dist/socket.io.js",
+          "packages/socket.io/client-dist/socket.io.js",
+          "packages/engine.io-client/lib/transports/websocket.ts"
+        ],
+        "atRef": [
+          "packages/engine.io-client/lib/transports/polling-xhr.ts",
+          "packages/engine.io-client/lib/socket.ts",
+          "packages/engine.io-client/lib/transports/websocket.ts",
+          "packages/engine.io/lib/transports-uws/polling.ts",
+          "packages/engine.io-client/lib/transport.ts"
+        ]
+      }
+    },
+    {
+      "slug": "sveltejs/svelte",
+      "language": "typescript/javascript",
+      "pullRequest": 18556,
+      "status": "ok",
+      "head": "906d82fc4eeb7234d929c274ee3ed7ba0eca7cd5",
+      "mergeBase": "2bace308e37ac1def958be750bd699ed302bb715",
+      "changed": 1,
+      "created": 7,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 11
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": true,
+        "baselineHit": true,
+        "suggestions": 2
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "packages/svelte/src/internal/client/dom/blocks/boundary.js",
+          "packages/svelte/scripts/check-treeshakeability.js",
+          "packages/svelte/src/internal/client/errors.js",
+          "packages/svelte/src/internal/client/warnings.js",
+          "packages/svelte/src/internal/client/render.js"
+        ],
+        "atRef": [
+          "packages/svelte/src/internal/client/dom/blocks/boundary.js",
+          "packages/svelte/scripts/check-treeshakeability.js",
+          "packages/svelte/src/internal/client/errors.js",
+          "packages/svelte/src/internal/client/warnings.js",
+          "packages/svelte/src/internal/client/render.js"
+        ]
+      }
+    },
+    {
+      "slug": "vitejs/vite",
+      "language": "typescript/javascript",
+      "pullRequest": 23024,
+      "status": "ok",
+      "head": "ddd81b0bc0bed5bb53c0f4dae71610aab46667d1",
+      "mergeBase": "791843e1591ec2d65a401560bc1fc0a85b32ee32",
+      "changed": 2,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 9
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "packages/create-vite/template-vue-ts/src/App.vue",
+          "packages/create-vite/template-vue/src/App.vue",
+          "packages/vite/src/node/optimizer/rolldownDepPlugin.ts",
+          "packages/vite/types/metadata.d.ts",
+          "packages/vite/src/node/plugins/workerImportMetaUrl.ts"
+        ],
+        "atRef": [
+          "packages/create-vite/template-vue-ts/src/App.vue",
+          "packages/create-vite/template-vue/src/App.vue",
+          "packages/create-vite/template-vue/src/components/HelloWorld.vue",
+          "packages/create-vite/template-vue-ts/src/components/HelloWorld.vue",
+          "packages/vite/src/node/optimizer/rolldownDepPlugin.ts"
+        ]
+      }
+    },
+    {
+      "slug": "vuejs/core",
+      "language": "typescript/javascript",
+      "pullRequest": 13915,
+      "status": "ok",
+      "head": "ec8f5dbee0119935dd0ba3073026c21f68d75012",
+      "mergeBase": "b555f02eede06f500deb25d3ba5ee44217ce1265",
+      "changed": 1,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "tsconfig.json",
+          "packages-private/tsconfig.json",
+          "packages-private/dts-built-test/tsconfig.json",
+          "packages-private/vite-debug/tsconfig.json",
+          "packages/reactivity/src/ref.ts"
+        ],
+        "atRef": [
+          "tsconfig.json",
+          "packages-private/tsconfig.json",
+          "packages-private/dts-built-test/tsconfig.json",
+          "packages-private/vite-debug/tsconfig.json",
+          "packages/reactivity/src/ref.ts"
+        ]
+      }
+    },
+    {
+      "slug": "winstonjs/winston",
+      "language": "typescript/javascript",
+      "pullRequest": 2611,
+      "status": "ok",
+      "head": "04ca819e5227d76888f328795ce171665a0209e1",
+      "mergeBase": "1f89222a796225923b87f0462497b92e274915ce",
+      "changed": 1,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "lib/winston/transports/file.js",
+          "lib/winston/transports/http.js",
+          "lib/winston/tail-file.js",
+          "lib/winston/logger.js",
+          "lib/winston/transports/console.js"
+        ],
+        "atRef": [
+          "lib/winston/transports/file.js",
+          "lib/winston/transports/http.js",
+          "lib/winston/tail-file.js",
+          "lib/winston/logger.js",
+          "lib/winston/transports/console.js"
+        ]
+      }
+    },
+    {
+      "slug": "yargs/yargs",
+      "language": "typescript/javascript",
+      "pullRequest": 2498,
+      "status": "ok",
+      "head": "6901ab4a9bd20af43b19cd5b0d0d2560d473f5d1",
+      "mergeBase": "971e351705f0fbc5566c6ed1dfd707fa65e11c0d",
+      "changed": 2,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 9
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "lib/utils/apply-extends.ts",
+          "lib/yargs-factory.ts",
+          "lib/command.ts",
+          "lib/validation.ts",
+          "lib/completion.ts"
+        ],
+        "atRef": [
+          "lib/utils/apply-extends.ts",
+          "lib/command.ts",
+          "lib/validation.ts",
+          "lib/completion.ts",
+          "helpers/helpers.mjs"
+        ]
+      }
+    },
+    {
+      "slug": "NousResearch/hermes-agent",
+      "language": "python",
+      "pullRequest": 153528,
+      "status": "ok",
+      "head": "ea3bf794c1583b9d95887b0c480a2fa90815d358",
+      "mergeBase": "59dd35ce48ab50d7f59fa00d0ac70ca0d08b38d3",
+      "changed": 3,
+      "created": 1,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 11
+      },
+      "changeScope": {
+        "eligible": true,
+        "anchor": "agent/turn_empty_response.py",
+        "others": 2,
+        "k": 20,
+        "fixmapRecall": 0,
+        "baselineRecall": 0
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": false,
+        "baselineHit": true,
+        "suggestions": 0
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "gateway/run_turn_persistence.py",
+          "gateway/run_turn_runner.py",
+          "apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/status.ts",
+          "agent/turn_empty_response.py",
+          "apps/desktop/src/components/assistant-ui/tool/fallback-model/format.ts"
+        ],
+        "atRef": [
+          "gateway/run_turn_persistence.py",
+          "apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/status.ts",
+          "agent/turn_final_response.py",
+          "apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/message-stream.ts",
+          "agent/turn_empty_response.py"
+        ]
+      }
+    },
+    {
+      "slug": "yt-dlp/yt-dlp",
+      "language": "python",
+      "pullRequest": 17978,
+      "status": "ok",
+      "head": "382bd0e71085bec208d11005371a462556d4a46c",
+      "mergeBase": "28b379d666051e795cbb663adac85179d5ce81f7",
+      "changed": 2,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 11
+      },
+      "changeScope": {
+        "eligible": true,
+        "anchor": "yt_dlp/extractor/la7.py",
+        "others": 1,
+        "k": 20,
+        "fixmapRecall": 0,
+        "baselineRecall": 1
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": true,
+        "baselineHit": false,
+        "suggestions": 3
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "CONTRIBUTING.md",
+          "yt_dlp/update.py",
+          "yt_dlp/extractor/la7.py",
+          "yt_dlp/extractor/youtube/_base.py",
+          "yt_dlp/extractor/youtube/_video.py"
+        ],
+        "atRef": [
+          "CONTRIBUTING.md",
+          "yt_dlp/update.py",
+          "yt_dlp/extractor/la7.py",
+          "yt_dlp/extractor/youtube/_base.py",
+          "yt_dlp/cookies.py"
+        ]
+      }
+    },
+    {
+      "slug": "microsoft/markitdown",
+      "language": "python",
+      "pullRequest": 1656,
+      "status": "ok",
+      "head": "30dd7d415b9808e91d04481c436760b929d94e3f",
+      "mergeBase": "533ea574b3ee74548d85411332ee793606e156b9",
+      "changed": 1,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 9
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": false,
+        "baselineHit": true,
+        "suggestions": 3
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "packages/markitdown/src/markitdown/__main__.py",
+          "packages/markitdown-mcp/src/markitdown_mcp/__main__.py",
+          "packages/markitdown/src/markitdown/converters/_pdf_converter.py",
+          "packages/markitdown-ocr/src/markitdown_ocr/_pdf_converter_with_ocr.py",
+          "packages/markitdown/src/markitdown/_markitdown.py"
+        ],
+        "atRef": [
+          "packages/markitdown/src/markitdown/__main__.py",
+          "packages/markitdown-mcp/src/markitdown_mcp/__main__.py",
+          "packages/markitdown/src/markitdown/converters/_pdf_converter.py",
+          "packages/markitdown-ocr/src/markitdown_ocr/_pdf_converter_with_ocr.py",
+          "packages/markitdown/src/markitdown/_markitdown.py"
+        ]
+      }
+    },
+    {
+      "slug": "Significant-Gravitas/AutoGPT",
+      "language": "python",
+      "pullRequest": 14534,
+      "status": "ok",
+      "head": "16efcbebf17a9310075e1d3d293419f67690e061",
+      "mergeBase": "5f9eed6cc90bab61fff25dd47792d56c918411e4",
+      "changed": 1,
+      "created": 1,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 9
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": false,
+        "baselineHit": true,
+        "suggestions": 2
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "autogpt_platform/backend/backend/util/type.py",
+          "autogpt_platform/backend/backend/executor/utils.py",
+          "autogpt_platform/backend/backend/blocks/branching.py",
+          "autogpt_platform/backend/backend/blocks/_base.py",
+          "autogpt_platform/backend/backend/blocks/llm.py"
+        ],
+        "atRef": [
+          "autogpt_platform/backend/backend/util/type.py",
+          "autogpt_platform/backend/backend/blocks/branching.py",
+          "autogpt_platform/backend/backend/blocks/_base.py",
+          "autogpt_platform/backend/backend/blocks/agent_mail/lists.py",
+          "autogpt_platform/backend/backend/util/llm/conversions.py"
+        ]
+      }
+    },
+    {
+      "slug": "NationalSecurityAgency/ghidra",
+      "language": "java",
+      "pullRequest": 10055,
+      "status": "ok",
+      "head": "42692108e1f60c6c86ccabf79e220fd3cf6c1519",
+      "mergeBase": "1b9e58a915cf867e106495eaa2a4b18eb4971c9d",
+      "changed": 2,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 4
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "Ghidra/Features/Base/src/main/java/ghidra/app/plugin/core/assembler/PatchInstructionAction.java",
+          "Ghidra/Features/Base/src/main/java/ghidra/app/plugin/prototype/analysis/ArmAggressiveInstructionFinderAnalyzer.java",
+          "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/disassemble/AbstractTracePatchInstructionAction.java",
+          "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/disassemble/FixedPlatformTracePatchInstructionAction.java",
+          "Ghidra/Features/Base/ghidra_scripts/Fix_ARM_Call_JumpsScript.java"
+        ],
+        "atRef": [
+          "Ghidra/Features/Base/src/main/java/ghidra/app/plugin/core/assembler/PatchInstructionAction.java",
+          "Ghidra/Features/Base/src/main/java/ghidra/app/plugin/prototype/analysis/ArmAggressiveInstructionFinderAnalyzer.java",
+          "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/disassemble/FixedPlatformTracePatchInstructionAction.java",
+          "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/disassemble/AbstractTracePatchInstructionAction.java",
+          "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/disassemble/CurrentPlatformTracePatchInstructionAction.java"
+        ]
+      }
+    },
+    {
+      "slug": "iluwatar/java-design-patterns",
+      "language": "java",
+      "pullRequest": 3550,
+      "status": "ok",
+      "head": "2a4303616f423e32357e7703c876f58ec31294e5",
+      "mergeBase": "b55fc2bcb5f8e1c4b884bca0a38d402d19fe467c",
+      "changed": 1,
+      "created": 8,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "half-sync-half-async/src/main/java/com/iluwatar/halfsynchalfasync/AsyncTask.java",
+          "callback/src/main/java/com/iluwatar/callback/Task.java",
+          "thread-pool-executor/src/main/java/com/iluwatar/threadpoolexecutor/App.java",
+          "thread-pool-executor/src/main/java/com/iluwatar/threadpoolexecutor/FrontDeskService.java",
+          "thread-pool-executor/src/main/java/com/iluwatar/threadpoolexecutor/VipGuestCheckInTask.java"
+        ],
+        "atRef": [
+          "half-sync-half-async/src/main/java/com/iluwatar/halfsynchalfasync/AsyncTask.java",
+          "callback/src/main/java/com/iluwatar/callback/Task.java",
+          "thread-pool-executor/src/main/java/com/iluwatar/threadpoolexecutor/App.java",
+          "thread-pool-executor/src/main/java/com/iluwatar/threadpoolexecutor/FrontDeskService.java",
+          "thread-pool-executor/src/main/java/com/iluwatar/threadpoolexecutor/VipGuestCheckInTask.java"
+        ]
+      }
+    },
+    {
+      "slug": "termux/termux-app",
+      "language": "java",
+      "pullRequest": 5090,
+      "status": "ok",
+      "head": "00d5846cfa2de8bafdcffae7da4aafb550cc3862",
+      "mergeBase": "30ebb2dee381d292ade0f2868cfde0f9f20b89fe",
+      "changed": 1,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 7
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": false,
+        "baselineHit": false,
+        "suggestions": 0
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "termux-shared/src/main/java/com/termux/shared/android/AndroidUtils.java",
+          "app/src/main/java/com/termux/app/terminal/TermuxTerminalViewClient.java",
+          "app/src/main/java/com/termux/app/TermuxActivity.java",
+          "terminal-view/src/main/java/com/termux/view/TerminalView.java",
+          "app/src/main/java/com/termux/app/terminal/TermuxActivityRootView.java"
+        ],
+        "atRef": [
+          "termux-shared/src/main/java/com/termux/shared/android/AndroidUtils.java",
+          "app/src/main/java/com/termux/app/terminal/TermuxTerminalViewClient.java",
+          "app/src/main/java/com/termux/app/TermuxActivity.java",
+          "app/src/main/java/com/termux/app/terminal/TermuxActivityRootView.java",
+          "terminal-view/src/main/java/com/termux/view/textselection/TextSelectionCursorController.java"
+        ]
+      }
+    },
+    {
+      "slug": "skylot/jadx",
+      "language": "java",
+      "pullRequest": 3014,
+      "status": "ok",
+      "head": "9ea3bf7676069ecc4f0ee1f9aa6389679cbcd1e4",
+      "mergeBase": "5781c8674cec35ea697bbd1434f0a40f527882dd",
+      "changed": 1,
+      "created": 2,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 11
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": true,
+        "baselineHit": true,
+        "suggestions": 3
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "jadx-core/src/main/java/jadx/api/JadxArgs.java",
+          "jadx-core/src/main/java/jadx/core/utils/android/Res9patchStreamDecoder.java",
+          "jadx-gui/src/main/java/jadx/gui/report/ExceptionDialog.java",
+          "jadx-core/src/main/java/jadx/api/plugins/utils/CommonFileUtils.java",
+          "jadx-core/src/main/java/jadx/api/JadxDecompiler.java"
+        ],
+        "atRef": [
+          "jadx-core/src/main/java/jadx/api/JadxArgs.java",
+          "jadx-core/src/main/java/jadx/core/utils/android/Res9patchStreamDecoder.java",
+          "jadx-gui/src/main/java/jadx/gui/report/ExceptionDialog.java",
+          "jadx-core/src/main/java/jadx/api/plugins/utils/CommonFileUtils.java",
+          "jadx-core/src/main/java/jadx/api/JadxDecompiler.java"
+        ]
+      }
+    },
+    {
+      "slug": "ollama/ollama",
+      "language": "go",
+      "pullRequest": 19748,
+      "status": "ok",
+      "head": "7135c94e2fa3a557dd1fac6cee14a0162429276d",
+      "mergeBase": "b8db8d5b5c8daedbbef7bb9ace2221a38bc384c2",
+      "changed": 4,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 9
+      },
+      "changeScope": {
+        "eligible": true,
+        "anchor": "server/sched.go",
+        "others": 1,
+        "k": 20,
+        "fixmapRecall": 0,
+        "baselineRecall": 0
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": false,
+        "baselineHit": false,
+        "suggestions": 3
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "server/sched.go",
+          "llm/llama_server.go",
+          "server/model_show_cache.go",
+          "cmd/launch/models.go",
+          "server/routes.go"
+        ],
+        "atRef": [
+          "server/sched.go",
+          "server/model_show_cache.go",
+          "mlxrunner/model/gemma4/audio.go",
+          "cmd/launch/models.go",
+          "mlxrunner/model/gemma4/gemma4.go"
+        ]
+      }
+    },
+    {
+      "slug": "kubernetes/kubernetes",
+      "language": "go",
+      "pullRequest": 143073,
+      "status": "ok",
+      "head": "f1ddb65f7fbb7fe542fe316fb069e7bffc26b7f9",
+      "mergeBase": "dd17674001a6e7649c7e5ec69a8617b779a131f2",
+      "changed": 2,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "staging/src/k8s.io/kubectl/pkg/cmd/exec/exec.go",
+          "staging/src/k8s.io/apiserver/pkg/apis/audit/types.go",
+          "pkg/kubelet/apis/config/types.go",
+          "staging/src/k8s.io/kubectl/pkg/cmd/run/run.go",
+          "pkg/apis/core/types.go"
+        ],
+        "atRef": [
+          "staging/src/k8s.io/apiserver/pkg/apis/audit/types.go",
+          "pkg/kubelet/apis/config/types.go",
+          "cmd/kubeadm/app/apis/kubeadm/types.go",
+          "staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/types.go",
+          "staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1/types.go"
+        ]
+      }
+    },
+    {
+      "slug": "JuliusBrussee/caveman",
+      "language": "go",
+      "pullRequest": 1394,
+      "status": "ok",
+      "head": "72d4d58a877f54cb61d58c45ec37fdc49b3647af",
+      "mergeBase": "944413127101fc816451571c169dc1eeb3194bed",
+      "changed": 18,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 11
+      },
+      "changeScope": {
+        "eligible": true,
+        "anchor": "packages/cli/src/index.ts",
+        "others": 11,
+        "k": 20,
+        "fixmapRecall": 0.091,
+        "baselineRecall": 0.091
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": true,
+        "baselineHit": true,
+        "suggestions": 3
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "agents/compile.mjs",
+          "agents/profiles/qwen.json",
+          "skills/compile.mjs",
+          "integrations/compile.mjs",
+          "agents/drift-report.mjs"
+        ],
+        "atRef": [
+          "agents/compile.mjs",
+          "agents/profiles/qwen.json",
+          "skills/compile.mjs",
+          "integrations/compile.mjs",
+          "agents/drift-report.mjs"
+        ]
+      }
+    },
+    {
+      "slug": "microsoft/TypeScript",
+      "language": "go",
+      "pullRequest": 64743,
+      "status": "ok",
+      "head": "c93632c409eda8bd9008aab4a90d31d095aff6a2",
+      "mergeBase": "f5a247c0ca4e85f1f6ed304c71f149c9f6b3290e",
+      "changed": 1,
+      "created": 5,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 11
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "tsc/internal/ast/ast.go",
+          "tsc/internal/ast/symbol.go",
+          "tsc/testdata/baselines/reference/compiler/moduleMemberWithoutTypeAnnotation1.js",
+          "tsc/testdata/baselines/reference/compiler/moduleMemberWithoutTypeAnnotation2.js",
+          "tsc/internal/format/util.go"
+        ],
+        "atRef": [
+          "tsc/internal/ast/symbol.go",
+          "tsc/testdata/baselines/reference/compiler/moduleMemberWithoutTypeAnnotation1.js",
+          "tsc/testdata/baselines/reference/compiler/moduleMemberWithoutTypeAnnotation2.js",
+          "tsc/internal/format/util.go",
+          "tsc/internal/checker/links.go"
+        ]
+      }
+    },
+    {
+      "slug": "ultraworkers/claw-code",
+      "language": "rust",
+      "pullRequest": 3333,
+      "status": "ok",
+      "head": "4bd5a6381e31afcb775edde516aff77476e1902c",
+      "mergeBase": "20578124c4c02156ce328dee48c3854fd9f513ca",
+      "changed": 1,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": false,
+        "baselineHit": false,
+        "suggestions": 3
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "rust/crates/runtime/src/task_packet.rs",
+          "rust/crates/rusty-claude-cli/src/main.rs",
+          "rust/crates/tools/src/lib.rs",
+          "rust/crates/runtime/src/task_registry.rs",
+          "rust/crates/commands/src/lib.rs"
+        ],
+        "atRef": [
+          "rust/crates/runtime/src/task_packet.rs",
+          "src/parity_audit.py",
+          "rust/crates/runtime/src/task_registry.rs",
+          "rust/crates/runtime/src/file_ops.rs",
+          "rust/crates/runtime/src/mcp_tool_bridge.rs"
+        ]
+      }
+    },
+    {
+      "slug": "farion1231/cc-switch",
+      "language": "rust",
+      "pullRequest": 9848,
+      "status": "ok",
+      "head": "9b8d62bcc26b583f6f12305ddb15a5db9dccc2b9",
+      "mergeBase": "2c084ec752a985fa77470facc14cad76ee67e8e1",
+      "changed": 2,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": true,
+        "anchor": "src-tauri/src/proxy/providers/transform_responses/tests.rs",
+        "others": 1,
+        "k": 4,
+        "fixmapRecall": 1,
+        "baselineRecall": 0
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "src-tauri/src/proxy/providers/transform_responses.rs",
+          "src-tauri/src/session_manager/content.rs",
+          "src-tauri/src/proxy/providers/transform_codex_anthropic.rs",
+          "src-tauri/src/services/skill_repo_tokens.rs",
+          "src-tauri/src/services/codex_oauth_models.rs"
+        ],
+        "atRef": [
+          "src-tauri/src/proxy/providers/transform_responses.rs",
+          "src-tauri/src/session_manager/content.rs",
+          "src-tauri/src/services/skill_repo_tokens.rs",
+          "src-tauri/src/services/codex_oauth_models.rs",
+          "src-tauri/src/proxy/providers/streaming_codex_anthropic.rs"
+        ]
+      }
+    },
+    {
+      "slug": "rustdesk/rustdesk",
+      "language": "rust",
+      "pullRequest": 16729,
+      "status": "ok",
+      "head": "9cdbd1b818448b89f475ab71035ff3d989d8c8d2",
+      "mergeBase": "eb239024503160707cca87ba6cef5fbfb8fa3f0d",
+      "changed": 3,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 11
+      },
+      "changeScope": {
+        "eligible": true,
+        "anchor": "src/privacy_mode/macos.rs",
+        "others": 1,
+        "k": 10,
+        "fixmapRecall": 0,
+        "baselineRecall": 0
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "src/client.rs",
+          "src/lang/cn.rs",
+          "src/lang/ja.rs",
+          "src/lang/ru.rs",
+          "src/lang/ko.rs"
+        ],
+        "atRef": [
+          "src/lang/cn.rs",
+          "src/lang/tw.rs",
+          "src/lang/ar.rs",
+          "src/lang/ko.rs",
+          "src/lang/he.rs"
+        ]
+      }
+    },
+    {
+      "slug": "rust-lang/rust",
+      "language": "rust",
+      "pullRequest": 165814,
+      "status": "ok",
+      "head": "5496de65c0a84488f8d9c6abdeeb930816c82762",
+      "mergeBase": "b6c79e88af6825838aed7c6a159e7e0b00259443",
+      "changed": 1,
+      "created": 2,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 8
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": false,
+        "baselineHit": false,
+        "suggestions": 0
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "library/std/src/sync/poison/mutex.rs",
+          "library/std/src/sync/nonpoison/mutex.rs",
+          "library/std/src/sync/reentrant_lock.rs",
+          "library/std/src/sys/pal/unix/sync/mutex.rs",
+          "compiler/rustc_data_structures/src/sync/lock.rs"
+        ],
+        "atRef": [
+          "library/std/src/sync/poison/mutex.rs",
+          "library/std/src/sync/nonpoison/mutex.rs",
+          "library/std/src/sync/reentrant_lock.rs",
+          "compiler/rustc_data_structures/src/sync/lock.rs",
+          "library/std/src/sys/pal/unix/sync/mutex.rs"
+        ]
+      }
+    },
+    {
+      "slug": "jekyll/jekyll",
+      "language": "ruby",
+      "pullRequest": 9981,
+      "status": "ok",
+      "head": "03869eced488d7f13c586c5ac3c5ee70d2fd3380",
+      "mergeBase": "202df571314ba1d18e9fccd81d12aaad4a703c38",
+      "changed": 3,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 5
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "lib/jekyll/document.rb",
+          "lib/jekyll/command.rb",
+          "lib/jekyll/url.rb",
+          "lib/jekyll/collection.rb",
+          "lib/jekyll/drops/document_drop.rb"
+        ],
+        "atRef": [
+          "lib/jekyll/document.rb",
+          "lib/jekyll/command.rb",
+          "lib/jekyll/url.rb",
+          "lib/jekyll/collection.rb",
+          "lib/jekyll/drops/document_drop.rb"
+        ]
+      }
+    },
+    {
+      "slug": "mastodon/mastodon",
+      "language": "ruby",
+      "pullRequest": 41761,
+      "status": "ok",
+      "head": "1acd7bffbd49c62f2c75b7b70c1a8eb84e0351a4",
+      "mergeBase": "166fb24fa53c13f632513f2aafc42f4f0cdb50b2",
+      "changed": 1,
+      "created": 3,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 12
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": false,
+        "baselineHit": true,
+        "suggestions": 2
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "app/javascript/mastodon/features/ui/components/bundle_column_error/index.tsx",
+          "app/lib/link_details_extractor.rb",
+          "app/javascript/mastodon/actions/compose.js",
+          "app/controllers/concerns/web_app_controller_concern.rb",
+          "app/javascript/mastodon/features/navigation_panel/logged_out_info.tsx"
+        ],
+        "atRef": [
+          "app/javascript/mastodon/features/ui/components/bundle_column_error/index.tsx",
+          "app/lib/link_details_extractor.rb",
+          "app/javascript/mastodon/actions/compose.js",
+          "app/javascript/mastodon/features/navigation_panel/logged_out_info.tsx",
+          "app/controllers/concerns/web_app_controller_concern.rb"
+        ]
+      }
+    },
+    {
+      "slug": "huginn/huginn",
+      "language": "ruby",
+      "pullRequest": 3842,
+      "status": "ok",
+      "head": "c92b9ac71397569dcee4636d4ae70fa281b87bb1",
+      "mergeBase": "639c050b2bf4e14ef9983012af99dfc1dc68b334",
+      "changed": 1,
+      "created": 1,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 9
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "app/models/agents/imap_folder_agent.rb",
+          "app/models/agents/java_script_agent.rb",
+          "app/models/agent.rb",
+          "app/controllers/user_credentials_controller.rb",
+          "app/models/agents/twilio_receive_text_agent.rb"
+        ],
+        "atRef": [
+          "app/models/agents/imap_folder_agent.rb",
+          "app/controllers/user_credentials_controller.rb",
+          "app/models/agent.rb",
+          "app/models/agents/ftpsite_agent.rb",
+          "app/models/agents/java_script_agent.rb"
+        ]
+      }
+    },
+    {
+      "slug": "Homebrew/brew",
+      "language": "ruby",
+      "pullRequest": 24728,
+      "status": "ok",
+      "head": "7f184d4e73efce519292d14d295cd660e10f96dc",
+      "mergeBase": "e40c695f619441e4c13b6cf51f8f0484ea091dd5",
+      "changed": 3,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": true,
+        "anchor": "Library/Homebrew/utils/tty.rb",
+        "others": 1,
+        "k": 0,
+        "fixmapRecall": 0,
+        "baselineRecall": 0
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": true,
+        "baselineHit": true,
+        "suggestions": 1
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "Library/Homebrew/cmd/doctor.rb",
+          "Library/Homebrew/test_bot/formulae.rb",
+          "Library/Homebrew/utils/output.rb",
+          "Library/Homebrew/brew.rb",
+          "Library/Homebrew/rubocops/lines.rb"
+        ],
+        "atRef": [
+          "Library/Homebrew/cmd/doctor.rb",
+          "Library/Homebrew/test_bot/formulae.rb",
+          "Library/Homebrew/utils/output.rb",
+          "Library/Homebrew/brew.rb",
+          "Library/Homebrew/rubocops/lines.rb"
+        ]
+      }
+    },
+    {
+      "slug": "coollabsio/coolify",
+      "language": "php",
+      "pullRequest": 12257,
+      "status": "ok",
+      "head": "eeda30719f71fa879600275c1c1d7a9eb7cd5645",
+      "mergeBase": "f55efc859dfcbbf79274c4907b3df89f9767c11d",
+      "changed": 7,
+      "created": 0,
+      "verify": {
+        "pass": false,
+        "missingFromVerify": [],
+        "narrativeProblems": [
+          "statement 11 is 922 characters; the bound is 800.",
+          "statement 12 is 1045 characters; the bound is 800."
+        ],
+        "statements": 12
+      },
+      "changeScope": {
+        "eligible": true,
+        "anchor": "docker/production/Dockerfile",
+        "others": 5,
+        "k": 0,
+        "fixmapRecall": 0,
+        "baselineRecall": 0
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": true,
+        "baselineHit": true,
+        "suggestions": 2
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "app/Livewire/Project/Shared/ScheduledTask/Executions.php",
+          "app/Http/Controllers/Api/ScheduledTasksController.php",
+          "app/Jobs/ScheduledTaskJob.php",
+          "app/Actions/CoolifyTask/RunRemoteProcess.php",
+          "app/Jobs/ScheduledJobManager.php"
+        ],
+        "atRef": [
+          "app/Livewire/Project/Shared/ScheduledTask/Executions.php",
+          "app/Http/Controllers/Api/ScheduledTasksController.php",
+          "app/Jobs/ScheduledTaskJob.php",
+          "app/Actions/CoolifyTask/RunRemoteProcess.php",
+          "app/Jobs/CleanupHelperContainersJob.php"
+        ]
+      }
+    },
+    {
+      "slug": "nextcloud/server",
+      "language": "php",
+      "pullRequest": 66002,
+      "status": "ok",
+      "head": "c39dcd5bcde899152c8dc48c348c1a90a816d438",
+      "mergeBase": "5cc43956c923fabb689fbe1acc3e9a1ad0d8e088",
+      "changed": 1,
+      "created": 1,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "apps/files_external/lib/Lib/Storage/SFTPReadStream.php",
+          "apps/files_external/lib/Lib/Storage/SFTP.php",
+          "lib/private/Preview/Movie.php",
+          "apps/files_versions/lib/Storage.php",
+          "apps/files_external/lib/Lib/Storage/SFTPWriteStream.php"
+        ],
+        "atRef": [
+          "apps/files_external/lib/Lib/Storage/SFTPReadStream.php",
+          "apps/files_external/lib/Lib/Storage/SFTP.php",
+          "lib/private/Preview/Movie.php",
+          "apps/files_versions/lib/Storage.php",
+          "apps/files_external/lib/Lib/Storage/SFTPWriteStream.php"
+        ]
+      }
+    },
+    {
+      "slug": "laravel/framework",
+      "language": "php",
+      "pullRequest": 62517,
+      "status": "ok",
+      "head": "0cfd942794fbeccfcc3016e056c42e111dd90045",
+      "mergeBase": "b65b5e31522b8a3fcf2bcc7497fa6fb0e8f57ca1",
+      "changed": 2,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": false,
+        "baselineHit": false,
+        "suggestions": 1
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php",
+          "src/Illuminate/Database/Eloquent/Builder.php",
+          "src/Illuminate/Database/Eloquent/Factories/Factory.php",
+          "src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php",
+          "src/Illuminate/Database/Eloquent/Model.php"
+        ],
+        "atRef": [
+          "src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php",
+          "src/Illuminate/Database/Eloquent/Factories/Factory.php",
+          "src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php",
+          "src/Illuminate/Database/Schema/Builder.php",
+          "src/Illuminate/Database/Eloquent/Relations/HasOne.php"
+        ]
+      }
+    },
+    {
+      "slug": "filamentphp/filament",
+      "language": "php",
+      "pullRequest": 21068,
+      "status": "ok",
+      "head": "c459ac0836deb1e94fe04c2445aa9ca0fe4fe430",
+      "mergeBase": "3191a1a12bc0f6103ca644d7c7fc99f1aa915dbb",
+      "changed": 2,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 9
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": false,
+        "baselineHit": true,
+        "suggestions": 0
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "packages/schemas/src/Components/Concerns/CanBeHidden.php",
+          "packages/schemas/src/Components/Concerns/HasState.php",
+          "packages/schemas/src/Components/Section.php",
+          "packages/schemas/src/Concerns/HasState.php",
+          "packages/schemas/src/Components/Tabs.php"
+        ],
+        "atRef": [
+          "packages/schemas/src/Components/Concerns/CanBeHidden.php",
+          "packages/schemas/src/Components/Concerns/HasState.php",
+          "packages/schemas/src/Components/Section.php",
+          "packages/schemas/src/Concerns/HasState.php",
+          "packages/schemas/src/Components/Tabs.php"
+        ]
+      }
+    },
+    {
+      "slug": "2dust/v2rayN",
+      "language": "dotnet",
+      "pullRequest": 10629,
+      "status": "ok",
+      "head": "97ef554a4134f4470fa10b6894bdb1b4a656eb6d",
+      "mergeBase": "f57b1bf47961f0d39c690887cf9a2e6941fb1276",
+      "changed": 1,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "v2rayN/v2rayN.Desktop/Program.cs",
+          "v2rayN/v2rayN.Desktop/Views/MainWindow.axaml.cs",
+          "v2rayN/v2rayN.WebAPI/Program.cs",
+          "v2rayN/v2rayN.Desktop/Views/BackupAndRestoreView.axaml.cs",
+          "v2rayN/v2rayN.Desktop/Views/OptionSettingWindow.axaml.cs"
+        ],
+        "atRef": [
+          "v2rayN/v2rayN.Desktop/Program.cs",
+          "v2rayN/v2rayN.Desktop/Views/MainWindow.axaml.cs",
+          "v2rayN/v2rayN.Desktop/Views/BackupAndRestoreView.axaml.cs",
+          "v2rayN/v2rayN.Desktop/Views/OptionSettingWindow.axaml.cs",
+          "v2rayN/v2rayN.Desktop/Common/UI.cs"
+        ]
+      }
+    },
+    {
+      "slug": "shadowsocks/shadowsocks-windows",
+      "language": "dotnet",
+      "pullRequest": 2982,
+      "status": "ok",
+      "head": "4cd7c292544c96f00ca66131af5250d00ce5d96d",
+      "mergeBase": "90d90f7cebfe7e07e077d061ef02f61316b001a6",
+      "changed": 1,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": false
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": true,
+        "baselineHit": false,
+        "suggestions": 2
+      },
+      "historical": {
+        "pass": true,
+        "workingTree": [
+          "shadowsocks-csharp/Data/abp.js",
+          "shadowsocks-csharp/Program.cs",
+          "shadowsocks-csharp/Controller/Service/GeositeUpdater.cs",
+          "shadowsocks-csharp/Controller/ShadowsocksController.cs",
+          "shadowsocks-csharp/View/MenuViewController.cs"
+        ],
+        "atRef": [
+          "shadowsocks-csharp/Data/abp.js",
+          "shadowsocks-csharp/Program.cs",
+          "shadowsocks-csharp/Controller/Service/GeositeUpdater.cs",
+          "shadowsocks-csharp/Controller/ShadowsocksController.cs",
+          "shadowsocks-csharp/View/MenuViewController.cs"
+        ]
+      }
+    },
+    {
+      "slug": "PowerShell/PowerShell",
+      "language": "dotnet",
+      "pullRequest": 27266,
+      "status": "ok",
+      "head": "4a9d76cc7381978c425444972613fd0e62b7b94c",
+      "mergeBase": "25e80cefdb14d0c69eaa976314e31d035aeddd73",
+      "changed": 2,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 10
+      },
+      "changeScope": {
+        "eligible": true,
+        "anchor": "src/System.Management.Automation/namespaces/FileSystemProvider.cs",
+        "others": 1,
+        "k": 20,
+        "fixmapRecall": 0,
+        "baselineRecall": 0
+      },
+      "reviewers": {
+        "eligible": true,
+        "fixmapHit": false,
+        "baselineHit": false,
+        "suggestions": 3
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "docs/FAQ.md",
+          "src/System.Management.Automation/engine/hostifaces/PowerShellProcessInstance.cs",
+          "src/Microsoft.PowerShell.ConsoleHost/host/msh/ConsoleHost.cs",
+          "src/System.Management.Automation/engine/remoting/common/RunspaceConnectionInfo.cs",
+          "src/Microsoft.PowerShell.ConsoleHost/WindowsTaskbarJumpList/TaskbarJumpList.cs"
+        ],
+        "atRef": [
+          "docs/FAQ.md",
+          "src/System.Management.Automation/engine/hostifaces/PowerShellProcessInstance.cs",
+          "src/Microsoft.PowerShell.ConsoleHost/WindowsTaskbarJumpList/TaskbarJumpList.cs",
+          "src/Microsoft.PowerShell.Commands.Management/commands/management/Eventlog.cs",
+          "src/Microsoft.PowerShell.Commands.Management/commands/management/TestConnectionCommand.cs"
+        ]
+      }
+    },
+    {
+      "slug": "files-community/Files",
+      "language": "dotnet",
+      "pullRequest": 19132,
+      "status": "ok",
+      "head": "eb73648fdaf746d8a433a32297e0e1fcb18c6c1d",
+      "mergeBase": "7b80f9b699a2d7576dea769b8f6501ccb8b1a616",
+      "changed": 3,
+      "created": 0,
+      "verify": {
+        "pass": true,
+        "missingFromVerify": [],
+        "narrativeProblems": [],
+        "statements": 7
+      },
+      "changeScope": {
+        "eligible": true,
+        "anchor": "AGENTS.md",
+        "others": 2,
+        "k": 0,
+        "fixmapRecall": 0,
+        "baselineRecall": 0
+      },
+      "reviewers": {
+        "eligible": false,
+        "reason": "no pull request author appears in the history window"
+      },
+      "historical": {
+        "pass": false,
+        "workingTree": [
+          "src/Files.App/Files.App.csproj",
+          "src/Files.App.Server/Cloud/CloudDrivesDetector.cs",
+          "src/Files.App/MainWindow.xaml.cs",
+          "src/Files.App/Helpers/Win32/Win32Helper.Storage.cs",
+          "src/Files.App/ViewModels/Settings/AdvancedViewModel.cs"
+        ],
+        "atRef": [
+          "src/Files.App.Server/Cloud/CloudDrivesDetector.cs",
+          "src/Files.App/MainWindow.xaml.cs",
+          "src/Files.App/Helpers/Win32/Win32Helper.Storage.cs",
+          "src/Files.App/ViewModels/Settings/AdvancedViewModel.cs",
+          "src/Files.App/Program.cs"
+        ]
+      }
+    }
+  ]
+}
