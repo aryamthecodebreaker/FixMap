@@ -1,0 +1,150 @@
+diff --git a/packages/core/src/context.ts b/packages/core/src/context.ts
+index 43df782..20c224c 100644
+--- a/packages/core/src/context.ts
++++ b/packages/core/src/context.ts
+@@ -209,6 +209,8 @@ function selectRange(
+     return { startLine: 1, endLine: lines.length, content: whole, estimatedTokens: wholeTokens };
+   }
+ 
++  // Prefer the window holding the most distinct task identifiers and terms; fall back to the
++  // single best line (and its symmetric growth) when no line matches the task at all.
+   let anchor = 0;
+   let bestScore = Number.NEGATIVE_INFINITY;
+   for (let index = 0; index < lines.length; index += 1) {
+@@ -218,10 +220,11 @@ function selectRange(
+       anchor = index;
+     }
+   }
++  const window = densestWindow(lines, terms, identifiers, allowance, anchor);
+ 
+-  let start = anchor;
+-  let end = anchor;
+-  let content = lines[anchor] ?? "";
++  let start = window ? window.start : anchor;
++  let end = window ? window.end : anchor;
++  let content = lines.slice(start, end + 1).join("\n");
+   let tokens = estimateContextTokens(content);
+   if (tokens > allowance) {
+     const maxBytes = allowance * 4;
+@@ -253,6 +256,63 @@ function selectRange(
+   return { startLine: start + 1, endLine: end + 1, content, estimatedTokens: tokens };
+ }
+ 
++const IDENTIFIER_WEIGHT = 6;
++
++/**
++ * Two-pointer scan over line windows that fit the allowance. Each window scores the distinct
++ * identifiers (weighted) and distinct terms it contains, so a region where several task words
++ * meet beats one line that repeats a single word. Ties keep the earliest window. Returns
++ * undefined when no line matches anything.
++ */
++function densestWindow(
++  lines: readonly string[],
++  terms: readonly string[],
++  identifiers: readonly string[],
++  allowance: number,
++  anchor: number
++): { start: number; end: number } | undefined {
++  const keys = [
++    ...identifiers.map((identifier) => ({ key: `i:${identifier.toLowerCase()}`, needle: identifier.toLowerCase(), weight: IDENTIFIER_WEIGHT })),
++    ...terms.map((term) => ({ key: `t:${term.toLowerCase()}`, needle: term.toLowerCase(), weight: 1 }))
++  ].filter((entry, index, all) => entry.needle.length > 0 && all.findIndex((other) => other.key === entry.key) === index);
++  if (keys.length === 0) return undefined;
++  const matches = lines.map((line) => {
++    const lower = line.toLowerCase();
++    return keys.filter((entry) => lower.includes(entry.needle));
++  });
++  if (!matches.some((entry) => entry.length > 0)) return undefined;
++  const lineTokens = lines.map((line) => estimateContextTokens(`${line}\n`));
++  const counts = new Map<string, number>();
++  let score = 0;
++  let tokens = 0;
++  let end = -1;
++  let best: { start: number; end: number; score: number } | undefined;
++  for (let start = 0; start < lines.length; start += 1) {
++    while (end + 1 < lines.length && tokens + lineTokens[end + 1]! <= allowance) {
++      end += 1;
++      tokens += lineTokens[end]!;
++      for (const entry of matches[end]!) {
++        const count = counts.get(entry.key) ?? 0;
++        if (count === 0) score += entry.weight;
++        counts.set(entry.key, count + 1);
++      }
++    }
++    // The strongest single line (usually the key identifier) must stay in the excerpt.
++    if (end >= start && start <= anchor && end >= anchor && score > 0 && (!best || score > best.score)) best = { start, end, score };
++    if (end >= start) {
++      tokens -= lineTokens[start]!;
++      for (const entry of matches[start]!) {
++        const count = counts.get(entry.key)! - 1;
++        counts.set(entry.key, count);
++        if (count === 0) score -= entry.weight;
++      }
++    } else {
++      end = start;
++    }
++  }
++  return best ? { start: best.start, end: best.end } : undefined;
++}
++
+ function scoreLine(line: string, terms: string[], identifiers: string[], index: number): number {
+   const lower = line.toLowerCase();
+   let score = -index / 100_000;
+diff --git a/packages/core/test/context-window.test.ts b/packages/core/test/context-window.test.ts
+new file mode 100644
+index 0000000..b950e27
+--- /dev/null
++++ b/packages/core/test/context-window.test.ts
+@@ -0,0 +1,52 @@
++import { describe, expect, it } from "vitest";
++import { buildContextPack } from "../src/context.js";
++import type { FixMapReport, RepoFile, RepoMap } from "../src/types.js";
++
++function file(path: string, text: string): RepoFile {
++  return { path, extension: ".ts", sizeBytes: text.length, isSource: true, isTest: false, kind: "code", textSample: text, textSampleComplete: true };
++}
++
++function pack(text: string, task: string, budget: number) {
++  const repo: RepoMap = { root: "/r", files: [file("src/session.ts", text)], packageScripts: [], changedFiles: [], diffText: "", packageManager: "npm", diagnostics: [] };
++  const report: FixMapReport = {
++    summary: "s", testRoutes: [], risks: [], changedFiles: [], diagnostics: [],
++    contextFiles: [{ rank: 1, path: "src/session.ts", score: 1, confidence: "high", reasons: ["task match"] }]
++  };
++  return buildContextPack({ report, repo, task, budgetTokens: budget });
++}
++
++const filler = (count: number, label: string) => Array.from({ length: count }, (_, index) => `const ${label}${index} = ${index}; // unrelated padding line`);
++
++describe("context excerpt selection", () => {
++  it("prefers the region where several task identifiers meet over a lone early mention", () => {
++    const text = [
++      "// refreshSession is documented elsewhere",
++      ...filler(80, "a"),
++      "export function refreshSession(token: string) {",
++      "  const expiry = computeExpiry(token);",
++      "  return renewToken(token, expiry);",
++      "}",
++      ...filler(80, "b")
++    ].join("\n");
++    const snippet = pack(text, "refreshSession should call renewToken with computeExpiry", 160).snippets[0]!;
++    const lines = text.split("\n");
++    const definition = lines.indexOf("export function refreshSession(token: string) {") + 1;
++    expect(snippet.startLine).toBeLessThanOrEqual(definition);
++    expect(snippet.endLine).toBeGreaterThanOrEqual(definition + 2);
++    expect(snippet.content).toContain("renewToken(token, expiry)");
++    expect(snippet.estimatedTokens).toBeLessThanOrEqual(64);
++  });
++
++  it("keeps whole small files and stays within budget for large ones", () => {
++    expect(pack("export const x = 1;\n", "x", 1_000).snippets[0]).toMatchObject({ startLine: 1, endLine: 1 });
++    const big = [...filler(400, "c"), "export function target() {}", ...filler(400, "d")].join("\n");
++    const result = pack(big, "target", 200);
++    expect(result.estimatedSourceTokens).toBeLessThanOrEqual(200);
++    expect(result.snippets[0]!.content).toContain("export function target() {}");
++  });
++
++  it("falls back to the top of the file when nothing matches", () => {
++    const text = filler(300, "e").join("\n");
++    expect(pack(text, "nothing here matches", 200).snippets[0]!.startLine).toBe(1);
++  });
++});
