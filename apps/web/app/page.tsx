@@ -90,7 +90,7 @@ export default async function HomePage() {
             <article>
               <span>Tested</span>
               <strong>{count(heldoutUnmentioned.top3HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases} held-out tasks put the fixing file in the first 3 results.</strong>
-              <p>A simpler BM25 search tied FixMap in the Top-3 test. At Top-5, BM25 found {count(heldoutBaseline.bm25.top5HitRate, heldoutBaseline.bm25.cases)}/{heldoutBaseline.bm25.cases}; FixMap found {count(heldoutBaseline.fixmap.top5HitRate, heldoutBaseline.fixmap.cases)}/{heldoutBaseline.fixmap.cases}.</p>
+              <p>Against a simpler BM25 keyword search on the same tasks: Top 1, FixMap {count(heldoutBaseline.fixmap.top1HitRate, heldoutBaseline.fixmap.cases)}/{heldoutBaseline.fixmap.cases} vs BM25 {count(heldoutBaseline.bm25.top1HitRate, heldoutBaseline.bm25.cases)}/{heldoutBaseline.bm25.cases}; Top 3, {count(heldoutBaseline.fixmap.top3HitRate, heldoutBaseline.fixmap.cases)}/{heldoutBaseline.fixmap.cases} vs {count(heldoutBaseline.bm25.top3HitRate, heldoutBaseline.bm25.cases)}/{heldoutBaseline.bm25.cases}; Top 5, {count(heldoutBaseline.fixmap.top5HitRate, heldoutBaseline.fixmap.cases)}/{heldoutBaseline.fixmap.cases} vs {count(heldoutBaseline.bm25.top5HitRate, heldoutBaseline.bm25.cases)}/{heldoutBaseline.bm25.cases}. With this few cases none of the differences is statistically significant.</p>
             </article>
             <article>
               <span>How it works</span>

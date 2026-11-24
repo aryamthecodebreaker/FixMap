@@ -19,6 +19,7 @@ which is generated from the recorded results rather than transcribed by hand.
 
 ### Improved
 
+- The Evidence page and homepage now read every FixMap-vs-BM25 figure from the recorded results. The Evidence page had a hand-written paragraph saying FixMap found 5 of 9 at Top 5 (the recording says 8 of 9) and that Top 3 tied (FixMap 5 of 9, BM25 4 of 9); none of the differences is significant (p = 1.0). Spotted by an independent stress test.
 - The homepage download counter re-checks npm every 5 minutes, says which day npm counted through, and adds the combined CLI + engine total with an explanation.
 
 ## 0.9.8 - 2026-11-24

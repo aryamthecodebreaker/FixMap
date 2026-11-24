@@ -95,6 +95,12 @@ const languages = (() => {
 
 export const siteStats = {
   languages,
+  /** Paired McNemar exact p-values, FixMap vs BM25 over code, held-out tasks that did not name the file. */
+  heldoutMcnemar: {
+    top1: heldoutBaseline.pairedVsFixmapMcnemarExact.unmentioned["bm25:code"].top1.pValue,
+    top3: heldoutBaseline.pairedVsFixmapMcnemarExact.unmentioned["bm25:code"].top3.pValue,
+    top5: heldoutBaseline.pairedVsFixmapMcnemarExact.unmentioned["bm25:code"].top5.pValue
+  },
   /** Pre-registered real-world feature bench, read from its recorded results. */
   featureBench: featureBench.summary,
   version: cli.version,

@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 
 const percent = (value: number, total: number) => `${Math.round((value / total) * 100)}%`;
 const rate = (value: number | null) => (value === null ? "—" : `${Math.round(value * 100)}%`);
+const count = (value: number | null, cases: number) => (value === null ? 0 : Math.round(value * cases));
 
 const heldoutUnmentioned = siteStats.heldout.cohorts.unmentioned;
 const heldoutMentioned = siteStats.heldout.cohorts.mentioned;
@@ -135,7 +136,7 @@ export default function EvidencePage() {
           <div className="results-row" role="row"><span role="cell"><strong>BM25 retrieval, code files only</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top1HitRate)}</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top3HitRate)}</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top5HitRate)}</strong></span></div>
           <div className="results-row" role="row"><span role="cell">FixMap</span><span role="cell">{rate(heldoutBaselines.fixmap.top1HitRate)}</span><span role="cell">{rate(heldoutBaselines.fixmap.top3HitRate)}</span><span role="cell">{rate(heldoutBaselines.fixmap.top5HitRate)}</span></div>
         </div>
-        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap does not beat BM25 over code files on repositories it was never tuned against.</strong> BM25 leads the Top 1 point estimate 4/9 to 3/9, while Top 3 ties at 5/9; both paired McNemar exact tests have p = 1.0. At Top 5 the baseline wins four cases FixMap misses and FixMap wins none: BM25 has the fixing file in its top five for 9 of 9 of these cases, FixMap for 5 of 9 (p = 0.125). FixMap does lead on the regression suite (69% vs 39% Top 1), but that is the suite whose cases shaped the ranker, and even there the lead is not significant against this baseline. We publish this because it is what the measurement says; closing the Top-5 recall gap is the next piece of work.</p></div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap does not clearly beat BM25 over code files on repositories it was never tuned against.</strong> Top 1: FixMap {count(heldoutBaselines.fixmap.top1HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases}, BM25 {count(heldoutBaselines.bm25.top1HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases}. Top 3: {count(heldoutBaselines.fixmap.top3HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases} vs {count(heldoutBaselines.bm25.top3HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases}. Top 5: {count(heldoutBaselines.fixmap.top5HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases} vs {count(heldoutBaselines.bm25.top5HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases}. Paired McNemar exact tests: p = {siteStats.heldoutMcnemar.top1} (Top 1), {siteStats.heldoutMcnemar.top3} (Top 3), {siteStats.heldoutMcnemar.top5} (Top 5), so none of these differences is significant with this many cases. FixMap does lead on the regression suite, but that suite shaped the ranker. An independent backtest on Zod's recent history also had BM25 ahead on Top 1. Closing that gap is open work.</p></div>
       </section>
 
       <section className="section page-shell" aria-labelledby="feature-bench-title">

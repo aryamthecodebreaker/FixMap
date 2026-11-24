@@ -62,6 +62,7 @@ const releases: Release[] = [
         label: "Improved",
         items: [
           "The Evidence page now shows results in seven more languages, including where FixMap is weak.",
+          "Benchmark numbers on the homepage and Evidence page now come straight from the recorded results; a hand-written paragraph had gone out of date.",
           "The download counter checks npm every 5 minutes, shows which day npm counted through, and gives the combined total with the engine package."
         ]
       }
