@@ -44,9 +44,39 @@ type Release = {
 
 const releases: Release[] = [
   {
+    version: "0.9.7",
+    date: "November 24, 2026",
+    label: "Latest release",
+    summary: "Cross-repository impact in Verify and pull requests, help writing architecture policy, breaking-contract rules that actually run, coordination between AI agents sharing a checkout, and clearer Verify wording.",
+    groups: [
+      {
+        label: "Added",
+        items: [
+          "fixmap verify --workspace names the other repositories that use a package your change touched, and the GitHub Action can show the same as a pull request section.",
+          "Workspace configs can link packages that are published under a different name, but only through an explicit, reviewed alias.",
+          "fixmap policy init, check, and explain help you write and debug .fixmap/policy.json, and rules that forbid breaking API changes now run in Plan and Verify.",
+          "fixmap intent and fixmap conflicts let AI agents working in the same checkout say what they plan to edit and spot overlaps before they collide."
+        ]
+      },
+      {
+        label: "Improved",
+        items: [
+          "Verify explains changes more clearly: a clean change no longer says it needs attention, and files changed outside the plan are called out.",
+          "The new features are previews: they work and are tested, but may change before v0.10.0."
+        ]
+      },
+      {
+        label: "Fixed",
+        items: [
+          "The GitHub Action now says which check failed instead of always blaming a generated file.",
+          "A rare crash when Git stopped early while FixMap read older versions of files."
+        ]
+      }
+    ]
+  },
+  {
     version: "0.9.6",
     date: "November 23, 2026",
-    label: "Latest release",
     summary: "Five previews: possible sensitive-data flows and dependency scanner findings in plans, side-by-side plan alternatives, editing product areas from AI agents, and contract, reviewer, and architecture sections on pull requests.",
     groups: [
       {
