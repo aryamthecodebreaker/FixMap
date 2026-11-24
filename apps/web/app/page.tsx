@@ -126,6 +126,11 @@ export default async function HomePage() {
               <div><dt>Downloads since {launchMonth}</dt><dd>{formatCount(usage.sinceLaunch)}</dd></div>
               <div><dt>GitHub stars</dt><dd>{usage.stars === null ? "—" : formatCount(usage.stars)}</dd></div>
             </dl>
+            {usage.sinceLaunchWithCore !== null ? (
+              <p className="pro-usage-source">
+                {formatCount(usage.sinceLaunchWithCore)} including the engine package, which the CLI installs automatically.
+              </p>
+            ) : null}
             <p className="pro-usage-source">
               Source: <a href={`https://www.npmjs.com/package/${USAGE_PACKAGE}`}>{USAGE_PACKAGE} on npm</a> and{" "}
               <a href={`https://github.com/${USAGE_REPOSITORY}`}>GitHub</a>. npm counts through{" "}
