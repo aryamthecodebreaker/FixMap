@@ -1,0 +1,410 @@
+{
+  "generatedAt": "2026-11-24",
+  "status": "held-out",
+  "taskTextRule": "Closing issue title plus the first 600 characters of its body.",
+  "selectionRule": "Per configured repository and language: the first of the 100 most recently updated merged pull requests that closes an issue with at least 80 body characters, is not docs-titled, changes no more than 20 files total, and modifies 1-3 non-test implementation files in that language. Pull requests already present in ../polyglot-heldout/dataset.json, ../java-heldout/dataset.json are excluded. Every counted fixing source file must already exist at the base commit (added files are not counted, and a pull request that adds a source file in that language is not eligible). Candidates are walked in their configured order until 4 repositories per language yield a case; later candidates are not queried. The PR base commit and exact fixing source paths are frozen before FixMap is measured.",
+  "languages": [
+    "python",
+    "java",
+    "go",
+    "rust",
+    "ruby",
+    "php",
+    "dotnet"
+  ],
+  "cases": [
+    {
+      "slug": "huggingface/transformers",
+      "language": "python",
+      "repo": "https://github.com/huggingface/transformers.git",
+      "license": "Apache-2.0",
+      "sha": "52bac5d0e0da56e26289c072f306877ff5870262",
+      "issue": 51145,
+      "pullRequest": 51144,
+      "task": "Llama4ForConditionalGeneration.forward crashes: MoeCausalLMOutputWithPast has no attribute 'image_outputs'\n\n## Summary\n\nIn transformers 5.24.0 (and on `main`), **every** forward pass of `Llama4ForConditionalGeneration` (text-only or multimodal) raises:\n\n```\nAttributeError: 'MoeCausalLMOutputWithPast' object has no attribute 'image_outputs'\n```\n\nThe multimodal model builds its output by reading `outputs.image_outputs` from the **text** model's output, but that output class never defines (nor has populated) an `image_outputs` field.\n\nProposed fix: https://github.com/huggingface/transformers/pull/51144\n\n## Environment\n\n- `transformers==5.24.0` (also reproduces on `main`)\n- torch 2.x, CPU or GPU (device",
+      "expected": [
+        "src/transformers/models/llama4/modeling_llama4.py"
+      ]
+    },
+    {
+      "slug": "AUTOMATIC1111/stable-diffusion-webui",
+      "language": "python",
+      "repo": "https://github.com/AUTOMATIC1111/stable-diffusion-webui.git",
+      "license": "AGPL-3.0",
+      "sha": "21bcbb945ead36cd9b969a1a957ce5ad754b6bad",
+      "issue": 9,
+      "pullRequest": 11,
+      "task": "Fix faces using GFPGAN + high batch count tends to fail 6GB VRAM\n\n6GB is already on a knife's edge, and this seems to push it over. However it doesn't do it every single time, and I have not seen it happen when using batch count 1, even when hitting submit repeatedly.\r\n\r\nRuntimeError: CUDA out of memory. Tried to allocate 1024.00 MiB (GPU 0; 6.00 GiB total capacity; 3.30 GiB already allocated; 0 bytes free; 4.60 GiB reserved in total by PyTorch) If reserved memory is >> allocated memory try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF",
+      "expected": [
+        "webui.py"
+      ]
+    },
+    {
+      "slug": "langgenius/dify",
+      "language": "python",
+      "repo": "https://github.com/langgenius/dify.git",
+      "license": "NOASSERTION",
+      "sha": "9ec48377420f37a3fb9528952152f92567cbfd2f",
+      "issue": 38413,
+      "pullRequest": 43081,
+      "task": "`document_indexing_task` swallows \"missing document\" warning after SQLAlchemy 2.0 refactor\n\n### Self Checks\n\n- [x] I have read the [Contributing Guide](https://github.com/langgenius/dify/blob/main/CONTRIBUTING.md) and [Language Policy](https://github.com/langgenius/dify/issues/1542).\n- [x] This is only for bug report, if you would like to ask a question, please head to [Discussions](https://github.com/langgenius/dify/discussions/categories/general).\n- [x] I have searched for existing issues [search for existing issues](https://github.com/langgenius/dify/issues), including closed ones.\n- [x] I confirm that I am using English to submit this report, otherwise it will be closed.\n- [x] 【中",
+      "expected": [
+        "api/tasks/document_indexing_task.py"
+      ]
+    },
+    {
+      "slug": "langflow-ai/langflow",
+      "language": "python",
+      "repo": "https://github.com/langflow-ai/langflow.git",
+      "license": "MIT",
+      "sha": "e979b32cc99bd717596d03f468658e7710fe8b23",
+      "issue": 16498,
+      "pullRequest": 16500,
+      "task": "Feature request: Cache MCP tool lists per session\n\n### Feature Request\n\nMake the MCP Tools component's tool-list cache specific to the current session.\n\n**With caching enabled, session A calls `tools/list` and caches its result. When session B starts, it must call `tools/list` for B and cache B's result. B must not use A's cached list.** Subsequent calls in each session can reuse that session's cached tools.\n\nHere, session means the Langflow chat/execution session using the MCP component.\n\n### What PR #16500 addresses, and what it does not\n\nReviewed [PR #16500](https://github.com/langflow-ai/langflow/pull/16500) at commit `cf2602d831` on 2026-",
+      "expected": [
+        "src/lfx/src/lfx/components/models_and_agents/mcp_component.py"
+      ]
+    },
+    {
+      "slug": "TeamNewPipe/NewPipe",
+      "language": "java",
+      "repo": "https://github.com/TeamNewPipe/NewPipe.git",
+      "license": "GPL-3.0",
+      "sha": "853917509100416d2179b9eb1f438436479afed4",
+      "issue": 8358,
+      "pullRequest": 14066,
+      "task": "Video progress not saved when NewPipe is closed unexpectedly\n\n### Checklist\n\n- [X] I am able to reproduce the bug with the [latest version](https://github.com/TeamNewPipe/NewPipe/releases/latest).\n- [X] I made sure that there are *no existing issues* - [open](https://github.com/TeamNewPipe/NewPipe/issues) or [closed](https://github.com/TeamNewPipe/NewPipe/issues?q=is%3Aissue+is%3Aclosed) - which I could contribute my information to.\n- [X] I have taken the time to fill in all the required details. I understand that the bug report will be dismissed otherwise.\n- [X] This issue contains only one bug.\n- [X] I have read and understood the [contribution guideli",
+      "expected": [
+        "app/src/main/java/org/schabi/newpipe/player/Player.java"
+      ]
+    },
+    {
+      "slug": "YunaiV/ruoyi-vue-pro",
+      "language": "java",
+      "repo": "https://github.com/YunaiV/ruoyi-vue-pro.git",
+      "license": "MIT",
+      "sha": "1697112f1164b206aeb031493980f5cb3a6e2cd5",
+      "issue": 1260,
+      "pullRequest": 1262,
+      "task": "[ENHANCE] IoT：Modbus 连接配置缺必填参数保存时返回 500 系统错误，而非受控错误码\n\n## 环境\n- 版本：master-jdk17 @ b0397843a801e61693139bcba48fcec0910e4e99\n- 模块：yudao-module-iot\n- 复现日期：2026-09-29\n\n## 一、复现路径（接口直证，无界面触发面）\n\n管理端的「Modbus 连接配置」表单对 Client 模式的 IP/端口/超时/重试间隔有必填校验：IP 留空点保存会被表单内联校验拦截、请求不发出，普通用户从界面触发不到本问题——故本条按接口直证复现。\n\n前置（接口造数，各一张）：创建一个协议为 `modbus_tcp_client` 的产品，在该产品下创建一个设备。\n\n1. 调用 `POST /admin-api/iot/device-modbus-config/save`，body 只带 `deviceId`、`slaveId`、`status` 三个字段，缺 Client 模式必填的 `ip`/`port`/`timeout`/`retryInterval`\n2. 响应为 500 系统异常（原文见下）；同一设备补齐四个字段后保存正常返回 code=0（对照）\n3. DB 核对：失败的请求未写入/覆盖任何配置行\n\n## 二、问题现象（调用方看到什么）\n\n调用方（第三方系统集成、接口直连场景）无法区分「参数校验失败」与「系统崩溃」：监控系统会对系统异常误报，集成方难",
+      "expected": [
+        "yudao-module-iot/yudao-module-iot-biz/src/main/java/cn/iocoder/yudao/module/iot/enums/ErrorCodeConstants.java",
+        "yudao-module-iot/yudao-module-iot-biz/src/main/java/cn/iocoder/yudao/module/iot/service/device/IotDeviceModbusConfigServiceImpl.java"
+      ]
+    },
+    {
+      "slug": "halo-dev/halo",
+      "language": "java",
+      "repo": "https://github.com/halo-dev/halo.git",
+      "license": "GPL-3.0",
+      "sha": "d2046622838e068b03c8b5468485c6e793802b30",
+      "issue": 10432,
+      "pullRequest": 10502,
+      "task": "期望评论列表支持按发布时间倒序获取\n\n### 前置条件\n\n- [x] 已经在 [Issues](https://github.com/halo-dev/halo/issues) 列表中搜索了相关问题。\n- [x] 这是和 Halo 相关的特性，如果是非项目本身的问题，建议在 [Discussions](https://github.com/halo-dev/halo/discussions) 提交。\n- [x] 如果是插件和主题特性建议，请在对应的插件和主题仓库提交。\n\n### 你当前使用的版本\n\n2.27.1\n\n### 描述一下此特性\n\n**问题描述：**\n\n目前获取评论列表仅支持通过 `commentFinder.list(ref, page, size);` 接口实现，但该接口返回的评论列表默认按照「置顶优先，再按发布时间新旧排序」的规则进行排序。\n\n这种排序方式会导致在「最新评论」场景中，返回结果可能被置顶评论占据，无法准确获取最新发布的评论，影响组件的展示效果。\n\n**期望优化：**\n\n希望能够提供一个新的接口，或对现有接口进行功能扩展，支持按照评论发布时间倒序获取评论列表，并能够根据业务场景灵活选择排序规则，以满足「最新评论」等使用需求。\n\n<img width=\"325\" height=\"513\" alt=\"Image\" src=\"https://github.com/user-attachments/a",
+      "expected": [
+        "application/src/main/java/run/halo/app/theme/finders/CommentFinder.java",
+        "application/src/main/java/run/halo/app/theme/finders/impl/CommentFinderImpl.java"
+      ]
+    },
+    {
+      "slug": "keycloak/keycloak",
+      "language": "java",
+      "repo": "https://github.com/keycloak/keycloak.git",
+      "license": "Apache-2.0",
+      "sha": "2e4728d98ce65592cefff24b5a0a666692406778",
+      "issue": 55376,
+      "pullRequest": 55465,
+      "task": "[CVE-2026-133220] Consent completion can issue tokens after user is disabled\n\n## Describe the bug\n\nThe consent submission endpoint (`POST /login-actions/required-action`, OAuth grant) does not check whether the user account is enabled before completing the login. The regular login completion path performs this check. A user who reaches the consent screen while enabled can still submit the pending consent form after an administrator disables the account. Keycloak then returns access and ID tokens (OIDC implicit/hybrid flow) or a signed SAML response for the disabled user. The window is bounded by the authentication session timeout.\n\nA token issued after the account is di",
+      "expected": [
+        "services/src/main/java/org/keycloak/services/resources/SessionCodeChecks.java"
+      ]
+    },
+    {
+      "slug": "fatedier/frp",
+      "language": "go",
+      "repo": "https://github.com/fatedier/frp.git",
+      "license": "Apache-2.0",
+      "sha": "d42812ae0eb68dddff3d75d58645ab545c543147",
+      "issue": 5607,
+      "pullRequest": 5608,
+      "task": "frps can reallocate a reserved port before another proxy binds it\n\n### Bug Description\n\nfrps can allocate the same TCP or UDP port twice when a proxy using `remotePort = 0` reconnects. The previous port is kept as a reuse hint. On reconnect, that path probes the socket but skips the allocator's free-port check.\n\nA second proxy can have already acquired the port and still be about to bind it. In that window the socket probe succeeds, and the first proxy overwrites the second proxy's entry in `usedPorts`. The two proxies then try to bind the same port. When the losing bind cleans up with `Release`, it can mark the port free even though the other proxy is listen",
+      "expected": [
+        "server/ports/ports.go"
+      ]
+    },
+    {
+      "slug": "infiniflow/ragflow",
+      "language": "go",
+      "repo": "https://github.com/infiniflow/ragflow.git",
+      "license": "Apache-2.0",
+      "sha": "8109dbab58c78013fcec78a30a9402edb39e1ff9",
+      "issue": 22716,
+      "pullRequest": 22717,
+      "task": "[Bug]: A metadata list with a non-string element keeps its combined values unsplit\n\n### Self Checks\n\n- [x] I have searched for existing issues [search for existing issues](https://github.com/infiniflow/ragflow/issues), including closed ones.\n- [x] I confirm that I am using English to submit this report ([Language Policy](https://github.com/infiniflow/ragflow/issues/5910)).\n- [x] Non-english title submitions will be closed directly ( 非英文标题的提交将会被直接关闭 ) ([Language Policy](https://github.com/infiniflow/ragflow/issues/5910)).\n- [x] Please do not modify this template :) and fill in all the required fields.\n\n### RAGFlow workspace code commit ID\n\n8109dbab5\n\n### RAGFlow image version\n",
+      "expected": [
+        "internal/common/metadata_utils.go"
+      ]
+    },
+    {
+      "slug": "syncthing/syncthing",
+      "language": "go",
+      "repo": "https://github.com/syncthing/syncthing.git",
+      "license": "MPL-2.0",
+      "sha": "5d8033343fd31963286395b009fa7ff0b18ee461",
+      "issue": 10240,
+      "pullRequest": 10241,
+      "task": "'syncthing upgrade' fails if lockfile does not exist\n\n### What happened?\n\nNoticed the following failure in CI:\n\n```\nRunning Syncthing upgrade...\n2025/08/12 15:19:54 INFO: Upgrade available (current \"v2.0.0-rc.23\" < latest \"v2.0.0\")\n2025/08/12 15:19:54 WARNING: Upgrade: open C:\\Users\\runneradmin\\AppData\\Local\\Syncthing\\syncthing.lock: The system cannot find the path specified.\nSyncthing upgrade failed with exit code 1.\n```\n\nThe CI simply does `syncthing upgrade` without any syncthing being installed, e.g. there is no config, no lockfile, nothing. In this case, it appears that syncthing fails to upgrade, as it expects the lockfile to already exist.",
+      "expected": [
+        "cmd/syncthing/main.go"
+      ]
+    },
+    {
+      "slug": "gohugoio/hugo",
+      "language": "go",
+      "repo": "https://github.com/gohugoio/hugo.git",
+      "license": "Apache-2.0",
+      "sha": "89d292190a73be1d79966451c13302d346d0151c",
+      "issue": 15639,
+      "pullRequest": 15640,
+      "task": "Pages containing a Markdown table are rendered again for each non-HTML output format (regression in v0.147.9)\n\n### What version of Hugo are you using (`hugo version`)?\n\n<pre>\n$ hugo version\nhugo v0.170.1-c8b03de9564cf846a3986e879727d638bb96ab33 darwin/arm64\n</pre>\n\n### Does this issue reproduce with the latest release?\n\nYes. It reproduces on v0.170.1. The first affected version is v0.147.9. v0.147.8 is not affected.\n\n### Description\n\nSince v0.147.9, a page whose content contains a Markdown table is rendered again for each additional output format that reads its content, such as RSS (through `.Summary` in the embedded RSS template). A page without a table is rendered once and its content is reused, as b",
+      "expected": [
+        "hugolib/page__per_output.go"
+      ]
+    },
+    {
+      "slug": "tauri-apps/tauri",
+      "language": "rust",
+      "repo": "https://github.com/tauri-apps/tauri.git",
+      "license": "Apache-2.0",
+      "sha": "84af754a644920c333c365184d9aa31d688fd055",
+      "issue": 16637,
+      "pullRequest": 16638,
+      "task": "[bug] Cloudflare Turnstile always fails (600010) on macOS because the app page URL is `tauri://localhost` with an empty path\n\n### Describe the bug\n\nOn macOS, Tauri loads the app page at `tauri://localhost`, with an empty path, because `tauri_protocol_url()` parses `tauri://localhost` and the URL standard does not add a `/` path for non-special schemes. `location.href` in the page is `tauri://localhost`.\n\nA Cloudflare Turnstile widget rendered in that page always asks for an interactive check. After the user clicks it, it fails with error `600010` and shows the checkbox again. The same widget passes when the page URL is `tauri://localhost/`.\n\n### Reproduction\n\nMinimal wry app (wry 0.57.0, tao 0.37.1) that serves one H",
+      "expected": [
+        "crates/tauri/src/manager/mod.rs",
+        "crates/tauri/src/manager/webview.rs"
+      ]
+    },
+    {
+      "slug": "denoland/deno",
+      "language": "rust",
+      "repo": "https://github.com/denoland/deno.git",
+      "license": "MIT",
+      "sha": "e7b39ebd55c85aaf6a29290c1f5a99e2e21e09dd",
+      "issue": 37127,
+      "pullRequest": 37128,
+      "task": "`deno coverage --include` and `--exclude` do not match paths containing spaces or non-ASCII characters\n\n> **Disclaimer:** I am an AI (Claude Opus 5.5, made by Anthropic). I wrote this\n> issue while working for a human developer, who is filing it. The\n> reproduction below was run and its output copied verbatim.\n\n**Version:** deno 2.9.8 (aarch64-apple-darwin); the same code is on `main`.\n\n### Problem\n\n`deno coverage --include=<regex>` and `--exclude=<regex>` test each regular\nexpression against the source file's URL. That URL is percent-encoded, so when\na file's path contains a space or any non-ASCII character, a pattern that names\nthe path the way the file system spells it never matches. The only",
+      "expected": [
+        "cli/tools/coverage/mod.rs"
+      ]
+    },
+    {
+      "slug": "ruvnet/RuView",
+      "language": "rust",
+      "repo": "https://github.com/ruvnet/RuView.git",
+      "license": "MIT",
+      "sha": "1c435a0a79c6248057cf288c34401c2eb30da12c",
+      "issue": 1634,
+      "pullRequest": 2246,
+      "task": "calibrate-serve: session stuck in `finalizing` forever when duration_s expires with frames < min_frames — no API escape\n\n\n### Summary\n\nIn `calibrate-serve` (`wifi-densepose-cli`), if a calibration session's `duration_s` expires while `frames_recorded` is below the requested `min_frames`, the session enters `state: \"finalizing\"` and **never leaves it**. `/status` reports `finalizing` with a growing `eta_s` indefinitely, `POST /stop` answers as if no session exists, and no further `POST /start` can run — the only recovery is restarting the process.\n\n### Environment\n\n- `wifi-densepose` CLI built from the `v2051` tag (`crates/wifi-densepose-cli` unmodified), `calibrate-serve` mode, one instance per node behind a UDP",
+      "expected": [
+        "v2/crates/wifi-densepose-cli/src/calibrate_api.rs",
+        "v2/crates/wifi-densepose-sensing-server/src/field_bridge.rs",
+        "v2/crates/wifi-densepose-sensing-server/src/main.rs"
+      ]
+    },
+    {
+      "slug": "oven-sh/bun",
+      "language": "rust",
+      "repo": "https://github.com/oven-sh/bun.git",
+      "license": "NOASSERTION",
+      "sha": "64c9d096d14e3dcc36da6870be47325a8db0bd2a",
+      "issue": 23790,
+      "pullRequest": 49526,
+      "task": "RedisClient Minor Issues\n\n### What version of Bun is running?\n\n1.2.23-debug+c73a8b9b2\n\n### What platform is your computer?\n\nLinux 6.16.10-200.fc42.x86_64 x86_64 unknown\n\n### Notes\n\n- [ ] The message `return globalObject.throw(\"Expected url protocol to be one of: redis, valkey, rediss, valkeys, redis+tls, valkey+tls, redis+unix, valkey+unix, redis+tls+unix, valkey+tls+unix\", .{})` does not include `valkey+unix/valkey+tls+unix` -- Claude statement, unsure if true.",
+      "expected": [
+        "src/runtime/valkey_jsc/js_valkey.rs"
+      ]
+    },
+    {
+      "slug": "fastlane/fastlane",
+      "language": "ruby",
+      "repo": "https://github.com/fastlane/fastlane.git",
+      "license": "MIT",
+      "sha": "105fd3c362ef7eb5cc1e36754cbc83115e5d78c0",
+      "issue": 30624,
+      "pullRequest": 30627,
+      "task": "altool upload never prompts for an app-specific password on auth failure (Code 1235)\n\n### Issue Description\n\nWhen uploading with `upload_to_testflight` using Apple ID auth (2FA enabled) and no app-specific password configured, fastlane fails directly instead of prompting for an app-specific password. The prompt-and-retry flow (`handle_two_step_failure`) exists, but it is only reachable from the iTMSTransporter path — the altool path never triggers it.\n\n### Steps to reproduce\n\n1. Apple ID with 2FA enabled, no `FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD` set, no `deliver.appspecific.<user>` keychain entry.\n2. Run `upload_to_testflight` with Apple ID auth (no `api_key`).\n3. alto",
+      "expected": [
+        "fastlane_core/lib/fastlane_core/itunes_transporter.rb"
+      ]
+    },
+    {
+      "slug": "chatwoot/chatwoot",
+      "language": "ruby",
+      "repo": "https://github.com/chatwoot/chatwoot.git",
+      "license": "NOASSERTION",
+      "sha": "625d5964e3cb3f1d917b43c3b8332219e525a4b8",
+      "issue": 16063,
+      "pullRequest": 15908,
+      "task": "Webhooks: expose message status in message_created / message_updated payloads\n\n### Is your feature or enhancement related to a problem? Please describe.\n\nWe run a self-hosted Chatwoot CE (v4.18.0) integration that consumes account webhooks to track outbound delivery state (sent → delivered/read/failed) for transactional messages sent through the API.\n\n`message_updated` fires on every persisted status change, but the payload root — `Message#webhook_data` — exposes `id`, `message_type`, `private`, `source_id`, `content_attributes`, etc., and no `status`. The only in-band carrier is `conversation.messages[0].status`, the latest public-chat message snapshot, which describes ",
+      "expected": [
+        "app/models/message.rb"
+      ]
+    },
+    {
+      "slug": "rapid7/metasploit-framework",
+      "language": "ruby",
+      "repo": "https://github.com/rapid7/metasploit-framework.git",
+      "license": "NOASSERTION",
+      "sha": "a5d296132362ca43ec8e80f7893373b3f2d18693",
+      "issue": 22047,
+      "pullRequest": 22050,
+      "task": "Incorrect default FETCH_COMMAND value for FTP fetch payloads.\n\nIt looks like we default to cURL as the FETCH_COMMAND for FTP fetch payloads, and that's not a supported FETCH_COMMAND.\nSee https://github.com/rapid7/metasploit-framework/pull/21954#issuecomment-6370297733\nThis probably needs to be a fix in `lib/msf/core/payload/adapter/fetch/ftp.rb` but there might be some mixin order swizzling required.",
+      "expected": [
+        "lib/msf/core/payload/adapter/fetch/linux_options.rb"
+      ]
+    },
+    {
+      "slug": "hashicorp/vagrant",
+      "language": "ruby",
+      "repo": "https://github.com/hashicorp/vagrant.git",
+      "license": "MIT",
+      "sha": "f9e2630d69a5e357963bba67dd2be8604ef2b82b",
+      "issue": 13795,
+      "pullRequest": 13804,
+      "task": "Ubuntu 24.04 hangs on shutdown when using VirtualBox synced folders\n\nUbuntu 24.04 and probably other distributions which use recent versions of systemd hang on shutdown if any local synced folders are mounted (`/vagrant` is mounted by default unless explicitly disabled). The issue was introduced in https://github.com/hashicorp/vagrant/pull/12184 but didn't manifest itself with older version of systemd. Manual unmounting of the folders before running `poweroff` or `vagrant halt` makes shutdown proceed smoothly.",
+      "expected": [
+        "plugins/guests/linux/cap/mount_virtualbox_shared_folder.rb"
+      ]
+    },
+    {
+      "slug": "bagisto/bagisto",
+      "language": "php",
+      "repo": "https://github.com/bagisto/bagisto.git",
+      "license": "MIT",
+      "sha": "c0599a7437c14a50d72abed312a5a7d70186649d",
+      "issue": 11547,
+      "pullRequest": 11548,
+      "task": "[2.5] Missing image under /cache renders the 404 page with the default theme, not the channel's theme\n\n### Terms\n\n- [x] Before opening this issue, I have checked whether it has already been reported.\n\n### Bagisto Version(s) Affected\n\n2.4.12 (also present on the 2.5 branch: `ImageCacheServiceProvider::bootImageCache()` and `Core\\Exceptions\\Handler::handleHttpException()` are unchanged)\n\n### Issue Description\n\nThe image cache route (`{imagecache.route}/{template}/{filename}`, registered in `Webkul\\ImageCache\\Providers\\ImageCacheServiceProvider::bootImageCache()`) has no middleware, so the shop `Theme` middleware never runs for it. When the image doesn't exist, `ImageCacheController` calls `abort(",
+      "expected": [
+        "packages/Webkul/ImageCache/src/Http/Controllers/ImageCacheController.php"
+      ]
+    },
+    {
+      "slug": "monicahq/monica",
+      "language": "php",
+      "repo": "https://github.com/monicahq/monica.git",
+      "license": "AGPL-3.0",
+      "sha": "c01651a56bbe7cf64781d111db258424cbf4290d",
+      "issue": 7764,
+      "pullRequest": 7806,
+      "task": "Existing contacts not found when adding relationships - meilisearch error\n\n### ⚠️ This issue respects the following points: ⚠️\n\n- [x] This is a **bug**, not a question or a configuration/webserver/proxy issue.\n- [x] This issue is **not** already reported on [Github](https://github.com/monicahq/monica/issues?q=is%3Aopen+is%3Aissue+label%3Abug) _(I've searched it)_.\n- [x] I agree to follow Monica's [Code of Conduct](https://github.com/monicahq/monica/blob/main/CODE_OF_CONDUCT.md).\n\n### Bug description\n\nWhen adding relationships and searching for existing contacts, none are found.\n\n### Steps to reproduce\n\n1. Add a Relationship\n2. Select a relationship type (which one is",
+      "expected": [
+        "config/scout.php"
+      ]
+    },
+    {
+      "slug": "livewire/livewire",
+      "language": "php",
+      "repo": "https://github.com/livewire/livewire.git",
+      "license": "MIT",
+      "sha": "d0b4e22841d362dd213ee9602c399594d387b6ee",
+      "issue": 10749,
+      "pullRequest": 10750,
+      "task": "[4.x] Encrypted Eloquent attributes are validated using the raw ciphertext with legacy model binding\n\n### Livewire version\n\nv4.4.2\n\n### Laravel version\n\nv13.26.1\n\n### PHP version\n\n8.5.9\n\n### Browser and operating system\n\nEdge on Windows\n\n### Describe the issue you're experiencing\n\nAfter upgrading Livewire from v4.4.1 to v4.4.2, validation of a nested Eloquent model property with an encrypted cast uses the raw encrypted database attribute instead of the decrypted value submitted by the user.\n\nThis causes normal validation rules such as max:12 to fail unexpectedly. The issue is especially confusing because reading the property from the model returns the expected decrypted value, and strlen() rep",
+      "expected": [
+        "src/Features/SupportLegacyModels/EloquentModelSynth.php"
+      ]
+    },
+    {
+      "slug": "PHPMailer/PHPMailer",
+      "language": "php",
+      "repo": "https://github.com/PHPMailer/PHPMailer.git",
+      "license": "LGPL-2.1",
+      "sha": "50cd271fdf4e23673ded5455cdbaea007e05f619",
+      "issue": 2994,
+      "pullRequest": 3362,
+      "task": "sigterm when in DATA state causes QUIT to fail\n\n# Problem description\r\n\r\nIf my code is killed (e.g. with a SIGTERM), then the destructor calls smtpClose() which then calls smtp->quit().\r\n\r\nBut if data is being sent, then the quit comment is ignored, and what actually happens is that the remote end eventually times out with a 421.\r\n\r\nI think we need a status to indicate that we are in the DATA mode, and send the DATA END before the QUIT?\r\n\r\nOr better, we need a status to indicate that we are in data and we need to return an error to the caller, as we don't want to send a truncated email.\r\n\r\n",
+      "expected": [
+        "src/SMTP.php"
+      ]
+    },
+    {
+      "slug": "huiyadanli/RevokeMsgPatcher",
+      "language": "dotnet",
+      "repo": "https://github.com/huiyadanli/RevokeMsgPatcher.git",
+      "license": "GPL-3.0",
+      "sha": "11a71a9744b20a89727ec7744902d9e75b26c61a",
+      "issue": 1206,
+      "pullRequest": 1209,
+      "task": "[未支持版本]: 4.1.12.26\n\n### 请先确认当前使用的 微信/QQ/TIM防撤回补丁 是最新版本！\n\n- [x] 我确认当前使用的是最新版\n\n### 微信/QQ 版本\n\n微信正式版4.1.12.26\n\n### 对应版本的下载地址\n\n_No response_\n\n### 软件提示了什么？\n\n<img width=\"499\" height=\"255\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/a3b5d29c-9c5d-4bb4-81e3-089d4f8a232d\" />",
+      "expected": [
+        "RevokeMsgPatcher.Assistant/JsonData.cs"
+      ]
+    },
+    {
+      "slug": "dotnet/aspnetcore",
+      "language": "dotnet",
+      "repo": "https://github.com/dotnet/aspnetcore.git",
+      "license": "MIT",
+      "sha": "d3483989953ae3cccd773aea5ea04cb0c7198531",
+      "issue": 42435,
+      "pullRequest": 67091,
+      "task": "BindConverter throws exception on parse failure\n\n### Is there an existing issue for this?\n\n- [X] I have searched the existing issues\n\n### Describe the bug\n\nWhen using an unsigned integer type with `BindConverter` (and perhaps other cases where it appears to internally fall back to a `TypeConverter`), parse failure can cause an exception to be thrown.\n\n### Expected Behavior\n\nGiven that the method name follows the `Try*` pattern and explicitly indicates that it is supposed to return `false` on parse failure, it should return false instead of throwing an exception.\r\n\r\nOn a related note, it would be nice if `InputNumber` supported binding direct",
+      "expected": [
+        "src/Components/Components/src/BindConverter.cs"
+      ]
+    },
+    {
+      "slug": "iOfficeAI/OfficeCLI",
+      "language": "dotnet",
+      "repo": "https://github.com/iOfficeAI/OfficeCLI.git",
+      "license": "Apache-2.0",
+      "sha": "c56512c8c7b76fe284f09940e4cd492470099d3e",
+      "issue": 602,
+      "pullRequest": 613,
+      "task": "validate: a part that .rels and [Content_Types].xml still reference is missing, yet validation passes\n\n## What happens\n\n`validate` returns `0` and prints `Validation passed: no errors found.` for a package that is missing a part which both `word/_rels/document.xml.rels` and `[Content_Types].xml` still reference. The file is genuinely broken — the tool itself still opens it, edits it and saves it, and it stays broken after the save.\n\nThis is the `.rels -> part` direction of a check the command already implements in the other direction: an attribute that points at a relationship which does not exist **is** caught (`[Semantic] The relationship 'rId999' ... does not exist`), so relationship-target ",
+      "expected": [
+        "src/officecli/Core/RawXmlHelper.cs"
+      ]
+    },
+    {
+      "slug": "DevToys-app/DevToys",
+      "language": "dotnet",
+      "repo": "https://github.com/DevToys-app/DevToys.git",
+      "license": "MIT",
+      "sha": "bfeafa7f29267836d038d186d42647720fd82dd6",
+      "issue": 1641,
+      "pullRequest": 1643,
+      "task": "Critical Path Traversal (Zip Slip) Vulnerability in DevToys Extension Installation.\n\n### Current behavior\n\n# GitHub Security Advisory: Critical Path Traversal (Zip Slip) Vulnerability in DevToys Extension Installation.\n\n## Summary\n\n**CRITICAL SECURITY VULNERABILITY - IMMEDIATE CVE ASSIGNMENT REQUIRED**\n\nA critical path traversal vulnerability (Zip Slip) has been discovered in DevToys' extension installation mechanism that allows malicious NuGet packages to write arbitrary files outside the intended plugin directory, potentially leading to remote code execution.\n\n**SEVERITY:** This vulnerability poses an **IMMEDIATE and CRITICAL** threat to all DevToys users with extension supp",
+      "expected": [
+        "src/app/dev/DevToys.Blazor/BuiltInTools/ExtensionsManager/ExtensionInstallationManager.cs",
+        "src/app/dev/DevToys.Blazor/BuiltInTools/ExtensionsManager/ExtensionInstallationResult.cs",
+        "src/app/dev/DevToys.Blazor/BuiltInTools/ExtensionsManager/ExtensionsManagerGuiTool.cs"
+      ]
+    }
+  ],
+  "skipped": [
+    {
+      "slug": "pbakaus/impeccable",
+      "language": "rust",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "freeCodeCamp/devdocs",
+      "language": "ruby",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "firefly-iii/firefly-iii",
+      "language": "php",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "k1tbyte/Wand-Enhancer",
+      "language": "dotnet",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    }
+  ]
+}
