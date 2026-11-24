@@ -2,7 +2,7 @@
 // Runtime proof for containers/self-hosted/Dockerfile. Needs Docker; CI runs it on Linux.
 // Usage: node scripts/container-smoke.mjs [--skip-build] [--mcp-image <tag>] [--web-image <tag>]
 import { execFileSync, spawn } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -33,6 +33,9 @@ function check(name, condition, detail) {
 
 function fixtureRepository() {
   const directory = mkdtempSync(join(tmpdir(), "fixmap-container-repo-"));
+  // mkdtemp creates a 0700 folder owned by the runner; a normal checkout is world-readable,
+  // and the container user (uid 1000) must be able to list it.
+  chmodSync(directory, 0o755);
   mkdirSync(join(directory, "src", "auth"), { recursive: true });
   writeFileSync(join(directory, "package.json"), JSON.stringify({ name: "container-fixture", scripts: { test: "vitest run" } }));
   writeFileSync(join(directory, "src", "auth", "reset.ts"), "export function resetPassword(email: string) { return email.includes('@'); }\n");
