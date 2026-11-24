@@ -1,0 +1,720 @@
+{
+  "summary": {
+    "4000": {
+      "cases": 35,
+      "included": 35,
+      "covered": 28,
+      "casesWithChangedLine": 23,
+      "overBudget": 0
+    },
+    "10000": {
+      "cases": 35,
+      "included": 38,
+      "covered": 36,
+      "casesWithChangedLine": 26,
+      "overBudget": 0
+    }
+  },
+  "cases": [
+    {
+      "slug": "expressjs/express",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 3,
+      "perBudget": {
+        "4000": {
+          "included": 2,
+          "covered": 1,
+          "sourceTokens": 3992,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 2,
+          "covered": 2,
+          "sourceTokens": 9998,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "axios/axios",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 3,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 3996,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9999,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "debug-js/debug",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 2,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 4000,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 2,
+          "covered": 2,
+          "sourceTokens": 9986,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "sindresorhus/ky",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 2,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 3996,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9997,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "colinhacks/zod",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 2,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 3998,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9999,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "pinojs/pino",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 3,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 3995,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9998,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "fastify/fastify",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 3,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 4000,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9995,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "chalk/chalk",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 2,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 3999,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 2,
+          "covered": 2,
+          "sourceTokens": 9964,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "vitest-dev/vitest",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 4,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 4000,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9993,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "eslint/eslint",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 3,
+      "perBudget": {
+        "4000": {
+          "included": 2,
+          "covered": 2,
+          "sourceTokens": 3999,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 2,
+          "covered": 2,
+          "sourceTokens": 9982,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "webpack/webpack",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 1,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 0,
+          "sourceTokens": 3998,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 0,
+          "sourceTokens": 10000,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "nodejs/undici",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 2,
+      "perBudget": {
+        "4000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 3998,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 9996,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "reduxjs/redux-toolkit",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 3,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 0,
+          "sourceTokens": 3999,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 0,
+          "sourceTokens": 9984,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "prettier/prettier",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 3,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 0,
+          "sourceTokens": 3999,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9996,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "honojs/hono",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 2,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 3999,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9994,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "sindresorhus/got",
+      "suite": "external",
+      "status": "ok",
+      "fixedFiles": 4,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 3999,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9996,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "gin-gonic/gin",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 2,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 4000,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9968,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "prometheus/prometheus",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 3,
+      "perBudget": {
+        "4000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 3995,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 9958,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "go-gorm/gorm",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 4,
+      "perBudget": {
+        "4000": {
+          "included": 2,
+          "covered": 2,
+          "sourceTokens": 3982,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 3,
+          "covered": 3,
+          "sourceTokens": 10000,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "spf13/cobra",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 2,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 0,
+          "sourceTokens": 3983,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9990,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "tokio-rs/tokio",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 2,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 3994,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9987,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "clap-rs/clap",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 3,
+      "perBudget": {
+        "4000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 3995,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 9992,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "serde-rs/serde",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 3,
+      "perBudget": {
+        "4000": {
+          "included": 2,
+          "covered": 2,
+          "sourceTokens": 3991,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 2,
+          "covered": 2,
+          "sourceTokens": 9993,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "rust-lang/cargo",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 1,
+      "perBudget": {
+        "4000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 3997,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 9987,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "rails/rails",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 4,
+      "perBudget": {
+        "4000": {
+          "included": 2,
+          "covered": 2,
+          "sourceTokens": 3993,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 2,
+          "covered": 2,
+          "sourceTokens": 9998,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "rubocop/rubocop",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 3,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 3999,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9993,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "rspec/rspec-core",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 2,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 4000,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9987,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "sidekiq/sidekiq",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 2,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 3997,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9996,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "symfony/symfony",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 6,
+      "perBudget": {
+        "4000": {
+          "included": 2,
+          "covered": 1,
+          "sourceTokens": 3999,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 2,
+          "covered": 2,
+          "sourceTokens": 9997,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "composer/composer",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 1,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 0,
+          "sourceTokens": 3986,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9992,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "guzzle/guzzle",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 5,
+      "perBudget": {
+        "4000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 3998,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 10000,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "dotnet/runtime",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 2,
+      "perBudget": {
+        "4000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 3999,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 1,
+          "covered": 1,
+          "sourceTokens": 9991,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "AutoMapper/AutoMapper",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 3,
+      "perBudget": {
+        "4000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 3999,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 9999,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "serilog/serilog",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 3,
+      "perBudget": {
+        "4000": {
+          "included": 2,
+          "covered": 2,
+          "sourceTokens": 3994,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 2,
+          "covered": 2,
+          "sourceTokens": 9971,
+          "overBudget": false
+        }
+      }
+    },
+    {
+      "slug": "JamesNK/Newtonsoft.Json",
+      "suite": "polyglot-dev",
+      "status": "ok",
+      "fixedFiles": 2,
+      "perBudget": {
+        "4000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 3993,
+          "overBudget": false
+        },
+        "10000": {
+          "included": 0,
+          "covered": 0,
+          "sourceTokens": 9999,
+          "overBudget": false
+        }
+      }
+    }
+  ]
+}
