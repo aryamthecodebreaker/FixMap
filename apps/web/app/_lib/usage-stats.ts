@@ -3,11 +3,13 @@
  * server. FixMap itself sends no telemetry; these counts are downloads, not users.
  */
 export const USAGE_PACKAGE = "@aryam/fixmap";
+/** The engine package; the CLI installs it automatically, so most of its downloads repeat a CLI install. */
+export const USAGE_CORE_PACKAGE = "@aryam/fixmap-core";
 /** First npm publish of @aryam/fixmap. */
 export const USAGE_FIRST_PUBLISHED = "2026-07-10";
 export const USAGE_REPOSITORY = "aryamthecodebreaker/FixMap";
 /** Seconds between refreshes; shared with the page's revalidation. */
-export const USAGE_REFRESH_SECONDS = 3600;
+export const USAGE_REFRESH_SECONDS = 300;
 
 export type UsageStats = {
   lastWeek: number;
@@ -15,6 +17,10 @@ export type UsageStats = {
   sinceLaunch: number;
   stars: number | null;
   fetchedAt: string;
+  /** Last day npm has counted (YYYY-MM-DD); npm publishes once a day, so this is usually yesterday. */
+  countsThrough: string;
+  /** CLI plus engine downloads since launch, or null when the engine count could not be read. */
+  sinceLaunchWithCore: number | null;
 };
 
 type FetchLike = (url: string, init?: RequestInit & { next?: { revalidate?: number } }) => Promise<Pick<Response, "ok" | "json">>;
@@ -38,6 +44,12 @@ function downloadCount(body: unknown): number {
   const downloads = (body as { downloads?: unknown } | null)?.downloads;
   if (typeof downloads !== "number" || !Number.isSafeInteger(downloads) || downloads < 0) throw new Error("invalid download count");
   return downloads;
+}
+
+function countsThrough(body: unknown): string {
+  const end = (body as { end?: unknown } | null)?.end;
+  if (typeof end !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(end)) throw new Error("invalid download window");
+  return end;
 }
 
 function rangeTotal(body: unknown): number {
@@ -66,6 +78,13 @@ export async function loadUsageStats(fetchImpl: FetchLike = fetch, now = new Dat
       getJson(fetchImpl, `https://api.npmjs.org/downloads/point/last-month/${encoded}`),
       ...ranges.map((range) => getJson(fetchImpl, `https://api.npmjs.org/downloads/range/${range}/${encoded}`))
     ]);
+    let coreSinceLaunch: number | null = null;
+    try {
+      const coreChunks = await Promise.all(ranges.map((range) => getJson(fetchImpl, `https://api.npmjs.org/downloads/range/${range}/${USAGE_CORE_PACKAGE}`)));
+      coreSinceLaunch = coreChunks.reduce((total: number, chunk) => total + rangeTotal(chunk), 0);
+    } catch {
+      coreSinceLaunch = null;
+    }
     let stars: number | null = null;
     try {
       const repository = await getJson(fetchImpl, `https://api.github.com/repos/${USAGE_REPOSITORY}`);
@@ -74,12 +93,15 @@ export async function loadUsageStats(fetchImpl: FetchLike = fetch, now = new Dat
     } catch {
       stars = null;
     }
+    const sinceLaunch = chunks.reduce((total: number, chunk) => total + rangeTotal(chunk), 0);
     return {
       lastWeek: downloadCount(week),
       lastMonth: downloadCount(month),
-      sinceLaunch: chunks.reduce((total: number, chunk) => total + rangeTotal(chunk), 0),
+      sinceLaunch,
       stars,
-      fetchedAt: now.toISOString()
+      fetchedAt: now.toISOString(),
+      countsThrough: countsThrough(week),
+      sinceLaunchWithCore: coreSinceLaunch === null ? null : sinceLaunch + coreSinceLaunch
     };
   } catch {
     return null;

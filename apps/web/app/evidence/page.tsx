@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 
 const percent = (value: number, total: number) => `${Math.round((value / total) * 100)}%`;
 const rate = (value: number | null) => (value === null ? "—" : `${Math.round(value * 100)}%`);
+const count = (value: number | null, cases: number) => (value === null ? 0 : Math.round(value * cases));
 
 const heldoutUnmentioned = siteStats.heldout.cohorts.unmentioned;
 const heldoutMentioned = siteStats.heldout.cohorts.mentioned;
@@ -135,7 +136,38 @@ export default function EvidencePage() {
           <div className="results-row" role="row"><span role="cell"><strong>BM25 retrieval, code files only</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top1HitRate)}</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top3HitRate)}</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top5HitRate)}</strong></span></div>
           <div className="results-row" role="row"><span role="cell">FixMap</span><span role="cell">{rate(heldoutBaselines.fixmap.top1HitRate)}</span><span role="cell">{rate(heldoutBaselines.fixmap.top3HitRate)}</span><span role="cell">{rate(heldoutBaselines.fixmap.top5HitRate)}</span></div>
         </div>
-        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap does not beat BM25 over code files on repositories it was never tuned against.</strong> BM25 leads the Top 1 point estimate 4/9 to 3/9, while Top 3 ties at 5/9; both paired McNemar exact tests have p = 1.0. At Top 5 the baseline wins four cases FixMap misses and FixMap wins none: BM25 has the fixing file in its top five for 9 of 9 of these cases, FixMap for 5 of 9 (p = 0.125). FixMap does lead on the regression suite (69% vs 39% Top 1), but that is the suite whose cases shaped the ranker, and even there the lead is not significant against this baseline. We publish this because it is what the measurement says; closing the Top-5 recall gap is the next piece of work.</p></div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap does not clearly beat BM25 over code files on repositories it was never tuned against.</strong> Top 1: FixMap {count(heldoutBaselines.fixmap.top1HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases}, BM25 {count(heldoutBaselines.bm25.top1HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases}. Top 3: {count(heldoutBaselines.fixmap.top3HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases} vs {count(heldoutBaselines.bm25.top3HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases}. Top 5: {count(heldoutBaselines.fixmap.top5HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases} vs {count(heldoutBaselines.bm25.top5HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases}. Paired McNemar exact tests: p = {siteStats.heldoutMcnemar.top1} (Top 1), {siteStats.heldoutMcnemar.top3} (Top 3), {siteStats.heldoutMcnemar.top5} (Top 5), so none of these differences is significant with this many cases. FixMap does lead on the regression suite, but that suite shaped the ranker. An independent backtest on Zod&apos;s recent history also had BM25 ahead on Top 1. Closing that gap is open work.</p></div>
+      </section>
+
+      <section className="section page-shell" aria-labelledby="feature-bench-title">
+        <div className="section-heading split-heading">
+          <div><p className="eyebrow">Real-world feature bench · {siteStats.featureBench.available} real fixes</p><h2 id="feature-bench-title">Features measured against simple baselines.</h2></div>
+          <p>Each feature was checked on real merged fixes from repositories FixMap was never tuned on, in eight languages. The pass bars were committed to GitHub before the run; a feature that misses its bar stays labelled preview.</p>
+        </div>
+        <div className="results-table" role="table" aria-label="Feature bench results">
+          <div className="results-row results-head" role="row"><span role="columnheader">Feature</span><span role="columnheader">FixMap</span><span role="columnheader">Bar</span><span role="columnheader">Result</span></div>
+          <div className="results-row" role="row"><span role="cell">Verify names every changed file; narration passes its quality check</span><span role="cell">{siteStats.featureBench.bars.verify.passed}/{siteStats.featureBench.bars.verify.of}</span><span role="cell">every case</span><span role="cell">{siteStats.featureBench.bars.verify.meetsBar ? "Met" : "Missed"}</span></div>
+          <div className="results-row" role="row"><span role="cell">Change scope finds the other files a fix changed</span><span role="cell">{rate(siteStats.featureBench.bars.changeScope.fixmapRecall)}</span><span role="cell">above same-folder baseline ({rate(siteStats.featureBench.bars.changeScope.baselineRecall)})</span><span role="cell">{siteStats.featureBench.bars.changeScope.meetsBar ? "Met" : "Missed"}</span></div>
+          <div className="results-row" role="row"><span role="cell">Reviewer suggestions include the fix&apos;s author (top 3)</span><span role="cell">{rate(siteStats.featureBench.bars.reviewers.fixmapHitRate)}</span><span role="cell">above busiest committers ({rate(siteStats.featureBench.bars.reviewers.baselineHitRate)})</span><span role="cell">{siteStats.featureBench.bars.reviewers.meetsBar ? "Met" : "Missed"}</span></div>
+          <div className="results-row" role="row"><span role="cell">Plans against an older commit match a checkout of it (top 5)</span><span role="cell">{siteStats.featureBench.bars.historicalPlans.passed}/{siteStats.featureBench.bars.historicalPlans.of}</span><span role="cell">every case</span><span role="cell">{siteStats.featureBench.bars.historicalPlans.meetsBar ? "Met" : "Missed"}</span></div>
+        </div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>Small samples.</strong> Change scope used {siteStats.featureBench.bars.changeScope.cases} fixes that touched several files, and reviewer suggestions {siteStats.featureBench.bars.reviewers.cases} fixes whose authors had committed before; {siteStats.featureBench.bars.reviewers.excluded} first-time contributors could not be suggested by any method. Contract checks, sensitive-data flows, policy, conflicts and other features need hand-labelled answers and are not judged here.</p></div>
+        <a className="text-link" href={`${repoUrl}/blob/main/benchmarks/feature-bench/PREREGISTRATION.md`}>Read the bars, written before the run <ArrowRight size={17} weight="bold" aria-hidden /></a>
+      </section>
+
+      <section className="section page-shell" aria-labelledby="languages-title">
+        <div className="section-heading split-heading">
+          <div><p className="eyebrow">Seven more languages · {siteStats.languages.cases} held-out cases</p><h2 id="languages-title">Strong in Python and Rust, weak in Java.</h2></div>
+          <p>Real fixed issues in Python, Java, Go, Rust, Ruby, PHP, and .NET repositories FixMap was never tuned on, chosen by a rule written before the run. “Top 5” means the file changed by the merged fix appeared in the first five results.</p>
+        </div>
+        <div className="results-table" role="table" aria-label="Top-5 results by language for FixMap and BM25">
+          <div className="results-row results-head" role="row"><span role="columnheader">Language</span><span role="columnheader">Cases</span><span role="columnheader">FixMap top 5</span><span role="columnheader">BM25 top 5</span></div>
+          {siteStats.languages.rows.map((row) => (
+            <div className="results-row" role="row" key={row.language}><span role="cell">{row.language}</span><span role="cell">{row.cases}</span><span role="cell">{row.fixmap}/{row.cases}</span><span role="cell">{row.bm25}/{row.cases}</span></div>
+          ))}
+          <div className="results-row" role="row"><span role="cell"><strong>All seven</strong></span><span role="cell"><strong>{siteStats.languages.cases}</strong></span><span role="cell"><strong>{rate(siteStats.languages.fixmapTop5)}</strong></span><span role="cell"><strong>{rate(siteStats.languages.bm25Top5)}</strong></span></div>
+        </div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap&apos;s lead over BM25 here is not statistically significant</strong> (paired McNemar exact test, p = {siteStats.languages.top5PValue}; FixMap&apos;s 95% interval is {Math.round((siteStats.languages.fixmapInterval?.[0] ?? 0) * 100)}–{Math.round((siteStats.languages.fixmapInterval?.[1] ?? 0) * 100)}%). Java found none of its four fixes, so language support stays labelled preview until a fresh test passes in every language.</p></div>
       </section>
 
       <section className="section page-shell">
