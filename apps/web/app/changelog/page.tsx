@@ -62,6 +62,13 @@ const releases: Release[] = [
           "The self-hosted container now includes git and is tested on both Intel and ARM machines with no network access.",
           "Files saved by FixMap 0.9.0, 0.9.5 and 0.9.7 are tested to keep working."
         ]
+      },
+      {
+        label: "Fixed",
+        items: [
+          "Saving outcomes or dossiers from several programs at once on Windows no longer fails now and then.",
+          "FixMap now says when it cannot read a folder, instead of reporting that it found nothing."
+        ]
       }
     ]
   },

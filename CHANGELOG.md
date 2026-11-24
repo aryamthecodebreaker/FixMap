@@ -18,6 +18,11 @@ which is generated from the recorded results rather than transcribed by hand.
 - The self-hosted MCP container now includes git, so diffs and history work against a mounted checkout. Both container targets are built and runtime-tested on amd64 and arm64 in CI with no network and a read-only root filesystem.
 - Real artifacts written by FixMap 0.9.0, 0.9.5 and 0.9.7 are kept as test fixtures and must stay readable.
 
+### Fixed
+
+- Saving outcomes or dossiers from several processes at once on Windows could fail with "must be regular, unlinked" or EPERM while another writer released the lock (1-9 of 480 simultaneous saves in a stress test); it now waits for the lock (0 of 1,440).
+- A checkout FixMap could not read was scanned as empty ("0 context files") with no warning; it is now a `directory-unreadable` error, and unreadable subfolders are warnings.
+
 ## 0.9.7 - 2026-11-24
 
 New additions are previews: they work and are tested, but their output and options may change before v0.10.0.
