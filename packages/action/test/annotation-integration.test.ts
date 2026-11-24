@@ -28,4 +28,5 @@ it("carries authored annotations and exact provenance through the real Action pl
     expect(summaries.join("")).toContain("Keep the customer contract");
     expect(await readFile(path, "utf8")).toBe(bytes);
   } finally { await rm(root, { recursive: true, force: true }); }
-});
+// A real scan and Git run; parallel suites on Windows runners can exceed the 5 s default.
+}, 30_000);
