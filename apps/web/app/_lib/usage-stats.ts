@@ -7,7 +7,7 @@ export const USAGE_PACKAGE = "@aryam/fixmap";
 export const USAGE_FIRST_PUBLISHED = "2026-07-10";
 export const USAGE_REPOSITORY = "aryamthecodebreaker/FixMap";
 /** Seconds between refreshes; shared with the page's revalidation. */
-export const USAGE_REFRESH_SECONDS = 3600;
+export const USAGE_REFRESH_SECONDS = 300;
 
 export type UsageStats = {
   lastWeek: number;
@@ -15,6 +15,8 @@ export type UsageStats = {
   sinceLaunch: number;
   stars: number | null;
   fetchedAt: string;
+  /** Last day npm has counted (YYYY-MM-DD); npm publishes once a day, so this is usually yesterday. */
+  countsThrough: string;
 };
 
 type FetchLike = (url: string, init?: RequestInit & { next?: { revalidate?: number } }) => Promise<Pick<Response, "ok" | "json">>;
@@ -38,6 +40,12 @@ function downloadCount(body: unknown): number {
   const downloads = (body as { downloads?: unknown } | null)?.downloads;
   if (typeof downloads !== "number" || !Number.isSafeInteger(downloads) || downloads < 0) throw new Error("invalid download count");
   return downloads;
+}
+
+function countsThrough(body: unknown): string {
+  const end = (body as { end?: unknown } | null)?.end;
+  if (typeof end !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(end)) throw new Error("invalid download window");
+  return end;
 }
 
 function rangeTotal(body: unknown): number {
@@ -79,7 +87,8 @@ export async function loadUsageStats(fetchImpl: FetchLike = fetch, now = new Dat
       lastMonth: downloadCount(month),
       sinceLaunch: chunks.reduce((total: number, chunk) => total + rangeTotal(chunk), 0),
       stars,
-      fetchedAt: now.toISOString()
+      fetchedAt: now.toISOString(),
+      countsThrough: countsThrough(week)
     };
   } catch {
     return null;

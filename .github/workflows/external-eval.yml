@@ -7,6 +7,7 @@ on:
       - "packages/core/**"
       - "scripts/evaluate-external.mjs"
       - "scripts/evaluate-baseline.mjs"
+      - "scripts/evaluate-features.mjs"
       - "scripts/lib/**"
       - ".github/workflows/external-eval.yml"
   workflow_dispatch:
@@ -34,3 +35,4 @@ jobs:
       - run: node scripts/evaluate-external.mjs --suite heldout --gate --check-recorded
       - run: node scripts/evaluate-baseline.mjs --suite external --check-recorded
       - run: node scripts/evaluate-baseline.mjs --suite heldout --check-recorded
+      - run: node scripts/evaluate-features.mjs --check-recorded

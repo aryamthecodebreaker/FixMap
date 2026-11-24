@@ -14,8 +14,8 @@ import { FIXMAP_FEATURES } from "@aryam/fixmap-core/browser";
 import { repoUrl, siteStats } from "./_lib/site-data";
 import { loadUsageStats, USAGE_FIRST_PUBLISHED, USAGE_PACKAGE, USAGE_REPOSITORY } from "./_lib/usage-stats";
 
-/** Refresh the public npm and GitHub usage numbers at most once an hour. */
-export const revalidate = 3600;
+/** Re-check npm and GitHub every 5 minutes, matching npm's own cache. Next needs a literal here. */
+export const revalidate = 300;
 
 const formatCount = (value: number) => value.toLocaleString("en-US");
 const launchMonth = new Date(`${USAGE_FIRST_PUBLISHED}T00:00:00Z`).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -110,8 +110,9 @@ export default async function HomePage() {
         <div className="pro-section-heading">
           <h2 id="pro-usage-title">How often FixMap is downloaded.</h2>
           <p>
-            Live from npm and GitHub, refreshed every hour. A download is not a person: automated builds,
-            mirrors, and repeat installs all count. FixMap itself never reports usage.
+            Live from npm and GitHub, checked every 5 minutes. npm publishes download counts once a day, so
+            the newest day is yesterday. A download is not a person: automated builds, mirrors, and repeat
+            installs all count. FixMap itself never reports usage.
           </p>
           <Link className="text-link" href="/features">
             See all {FIXMAP_FEATURES.length} features ({FIXMAP_FEATURES.filter((feature) => !feature.preview).length} ready, {FIXMAP_FEATURES.filter((feature) => feature.preview).length} preview) <ArrowRight size={17} weight="bold" aria-hidden />
@@ -127,7 +128,10 @@ export default async function HomePage() {
             </dl>
             <p className="pro-usage-source">
               Source: <a href={`https://www.npmjs.com/package/${USAGE_PACKAGE}`}>{USAGE_PACKAGE} on npm</a> and{" "}
-              <a href={`https://github.com/${USAGE_REPOSITORY}`}>GitHub</a>. Checked{" "}
+              <a href={`https://github.com/${USAGE_REPOSITORY}`}>GitHub</a>. npm counts through{" "}
+              <time dateTime={usage.countsThrough}>
+                {new Date(`${usage.countsThrough}T00:00:00Z`).toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}
+              </time>; checked{" "}
               <time dateTime={usage.fetchedAt}>
                 {new Date(usage.fetchedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC
               </time>.
