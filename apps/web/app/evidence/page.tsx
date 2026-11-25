@@ -1,226 +1,161 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowRight, Check, Minus, WarningCircle } from "@phosphor-icons/react/ssr";
+import { CheckCircle, CircleDashed, Hash, MinusCircle, XCircle } from "@phosphor-icons/react/ssr";
 import { repoUrl, siteStats } from "../_lib/site-data";
 
 export const metadata: Metadata = {
   title: "Evidence",
-  description: "Read FixMap's held-out, regression, and adversarial benchmark results, methodology, confidence intervals, misses, and limitations.",
+  description: "Every FixMap measurement: fresh projects in seven languages, keyword-search baselines, features, confidence and the things not measured yet.",
   alternates: { canonical: "/evidence" },
-  openGraph: {
-    title: "FixMap evidence",
-    description: "Held-out, baseline, and adversarial results with misses and limitations included.",
-    url: "/evidence"
-  }
+  openGraph: { title: "FixMap evidence", description: "Every result, including the misses and the checks that did not pass.", url: "/evidence" }
 };
 
-const percent = (value: number, total: number) => `${Math.round((value / total) * 100)}%`;
-const rate = (value: number | null) => (value === null ? "—" : `${Math.round(value * 100)}%`);
-const count = (value: number | null, cases: number) => (value === null ? 0 : Math.round(value * cases));
+const rate = (value: number | null | undefined) => (value === null || value === undefined ? "—" : `${Math.round(value * 100)}%`);
+const count = (value: number | null | undefined, cases: number) => (value === null || value === undefined ? 0 : Math.round(value * cases));
 
-const heldoutUnmentioned = siteStats.heldout.cohorts.unmentioned;
-const heldoutMentioned = siteStats.heldout.cohorts.mentioned;
-const heldoutBaselines = siteStats.baselines.heldout;
+const fresh = siteStats.languages;
+const unmentioned = siteStats.heldout.cohorts.unmentioned;
+const baselines = siteStats.baselines.heldout;
+const bench = siteStats.featureBench.bars;
 
-// A plain-English reading of the measured rate, so the callout cannot claim "three quarters"
-// after a re-record moves the number to two thirds. Bands, not a fabricated precision.
-function describeRate(share: number): string {
-  if (share >= 0.9) return "almost all";
-  if (share >= 0.7) return "about three quarters";
-  if (share >= 0.58) return "about two thirds";
-  if (share >= 0.42) return "about half";
-  if (share >= 0.28) return "about a third";
-  return "a minority";
-}
+type Status = "pass" | "neutral" | "fail" | "skip";
+const barsMet = [bench.verify, bench.changeScope, bench.reviewers, bench.historicalPlans].filter((bar) => bar.meetsBar).length;
+const featureStatus: Status = barsMet === 4 ? "pass" : barsMet > 0 ? "neutral" : "fail";
+const icon = (status: Status) =>
+  status === "pass" ? <CheckCircle weight="fill" aria-hidden /> :
+    status === "neutral" ? <MinusCircle weight="fill" aria-hidden /> :
+      status === "fail" ? <XCircle weight="fill" aria-hidden /> : <CircleDashed weight="bold" aria-hidden />;
+
+const summary: Array<{ id: string; status: Status; title: string; result: string }> = [
+  { id: "languages", status: "pass", title: "Finds the file a real fix changed, in 7 languages", result: `${count(fresh.fixmapTop5, fresh.cases)}/${fresh.cases} in top 5` },
+  { id: "keyword", status: "neutral", title: "Beats plain keyword search", result: `about even (p = ${fresh.top5PValue})` },
+  { id: "unsure", status: "pass", title: "Says when it is not sure", result: `${siteStats.adversarial.passed}/${siteStats.adversarial.cases}` },
+  { id: "features", status: featureStatus, title: "Features beat simple baselines", result: `${[bench.verify, bench.changeScope, bench.reviewers, bench.historicalPlans].filter((bar) => bar.meetsBar).length} of 4 bars met` },
+  { id: "labels", status: "neutral", title: "Confidence labels match accuracy", result: "small sample" },
+  { id: "agents", status: "skip", title: "Saves AI tools time, tokens or money", result: "not run yet" }
+];
 
 export default function EvidencePage() {
   return (
-    <main>
-      <section className="subpage-hero page-shell evidence-hero">
-        <p className="eyebrow">Evidence</p>
-        <h1>Measured honestly.{" "}<br /><em>Misses included.</em></h1>
+    <>
+      <div className="shell page-head">
+        <h1>Evidence</h1>
         <p>
-          Every benchmark case is a real issue later closed by a merged pull request. FixMap sees
-          the repository before the fix and tries to surface the file that actually changed.
+          Each test case is a real bug later fixed by a merged pull request. FixMap sees the project as it was before the fix and tries
+          to point at the file that changed. Pass bars were written down before each run, and the misses stay on this page.
         </p>
-        <div className="button-row"><a className="button primary" href={`${repoUrl}/tree/main/benchmarks`}>Open benchmark data <ArrowRight size={18} weight="bold" aria-hidden /></a></div>
-      </section>
+      </div>
 
-      <section className="section page-shell evidence-boundaries" aria-labelledby="evidence-boundaries-title">
-        <div className="section-heading split-heading">
-          <div><p className="eyebrow">Claim boundary</p><h2 id="evidence-boundaries-title">Three different questions need three different answers.</h2></div>
-          <p>Retrieval measurements can show whether FixMap surfaced a known fixing file. They cannot, by themselves, show whether a coding agent used fewer tokens or completed the task better.</p>
-        </div>
-        <div className="evidence-boundary-list">
-          <article><span>Measured</span><h3>Repository retrieval, calibration, adversarial behavior, and scan time</h3><p>The checked-in suites below contain the cases, baselines, misses, and confidence intervals.</p></article>
-          <article><span>Mechanism</span><h3>Focused context, test routes, impact candidates, and explicit uncertainty</h3><p>These are product behaviors produced from repository evidence. They are not downstream outcome claims.</p></article>
-          <article><span>Not yet measured</span><h3>Agent tokens, cost, time, tool calls, and task success</h3><p>The controlled protocol and evaluator are ready for real runs; no result is published until a complete run set exists.</p></article>
-        </div>
-      </section>
+      <div className="shell read-layout">
+        <nav className="toc" aria-label="Evidence sections">
+          {summary.map((item) => <a key={item.id} href={`#${item.id}`}><Hash aria-hidden />{item.title.split(",")[0]}</a>)}
+          <a href="#cases"><Hash aria-hidden />Every case</a>
+        </nav>
 
-      <section className="section page-shell">
-        <div className="section-heading split-heading">
-          <div><p className="eyebrow">Confidence calibration</p><h2>Labels are evidence bands, not probabilities.</h2></div>
-          <p>Across the held-out and external suites, high confidence is not more accurate than medium in this small sample. The counts are published so readers can see that limitation instead of treating a label as a calibrated chance of correctness.</p>
-        </div>
-        <div className="results-table" role="table" aria-label="Top-result accuracy by FixMap confidence label">
-          <div className="results-row results-head" role="row"><span role="columnheader">Top label</span><span role="columnheader">Cases</span><span role="columnheader">Correct</span><span role="columnheader">Accuracy</span></div>
-          {siteStats.confidenceCalibration.map((band) => (
-            <div className="results-row" role="row" key={band.confidence}><span role="cell">{band.confidence}</span><span role="cell">{band.cases}</span><span role="cell">{band.correct}</span><span role="cell">{rate(band.accuracy)}</span></div>
-          ))}
-        </div>
-      </section>
-
-      <section className="section page-shell">
-        <div className="section-heading split-heading">
-          <div><p className="eyebrow">Adversarial gate</p><h2>{siteStats.adversarial.passed}/{siteStats.adversarial.cases} cases pass.</h2></div>
-          <p>The checked-in adversarial record covers fabricated identifiers, wrong repositories, vague tasks, and generated output. Its measured false-confidence rate is {Math.round(siteStats.adversarial.falseConfidenceRate * 100)}%.</p>
-        </div>
-      </section>
-
-      <section className="section page-shell score-section">
-        <div className="score-grid">
-          <article className="score-card featured">
-            <p className="eyebrow">Held-out · tasks that did not name the file · {heldoutUnmentioned.cases} repositories</p>
-            <strong>{rate(heldoutUnmentioned.top3HitRate)}</strong>
-            <h2>fixes surfaced in the top 3</h2>
-            <p>Selected after the ranker was finished, and counting only the cases where FixMap had to locate the file rather than read it out of the task. This is the result to plan around.</p>
-            <dl><div><dt>Top 1</dt><dd>{rate(heldoutUnmentioned.top1HitRate)}</dd></div><div><dt>Top 5</dt><dd>{rate(heldoutUnmentioned.top5HitRate)}</dd></div></dl>
-          </article>
-          <article className="score-card">
-            <p className="eyebrow">Regression · {siteStats.regression.cases} repositories</p>
-            <strong>{siteStats.regression.top3}/{siteStats.regression.cases}</strong>
-            <h2>fixes surfaced in the top 3</h2>
-            <p>These cases guided development. They prove regressions are caught, not generalization.</p>
-            <dl><div><dt>Top 1</dt><dd>{siteStats.regression.top1}/{siteStats.regression.cases} · {percent(siteStats.regression.top1, siteStats.regression.cases)}</dd></div><div><dt>Top 5</dt><dd>{siteStats.regression.top5}/{siteStats.regression.cases} · {percent(siteStats.regression.top5, siteStats.regression.cases)}</dd></div></dl>
-          </article>
-        </div>
-        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>Read this as “{describeRate(heldoutUnmentioned.top3HitRate ?? 0)},” not as two significant figures.</strong> With {heldoutUnmentioned.cases} held-out cases in this cohort, one result changing moves Top-3 by roughly {Math.round(100 / heldoutUnmentioned.cases)} points. The 95% interval is {Math.round((heldoutUnmentioned.intervals95.top3?.[0] ?? 0) * 100)}–{Math.round((heldoutUnmentioned.intervals95.top3?.[1] ?? 0) * 100)}%.</p></div>
-      </section>
-
-      <section className="section page-shell">
-        <div className="section-heading split-heading">
-          <div><p className="eyebrow">Cohorts</p><h2>Some tasks already contained their answer.</h2></div>
-          <p>
-            {heldoutMentioned.cases} of the {siteStats.heldout.cases} held-out tasks name a fixing file
-            outright — one as <code>Location: lib/document.js:2339</code>, two as a GitHub permalink to
-            the exact lines. A ranker that reads explicit file mentions answers those by reading the
-            task. Pooling them lets {heldoutMentioned.cases} cases carry the headline, so they are
-            reported separately.
-          </p>
-        </div>
-        <div className="results-table" role="table" aria-label="Held-out results split by whether the task named the fixing file">
-          <div className="results-row results-head" role="row"><span role="columnheader">Cohort</span><span role="columnheader">Cases</span><span role="columnheader">Top 1</span><span role="columnheader">Top 3</span></div>
-          <div className="results-row" role="row"><span role="cell">Task did not name the file</span><span role="cell">{heldoutUnmentioned.cases}</span><span role="cell">{rate(heldoutUnmentioned.top1HitRate)}</span><span role="cell">{rate(heldoutUnmentioned.top3HitRate)}</span></div>
-          <div className="results-row" role="row"><span role="cell">Task named the file</span><span role="cell">{heldoutMentioned.cases}</span><span role="cell">{rate(heldoutMentioned.top1HitRate)}</span><span role="cell">{rate(heldoutMentioned.top3HitRate)}</span></div>
-          <div className="results-row" role="row"><span role="cell">Pooled — what we published before</span><span role="cell">{siteStats.heldout.cases}</span><span role="cell">{percent(siteStats.heldout.top1, siteStats.heldout.cases)}</span><span role="cell">{percent(siteStats.heldout.top3, siteStats.heldout.cases)}</span></div>
-        </div>
-        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>This is a structural correction, not a measured effect size.</strong> The regression suite barely moves under the same split, and its named cases are 2 of 3 rather than 3 of 3 — being named does not guarantee a hit. With three cases per named cohort, how much a mention is worth is not established. What is established is that a generalization headline should not be computed over tasks that contain their own answer.</p></div>
-      </section>
-
-      <section className="section page-shell">
-        <div className="section-heading split-heading">
-          <div><p className="eyebrow">Baselines</p><h2>Better than searching the repository?</h2></div>
-          <p>
-            A ranked list only earns its place if it beats what an agent already gets for free. Every
-            arm below scores on <strong>the same repository scan</strong> — same files, same text
-            samples. Each baseline is shown at its <strong>strongest</strong> candidate policy:
-            pointed at every scanned file a keyword search just returns <code>README.md</code>, which
-            would make this a strawman rather than a comparison.
-          </p>
-        </div>
-        <div className="results-table" role="table" aria-label="FixMap against naive retrieval baselines on held-out cases that did not name the file">
-          <div className="results-row results-head" role="row"><span role="columnheader">Arm</span><span role="columnheader">Top 1</span><span role="columnheader">Top 3</span><span role="columnheader">Top 5</span></div>
-          <div className="results-row" role="row"><span role="cell">Path extraction — read paths out of the task</span><span role="cell">{rate(heldoutBaselines.pathExtraction.top1HitRate)}</span><span role="cell">{rate(heldoutBaselines.pathExtraction.top3HitRate)}</span><span role="cell">{rate(heldoutBaselines.pathExtraction.top5HitRate)}</span></div>
-          <div className="results-row" role="row"><span role="cell">Literal keyword search, code files only</span><span role="cell">{rate(heldoutBaselines.lexical.top1HitRate)}</span><span role="cell">{rate(heldoutBaselines.lexical.top3HitRate)}</span><span role="cell">{rate(heldoutBaselines.lexical.top5HitRate)}</span></div>
-          <div className="results-row" role="row"><span role="cell"><strong>BM25 retrieval, code files only</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top1HitRate)}</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top3HitRate)}</strong></span><span role="cell"><strong>{rate(heldoutBaselines.bm25.top5HitRate)}</strong></span></div>
-          <div className="results-row" role="row"><span role="cell">FixMap</span><span role="cell">{rate(heldoutBaselines.fixmap.top1HitRate)}</span><span role="cell">{rate(heldoutBaselines.fixmap.top3HitRate)}</span><span role="cell">{rate(heldoutBaselines.fixmap.top5HitRate)}</span></div>
-        </div>
-        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap does not clearly beat BM25 over code files on repositories it was never tuned against.</strong> Top 1: FixMap {count(heldoutBaselines.fixmap.top1HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases}, BM25 {count(heldoutBaselines.bm25.top1HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases}. Top 3: {count(heldoutBaselines.fixmap.top3HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases} vs {count(heldoutBaselines.bm25.top3HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases}. Top 5: {count(heldoutBaselines.fixmap.top5HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases} vs {count(heldoutBaselines.bm25.top5HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases}. Paired McNemar exact tests: p = {siteStats.heldoutMcnemar.top1} (Top 1), {siteStats.heldoutMcnemar.top3} (Top 3), {siteStats.heldoutMcnemar.top5} (Top 5), so none of these differences is significant with this many cases. FixMap does lead on the regression suite, but that suite shaped the ranker. An independent backtest on Zod&apos;s recent history also had BM25 ahead on Top 1. Closing that gap is open work.</p></div>
-      </section>
-
-      <section className="section page-shell" aria-labelledby="feature-bench-title">
-        <div className="section-heading split-heading">
-          <div><p className="eyebrow">Real-world feature bench · {siteStats.featureBench.available} real fixes</p><h2 id="feature-bench-title">Features measured against simple baselines.</h2></div>
-          <p>Each feature was checked on real merged fixes from repositories FixMap was never tuned on, in eight languages. The pass bars were committed to GitHub before the run; a feature that misses its bar stays labelled preview.</p>
-        </div>
-        <div className="results-table" role="table" aria-label="Feature bench results">
-          <div className="results-row results-head" role="row"><span role="columnheader">Feature</span><span role="columnheader">FixMap</span><span role="columnheader">Bar</span><span role="columnheader">Result</span></div>
-          <div className="results-row" role="row"><span role="cell">Verify names every changed file; narration passes its quality check</span><span role="cell">{siteStats.featureBench.bars.verify.passed}/{siteStats.featureBench.bars.verify.of}</span><span role="cell">every case</span><span role="cell">{siteStats.featureBench.bars.verify.meetsBar ? "Met" : "Missed"}</span></div>
-          <div className="results-row" role="row"><span role="cell">Change scope finds the other files a fix changed</span><span role="cell">{rate(siteStats.featureBench.bars.changeScope.fixmapRecall)}</span><span role="cell">above same-folder baseline ({rate(siteStats.featureBench.bars.changeScope.baselineRecall)})</span><span role="cell">{siteStats.featureBench.bars.changeScope.meetsBar ? "Met" : "Missed"}</span></div>
-          <div className="results-row" role="row"><span role="cell">Reviewer suggestions include the fix&apos;s author (top 3)</span><span role="cell">{rate(siteStats.featureBench.bars.reviewers.fixmapHitRate)}</span><span role="cell">above busiest committers ({rate(siteStats.featureBench.bars.reviewers.baselineHitRate)})</span><span role="cell">{siteStats.featureBench.bars.reviewers.meetsBar ? "Met" : "Missed"}</span></div>
-          <div className="results-row" role="row"><span role="cell">Plans against an older commit match a checkout of it (top 5)</span><span role="cell">{siteStats.featureBench.bars.historicalPlans.passed}/{siteStats.featureBench.bars.historicalPlans.of}</span><span role="cell">every case</span><span role="cell">{siteStats.featureBench.bars.historicalPlans.meetsBar ? "Met" : "Missed"}</span></div>
-        </div>
-        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>Small samples.</strong> Change scope used {siteStats.featureBench.bars.changeScope.cases} fixes that touched several files, and reviewer suggestions {siteStats.featureBench.bars.reviewers.cases} fixes whose authors had committed before; {siteStats.featureBench.bars.reviewers.excluded} first-time contributors could not be suggested by any method. Contract checks, sensitive-data flows, policy, conflicts and other features need hand-labelled answers and are not judged here.</p></div>
-        <a className="text-link" href={`${repoUrl}/blob/main/benchmarks/feature-bench/PREREGISTRATION.md`}>Read the bars, written before the run <ArrowRight size={17} weight="bold" aria-hidden /></a>
-      </section>
-
-      <section className="section page-shell" aria-labelledby="languages-title">
-        <div className="section-heading split-heading">
-          <div><p className="eyebrow">Seven more languages · {siteStats.languages.cases} held-out cases</p><h2 id="languages-title">About as good as keyword search on fresh code.</h2></div>
-          <p>Real fixed issues in Python, Java, Go, Rust, Ruby, PHP, and .NET repositories FixMap was never tuned on, chosen and frozen by a rule committed before the run. “Top 5” means the file changed by the merged fix appeared in the first five results.</p>
-        </div>
-        <div className="results-table" role="table" aria-label="Top-5 results by language for FixMap and BM25">
-          <div className="results-row results-head" role="row"><span role="columnheader">Language</span><span role="columnheader">Cases</span><span role="columnheader">FixMap top 5</span><span role="columnheader">BM25 top 5</span></div>
-          {siteStats.languages.rows.map((row) => (
-            <div className="results-row" role="row" key={row.language}><span role="cell">{row.language}</span><span role="cell">{row.cases}</span><span role="cell">{row.fixmap}/{row.cases}</span><span role="cell">{row.bm25}/{row.cases}</span></div>
-          ))}
-          <div className="results-row" role="row"><span role="cell"><strong>All seven</strong></span><span role="cell"><strong>{siteStats.languages.cases}</strong></span><span role="cell"><strong>{rate(siteStats.languages.fixmapTop5)}</strong></span><span role="cell"><strong>{rate(siteStats.languages.bm25Top5)}</strong></span></div>
-        </div>
-        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap is not significantly better than keyword search here.</strong> We set the bar before the run: more fixes found in the top 5 than BM25, with p below 0.05. It missed (paired McNemar exact test, p = {siteStats.languages.top5PValue}; FixMap&apos;s 95% interval is {Math.round((siteStats.languages.fixmapInterval?.[0] ?? 0) * 100)}–{Math.round((siteStats.languages.fixmapInterval?.[1] ?? 0) * 100)}%). At the first result BM25 is slightly ahead ({rate(siteStats.languages.bm25Top1)} vs {rate(siteStats.languages.fixmapTop1)}). Language support left preview on an earlier fresh test of 28 cases, whose bar was &ldquo;not worse than keyword search&rdquo;; this larger test agrees with that and no more.</p></div>
-      </section>
-
-      <section className="section page-shell">
-        <div className="section-heading split-heading">
-          <div><p className="eyebrow">Your repository</p><h2>Run the baseline comparison locally.</h2></div>
-          <p><code>fixmap benchmark --repo . --last 50</code> backtests BM25-over-code, FixMap, and FixMap with Impact Graph on bounded recent Git history.</p>
-        </div>
-        <div className="method-grid">
-          <article><span>01</span><h3>Parent snapshots</h3><p>Every case runs before its target commit, so the target change and later co-change history are unavailable.</p></article>
-          <article><span>02</span><h3>Identical corpus</h3><p>All three arms see the same scanned files. The comparison never weakens a baseline with a noisier candidate set.</p></article>
-          <article><span>03</span><h3>Separated cohorts</h3><p>Tasks that name an expected path are reported separately from tasks that require retrieval.</p></article>
-          <article><span>04</span><h3>Bounded and non-executing</h3><p>Temporary worktrees, commit and file caps, and no repository code execution keep the run inspectable.</p></article>
-        </div>
-        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>No universal performance claim is derived from one repository.</strong> Commit messages are imperfect task proxies, and historical changes reflect that project&rsquo;s own maintenance patterns. The JSON output includes every eligible case, skip counts, cohort scores, and Wilson intervals so users can judge the evidence directly.</p></div>
-      </section>
-
-      <section className="section page-shell">
-        <div className="section-heading split-heading">
-          <div><p className="eyebrow">Controlled agent study</p><h2>The protocol exists; the result does not yet.</h2></div>
-          <p>FixMap publishes a frozen four-arm protocol for baseline, available, instructed, and Impact Graph-assisted runs. It requires the same agent model and version, pinned repository revision, complete transcripts, and one run per task and arm.</p>
-        </div>
-        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>No fix-rate, turn-count, token, cost, or time-saved claim is made until real runs are completed and audited.</strong> The checked-in evaluator validates the protocol and rejects incomplete or mismatched run sets.</p></div>
-        <a className="text-link" href={`${repoUrl}/blob/main/docs/AGENT_STUDY.md`}>Read the frozen protocol <ArrowRight size={17} weight="bold" aria-hidden /></a>
-      </section>
-
-      <section className="section table-section">
-        <div className="page-shell">
-          <div className="section-heading split-heading"><div><p className="eyebrow">Held-out results</p><h2>Every case, not just the wins.</h2></div><p>The expected path is the file changed by the merged fix. “Top 3” means that path appeared in FixMap&apos;s first three results.</p></div>
-          <div className="results-table" role="table" aria-label="Held-out benchmark results">
-            <div className="results-row results-head" role="row"><span role="columnheader">Repository</span><span role="columnheader">Expected file</span><span role="columnheader">Top result</span><span role="columnheader">Top 3</span></div>
-            {siteStats.heldout.results.map((result) => (
-              <div className="results-row" role="row" key={result.slug}>
-                <span role="cell"><a href={`https://github.com/${result.slug}/issues/${result.issue}`}>{result.slug} #{result.issue}</a></span>
-                <code role="cell">{result.expected[0]}</code>
-                <code role="cell">{result.top5Paths[0]}</code>
-                <span role="cell" className={result.top3Hit ? "result-hit" : "result-miss"}>{result.top3Hit ? <Check size={18} weight="bold" aria-hidden /> : <Minus size={18} weight="bold" aria-hidden />}{result.top3Hit ? "Hit" : "Miss"}</span>
+        <div>
+          <div className="checks">
+            <div className="checks-head"><strong>{summary.length} checks</strong><span>Each check links to its full results below.</span></div>
+            {summary.map((item) => (
+              <div key={item.id} className={`check ${item.status === "fail" ? "neutral" : item.status}`}>
+                {icon(item.status)}
+                <div><strong><a href={`#${item.id}`}>{item.title}</a></strong></div>
+                <span className="result">{item.result}</span>
               </div>
             ))}
           </div>
-        </div>
-      </section>
 
-      <section className="section page-shell methodology">
-        <div className="section-heading"><p className="eyebrow">Methodology</p><h2>What the benchmark does—and does not—show.</h2></div>
-        <div className="method-grid">
-          <article><span>01</span><h3>Real issues</h3><p>The task text comes from a public issue, not a prompt written to flatter the ranker.</p></article>
-          <article><span>02</span><h3>Pre-fix repository</h3><p>The repository is checked out before the merged change so the answer is not already embedded in the diff.</p></article>
-          <article><span>03</span><h3>Mechanical scoring</h3><p>A hit means a changed file appeared at a measured rank. Nothing is graded by taste.</p></article>
-          <article><span>04</span><h3>No time-saved claim</h3><p>FixMap has not run a controlled study of the same tasks with and without the tool, so this site does not invent one.</p></article>
-        </div>
-      </section>
+          <article className="prose" style={{ padding: "0" }}>
+            <h2 id="languages">Fresh projects in seven languages</h2>
+            <p>{fresh.cases} merged fixes, 15 per language, from open-source projects no FixMap test had used. The projects, cases and bar were committed to GitHub before FixMap ran on them. &ldquo;Top 5&rdquo; means the changed file was in the first five results.</p>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead><tr><th>Language</th><th className="num">Cases</th><th className="num">FixMap top 5</th><th className="num">Keyword search top 5</th></tr></thead>
+                <tbody>
+                  {fresh.rows.map((row) => <tr key={row.language}><td>{row.language}</td><td className="num">{row.cases}</td><td className="num">{row.fixmap}</td><td className="num">{row.bm25}</td></tr>)}
+                  <tr><td><strong>All seven</strong></td><td className="num"><strong>{fresh.cases}</strong></td><td className="num"><strong>{count(fresh.fixmapTop5, fresh.cases)} ({rate(fresh.fixmapTop5)})</strong></td><td className="num"><strong>{count(fresh.bm25Top5, fresh.cases)} ({rate(fresh.bm25Top5)})</strong></td></tr>
+                </tbody>
+              </table>
+            </div>
 
-      <section className="section dark-section"><div className="page-shell evidence-bottom"><div><p className="eyebrow">Trust the boundary</p><h2>A starting map is useful even when it is imperfect.</h2></div><div><p>FixMap narrows the search and exposes uncertainty. It does not replace reading, testing, or review.</p><Link className="button light" href="/demo">Try the weakest sample <ArrowRight size={18} weight="bold" aria-hidden /></Link></div></div></section>
-    </main>
+            <h2 id="keyword">Against plain keyword search</h2>
+            <p>
+              The comparison is BM25 over code files, a standard keyword search, run on exactly the same files. On the {fresh.cases} fresh cases above,
+              FixMap is ahead in the top 5 ({rate(fresh.fixmapTop5)} against {rate(fresh.bm25Top5)}) and slightly behind at the very first result
+              ({rate(fresh.fixmapTop1)} against {rate(fresh.bm25Top1)}). Neither difference is significant (paired McNemar exact test, p = {fresh.top5PValue}).
+              We set the bar for a win before the run, and FixMap did not meet it. <strong>So: about as good as keyword search, not clearly better.</strong>
+            </p>
+            <p>The earlier JavaScript and TypeScript set says the same. On the {unmentioned.cases} tasks that did not name the file:</p>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead><tr><th>Method</th><th className="num">Top 1</th><th className="num">Top 3</th><th className="num">Top 5</th></tr></thead>
+                <tbody>
+                  <tr><td>Read file paths out of the task</td><td className="num">{rate(baselines.pathExtraction.top1HitRate)}</td><td className="num">{rate(baselines.pathExtraction.top3HitRate)}</td><td className="num">{rate(baselines.pathExtraction.top5HitRate)}</td></tr>
+                  <tr><td>Literal keyword search</td><td className="num">{rate(baselines.lexical.top1HitRate)}</td><td className="num">{rate(baselines.lexical.top3HitRate)}</td><td className="num">{rate(baselines.lexical.top5HitRate)}</td></tr>
+                  <tr><td>BM25 keyword search</td><td className="num">{rate(baselines.bm25.top1HitRate)}</td><td className="num">{rate(baselines.bm25.top3HitRate)}</td><td className="num">{rate(baselines.bm25.top5HitRate)}</td></tr>
+                  <tr><td><strong>FixMap</strong></td><td className="num"><strong>{rate(baselines.fixmap.top1HitRate)}</strong></td><td className="num"><strong>{rate(baselines.fixmap.top3HitRate)}</strong></td><td className="num"><strong>{rate(baselines.fixmap.top5HitRate)}</strong></td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h2 id="unsure">Saying when it is not sure</h2>
+            <p>
+              {siteStats.adversarial.cases} tasks were built to tempt a confident wrong answer: made-up function names, the wrong project, tasks with no clues,
+              and generated files. FixMap passed {siteStats.adversarial.passed} of {siteStats.adversarial.cases}, with a false-confidence rate of {Math.round(siteStats.adversarial.falseConfidenceRate * 100)}%.
+            </p>
+
+            <h2 id="features">Features against simple baselines</h2>
+            <p>Measured on {siteStats.featureBench.available} real fixes with bars written before the run. A feature that misses keeps its preview label until a fresh test passes.</p>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead><tr><th>Feature</th><th className="num">FixMap</th><th>Bar</th><th>Result</th></tr></thead>
+                <tbody>
+                  <tr><td>Verify names every changed file</td><td className="num">{bench.verify.passed}/{bench.verify.of}</td><td>every case</td><td>{bench.verify.meetsBar ? "Met" : "Missed"}</td></tr>
+                  <tr><td>Change scope finds the other changed files</td><td className="num">{rate(bench.changeScope.fixmapRecall)}</td><td>above same-folder listing ({rate(bench.changeScope.baselineRecall)})</td><td>{bench.changeScope.meetsBar ? "Met" : "Missed"}</td></tr>
+                  <tr><td>Reviewer suggestions include the fix&apos;s author</td><td className="num">{rate(bench.reviewers.fixmapHitRate)}</td><td>above busiest committers ({rate(bench.reviewers.baselineHitRate)})</td><td>{bench.reviewers.meetsBar ? "Met" : "Missed"}</td></tr>
+                  <tr><td>Plans for an older commit match a checkout</td><td className="num">{bench.historicalPlans.passed}/{bench.historicalPlans.of}</td><td>every case</td><td>{bench.historicalPlans.meetsBar ? "Met" : "Missed"}</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>Fixes for all four are in progress and will be judged again on fresh cases, not the ones above. <a href={`${repoUrl}/blob/main/benchmarks/feature-bench/PREREGISTRATION.md`}>Read the bars</a>.</p>
+
+            <h2 id="labels">Confidence labels</h2>
+            <p>Labels are bands of evidence, not probabilities. In this small sample, high confidence is not reliably more accurate than medium.</p>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead><tr><th>Top label</th><th className="num">Cases</th><th className="num">Right first time</th><th className="num">Accuracy</th></tr></thead>
+                <tbody>
+                  {siteStats.confidenceCalibration.map((band) => <tr key={band.confidence}><td>{band.confidence}</td><td className="num">{band.cases}</td><td className="num">{band.correct}</td><td className="num">{rate(band.accuracy)}</td></tr>)}
+                </tbody>
+              </table>
+            </div>
+
+            <h2 id="agents">Not measured yet</h2>
+            <p>
+              Whether FixMap makes an AI coding tool faster, cheaper or more likely to finish a task has not been measured. A four-arm study is written
+              down (<a href={`${repoUrl}/blob/main/docs/AGENT_STUDY.md`}>read the protocol</a>), but until real runs are done and checked, this site makes no such claim.
+            </p>
+            <p>You can measure FixMap on your own project&apos;s history any time: <code>fixmap benchmark --repo . --last 50</code>.</p>
+
+            <h2 id="cases">Every JavaScript and TypeScript case</h2>
+            <p>The file the merged fix changed, FixMap&apos;s first result, and whether the right file was in its top 3.</p>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead><tr><th>Project and issue</th><th>File the fix changed</th><th>FixMap&apos;s first result</th><th>Top 3</th></tr></thead>
+                <tbody>
+                  {siteStats.heldout.results.map((result) => (
+                    <tr key={result.slug}>
+                      <td><a href={`https://github.com/${result.slug}/issues/${result.issue}`}>{result.slug} #{result.issue}</a></td>
+                      <td><code>{result.expected[0]}</code></td>
+                      <td><code>{result.top5Paths[0]}</code></td>
+                      <td>{result.top3Hit ? "Hit" : "Miss"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p>All raw data, scripts and rules are in the repository: <a href={`${repoUrl}/tree/main/benchmarks`}>benchmarks/</a>.</p>
+          </article>
+        </div>
+      </div>
+    </>
   );
 }

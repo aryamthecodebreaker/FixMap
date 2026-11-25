@@ -1,6 +1,18 @@
 import Link from "next/link";
-import { ArrowLeft } from "@phosphor-icons/react/ssr";
 
 export default function NotFound() {
-  return <main><section className="subpage-hero compact-hero page-shell not-found"><p className="eyebrow">404 · Route not found</p><h1>This path is not <em>on the map.</em></h1><p>The page may have moved, or the address may be incomplete.</p><Link className="button primary" href="/"><ArrowLeft size={18} weight="bold" aria-hidden /> Back to FixMap</Link></section></main>;
+  return (
+    <div className="shell page-head" style={{ borderBottom: 0, paddingBottom: 96 }}>
+      <h1>Nothing at this address</h1>
+      <p>The page may have moved when the site was simplified. Everything now lives on four pages.</p>
+      <div className="closing" style={{ padding: "24px 0 0" }}>
+        <div className="actions">
+          <Link className="btn btn-primary" href="/">Home</Link>
+          <Link className="btn btn-quiet" href="/docs">Docs</Link>
+          <Link className="btn btn-quiet" href="/evidence">Evidence</Link>
+          <Link className="btn btn-quiet" href="/changelog">Changelog</Link>
+        </div>
+      </div>
+    </div>
+  );
 }
