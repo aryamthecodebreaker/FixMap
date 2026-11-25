@@ -374,6 +374,13 @@ var phpAdapter = {
       if (match[1])
         imports.push({ adapter: "php", specifier: `file:${match[1]}`, importedNames: [], wildcard: false });
     }
+    const anchored = /\b(?:require|require_once|include|include_once)\s*\(?\s*(__DIR__|dirname\s*\(\s*__FILE__\s*\)|dirname\s*\(\s*__DIR__\s*(?:,\s*([1-9])\s*)?\))\s*\.\s*["'](\/[^"'\n$]+)["']\s*\)?\s*;/g;
+    for (const match of text2.matchAll(anchored)) {
+      const anchor = match[1] ?? "";
+      const levels = anchor.startsWith("dirname") && anchor.includes("__DIR__") ? Number(match[2] ?? "1") : 0;
+      const relative6 = `${"../".repeat(levels)}.${match[3]}`;
+      imports.push({ adapter: "php", specifier: `file:${relative6}`, importedNames: [], wildcard: false });
+    }
     return uniqueImports(imports);
   },
   extractDefinitions(text2) {
@@ -1262,6 +1269,7 @@ function escapeRegExp(value) {
 // packages/core/dist/composer-projects.js
 function buildComposerProjects(files) {
   const canonicalPaths = new Map(files.map((file) => [file.path.toLowerCase(), file.path]));
+  const filesByPath = new Map(files.map((file) => [file.path, file]));
   const projects = files.filter((file) => file.path === "composer.json" || file.path.endsWith("/composer.json")).sort((left, right) => left.path.localeCompare(right.path)).flatMap((file) => {
     let manifest;
     try {
@@ -1276,7 +1284,8 @@ function buildComposerProjects(files) {
     const autoload = collectAutoload(manifest.autoload, root);
     const autoloadDev = collectAutoload(manifest["autoload-dev"], root);
     const scripts = isRecord(manifest.scripts) ? manifest.scripts : {};
-    const testScript = typeof scripts.test === "string" && scripts.test.trim().length > 0 || Array.isArray(scripts.test) && scripts.test.length > 0 && scripts.test.every((entry2) => typeof entry2 === "string" && entry2.trim().length > 0);
+    const testScript = isScriptBody(scripts.test);
+    const customTestScript = testScript ? void 0 : soleCustomTestScript(scripts);
     const requireDev = isRecord(manifest["require-dev"]) ? manifest["require-dev"] : {};
     const required = isRecord(manifest.require) ? manifest.require : {};
     const name = typeof manifest.name === "string" && /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/.test(manifest.name) ? manifest.name : void 0;
@@ -1284,6 +1293,7 @@ function buildComposerProjects(files) {
     const pathRepositoryPatterns = collectPathRepositoryPatterns(manifest.repositories, root);
     const phpunitConfig = ["phpunit.xml", "phpunit.xml.dist"].map((name2) => root ? `${root}/${name2}` : name2).map((path) => canonicalPaths.get(path.toLowerCase())).find((path) => path !== void 0);
     const pestConfig = ["tests/Pest.php", "Pest.php"].map((name2) => root ? `${root}/${name2}` : name2).map((path) => canonicalPaths.get(path.toLowerCase())).find((path) => path !== void 0);
+    const pestDirectories = pestConfig ? pestInDirectories(filesByPath.get(pestConfig)?.textSample ?? "", directoryOf(pestConfig), canonicalPaths) : [];
     return [{
       path: file.path,
       root,
@@ -1294,6 +1304,8 @@ function buildComposerProjects(files) {
       pathRepositoryPatterns,
       pathDependencies: [],
       testScript,
+      ...customTestScript ? { customTestScript } : {},
+      pestDirectories,
       pestDependency: typeof requireDev["pestphp/pest"] === "string" && requireDev["pestphp/pest"].trim().length > 0 || typeof required["pestphp/pest"] === "string" && required["pestphp/pest"].trim().length > 0,
       phpunitDependency: typeof requireDev["phpunit/phpunit"] === "string" && requireDev["phpunit/phpunit"].trim().length > 0 || typeof required["phpunit/phpunit"] === "string" && required["phpunit/phpunit"].trim().length > 0,
       ...pestConfig ? { pestConfig } : {},
@@ -1373,11 +1385,19 @@ function composerTestCommandForProject(project) {
       scopeDir: project.root
     };
   }
+  if (project.customTestScript) {
+    return {
+      command: project.root ? `composer --working-dir ${project.root} run-script ${project.customTestScript}` : `composer run-script ${project.customTestScript}`,
+      reason: `${project.path} declares no "test" script; "${project.customTestScript}" is its only script that runs the test suite`,
+      scopeDir: project.root
+    };
+  }
   if (project.pestDependency) {
     const executable = project.root ? `${project.root}/vendor/bin/pest` : "vendor/bin/pest";
+    const directories = project.pestDirectories.length > 0 ? ` (test directories: ${project.pestDirectories.join(", ")})` : "";
     return {
       command: executable,
-      reason: project.pestConfig ? `${project.path} declares pestphp/pest and ${project.pestConfig} configures the suite` : `${project.path} declares pestphp/pest in its dependencies`,
+      reason: project.pestConfig ? `${project.path} declares pestphp/pest and ${project.pestConfig} configures the suite${directories}` : `${project.path} declares pestphp/pest in its dependencies`,
       scopeDir: project.root
     };
   }
@@ -1414,7 +1434,7 @@ function collectPathRepositoryPatterns(value, root) {
 }
 function resolveManifestPattern(root, value) {
   const trimmed = value.trim().replace(/\\/g, "/").replace(/\/$/, "");
-  if (!trimmed || trimmed === "." || /[$?\[\]\0]/.test(trimmed) || /^[A-Za-z]:[\/]|^[\/]/.test(trimmed))
+  if (!trimmed || trimmed === "." || /[$\0]/.test(trimmed) || /^[A-Za-z]:[\/]|^[\/]/.test(trimmed))
     return void 0;
   const segments = root.split("/").filter(Boolean);
   for (const segment of trimmed.split("/")) {
@@ -1426,7 +1446,7 @@ function resolveManifestPattern(root, value) {
       segments.pop();
       continue;
     }
-    if (segment !== "*" && segment.includes("*"))
+    if (segment.includes("**") || /[{}]/.test(segment) || !validGlobSegment(segment))
       return void 0;
     segments.push(segment);
   }
@@ -1437,7 +1457,78 @@ function matchesRepositoryPattern(pattern, root) {
   const actual = root.split("/").filter(Boolean);
   if (expected.length !== actual.length)
     return false;
-  return expected.every((segment, index) => segment === "*" || segment === actual[index]);
+  return expected.every((segment, index) => globSegmentRegExp(segment).test(actual[index] ?? ""));
+}
+function validGlobSegment(segment) {
+  let depth5 = 0;
+  for (const character of segment) {
+    if (character === "[")
+      depth5 += 1;
+    else if (character === "]")
+      depth5 -= 1;
+    if (depth5 < 0 || depth5 > 1)
+      return false;
+  }
+  return depth5 === 0;
+}
+function globSegmentRegExp(segment) {
+  let pattern = "";
+  for (let index = 0; index < segment.length; index += 1) {
+    const character = segment[index];
+    if (character === "*")
+      pattern += "[^/]*";
+    else if (character === "?")
+      pattern += "[^/]";
+    else if (character === "[") {
+      const close = segment.indexOf("]", index + 1);
+      const body = segment.slice(index + 1, close).replace(/^!/, "^").replace(/[\\\]]/g, "\\$&");
+      pattern += `[${body}]`;
+      index = close;
+    } else
+      pattern += character.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp(segment.startsWith(".") ? `^${pattern}$` : `^(?!\\.)${pattern}$`);
+}
+function isScriptBody(value) {
+  return typeof value === "string" && value.trim().length > 0 || Array.isArray(value) && value.length > 0 && value.every((entry2) => typeof entry2 === "string" && entry2.trim().length > 0);
+}
+function soleCustomTestScript(scripts) {
+  const runsTests = (name, seen = /* @__PURE__ */ new Set()) => {
+    if (seen.has(name))
+      return false;
+    seen.add(name);
+    const body = scripts[name];
+    if (!isScriptBody(body))
+      return false;
+    const commands = typeof body === "string" ? [body] : body;
+    return commands.some((command) => {
+      const trimmed = command.trim();
+      if (trimmed.startsWith("@")) {
+        const target = trimmed.slice(1).split(/\s+/)[0] ?? "";
+        return target === "php" ? /\b(?:phpunit|pest)\b/.test(trimmed) : runsTests(target, seen);
+      }
+      return /(?:^|[\s/])(?:phpunit|pest|paratest)(?:\s|$)/.test(trimmed) || /\bartisan\s+test\b/.test(trimmed);
+    });
+  };
+  const candidates = Object.keys(scripts).filter((name) => /^(?:tests|test[:_-][a-z0-9:_-]+|phpunit|pest)$/i.test(name) && runsTests(name)).sort();
+  return candidates.length === 1 ? candidates[0] : void 0;
+}
+function pestInDirectories(text2, configRoot, canonicalPaths) {
+  const directories = /* @__PURE__ */ new Set();
+  for (const call of text2.matchAll(/->\s*in\s*\(([^)]*)\)/g)) {
+    for (const literal of (call[1] ?? "").matchAll(/(["'])([^"'$]+)\1/g)) {
+      const value = literal[2].trim();
+      if (!value || /[*?]/.test(value) || /^[A-Za-z]:[\\/]|^[\\/]/.test(value))
+        continue;
+      const directory = normalizeRepositoryPath(configRoot ? `${configRoot}/${value}` : value);
+      if (!directory)
+        continue;
+      const prefix = `${directory.toLowerCase()}/`;
+      if ([...canonicalPaths.keys()].some((path) => path.startsWith(prefix)))
+        directories.add(directory);
+    }
+  }
+  return [...directories].sort((left, right) => left.localeCompare(right));
 }
 function normalizeRepositoryPath(path) {
   const segments = [];
@@ -2184,6 +2275,7 @@ function buildGoModules(files) {
     return [{ file, path: file.path, root: directoryOf4(file.path), name }];
   });
   const moduleRoots = new Set(manifests.map((manifest) => manifest.root));
+  const byPath = new Map(files.map((file) => [file.path, file]));
   return manifests.map((manifest) => {
     const replacementsByModule = /* @__PURE__ */ new Map();
     for (const replacement of parseReplaceClauses(manifest.file.textSample)) {
@@ -2197,7 +2289,8 @@ function buildGoModules(files) {
         replacementsByModule.set(replacement.module, [targetRoot]);
     }
     const replacements = [...replacementsByModule.entries()].flatMap(([module, targets]) => targets.length === 1 ? [{ module, targetRoot: targets[0] }] : []).sort((left, right) => right.module.length - left.module.length || left.module.localeCompare(right.module));
-    return { path: manifest.path, root: manifest.root, name: manifest.name, replacements };
+    const vendorManifest = byPath.get(manifest.root ? `${manifest.root}/vendor/modules.txt` : "vendor/modules.txt");
+    return { path: manifest.path, root: manifest.root, name: manifest.name, replacements, vendoredPackages: vendorManifest ? parseVendoredPackages(vendorManifest.textSample) : [] };
   }).sort((left, right) => left.root.localeCompare(right.root) || left.name.localeCompare(right.name));
 }
 function buildGoWorkspaces(files, modules = buildGoModules(files)) {
@@ -2232,6 +2325,34 @@ function goReplacementForImport(module, specifier) {
   const longest = matching[0].module.length;
   const equallySpecific = matching.filter((replacement) => replacement.module.length === longest);
   return equallySpecific.length === 1 ? equallySpecific[0] : void 0;
+}
+function goVendoredDirectory(module, specifier) {
+  if (!module.vendoredPackages.includes(specifier))
+    return void 0;
+  return [module.root, "vendor", specifier].filter(Boolean).join("/");
+}
+function goHeader(text2) {
+  const packageClause = /^\s*package\s+[A-Za-z_]/m.exec(text2);
+  return packageClause ? text2.slice(0, packageClause.index) : "";
+}
+function isGoBuildIgnored(file) {
+  if (!file.path.endsWith(".go"))
+    return false;
+  const header = goHeader(file.textSample);
+  return /^\/\/go:build\s+ignore\s*$/m.test(header) || /^\/\/\s*\+build\s+ignore\s*$/m.test(header);
+}
+function isGoGeneratedSource(file) {
+  return file.path.endsWith(".go") && /^\/\/ Code generated .* DO NOT EDIT\.$/m.test(goHeader(file.textSample));
+}
+function parseVendoredPackages(text2) {
+  const packages = /* @__PURE__ */ new Set();
+  for (const raw of text2.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#") || /[\s*?\0]/.test(line) || line.startsWith(".") || line.startsWith("/"))
+      continue;
+    packages.add(line);
+  }
+  return [...packages].sort();
 }
 function parseUsePaths(text2) {
   const uses = [];
@@ -2670,18 +2791,20 @@ function resolveGoImport(fromPath, imported, resolverIndex) {
   if (replacement) {
     const suffix2 = imported.specifier === replacement.module ? "" : imported.specifier.slice(replacement.module.length + 1);
     const directory2 = [replacement.targetRoot, suffix2].filter(Boolean).join("/");
-    return (resolverIndex.directoryPaths.get(directory2) ?? []).filter((path) => path.endsWith(".go") && !path.endsWith("_test.go")).sort(shortestPathFirst).slice(0, 20);
+    return (resolverIndex.directoryPaths.get(directory2) ?? []).filter((path) => path.endsWith(".go") && !path.endsWith("_test.go") && !resolverIndex.goBuildIgnored.has(path)).sort(shortestPathFirst).slice(0, 20);
   }
   const candidates = resolverIndex.goModules.filter((entry2) => imported.specifier === entry2.name || imported.specifier.startsWith(`${entry2.name}/`)).sort((left, right) => right.name.length - left.name.length || left.path.localeCompare(right.path));
   const longest = candidates[0]?.name.length;
   const equallySpecific = candidates.filter((candidate) => candidate.name.length === longest);
   const reachable = sourceModule ? equallySpecific.filter((candidate) => candidate.path === sourceModule.path || goWorkspaceForModules(resolverIndex.goWorkspaces, sourceModule.root, candidate.root) !== void 0) : equallySpecific;
   const module = reachable.length === 1 ? reachable[0] : void 0;
-  if (!module)
-    return [];
+  if (!module) {
+    const vendored = sourceModule ? goVendoredDirectory(sourceModule, imported.specifier) : void 0;
+    return vendored ? (resolverIndex.directoryPaths.get(vendored) ?? []).filter((path) => path.endsWith(".go") && !path.endsWith("_test.go") && !resolverIndex.goBuildIgnored.has(path)).sort(shortestPathFirst).slice(0, 20) : [];
+  }
   const suffix = imported.specifier === module.name ? "" : imported.specifier.slice(module.name.length + 1);
   const directory = [module.root, suffix].filter(Boolean).join("/");
-  return (resolverIndex.directoryPaths.get(directory) ?? []).filter((path) => path.endsWith(".go") && !path.endsWith("_test.go")).sort(shortestPathFirst).slice(0, 20);
+  return (resolverIndex.directoryPaths.get(directory) ?? []).filter((path) => path.endsWith(".go") && !path.endsWith("_test.go") && !resolverIndex.goBuildIgnored.has(path)).sort(shortestPathFirst).slice(0, 20);
 }
 function resolveRustImport(fromPath, imported, resolverIndex) {
   if (imported.specifier.startsWith("file:")) {
@@ -2944,6 +3067,7 @@ function buildResolverIndex(files, dotnetProjects, composerProjects, rustProject
     suffixPaths,
     javaPackagePaths,
     directoryPaths,
+    goBuildIgnored: new Set(files.filter(isGoBuildIgnored).map((file) => file.path)),
     goModules,
     goWorkspaces,
     rustProjects,
@@ -3809,7 +3933,7 @@ function rankContextFilesDetailed(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMI
     if (definedIdentifiers.length > 0) {
       score += definedIdentifiers.length * DEFINITION_IDENTIFIER_BOOST;
       reasons.push(`defines task identifiers: ${definedIdentifiers.join(", ")}`);
-      if (file.kind === "code" && !file.isTest && !isAuxiliaryCodePath(file.path) && !isTypeDeclarationPath(file.path) && !file.path.toLowerCase().startsWith("benchmarks/")) {
+      if (file.kind === "code" && !file.isTest && !isAuxiliaryCodePath(file.path) && !isTypeDeclarationPath(file.path) && !isGoGeneratedSource(file) && !file.path.toLowerCase().startsWith("benchmarks/")) {
         score += 4;
         reasons.push("task identifier is defined in maintained implementation source");
       }
@@ -3886,6 +4010,10 @@ function rankContextFilesDetailed(repo, input, limit = DEFAULT_CONTEXT_FILE_LIMI
     if (isBundledOutput(file.textSample, file.path) && !isChanged && !mentionedPaths.has(file.path)) {
       score -= BUNDLED_OUTPUT_PENALTY;
       reasons.push("machine-generated bundle deprioritized");
+    }
+    if (isGoGeneratedSource(file) && !isChanged && !mentionedPaths.has(file.path)) {
+      score -= BUNDLED_OUTPUT_PENALTY;
+      reasons.push("generated Go code (DO NOT EDIT header) deprioritized; edit its generator instead");
     }
     if (pathTokens.has("auth") || pathTokens.has("login")) {
       if (taskTokens.has("auth") || taskTokens.has("login") || taskTokens.has("password")) {
@@ -7708,6 +7836,8 @@ function classifyConventionalTextFile(path) {
   if (CONVENTIONAL_CONFIG_NAMES.has(name))
     return "config";
   if (/\.(?:csproj|fsproj|vbproj|sln|slnx|props|targets)$/.test(name))
+    return "config";
+  if (name === "modules.txt" && /(?:^|\/)vendor\/modules\.txt$/i.test(path.replace(/\\/g, "/")))
     return "config";
   return void 0;
 }

@@ -44,9 +44,29 @@ type Release = {
 
 const releases: Release[] = [
   {
-    version: "0.9.12",
+    version: "0.9.13",
     date: "November 25, 2026",
     label: "Latest release",
+    summary: "Go and PHP projects are read the way their own tools read them: generated and vendored Go code, Composer globs and custom test scripts, and directory-based PHP includes.",
+    groups: [
+      {
+        label: "Added",
+        items: [
+          "Go: code generators marked to be ignored by the build are no longer treated as part of the package, and vendored packages resolve when vendor/modules.txt lists them.",
+          "PHP: Composer path repositories with wildcards, test scripts with names other than \"test\", the folders Pest.php points at, and includes written as __DIR__ . '/file.php'."
+        ]
+      },
+      {
+        label: "Improved",
+        items: [
+          "Generated Go files (\"DO NOT EDIT\") are ranked down, with a note to change the generator instead."
+        ]
+      }
+    ]
+  },
+  {
+    version: "0.9.12",
+    date: "November 25, 2026",
     summary: "The self-hosted container is now security-scanned on every change, and .NET projects are understood the way MSBuild reads them.",
     groups: [
       {

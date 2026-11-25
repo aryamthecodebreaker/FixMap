@@ -6,6 +6,21 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.13 - 2026-11-25
+
+### Added
+
+- Go: files marked `//go:build ignore` (or `// +build ignore`) are treated as the standalone programs they are, such as code generators, and no longer receive import edges as members of their directory's package.
+- Go: imports listed in a module's `vendor/modules.txt` resolve to the vendored package; unlisted imports do not.
+- PHP: Composer path repositories match the way PHP's `glob()` does (`packages/acme-*`, `?`, `[...]`); `**` and brace sets fail closed.
+- PHP: when there is no `test` script, the one script named like a test entry point that runs PHPUnit, Pest or ParaTest (following `@script` references) routes through `composer run-script`. Several candidates leave routing unset rather than guessing.
+- PHP: the literal directories `Pest.php` binds with `->in(...)` are recorded and named in the test-routing reason.
+- PHP: `__DIR__`, `dirname(__FILE__)` and `dirname(__DIR__[, n])` anchored includes resolve to the included file. Includes built from variables stay unresolved, because FixMap never runs repository code.
+
+### Changed
+
+- Go files with the `// Code generated ... DO NOT EDIT.` header are ranked down and no longer count as maintained implementation source, unless the task names the file; the reason tells an agent to edit the generator.
+
 ## 0.9.12 - 2026-11-25
 
 ### Added
