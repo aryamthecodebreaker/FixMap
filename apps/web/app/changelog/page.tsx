@@ -44,9 +44,29 @@ type Release = {
 
 const releases: Release[] = [
   {
-    version: "0.9.14",
+    version: "0.9.15",
     date: "November 25, 2026",
     label: "Latest release",
+    summary: "A bigger, fairer test against keyword search on 105 fixes FixMap had never seen. The bar we set beforehand was not met: FixMap is about as good as keyword search there, not clearly better.",
+    groups: [
+      {
+        label: "Evidence",
+        items: [
+          "FixMap found the fixed file in its top 5 for 73 of 105 cases; keyword search (BM25) for 69. That difference is not statistically significant, and at the first result keyword search was slightly ahead (44 to 40).",
+          "The repositories, the cases and the pass bar were committed to GitHub before FixMap ran on them."
+        ]
+      },
+      {
+        label: "Fixed",
+        items: [
+          "Releases now wait up to 15 minutes for npm to show a new version before publishing the GitHub release."
+        ]
+      }
+    ]
+  },
+  {
+    version: "0.9.14",
+    date: "November 25, 2026",
     summary: "Rust and Ruby projects are read the way Cargo and Rails read them, which finishes support for all seven added languages.",
     groups: [
       {

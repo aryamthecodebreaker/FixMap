@@ -6,6 +6,23 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.15 - 2026-11-25
+
+### Evidence
+
+- A larger fresh test of ranking against keyword search: `benchmarks/polyglot-heldout-3`, 105 merged fixes (15 per language in Python, Java, Go, Rust, Ruby, PHP and C#) from repositories no earlier FixMap test used. The candidates, the case list, and the bar (more Top-5 hits than BM25 over code, with paired McNemar p < 0.05) were committed before FixMap ran. **The bar was not met**: FixMap found a fixing file in its Top 5 for 73 of 105 cases and BM25 for 69 (p = 0.54); at Top 1 BM25 was slightly ahead, 44 to 40. All 105 cases ran without error. FixMap is about as good as keyword search on never-seen code in these languages, not significantly better, and the Evidence page now says so.
+- Measured once on Linux: one repository's test fixtures have `*` and `?` in their paths, which Windows cannot check out, so a first Windows attempt stopped before any result was shown.
+
+### Added
+
+- `.github/workflows/heldout-eval.yml` runs a frozen benchmark suite once on Linux when a branch named `eval/<suite>` is pushed, and uploads the result.
+- `scripts/build-cohort-candidates.mjs` builds never-used candidate lists from GitHub search metadata; `evaluate-baseline.mjs --discard-checkouts` deletes each checkout after scoring so large cohorts fit on disk.
+
+### Fixed
+
+- The release workflow waits up to 15 minutes for npm to serve a new version; 0.9.14's verification gave up after 5 minutes, which held back its GitHub release until a rerun.
+- The cohort freeze script retries any failed GitHub query instead of only rate limits and server errors.
+
 ## 0.9.14 - 2026-11-25
 
 ### Added

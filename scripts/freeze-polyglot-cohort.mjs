@@ -12,7 +12,7 @@ const exec = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const suiteIndex = process.argv.indexOf("--suite");
 const suite = suiteIndex === -1 ? "polyglot-dev" : process.argv[suiteIndex + 1];
-if (!suite || !["polyglot-dev", "polyglot-validation", "polyglot-heldout", "java-heldout", "polyglot-heldout-2"].includes(suite)) {
+if (!suite || !["polyglot-dev", "polyglot-validation", "polyglot-heldout", "java-heldout", "polyglot-heldout-2", "polyglot-heldout-3"].includes(suite)) {
   throw new Error(`Unknown polyglot cohort suite: ${suite ?? "(missing)"}.`);
 }
 const suiteDir = join(root, "benchmarks", suite);
@@ -129,7 +129,7 @@ function sourceFixPath(path, extension) {
   return extension.test(path) && !excludedPath.test(path) && !generatedPath.test(path);
 }
 async function graphql(variables) {
-  const attempts = 3;
+  const attempts = 4;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       const { stdout } = await exec("gh", [
@@ -140,7 +140,8 @@ async function graphql(variables) {
     } catch (error) {
       const detail = [error?.stderr, error?.stdout, error?.message].filter(Boolean).join("\n");
       const status = detail.match(/\bHTTP\s+(429|5\d\d)\b/)?.[1];
-      if (!status || attempt === attempts) {
+      // Retry every failure (rate limits, 5xx, and truncated responses); give up after the last attempt.
+      if (attempt === attempts) {
         throw new Error(
           `GitHub metadata query failed for ${variables.owner}/${variables.name}` +
           `${status ? ` after ${attempts} attempts (HTTP ${status})` : ""}.`,

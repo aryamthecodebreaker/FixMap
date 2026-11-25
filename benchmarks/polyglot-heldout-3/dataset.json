@@ -1,0 +1,1531 @@
+{
+  "generatedAt": "2026-11-25",
+  "status": "held-out",
+  "taskTextRule": "Closing issue title plus the first 600 characters of its body.",
+  "selectionRule": "Per configured repository and language: the first of the 100 most recently updated merged pull requests that closes an issue with at least 80 body characters, is not docs-titled, changes no more than 20 files total, and modifies 1-3 non-test implementation files in that language. Every counted fixing source file must already exist at the base commit (added files are not counted, and a pull request that adds a source file in that language is not eligible). Candidates are walked in their configured order until 15 repositories per language yield a case; later candidates are not queried. The PR base commit and exact fixing source paths are frozen before FixMap is measured.",
+  "languages": [
+    "python",
+    "java",
+    "go",
+    "rust",
+    "ruby",
+    "php",
+    "dotnet"
+  ],
+  "cases": [
+    {
+      "slug": "harry0703/MoneyPrinterTurbo",
+      "language": "python",
+      "repo": "https://github.com/harry0703/MoneyPrinterTurbo.git",
+      "license": "MIT",
+      "sha": "86e45a2233a72c41d83389ac5cb49bbf5f6a847d",
+      "issue": 1838,
+      "pullRequest": 1839,
+      "task": "[Performance]: Cached project renders verify artifacts twice\n\n### Current Behavior\n\nRe-rendering a local video project with a fully populated cache reads every cached artifact twice to verify its SHA-256. The render preflight calls `plan()` to verify source snapshots, but `plan()` also verifies all cached outputs. The stage loop then verifies the same outputs again before reusing them.\n\n### Steps to Reproduce\n\n1. Create and render a local video project with two different 1080p scenes.\n2. Render the same revision again. Count calls to `app.services.video_project._digest` for paths under the project's `artifacts/` directory and sum the sizes of the files r",
+      "expected": [
+        "app/services/video_project.py"
+      ]
+    },
+    {
+      "slug": "ytdl-org/youtube-dl",
+      "language": "python",
+      "repo": "https://github.com/ytdl-org/youtube-dl.git",
+      "license": "Unlicense",
+      "sha": "f40489ee7eeaf88547f1470b732fa610fbb7bf7e",
+      "issue": 33244,
+      "pullRequest": 33293,
+      "task": "[YouTube] HTTP Error 403: Forbidden\n\n<!--\n\n######################################################################\n  WARNING!\n  IGNORING THE FOLLOWING TEMPLATE WILL RESULT IN ISSUE CLOSED AS INCOMPLETE\n######################################################################\n\n-->\n\n\n## Checklist\n\n<!--\nCarefully read and work through this check list in order to prevent the most common mistakes and misuse of youtube-dl:\n- First of, make sure you are using the latest version of youtube-dl. Run `youtube-dl --version` and ensure your version is 2021.12.17. If it's not, see https://yt-dl.org/update on how to update. Issues with outdated ver",
+      "expected": [
+        "youtube_dl/extractor/youtube.py"
+      ]
+    },
+    {
+      "slug": "browser-use/browser-use",
+      "language": "python",
+      "repo": "https://github.com/browser-use/browser-use.git",
+      "license": "MIT",
+      "sha": "fa461585f1fc2d4a430e68e6c115a12f4936fe73",
+      "issue": 1484,
+      "pullRequest": 1482,
+      "task": "Regression? \"Failed to initialize Playwright browser: 'coroutine' object has no attribute 'pid'\"\n\n### Bug Description\n\nWith the recent addition of Patchright, I'm unable to run my local Chrome with browser use and custom profiles. \n\nThis worked as of a few days ago on the `main` branch:\n\n```python\nbrowser = Browser(\n\tconfig=BrowserConfig(\n\t\tbrowser_binary_path='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',\n\t\tdisable_security=True,\n        headless=False,\n\t\textra_chromium_args=[\n\t\t\t'--user-data-dir=/Users/stephenlizcano/Library/Application Support/Google/Chrome/Starbase'\n\t\t]\n\t)\n)\n```\n\n\nRunning with:\n\n```python\n    agent = Agent(         \n        task=task_input,  \n        l",
+      "expected": [
+        "browser_use/agent/service.py",
+        "browser_use/browser/browser.py",
+        "browser_use/browser/chrome.py"
+      ]
+    },
+    {
+      "slug": "sherlock-project/sherlock",
+      "language": "python",
+      "repo": "https://github.com/sherlock-project/sherlock.git",
+      "license": "MIT",
+      "sha": "47ab466d85d4d3e548bc2feba41648c27b21bd89",
+      "issue": 2266,
+      "pullRequest": 2267,
+      "task": "Deprecate support for Python 3.8\n\n### Description\r\n\r\nSome versions of pandas and numpy are incompatible, and the compatible versions of pandas is not compatible with Python versions below 3.9. Since Python 3.8 is reaching EOL in about a month anyways, support for this version should now be deprecated to allow for more ready dependency resolution and avoidance of this fatal error.\r\n\r\n```\r\nTraceback (most recent call last):\r\n  File \"/home/[redacted]/.cache/pypoetry/virtualenvs/sherlock-project-VJORHILj-py3.12/bin/sherlock\", line 3, in <module>\r\n    from sherlock_project.sherlock import main\r\n  File \"/home/[redacted]/Documents/sh",
+      "expected": [
+        "sherlock_project/__main__.py"
+      ]
+    },
+    {
+      "slug": "Panniantong/Agent-Reach",
+      "language": "python",
+      "repo": "https://github.com/Panniantong/Agent-Reach.git",
+      "license": "MIT",
+      "sha": "8c187b63197576d4d56c652b1b48b85824433da6",
+      "issue": 855,
+      "pullRequest": 851,
+      "task": "setup/update 强制把 skill 链接到所有 AI 的用户级目录，删除后会被重新加回\n\n## 现象\n\n`setup` 和 `update` 会把 skill 链接到所有检测到的 AI 的用户级目录：`~/.claude/skills`、`~/.cursor/skills`、`~/.gemini/skills`、`~/.copilot/skills`、`~/.openclaw/skills`……而且没有办法退出：\n\n- 有人习惯按项目注册 skill（比如 Claude Code 的 `<项目>/.claude/skills`），只想在个人项目里用 Agent Reach，不想让它出现在每个工作仓库里。删掉 `~/.claude/skills/agent-reach` 之后，下次 `agent-reach update` 又会被加回来。\n- 不想让某个 AI 用 Agent Reach，也是同样的问题。\n\n另外，安装报告里没提这一步，用户装完之后不知道自己的 Cursor、Gemini、Copilot 里都多了一个 skill。\n\n## 建议\n\n加 `agent-reach skill unlink <skill 目录>`：\n\n- 删掉该目录下 Agent Reach 自己的链接或副本，并把这个目录记进 `state.json`（比如 `skill.unlinked`），之后 `setup` 和 `update` 跳过它。\n- 不删同名的其他 skill，也不允许 un",
+      "expected": [
+        "agent_reach/runtime/cli.py",
+        "agent_reach/runtime/manage.py",
+        "agent_reach/runtime/state.py"
+      ]
+    },
+    {
+      "slug": "D4Vinci/Scrapling",
+      "language": "python",
+      "repo": "https://github.com/D4Vinci/Scrapling.git",
+      "license": "BSD-3-Clause",
+      "sha": "bd90176c6602e6b613b119bbda76263acb38953a",
+      "issue": 492,
+      "pullRequest": 493,
+      "task": "strip_cdata passed to lxml HTMLParser triggers DeprecationWarning (lxml 6)\n\n### Have you searched if there an existing issue for this?\n\n- [x] I have searched the existing issues\n\n### Python version (python --version)\n\nPython 3.14.8\n\n### Scrapling version (scrapling.__version__)\n\n0.4.15\n\n### Dependencies version (pip3 freeze)\n\n```\nlxml==6.1.3\nscrapling==0.4.15\n```\n\n### What's your operating system?\n\nmacOS 27 (arm64)\n\n### Are you using a separate virtual environment?\n\nYes\n\n### Expected behavior\n\nConstructing a `Selector` emits no warnings.\n\n### Actual behavior\n\nlxml 6.x emits a `DeprecationWarning` on every parse:\n\n```\nDeprecationWarning: The 'strip_cdata' option of HTM",
+      "expected": [
+        "scrapling/parser.py"
+      ]
+    },
+    {
+      "slug": "hacksider/Deep-Live-Cam",
+      "language": "python",
+      "repo": "https://github.com/hacksider/Deep-Live-Cam.git",
+      "license": "AGPL-3.0",
+      "sha": "8703d394d61356bfea5e9fc342a06a31c74976f6",
+      "issue": 1640,
+      "pullRequest": 1751,
+      "task": "AttributeError: 'NoneType' object has no attribute 'shape'\n\nException in Tkinter callback\nTraceback (most recent call last):\n  File \"C:\\Python311\\Lib\\tkinter\\__init__.py\", line 1967, in __call__\n    return self.func(*args)\n           ^^^^^^^^^^^^^^^^\n  File \"C:\\Python311\\Lib\\site-packages\\customtkinter\\windows\\widgets\\ctk_button.py\", line 554, in _clicked\n    self._command()\n  File \"C:\\Users\\levio\\OneDrive\\desktop\\DeepLiveCam\\modules\\ui.py\", line 326, in <lambda>\n    root, text=_(\"Start\"), cursor=\"hand2\", command=lambda: analyze_target(start, root)\n                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\l",
+      "expected": [
+        "modules/processors/frame/face_swapper.py"
+      ]
+    },
+    {
+      "slug": "nvbn/thefuck",
+      "language": "python",
+      "repo": "https://github.com/nvbn/thefuck.git",
+      "license": "MIT",
+      "sha": "d8ddf5a2be9d52ec4bc8c11e79fcc7b3c390b669",
+      "issue": 1261,
+      "pullRequest": 1307,
+      "task": "Fails to recognise DNF's plea for root.\n\n<!-- If you have any issue with The Fuck, sorry about that, but we will do what we\r\ncan to fix that. Actually, maybe we already have, so first thing to do is to\r\nupdate The Fuck and see if the bug is still there. -->\r\n\r\n<!-- If it is (sorry again), check if the problem has not already been reported and\r\nif not, just open an issue on [GitHub](https://github.com/nvbn/thefuck) with\r\nthe following basic information: -->\r\n\r\nThe output of `thefuck --version` (something like `The Fuck 3.1 using Python\r\n3.5.0 and Bash 4.4.12(1)-release`):\r\n\r\nThe Fuck 3.32 using Python 3.10.1 and Fish Shell 3.3.1\r\n\r\nYo",
+      "expected": [
+        "thefuck/rules/sudo.py"
+      ]
+    },
+    {
+      "slug": "vllm-project/vllm",
+      "language": "python",
+      "repo": "https://github.com/vllm-project/vllm.git",
+      "license": "Apache-2.0",
+      "sha": "ba4b266dfadbf231eb89b0b689e86b6854567bb8",
+      "issue": 28509,
+      "pullRequest": 69683,
+      "task": "[New Model]: https://github.com/facebookresearch/omnilingual-asr\n\n### The model to consider.\n\nOmniLingual ASR LLM model supports more than 1600 languages and achieves SOTA performance in few resources language tasks. However the official inference pipeline is not efficient, which needs VLLM help.\n\n### The closest model vllm already supports.\n\nLike Voxtral, LlaMa.\n\n### What's your difficulty of supporting the model you want?\n\nwav2vec2 encoder\n\n### Before submitting a new issue...\n\n- [x] Make sure you already searched for relevant issues, and asked the chatbot living at the bottom right corner of the [documentation page](https://docs.vllm.ai/en/latest/), which",
+      "expected": [
+        "vllm/model_executor/models/registry.py"
+      ]
+    },
+    {
+      "slug": "3b1b/manim",
+      "language": "python",
+      "repo": "https://github.com/3b1b/manim.git",
+      "license": "MIT",
+      "sha": "2dae0a74b24d5028970c128814f5f14b7a8dd5dc",
+      "issue": 2336,
+      "pullRequest": 2501,
+      "task": "Using Rotate_Vector in VectorField cause dimensions problem\n\n### Describe the error\nWhen I was using rotate_vector to write a function for VectorField, there is a dimension error, which is not a  problem in past versions.\n\n### Code and Error\n**Code**:\n```\nfrom manimlib import * # type: ignore\n\n\nclass Simulation(Scene):\n    def construct(self) -> None:\n        axes = NumberPlane()\n        def div_func(p: np.ndarray) -> np.ndarray:\n            return p / 3\n        field_dir = VectorField(div_func, axes)\n        self.play(FadeIn(field_dir))\n\n        def curl_func(p): # <- this function\n            return rotate_vector(p / 3, PI / 2)\n        field_curl = Ve",
+      "expected": [
+        "manimlib/utils/space_ops.py"
+      ]
+    },
+    {
+      "slug": "odysseus-dev/odysseus",
+      "language": "python",
+      "repo": "https://github.com/odysseus-dev/odysseus.git",
+      "license": "AGPL-3.0",
+      "sha": "0cdef27d7250c240643e5fb0208875d2c5605190",
+      "issue": 6673,
+      "pullRequest": 6708,
+      "task": "Deep research fails on Podman: host.docker.internal gets rewritten to 127.0.0.1\n\n### Prerequisites\n\n- [x] I searched [open issues](https://github.com/odysseus-dev/odysseus/issues?q=is%3Aissue+is%3Aopen) and [discussions](https://github.com/odysseus-dev/odysseus/discussions) and did not find an existing report of this bug.\n- [x] This is **not** a security vulnerability. (Vulnerabilities go to [GitHub Security Advisories](https://github.com/odysseus-dev/odysseus/security/advisories/new) — see [SECURITY.md](https://github.com/odysseus-dev/odysseus/blob/main/SECURITY.md).)\n- [x] I am running the latest code from the `dev` branch (the default branch you get on clone, where fixe",
+      "expected": [
+        "src/endpoint_resolver.py",
+        "src/host_docker_access.py"
+      ]
+    },
+    {
+      "slug": "PaddlePaddle/PaddleOCR",
+      "language": "python",
+      "repo": "https://github.com/PaddlePaddle/PaddleOCR.git",
+      "license": "Apache-2.0",
+      "sha": "b6a561da6cc1af28bee9d1ea24be0d0a0686ae0c",
+      "issue": 17354,
+      "pullRequest": 17686,
+      "task": "图像预处理Bug\n\n### 🔎 Search before asking\n\n- [x] I have searched the PaddleOCR [Docs](https://paddlepaddle.github.io/PaddleOCR/) and found no similar bug report.\n- [x] I have searched the PaddleOCR [Issues](https://github.com/PaddlePaddle/PaddleOCR/issues) and found no similar bug report.\n- [x] I have searched the PaddleOCR [Discussions](https://github.com/PaddlePaddle/PaddleOCR/discussions) and found no similar bug report.\n\n### 🐛 Bug (问题描述)\n\n在某些文档上，PaddleOCR-VL持续报错。\n\n### 🏃‍♂️ Environment (运行环境)\n\npaddleocr 3.3.0\n\n### 🌰 Minimal Reproducible Example (最小可复现问题的Demo)\n\n出错原因：\n\n在pipeline.py文件中，有以下代码：\n\n```python\n",
+      "expected": [
+        "ppocr/data/imaug/unimernet_aug.py"
+      ]
+    },
+    {
+      "slug": "home-assistant/core",
+      "language": "python",
+      "repo": "https://github.com/home-assistant/core.git",
+      "license": "Apache-2.0",
+      "sha": "39842000c541b78604d301012590d1d70e8c8ebe",
+      "issue": 192872,
+      "pullRequest": 194318,
+      "task": "Google Calendar: _truncate_timeline and async_get_events expand recurring events inside the event loop (multi-second stalls)\n\n### The problem\n\n`CalendarSyncUpdateCoordinator._async_update_data` calls `_truncate_timeline()` directly in the event loop, and `async_get_events()` returns the lazy `self.data.overlapping(...)` iterator, which is then consumed in the event loop as well. Both iterate recurring-event expansions synchronously, which blocks the loop for seconds on calendars with a long history.\n\nOn a Home Assistant Green with 16 Google calendars, the whole event loop stalls for 3-4 s roughly once a minute. A 120 s `profiler.start` capture shows a single call of `homeassistant/components/google/coordinator.py:_tr",
+      "expected": [
+        "homeassistant/components/google/coordinator.py"
+      ]
+    },
+    {
+      "slug": "datawhalechina/hello-agents",
+      "language": "python",
+      "repo": "https://github.com/datawhalechina/hello-agents.git",
+      "license": "NOASSERTION",
+      "sha": "6c616938c521c89bc4b2bf001bf237d259f1726b",
+      "issue": 703,
+      "pullRequest": 729,
+      "task": "[问题/Issue] 章节15：赛博小镇启动时未加载 .env 环境变量\n\n### 1. 遇到问题的章节 / Affected Chapter\n\ncode/chapter15/Helloagents-AI-Town\n\n### 2. 问题类型 / Issue Type\n\n代码错误 / Code Error\n\n### 3. 具体问题描述 / Problem Description\n\n代码运行时提示\n`⚠️  警告: 未设置LLM_API_KEY环境变量\n   请在.env文件中配置LLM_API_KEY\n   示例: LLM_API_KEY=\"your-api-key\"\n`\n\n### 4. 问题重现材料 / Reproduction Materials\n\n运行时设置完成 .env 环境后无效\n\n### 5. 补充信息 / Additional Information\n\n_No response_\n\n### 确认事项 / Verification\n\n- [x] 我已阅读过相关章节的文档 / I have read the relevant chapter documentation\n- [x] 我已搜索过现有的Issues,确认此问题未被报告 / I have searched existing Issues and confirmed this hasn't been reported\n- [x] 我已尝试过基本的故障排除(如重启、重新安装依赖等) / I h",
+      "expected": [
+        "code/chapter15/Helloagents-AI-Town/backend/config.py"
+      ]
+    },
+    {
+      "slug": "666ghj/MiroFish",
+      "language": "python",
+      "repo": "https://github.com/666ghj/MiroFish.git",
+      "license": "AGPL-3.0",
+      "sha": "53af276f4e47a94604e758eab2ab5353e103239c",
+      "issue": 513,
+      "pullRequest": 730,
+      "task": "fix: add max_items limit to fetch_all_edges to prevent unbounded memory growth\n\n## Bug\n\nThe `fetch_all_nodes` function has a `max_items` parameter (default 2000) to prevent fetching too many items, but `fetch_all_edges` was missing this safeguard. This could cause memory issues with graphs that have a large number of edges.\n\n## Proposed Fix\n\nAdd `_MAX_EDGES = 5000` as the default limit for edges, matching the pattern already established for nodes.\n\n## File\n- `backend/app/utils/zep_paging.py`\n\n## Code Change\n\n```python\n# Add constant\n_MAX_EDGES = 5000\n\n# Update function signature\ndef fetch_all_edges(\n    client: Zep,\n    graph_id: str,\n    page_size: int = _DEFAULT_PAGE_SI",
+      "expected": [
+        "backend/app/utils/zep_paging.py"
+      ]
+    },
+    {
+      "slug": "spring-projects/spring-boot",
+      "language": "java",
+      "repo": "https://github.com/spring-projects/spring-boot.git",
+      "license": "Apache-2.0",
+      "sha": "15845e127061aeb72719ea9dbbd6680a8718c809",
+      "issue": 52646,
+      "pullRequest": 52826,
+      "task": "JavaLoggingSystem.getLoggerConfiguration does not map ROOT and creates unknown loggers on lookup\n\nWhen `JavaLoggingSystem` is used, `getLoggerConfiguration(String)` behaves differently from `setLogLevel` and from the Logback and Log4j2 implementations:\n\n1. `ROOT` is not mapped to the JUL root logger `\"\"` (`setLogLevel` does this mapping), so the lookup returns a child logger literally named `ROOT`.\n2. `Logger.getLogger(name)` creates the logger on demand and never returns `null`, so an unknown logger is never reported as missing.\n\nAs a result, the `loggers` actuator endpoint behaves inconsistently with JUL:\n\n**Spring Boot 4.1.2**, `-Dorg.springframework.boot.logging.LoggingSystem=org.sprin",
+      "expected": [
+        "core/spring-boot/src/main/java/org/springframework/boot/logging/java/JavaLoggingSystem.java"
+      ]
+    },
+    {
+      "slug": "airbnb/lottie-android",
+      "language": "java",
+      "repo": "https://github.com/airbnb/lottie-android.git",
+      "license": "Apache-2.0",
+      "sha": "387bf1b2e3ad2188502c9a89946a123c945f24c4",
+      "issue": 2593,
+      "pullRequest": 2661,
+      "task": "Rendering (clipping) issue in 6.5.0+\n\n**Describe the bug**\r\nPart of the animation is clipped since library version 6.5.0+.\r\nThe issue might be related to https://github.com/airbnb/lottie-android/issues/2587\r\n\r\n**What version of Lottie did you test this on?**\r\nAll versions from 6.5.0+ had the same issue. \r\n6.1.0 - 6.4.0 works correctly. Did not test earlier versions.\r\n\r\n**What version of Android did you test this on?**\r\nAndroid 12, Android 15\r\n\r\n**Steps To Reproduce**\r\nIn library version 6.4.0 the animation works correctly.\r\nIn library version 6.5.0+ the animation does not work correctly and some clipping happens.\r\n\r\n**Recordings**",
+      "expected": [
+        "lottie/src/main/java/com/airbnb/lottie/model/content/LBlendMode.java",
+        "lottie/src/main/java/com/airbnb/lottie/model/layer/BaseLayer.java"
+      ]
+    },
+    {
+      "slug": "bumptech/glide",
+      "language": "java",
+      "repo": "https://github.com/bumptech/glide.git",
+      "license": "NOASSERTION",
+      "sha": "748d4f0a75ace52be734f4b9e1d4fd3bfaf03622",
+      "issue": 4490,
+      "pullRequest": 5750,
+      "task": "DecodeFormat PREFER_RGB_565 doesn't work\n\n**glide version: 4.11.0**\r\n**integration library: none**\r\n**model: ANA-AN00**\r\n**os version: EMUI 11.0.0 base on Android 10**\r\n\r\n## Issue details:\r\n\r\nWhen set DecodeFormat to PREFER_RGB_565，glide apply Config.ARGB_8888 to **ANY** decoded bitmap，even though when a bitmap doesn't has alpha channel. According to the document:\r\n\r\n>Bitmaps decoded from image formats that support and/or use alpha (some types of PNGs, GIFs etc)\r\n>should return {@link android.graphics.Bitmap.Config#ARGB_8888} for {@link\r\n>android.graphics.Bitmap#getConfig()}. Bitmaps decoded from formats that don't support or use alph",
+      "expected": [
+        "library/src/main/java/com/bumptech/glide/GlideBuilder.java",
+        "library/src/main/java/com/bumptech/glide/RegistryFactory.java",
+        "library/src/main/java/com/bumptech/glide/load/resource/bitmap/Downsampler.java"
+      ]
+    },
+    {
+      "slug": "SeleniumHQ/selenium",
+      "language": "java",
+      "repo": "https://github.com/SeleniumHQ/selenium.git",
+      "license": "Apache-2.0",
+      "sha": "cf3b4d7c4ed79d147bb4c45e3d28b8a691d64409",
+      "issue": 3307,
+      "pullRequest": 18369,
+      "task": "[🐛 Bug]: [Grid] Kubernetes Dynamic Grid terminates active browser sessions when the Job reaches --session-timeout\n\n### Description\n\nEnvironment\nSelenium Grid 4.51.0 on Kubernetes (k3d), using selenium/node-kubernetes:4.51.0-20261010 and selenium/standalone-chromium:4.51.0-20261010. Default browser Job, no custom Job template.\n\nSteps to reproduce\n1. Set SE_NODE_SESSION_TIMEOUT=60 on the Kubernetes Node.\n2. Start a Chromium session with WebDriver BiDi enabled and open about:blank.\n3. Execute document.title via BiDi every 5 seconds and attempt to continue for 90 seconds.\n4. Inspect the generated browser Job’s spec.activeDeadlineSeconds and status conditions.\nObserved\nThe generated Job has activeDeadlineSecond",
+      "expected": [
+        "java/src/org/openqa/selenium/grid/node/kubernetes/KubernetesSessionFactory.java"
+      ]
+    },
+    {
+      "slug": "zxing/zxing",
+      "language": "java",
+      "repo": "https://github.com/zxing/zxing.git",
+      "license": "Apache-2.0",
+      "sha": "62a33ca7a328907dee602798043692ff1f83b0c0",
+      "issue": 2076,
+      "pullRequest": 2077,
+      "task": "QR encoding can trigger Android StrictMode disk reads via charset lookup\n\n### Summary\n\nEncoding a QR code with ZXing `core` can trigger Android `StrictMode` disk-read violations during charset / ECI initialization. This is not a QR correctness problem, but it is surprising for Android callers because a normal in-process QR encode can cause lazy classpath / APK zip access.\n\nI searched existing issues for `StrictMode`, `DiskReadViolation`, `ServiceLoader`, `Charset.isSupported`, `CharacterSetECI`, and `ZipFile`. I found related ECI / charset issues such as #1444 and #1042, but did not find an issue about Android StrictMode disk I/O from the charset lookup path.\n\n### V",
+      "expected": [
+        "core/src/main/java/com/google/zxing/common/CharacterSetECI.java",
+        "core/src/main/java/com/google/zxing/qrcode/encoder/Encoder.java"
+      ]
+    },
+    {
+      "slug": "alibaba/nacos",
+      "language": "java",
+      "repo": "https://github.com/alibaba/nacos.git",
+      "license": "Apache-2.0",
+      "sha": "c225e2a5e8ab72588c4a06bf1d20175041810c38",
+      "issue": 15969,
+      "pullRequest": 16086,
+      "task": "RandomUtils.nextLong can return values outside the requested range\n\n**Describe the bug**\nRe-reporting #15968 following the automated comment's instruction to use this template. The earlier report was closed by the anti-spam workflow after its numeric examples matched the phone-number rule. The equivalent Java expressions below preserve the reproduction without long decimal literals.\n\n`RandomUtils.nextLong(startInclusive, endExclusive)` performs its range calculation with `double`. For large valid `long` bounds, rounding can return the excluded upper bound or a value below the lower bound.\n\n**Expected behavior**\nFor distinct bounds, the result is at least `star",
+      "expected": [
+        "common/src/main/java/com/alibaba/nacos/common/utils/RandomUtils.java"
+      ]
+    },
+    {
+      "slug": "binarywang/WxJava",
+      "language": "java",
+      "repo": "https://github.com/binarywang/WxJava.git",
+      "license": "Apache-2.0",
+      "sha": "b73861bcbc8865c90fab328b9cbef2b6a9a7b122",
+      "issue": 4138,
+      "pullRequest": 4140,
+      "task": "支持不携带access_token请求特定接口\n\n### 简要描述\n比如对于https://api.weixin.qq.com/sns/jscode2session 接口是不要求携带access_token请求的，但是所有请求都通过公共的execute执行，导致都携带了access_token\n\n### 官方文档地址\n\n",
+      "expected": [
+        "weixin-java-miniapp/src/main/java/cn/binarywang/wx/miniapp/api/WxMaService.java",
+        "weixin-java-miniapp/src/main/java/cn/binarywang/wx/miniapp/api/impl/BaseWxMaServiceImpl.java"
+      ]
+    },
+    {
+      "slug": "conductor-oss/conductor",
+      "language": "java",
+      "repo": "https://github.com/conductor-oss/conductor.git",
+      "license": "Apache-2.0",
+      "sha": "95918adba0b852e7561583692f5cdbe8eb34e10c",
+      "issue": 326,
+      "pullRequest": 1789,
+      "task": "[Bug] PostgresQueueDao processAllUnacks thread dies silently\n\n**Describe the bug**\r\nWhen conductor loses connection to postgres for a period of time and the `newSingleThreadScheduledExecutor` that executes `processAllUnacks` throws an exception (due to loss of connection or any other reason), no more task are scheduled. \r\n\r\n**Details**\r\nConductor version: All\r\nPersistence implementation:Postgres\r\nQueue implementation: Postgres \r\nLock: Redis \r\nWorkflow definition:\r\nTask definition:\r\nEvent handler definition:\r\n\r\n\r\n**To Reproduce**\r\nSteps to reproduce the behavior:\r\n1. Go to '...'\r\n2. Click on '....'\r\n3. Scroll down to '....'\r\n4. See error\r\n\r\n**Expected beh",
+      "expected": [
+        "postgres-persistence/src/main/java/com/netflix/conductor/postgres/dao/PostgresQueueDAO.java"
+      ]
+    },
+    {
+      "slug": "xuxueli/xxl-job",
+      "language": "java",
+      "repo": "https://github.com/xuxueli/xxl-job.git",
+      "license": "GPL-3.0",
+      "sha": "e74c784f68f81fa89cb350913ef15794865d7b12",
+      "issue": 3992,
+      "pullRequest": 4010,
+      "task": "LoginController 中的 用户修改密码(/updatePwd)接口，新旧密码的非空校验提示语都是 “change_pwd_field_oldpwd”\n\n\n如下：\n```\n@RequestMapping(\"/updatePwd\")\n\t@ResponseBody\n\t@XxlSso\n\tpublic Response<String> updatePwd(HttpServletRequest request, String oldPassword, String password){\n\n\t\t// valid\n\t\tif (oldPassword==null || oldPassword.trim().isEmpty()){\n\t\t\treturn Response.ofFail(I18nUtil.getString(\"system_please_input\") + I18nUtil.getString(\"change_pwd_field_oldpwd\"));\n\t\t}\n\t\tif (password==null || password.trim().isEmpty()){\n\t\t\treturn Response.ofFail(I18nUtil.getString(\"system_please_input\") + I18nUtil.getString(\"change_pwd_field_oldpwd\"));\n\t\t}\n\t\tpassword = password.trim();\n\t\tif (!(password.length()>=4 && password",
+      "expected": [
+        "xxl-job-admin/src/main/java/com/xxl/job/admin/framework/controller/LoginController.java"
+      ]
+    },
+    {
+      "slug": "opendataloader-project/opendataloader-pdf",
+      "language": "java",
+      "repo": "https://github.com/opendataloader-project/opendataloader-pdf.git",
+      "license": "Apache-2.0",
+      "sha": "38031aaf752cb0328ef351a136d3c419168bd8e0",
+      "issue": 936,
+      "pullRequest": 937,
+      "task": "Default mode puts a word of the next column between the lines of a wrapped cell in a borderless table\n\nPart of #934.\n\n### Bug\n\nIn default mode, a borderless table with three columns becomes one line for each row. If the text of a cell wraps to a second line, the word of the next column on the first line goes between the two lines of the cell text.\n\nExpected: `1 Approve the plan of Pat Doe Yes`, or the cell text and the word of the next column as separate parts.\nActual: `1 Approve the plan of Yes Pat Doe`\n\nThe text lines join chunks on the same baseline into one line, also across a column gap. The second line of the wrapped cell then joins that line.\n\n### Steps to reproduce\n\nMake the synthetic P",
+      "expected": [
+        "java/opendataloader-pdf-core/src/main/java/org/opendataloader/pdf/processors/TextLineProcessor.java"
+      ]
+    },
+    {
+      "slug": "kestra-io/kestra",
+      "language": "java",
+      "repo": "https://github.com/kestra-io/kestra.git",
+      "license": "Apache-2.0",
+      "sha": "ad57636df342f0a211db4e5da88c3f7af95c404c",
+      "issue": 23001,
+      "pullRequest": 23002,
+      "task": "`Data` has no way to read a large stored file without loading it whole\n\n### Describe the issue\n\nWhile building the Vespa `Feed` task (kestra-io/plugin-vespa#14) I found that `Data.from(uri).read(runContext)` loads the whole\nstored file into the worker's memory before the first record, so a large file runs the worker out of memory and takes\nthe other tasks on that worker down with it.\n\nReproduced locally with a worker heap of 700 MB and Vespa `Feed` on a stored ION file of 1,500,000 records (139 MB):\n\n- Kestra 1.3.48: `OutOfMemoryError` about 10 s into the task, the server shut down, 0 documents reached Vespa. The\n  worker's stack at 2 s: `FileSerde.readAll` (`forE",
+      "expected": [
+        "core/src/main/java/io/kestra/core/models/property/Data.java",
+        "core/src/main/java/io/kestra/core/serializers/FileSerde.java"
+      ]
+    },
+    {
+      "slug": "Anuken/Mindustry",
+      "language": "java",
+      "repo": "https://github.com/Anuken/Mindustry.git",
+      "license": "GPL-3.0",
+      "sha": "f8a016407e4cbd35d976dca4d80fe08f18c9f8b7",
+      "issue": 5415,
+      "pullRequest": 12747,
+      "task": "Platform classloader dead lock\n\n**Platform**: Server\r\n\r\n**Build**: 21235\r\n\r\n**Issue**: Platform classloader dead lock\r\n\r\n![thread](https://user-images.githubusercontent.com/10257291/121785026-fac58800-cbe9-11eb-836d-e5d78d04ea7e.png)\r\n\r\n\r\n\r\n\r\n\r\n",
+      "expected": [
+        "core/src/mindustry/core/Platform.java",
+        "core/src/mindustry/mod/ModClassLoader.java"
+      ]
+    },
+    {
+      "slug": "apolloconfig/apollo",
+      "language": "java",
+      "repo": "https://github.com/apolloconfig/apollo.git",
+      "license": "Apache-2.0",
+      "sha": "fdad94fe1b91a3bdfe824ecd1347d2ff1a8c8c26",
+      "issue": 5692,
+      "pullRequest": 5704,
+      "task": "没有auth会默认登录，存在安全隐患\n\n描述bug：\n你好，请问我再部署portal服务的时候，apollo_profile没有加auth这个配置项，会导致portal不需要登录就直接默认使用apollo超管的账号进入。这个是符合预期的吗？是否会存在安全隐患？\n比如，某次升级，操作人员不小心把这个配置在做修改的时候，忘记加认证方式了，就会导致所有人都不需要登录，直接使用超管的账号进入系统，会存在非常大的安全隐患。\n\n建议1：\n部署portal服务的时候，如果没有配置任何认证方式，那就默认auth的认证方式，保证一定需要登录才能进入系统。\n建议2：\n在部署portal服务的时候，要保证一定要配置一个认证方式，auth或者第三方的登录。",
+      "expected": [
+        "apollo-portal/src/main/java/com/ctrip/framework/apollo/portal/spi/configuration/AuthConfiguration.java"
+      ]
+    },
+    {
+      "slug": "alibaba/canal",
+      "language": "java",
+      "repo": "https://github.com/alibaba/canal.git",
+      "license": "Apache-2.0",
+      "sha": "cf97b2ae3189a8d0d88bfcf151a8181dc2c40deb",
+      "issue": 5442,
+      "pullRequest": 5588,
+      "task": "canal实例配置正则表达式无法过滤的缺陷\n\n- [ ] I have searched the [issues](https://github.com/alibaba/canal/issues) of this repository and believe that this is not a duplicate.\n- [ ] I have checked the [FAQ](https://github.com/alibaba/canal/wiki/FAQ) of this repository and believe that this is not a duplicate.\n\n### environment\n\n* canal version\n* mysql version\n\n### Issue Description\n分库分表场景，分表的后缀是1-2位数字，配置 \\\\d{1,2} 作为后缀匹配。\n\n### Steps to reproduce\n\n### Expected behaviour\n\n### Actual behaviour\n\n\nIf there is an exception, please attach the exception trace:\n\n```\n正则表达式如下：\n\ncanal.instance.filter.regex=test\\\\.order_\\\\d{1,2}\n\n```",
+      "expected": [
+        "connector/core/src/main/java/com/alibaba/otter/canal/connector/core/filter/AviaterRegexFilter.java",
+        "filter/src/main/java/com/alibaba/otter/canal/filter/aviater/AviaterRegexFilter.java"
+      ]
+    },
+    {
+      "slug": "alibaba/spring-cloud-alibaba",
+      "language": "java",
+      "repo": "https://github.com/alibaba/spring-cloud-alibaba.git",
+      "license": "Apache-2.0",
+      "sha": "858aa8d58d2e902770ac4c6f5598808e125e695e",
+      "issue": 4412,
+      "pullRequest": 4415,
+      "task": "[Bug] Sentinel rule refresh does not remove deleted custom rules because it clears a copied set\n\n**Which Component**\n\n`spring-cloud-circuitbreaker-sentinel`, `CircuitBreakerRuleChangeListener`.\n\n**Describe the bug**\n\nRemoving a previously configured custom rule from `SentinelFeignClientProperties` and delivering `RefreshScopeRefreshedEvent` leaves the old rule active in `DegradeRuleManager`. Creating the resource again with the now-empty configuration does not remove it either. This can leave circuit-breaking behavior enabled after its configuration has been removed.\n\n**Version / verification scope**\n\n- Branch: `2025.1.x`, commit `858aa8d58d2e902770ac4c6f5598808e125e695e` (`2025.1.0.1-SNA",
+      "expected": [
+        "spring-cloud-alibaba-starters/spring-cloud-circuitbreaker-sentinel/src/main/java/com/alibaba/cloud/circuitbreaker/sentinel/feign/CircuitBreakerRuleChangeListener.java"
+      ]
+    },
+    {
+      "slug": "grafana/grafana",
+      "language": "go",
+      "repo": "https://github.com/grafana/grafana.git",
+      "license": "AGPL-3.0",
+      "sha": "4a28a330ea5ba749ec19696ca9afcf2078b3360e",
+      "issue": 128772,
+      "pullRequest": 128784,
+      "task": "Add feature toggle for Explore metrics sidebar\n\nAdd a feature toggle to gate the new Explore metrics sidebar behind a flag so it can be shipped and rolled out safely.",
+      "expected": [
+        "pkg/services/featuremgmt/registry.go"
+      ]
+    },
+    {
+      "slug": "traefik/traefik",
+      "language": "go",
+      "repo": "https://github.com/traefik/traefik.git",
+      "license": "MIT",
+      "sha": "fab83741988ca5088f5815462d46f77bd9ade3e8",
+      "issue": 13840,
+      "pullRequest": 13866,
+      "task": "Multi-document YAML test fixtures silently truncate on CRLF checkouts\n\n### Welcome!\n\n- [x] Yes, I've searched similar issues on [GitHub](https://github.com/traefik/traefik/issues) and didn't find any.\n- [x] Yes, I've searched similar issues on the [Traefik community forum](https://community.traefik.io) and didn't find any.\n\n### What did you do?\n\nCloned the repository on Windows (Git for Windows, `core.autocrlf=true`) and ran the\nKubernetes provider tests on a clean `master`, with no local changes:\n\ngit clone https://github.com/traefik/traefik.git\ncd traefik\ngo test ./pkg/provider/kubernetes/ingress-nginx/ -run TestLoadConfigurationIngressStatus\n\n### What did you ",
+      "expected": [
+        "pkg/provider/kubernetes/k8s/parser.go"
+      ]
+    },
+    {
+      "slug": "usememos/memos",
+      "language": "go",
+      "repo": "https://github.com/usememos/memos.git",
+      "license": "MIT",
+      "sha": "b9eb6fc3747c1e670b08a778d8ca2edd40c78b28",
+      "issue": 6619,
+      "pullRequest": 6620,
+      "task": "config: ComputePlan evaluates linked identities and auth invariant against pre-apply state\n\n### Summary\n\nTwo cross-resource invariants in `configuration.ComputePlan` (`core/configuration/plan.go`) evaluate pre-apply state instead of the planned end state:\n\n1. **Linked identities accept an identity provider scheduled for destruction in the same plan.**\n   `ComputePlan` (`core/configuration/plan.go:124`) runs `p.planLinkedIdentities` before `p.planUndeclared`. Because `planUndeclared` deletes providers scheduled for `DESTROY` from `p.providersAfter` (`plan.go:651`), `planLinkedIdentities` still observes those providers in `p.providersAfter` (`plan.go:494`) and approves the plan. `Apply",
+      "expected": [
+        "core/configuration/plan.go"
+      ]
+    },
+    {
+      "slug": "rclone/rclone",
+      "language": "go",
+      "repo": "https://github.com/rclone/rclone.git",
+      "license": "MIT",
+      "sha": "b0ef5f6a6eca641a6bfb55bc05ef1595f4105d07",
+      "issue": 10323,
+      "pullRequest": 10337,
+      "task": "filen: backend is not marked CaseInsensitive, so sync re-uploads and fails with \"This file is versioned\" when names differ only in case\n\n### Before you start\n\n- [x] I have searched the [forum](https://forum.rclone.org/) and the existing issues for this problem.\n- [x] I have tested with the latest beta or stable release and can still reproduce the problem.\n- [x] This is a reproducible bug, not a usage question (questions belong on the forum).\n\n### Associated forum post URL\n\n_No response_\n\n### What is the problem you are having with rclone?\n\nWe make [RcloneView](https://rcloneview.com), a desktop GUI for rclone. One of our users syncs a Windows folder to Filen, and every run fails with `Couldn't delete: response error: This file ",
+      "expected": [
+        "backend/filen/filen.go"
+      ]
+    },
+    {
+      "slug": "FiloSottile/mkcert",
+      "language": "go",
+      "repo": "https://github.com/FiloSottile/mkcert.git",
+      "license": "BSD-3-Clause",
+      "sha": "00ded1d0148319fbe900df9251e2331e7fae8017",
+      "issue": 192,
+      "pullRequest": 216,
+      "task": "mkcert -install (v1.4.0) fails to run in Ubuntu 16.04: SEC_ERROR_READ_ONLY\n\nUbuntu 16.04, linuxbrew-installed mkcert v1.4.0, mkcert -install fails with certutil error:\r\n\r\n```\r\nmkcert -install\r\nCreated a new local CA at \"/home/circleci/.local/share/mkcert\" 💥\r\nThe local CA is now installed in the system trust store! ⚡️\r\nERROR: failed to execute \"certutil -A\": exit status 255\r\n\r\ncertutil: function failed: SEC_ERROR_READ_ONLY: security library: read-only database.\r\n```",
+      "expected": [
+        "truststore_java.go",
+        "truststore_nss.go"
+      ]
+    },
+    {
+      "slug": "go-gitea/gitea",
+      "language": "go",
+      "repo": "https://github.com/go-gitea/gitea.git",
+      "license": "MIT",
+      "sha": "e21c37703ed00a98152caf91769222ab94a70e93",
+      "issue": 35968,
+      "pullRequest": 39135,
+      "task": "Language override via alias not working\n\n### Description\n\nA language override via `.gitattributes` normally uses aliases (spaces in values not allowed).\n\nThe current [resolution](https://github.com/go-gitea/gitea/blob/0fb3be7f0e5720915fd7866d29fbf66828aff71a/modules/git/languagestats/language_stats_nogogit.go#L126) only tries to map _full names_ to groups.\nTrying to resolve a (potential) alias to a real language name is missing ([GetLanguageByAlias](https://github.com/go-enry/go-enry/blob/4a80f7a1d1c73b102bbde484a8f0fa4317d428c1/common.go#L532)).\n\nUse of aliases results in mapping to \"new entities\" and hence are not associated correc",
+      "expected": [
+        "modules/git/languagestats/language_stats_get.go"
+      ]
+    },
+    {
+      "slug": "multica-ai/multica",
+      "language": "go",
+      "repo": "https://github.com/multica-ai/multica.git",
+      "license": "NOASSERTION",
+      "sha": "8b9a5d1728dba09c1b557c827b81ac2deaf3e621",
+      "issue": 11506,
+      "pullRequest": 11524,
+      "task": "daemon 0.12.1: UserPromptSubmit callback hook times out on warm-session reuse, silently dropping the user's prompt\n\n## 摘要\n\nMultica daemon（作为 Claude Code 的 SDK host）会为 `UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `PostToolUseFailure` / `Stop` 注册 callback 钩子（`hookCallbackIds: [\"multica-supplement-<event>\"]`）。当 chat 会话从 warm pool 复用、且 daemon 在期间重启过时，`UserPromptSubmit` 的 `hook_callback` 控制请求在 30 秒内没有得到应答。Claude Code 对 `UserPromptSubmit` 的回调超时按**阻断**处理，并带 `suppressOriginalPrompt: true`：**用户这条消息被直接丢弃，模型一个 token 都没看到**，界面上只显示这段错误文本。\n\n同一台机器上，同一时段的新会话、以及另一个未被复用的 claude 进程都正常，因此这是**会话/进程级**的缺陷，不是全局配置或网络问题。\n\n## 环境\n\n| 项 | 值 |\n| --- | --- |\n| 客户端 | Multica Desktop（macOS，darwin 27.0.0） |\n| daemon | `0.12.1`（`launc",
+      "expected": [
+        "server/pkg/agent/claude.go"
+      ]
+    },
+    {
+      "slug": "alibaba/open-code-review",
+      "language": "go",
+      "repo": "https://github.com/alibaba/open-code-review.git",
+      "license": "Apache-2.0",
+      "sha": "8f9ce54026cf2d08feb989a40d5f8de1ba89e6e4",
+      "issue": 1952,
+      "pullRequest": 1996,
+      "task": "bug(chatgptauth): gracefully shut down the OAuth callback server\n\n## Description\n\nThe ChatGPT OAuth callback server can close an active callback connection before its HTTP response has been sent. This can leave the login successful while the browser receives a transport error, and causes an intermittent failure in `TestLoginCompletesWhileBrowserOpenerIsRunning`:\n\n```text\nlogin_recovery_test.go:77: browser opener exited before login completed\n--- FAIL: TestLoginCompletesWhileBrowserOpenerIsRunning\n```\n\nIn `Client.loginAttempt`, the `/auth/callback` handler publishes the authorization result to `done` before writing its response. The receiving goroutine can fi",
+      "expected": [
+        "internal/chatgptauth/oauth.go"
+      ]
+    },
+    {
+      "slug": "wagoodman/dive",
+      "language": "go",
+      "repo": "https://github.com/wagoodman/dive.git",
+      "license": "MIT",
+      "sha": "77e136d1ec218d7add9e4583a682c233f7551c82",
+      "issue": 536,
+      "pullRequest": 588,
+      "task": "Add support for Containerfile in `build` command\n\n**What happened**:\r\n\r\n```\r\n$ dive build my-folder -t my-img:v0.1\r\nBuilding image...\r\n[+] Building 0.1s (1/1) FINISHED                                                                                                                             docker:desktop-linux\r\n => [internal] load build definition from Dockerfile                                                                                                                         0.0s\r\n => => transferring dockerfile: 2B                                                                                                                           ",
+      "expected": [
+        "dive/image/docker/build.go",
+        "dive/image/docker/engine_resolver.go"
+      ]
+    },
+    {
+      "slug": "jesseduffield/lazydocker",
+      "language": "go",
+      "repo": "https://github.com/jesseduffield/lazydocker.git",
+      "license": "MIT",
+      "sha": "f4fc3669ca8eb67aa350a76503397192bf26f057",
+      "issue": 715,
+      "pullRequest": 744,
+      "task": "Docker compose version: \"client version 1.25 is too old\"\n\n> This is fixed in the latest release (v0.24.2). Thank you all for your patience. \n\n _Originally posted by @jesseduffield in [#698](https://github.com/jesseduffield/lazydocker/issues/698#issuecomment-3532103600)_\n\nHi all,\n\nI appreciate all the work and the great app.\nI just tried to install & run lzd but I got stuck when trying to start it\n\n> ❯ lzd\n> 2025/11/27 08:38:03 An error occurred! Please create an issue at https://github.com/jesseduffield/lazydocker/issues\n> \n> *errors.withStack Error response from daemon: client version 1.25 is too old. Minimum supported API version is 1.44, please up",
+      "expected": [
+        "pkg/commands/docker.go"
+      ]
+    },
+    {
+      "slug": "etcd-io/etcd",
+      "language": "go",
+      "repo": "https://github.com/etcd-io/etcd.git",
+      "license": "Apache-2.0",
+      "sha": "26c377acad0aef275effc213680cd02c7591f9e0",
+      "issue": 18370,
+      "pullRequest": 22843,
+      "task": "Enable `unexported-return` linter rule\n\n### What would you like to be added?\n\nThere are two remaining linter rules that we haven't enabled but are left as TODO (`./tools/.golangci.yaml`): `exported` and `unexported-return`. The former will have significant changes to exported functions and interfaces. The latter, even though it impacts exported structs, it's for the better (it exposes them without breaking client implementations).\n\nI suggest breaking the pull requests into small tasks like we did on #17578.\n\nThe following modules have warnings to be addressed:\n\n- [x] `api` - #18645\n- [ ] `pkg`\n- [ ] `client/pkg`\n- [ ] `client/v3`\n- ",
+      "expected": [
+        "pkg/flags/uint32.go",
+        "pkg/wait/wait_time.go"
+      ]
+    },
+    {
+      "slug": "QuantumNous/new-api",
+      "language": "go",
+      "repo": "https://github.com/QuantumNous/new-api.git",
+      "license": "AGPL-3.0",
+      "sha": "b388140acfd80369ec6243b16869daff1b4051f4",
+      "issue": 8332,
+      "pullRequest": 8333,
+      "task": "Claude 渠道响应 Gemini 格式请求时 cachedContentTokenCount 恒为 0，与 billing_usage 不一致\n\n## Agent\n\n- Tool: Claude Code\n- Tool version: 2.1.325\n- Model (full id): claude-opus-5-5\n- Host (CLI / IDE / GitHub coding agent / other): CLI\n- Date (UTC): 2026-11-14\n\n## User request\n\n  Claude 渠道处理 Gemini 格式请求时，new-api 返回的 `usageMetadata.cachedContentTokenCount` 恒为 0，但缓存读已经计入 `promptTokenCount`，和同一响应里 `billing_usage` 记录的缓存读不一致。按 Gemini 标准字段计费的下游会因此把缓存读按普通输入计费。需要修复这个转换，让标准字段如实反映缓存读；不能改变 new-api 自身的结算结果，也不能引入其他副作用。先提 issue，再提 PR。\n\n- Later constraints or corrections from the user (quote, or none): 已并入上面的整理描述\n\n## Out of scope — refuse\n\n- Matched: no\n- If yes, what was told to the user (stop here",
+      "expected": [
+        "relaykit/relayconvert/internal/oai_chat/to_gemini_chat_resp.go"
+      ]
+    },
+    {
+      "slug": "ethereum/go-ethereum",
+      "language": "go",
+      "repo": "https://github.com/ethereum/go-ethereum.git",
+      "license": "LGPL-3.0",
+      "sha": "44577c84216d9e3ddcba55e57fcf611b31d2ae67",
+      "issue": 36173,
+      "pullRequest": 36178,
+      "task": "core: a sender with an EIP-7702 designator is accepted before Prague\n\nBefore Prague, geth accepts a transaction from a sender whose code is an EIP-7702 delegation designator. EIP-3607 rejects every sender that has code. EIP-7702 adds the exemption for the designator, so the exemption starts at Prague.\n\nEELS rejects the sender with \"not EOA\" at every fork before Prague ([`cancun/fork.py` L500-L501](https://github.com/ethereum/execution-specs/blob/4cab90a7a9dcf071a56fb78a23f3d68165d47ccf/src/ethereum/forks/cancun/fork.py#L500-L501)). From Prague, it exempts only a valid designator ([`prague/fork.py` L532-L536](https://github.com/ethereum/execution-specs/blob/4cab9",
+      "expected": [
+        "core/state_transition.go"
+      ]
+    },
+    {
+      "slug": "MHSanaei/3x-ui",
+      "language": "go",
+      "repo": "https://github.com/MHSanaei/3x-ui.git",
+      "license": "GPL-3.0",
+      "sha": "3a27c1c169505906e89a08f7a3e998e784edd2af",
+      "issue": 7008,
+      "pullRequest": 7021,
+      "task": "[Performance]: Reduce repeated PostgreSQL work in global-aware client depletion checks\n\n## Summary\n\nEven after the previous fix for #5392, an active multi-node PostgreSQL deployment spends substantial time repeatedly evaluating the client expiry/quota predicate against thousands of traffic rows. Almost all executions find **zero** clients to disable, but the global-usage-aware `OR EXISTS` path remains relatively expensive.\n\nThis is a **follow-up, performance-only optimization**, not a request to relax quota enforcement, change the polling schedule, or reimplement the already-fixed empty-global-table shortcut.\n\n## Confirmed implementation\n\n- `internal/web/web.go`: `XrayTrafficJob`",
+      "expected": [
+        "internal/web/service/client_paging.go",
+        "internal/web/service/inbound_disable.go",
+        "internal/web/service/inbound_traffic_global.go"
+      ]
+    },
+    {
+      "slug": "mudler/LocalAI",
+      "language": "go",
+      "repo": "https://github.com/mudler/LocalAI.git",
+      "license": "MIT",
+      "sha": "e428a08006164fd0c3094e9867648a34bda9b2df",
+      "issue": 13414,
+      "pullRequest": 13417,
+      "task": "JSON grammar allows unescaped control characters inside strings\n\n**LocalAI version:**\n\n`v5.0.1-349-g05eb448aa` (commit `05eb448aada6274ed10ba37b9349e0a7149bea9e`), with the changes from PR [#13312](https://github.com/mudler/LocalAI/pull/13312) applied.\n\n**Environment, CPU architecture, OS, and Version:**\n\n- Architecture: `linux/amd64`\n- Container base: Ubuntu 24.04\n- Host: Debian 13 LXC\n- CPU: Intel Core i7-7700T\n- GPU: AMD gfx906 (`1002:66a1`), Vulkan backend\n\n**Describe the bug**\n\nWhen using `response_format: { \"type\": \"json_schema\", ... }`, LocalAI generates a grammar for the schema. The generated `string` rule appears to allow raw control characters (U+",
+      "expected": [
+        "pkg/functions/grammars/bnf_rules.go",
+        "pkg/functions/json_mode.go"
+      ]
+    },
+    {
+      "slug": "dani-garcia/vaultwarden",
+      "language": "rust",
+      "repo": "https://github.com/dani-garcia/vaultwarden.git",
+      "license": "AGPL-3.0",
+      "sha": "b91cab3c24a75f3dc01dffa93790bb34197f1680",
+      "issue": 7437,
+      "pullRequest": 8006,
+      "task": "WebAuthn times out with PIN-configured CTAP 2.1 authenticator when user verification is discouraged\n\n## Steps to reproduce\n\n1. Configure a FIDO2 PIN on a Swissbit iShield Key 2 Pro MIFARE.\n2. Open the Web Vault and navigate to Settings > Security > Two-step login > Passkey.\n3. Attempt to register the security key.\n4. No PIN prompt appears and the WebAuthn operation eventually times out.\n5. Resetting the FIDO2 applet and registering the key before configuring a PIN works, but this is not a complete workaround because authentication is also initiated with `userVerification: discouraged`.\n\nThe same Vaultwarden installation successfully registers YubiKeys that already have a FIDO2 PIN. A PIN prom",
+      "expected": [
+        "src/api/admin.rs",
+        "src/api/core/two_factor/webauthn.rs",
+        "src/config.rs"
+      ]
+    },
+    {
+      "slug": "BurntSushi/ripgrep",
+      "language": "rust",
+      "repo": "https://github.com/BurntSushi/ripgrep.git",
+      "license": "Unlicense",
+      "sha": "0856f3971e9f0bd987282dfec64494e9e03e860d",
+      "issue": 3317,
+      "pullRequest": 3627,
+      "task": "Limit CPUs or threads via environmental variable\n\nIt would be helpful to be able to set an environmental variable to limit the number of CPUs parallel searches will use. On a multi-user system it is common for ripgrep to use many CPUs and prevent other users from running commands. I know there is the \"-j\" flag but this is easy to forget so if we could set a default in a users environment it would be very useful. ",
+      "expected": [
+        "crates/core/flags/defs.rs",
+        "crates/core/flags/hiargs.rs"
+      ]
+    },
+    {
+      "slug": "openinterpreter/openinterpreter",
+      "language": "rust",
+      "repo": "https://github.com/openinterpreter/openinterpreter.git",
+      "license": "Apache-2.0",
+      "sha": "5a8f33ee6c82aee2ffbbf2e998b5f3e4995459a2",
+      "issue": 1875,
+      "pullRequest": 1878,
+      "task": "/model picker hangs forever at \"Loading models...\" for authenticated providers (0.0.38; works in 0.0.34)\n\n## Summary\n\nIn `0.0.38`, the `/model` picker deadlocks at **\"Select Model for \\<Provider\\> / Loading available models… / Loading models…\"** whenever the selected provider is **authenticated**. The spinner never resolves (waited 60+ seconds). Rolling back to the bundled `0.0.34` binary with the *same* `CODEX_HOME`, config, and credential renders the full model list instantly, so this looks like a `0.0.38` regression in the authenticated `interpreter/model/list` path.\n\n## Environment\n\n- Open Interpreter `0.0.38` (standalone, `x86_64-unknown-linux-musl`; internal `client_version` reports `0.147.0",
+      "expected": [
+        "codex-rs/app-server/src/models.rs",
+        "codex-rs/models-manager/src/manager.rs",
+        "codex-rs/models-manager/src/manager_tests.rs"
+      ]
+    },
+    {
+      "slug": "LadybirdBrowser/ladybird",
+      "language": "rust",
+      "repo": "https://github.com/LadybirdBrowser/ladybird.git",
+      "license": "BSD-2-Clause",
+      "sha": "f579ce1c568dbe69e4b259784840dac2e86964c4",
+      "issue": 15514,
+      "pullRequest": 15576,
+      "task": "Sites with the Uncode theme draw sections on top of each other: the theme's Chrome-only CSS relies on Chrome's percentage heights in table cells\n\n### Summary\n\nThe Uncode WordPress theme looks at the user agent and puts a `chrome` class on the `<html>` element. Ladybird's user agent contains `Chrome/153`, so Ladybird gets it. With that class the theme sets `height: 0` on its columns, which are table cells, and their children have `height: 100%`.\n\nChromium measures a table cell's content as if a percentage height in it were `auto`, lets the cell grow to that content and then resolves `100%` against the grown cell. Ladybird resolves `100%` against the cell's specified height of 0, like Firefox, so the cell, its row and the whole section ar",
+      "expected": [
+        "Libraries/LibWeb/Rust/src/layout/block_formatting_context.rs",
+        "Libraries/LibWeb/Rust/src/layout/inline_formatting_context.rs",
+        "Libraries/LibWeb/Rust/src/layout/table_formatting_context.rs"
+      ]
+    },
+    {
+      "slug": "alacritty/alacritty",
+      "language": "rust",
+      "repo": "https://github.com/alacritty/alacritty.git",
+      "license": "Apache-2.0",
+      "sha": "542147067dd016fc5f49120ef0ba605a98a4e3a7",
+      "issue": 8889,
+      "pullRequest": 9088,
+      "task": "Certain fields are not present in `alacritty msg get-config`\n\nFields such as `keyboard`/`shell`/live_config_reload`, etc, are missing from the config IPC reply. ",
+      "expected": [
+        "alacritty/src/config/mouse.rs",
+        "alacritty/src/config/ui_config.rs"
+      ]
+    },
+    {
+      "slug": "warpdotdev/warp",
+      "language": "rust",
+      "repo": "https://github.com/warpdotdev/warp.git",
+      "license": "AGPL-3.0",
+      "sha": "2c01ad402d83e04a5ae1e2231639456fe423800f",
+      "issue": 8991,
+      "pullRequest": 16511,
+      "task": "`Operation not permitted` error on Warp\n\n### Pre-submit Checks\n\n- [x] I have [searched Warp bugs](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+label%3ABUG) and there are no duplicates\n- [x] I have [searched Warp known issues page](https://docs.warp.dev/help/known-issues) and my issue is not there\n- [ ] I have an issue with AI and have included the debugging ID (Optional, but helps expedite the AI quality fix). [Debugging ID instructions](https://docs.warp.dev/agent-platform/agent/ai-faqs#gathering-ai-debugging-id)\n- [x] I have technical issue and have included the logs (optional, but helps expedite the bug fix). [Log instru",
+      "expected": [
+        "app/src/autoupdate/mac.rs"
+      ]
+    },
+    {
+      "slug": "tw93/Pake",
+      "language": "rust",
+      "repo": "https://github.com/tw93/Pake.git",
+      "license": "GPL-3.0",
+      "sha": "bf0c4332586ddae1a8d51d168841ba33245b2a93",
+      "issue": 1327,
+      "pullRequest": 1328,
+      "task": "Go Home (Cmd+Shift+H) does nothing on a blank error page, and targets the wrong URL for local-file apps\n\n### Describe the bug\n\nThe **Navigation → Go Home** menu item (⌘⇧H) doesn't actually get you home in two situations:\n\n1. **On a blank / error page.** When a navigation fails, WKWebView shows an internal error page with no page JS context. The handler runs `window.eval(\"window.location.href = window.pakeConfig.url\")`, and `eval` does nothing there (`window.pakeConfig` isn't even defined) — so Go Home is dead exactly when you're stuck and need it most.\n\n2. **For local-file apps** (`url_type: \"local\"`, e.g. `pake ./index.html`). `window.pakeConfig.url` is only the basename, so `window.location.hre",
+      "expected": [
+        "src-tauri/src/app/menu.rs"
+      ]
+    },
+    {
+      "slug": "sharkdp/bat",
+      "language": "rust",
+      "repo": "https://github.com/sharkdp/bat.git",
+      "license": "Apache-2.0",
+      "sha": "49acf7a766ee0abd1217ebb4d0ab21f77e90789b",
+      "issue": 4129,
+      "pullRequest": 4130,
+      "task": "First-run cache build prints its progress to stdout\n\n**What steps will reproduce the bug?**\n\n1. Put any `.tmTheme` in `\"$(bat --config-dir)/themes\"` and make sure there's no cache yet (`bat cache --clear`, or a fresh machine)\n2. `echo hello > hello.txt`\n3. `bat hello.txt > out.txt`, then `cat out.txt`\n\n**What happens?**\n\nThe automatic cache build from #4038 runs, and its progress messages end up in `out.txt` ahead of the file:\n\n```\nNo syntaxes were found in '/root/.config/bat/syntaxes', using the default set.\nWriting theme set to /root/.cache/bat/themes.bin ... okay\nWriting syntax set to /root/.cache/bat/syntaxes.bin ... okay\nWriting metadata to",
+      "expected": [
+        "src/assets.rs",
+        "src/assets/build_assets.rs"
+      ]
+    },
+    {
+      "slug": "FuelLabs/sway",
+      "language": "rust",
+      "repo": "https://github.com/FuelLabs/sway.git",
+      "license": "Apache-2.0",
+      "sha": "c885853ee92f457473cd63b2a4365b9d1dc83d25",
+      "issue": 7625,
+      "pullRequest": 7628,
+      "task": "`forc-fmt` issue on `raw_ptr::write`.\n\nTo see the bug in practice see https://github.com/FuelLabs/sway/pull/7620\n\n```sway\npub fn write<T>(self, val: T) {\n        if __size_of::<T>() == 0 {    } else if __is_reference_type::<T>() {   // <---- look here how strange it is\n        asm(dst: self, src: val, count: __size_of_val(val)) {\n            mcp dst src count;\n        };\n    } else if __size_of::<T>() == 1 {\n        asm(ptr: self, val: val) {\n            sb ptr val i0;\n        };\n    } else {\n        asm(ptr: self, val: val) {\n            sw ptr val i0;\n        };\n    }\n    }\n```",
+      "expected": [
+        "swayfmt/src/utils/language/expr/conditional.rs",
+        "swayfmt/src/utils/language/expr/tests.rs"
+      ]
+    },
+    {
+      "slug": "meilisearch/meilisearch",
+      "language": "rust",
+      "repo": "https://github.com/meilisearch/meilisearch.git",
+      "license": "NOASSERTION",
+      "sha": "36dabf361a17c223e91cadc8ecf0378e90affc4b",
+      "issue": 6482,
+      "pullRequest": 6496,
+      "task": "`totalHits` and `totalPages` ignore `pagination.maxTotalHits` with page-based pagination\n\n## Describe the bug\n\nWith page-based pagination (`page` + `hitsPerPage`) and `pagination.maxTotalHits = 2`, recent Meilisearch versions return uncapped `totalHits` / `totalPages` metadata even though the returned `hits` remain capped.\n\nThis looks like a regression from `v1.46.0` to `v1.48.3`.\n\n## Expected behavior\n\n`totalHits` and `totalPages` should respect `pagination.maxTotalHits` for page-based pagination.\n\nWith 3 indexed documents and `maxTotalHits = 2`:\n\n- `totalHits` should be `2`\n- with `hitsPerPage = 1`, `totalPages` should be `2`\n- metadata should not indicate a third reachable hit/p",
+      "expected": [
+        "crates/meilisearch/src/search/federated/perform.rs"
+      ]
+    },
+    {
+      "slug": "aaif-goose/goose",
+      "language": "rust",
+      "repo": "https://github.com/aaif-goose/goose.git",
+      "license": "Apache-2.0",
+      "sha": "059fee25f13fa92be561a7d42cdd04ececef5a98",
+      "issue": 13547,
+      "pullRequest": 13741,
+      "task": "cli: session-management help incorrectly requires unsupported --resume flag\n\n**Describe the bug**\n\nThe `--session-id` help for `goose session export`, `remove`, and `diagnostics` says:\n\n```text\nSpecify a session ID to resume. Requires --resume.\n```\n\nHowever, all three commands reject `--resume`.\n\n**To Reproduce**\n\nUsing the CLI at `/usr/lib/goose/resources/bin/goose`:\n\n1. Run `goose session export --help`.\n2. Run:\n   ```bash\n   goose session export --session-id __nonexistent_help_probe__ --resume\n   ```\n3. Repeat with `remove` and `diagnostics`.\n\nEach probe exits with status `2` and:\n\n```text\nerror: unexpected argument '--resume' found\n```\n\nHelp and parser probes used ",
+      "expected": [
+        "crates/goose-cli/src/cli.rs"
+      ]
+    },
+    {
+      "slug": "FuelLabs/fuel-core",
+      "language": "rust",
+      "repo": "https://github.com/FuelLabs/fuel-core.git",
+      "license": "Apache-2.0",
+      "sha": "53a54dc5ceea33c9840300e943f0f1c2271b66f7",
+      "issue": 2949,
+      "pullRequest": 2956,
+      "task": "Add contract id filtering option on TxPool txs extractions\n\nWe want to have a new parameter to the `extract_transactions_for_block` function which allow us to pass a set of contract id that shouldn't be used as inputs of the transactions given by the transaction pool.\n\nThis is useful for avoiding to collide too much on execute of transactions if we want to execute them in parallel.",
+      "expected": [
+        "crates/fuel-core/src/service/adapters/executor.rs",
+        "crates/services/txpool_v2/src/selection_algorithms/mod.rs",
+        "crates/services/txpool_v2/src/selection_algorithms/ratio_tip_gas.rs"
+      ]
+    },
+    {
+      "slug": "vercel-labs/agent-browser",
+      "language": "rust",
+      "repo": "https://github.com/vercel-labs/agent-browser.git",
+      "license": "Apache-2.0",
+      "sha": "58d313edb6a305e3235b8a9f38960f0ae6b9c779",
+      "issue": 1453,
+      "pullRequest": 2745,
+      "task": "Stream `input_keyboard` ignores CDP `commands` — macOS native key-binding chords are no-ops in the viewport\n\n*generated with Opus 4.8 high and verified by a human*\n\n## Summary\n\nThe streaming WebSocket's `input_keyboard` message can deliver text, plain navigation keys, and modifier-bit chords, but it cannot trigger **macOS native key-binding commands** — and that's a whole class of chords, not just clipboard ops. On macOS, Chromium routes select-all, copy/cut/paste, undo/redo, caret navigation (line/document), and line/word deletion through the responder chain (the standard key bindings), which CDP exposes via the `commands` array on `Input.dispatchKeyEvent` (e.g. `commands: [\"selectAll\"]`, `[\"moveToB",
+      "expected": [
+        "cli/src/native/bidi/stream.rs",
+        "cli/src/native/e2e_tests.rs",
+        "cli/src/native/stream/websocket.rs"
+      ]
+    },
+    {
+      "slug": "astral-sh/ruff",
+      "language": "rust",
+      "repo": "https://github.com/astral-sh/ruff.git",
+      "license": "MIT",
+      "sha": "ab37a8e980327682f5e03cf11db7f51a76df046c",
+      "issue": 5082,
+      "pullRequest": 30762,
+      "task": "Equality and membership narrowing keep `list[str]` in `str | list[str]`\n\n### Summary\n\nAfter `value == \"all\"` or `value in (\"all\", \"open\")`, ty narrows the `str` member of `str | list[str]` to the literals but keeps `list[str]`. With `tuple[str, ...]`, `int` or a plain class in place of `list[str]`, the other member is dropped, so `list` is the odd one out (compare #2140 for tuple subclasses). This is with the default `strict-equality-semantics = false`.\n\n```py\nfrom typing import reveal_type\n\nFILTERS = (\"all\", \"open\")\n\n\nclass Plain: ...\n\n\ndef eq_list(value: str | list[str]) -> None:\n    if value == \"all\":\n        reveal_type(value)  # Literal[\"all\"] | list[str]\n\n\nde",
+      "expected": [
+        "crates/ty_python_semantic/src/types/equality.rs",
+        "crates/ty_python_semantic/src/types/equality/enums.rs"
+      ]
+    },
+    {
+      "slug": "bevyengine/bevy",
+      "language": "rust",
+      "repo": "https://github.com/bevyengine/bevy.git",
+      "license": "Apache-2.0",
+      "sha": "ea068131982105dca960341ee8fe72b902db57b4",
+      "issue": 26587,
+      "pullRequest": 26640,
+      "task": "Initializing states cause ambiguity detection to report ambiguities.\n\n## Bevy version and features\n\n- main @ 56d244d4\n\n## What you did\n\nUpdate the ambiguity_detection test to add a state:\n\n```rust\n#[derive(States, Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]\nenum GameState {\n    #[default]\n    State1,\n    State2,\n}\n```\n\nInit the state in main with `app.init_state::<GameState>()`.\n\n## What went wrong\n\nThe test fails due to ambiguity detection failing!\n\nHere are the logs:\n\n```\n2026-11-17T08:23:34.426430Z  WARN bevy_ecs::schedule::schedule: StateTransition schedule built successfully, however: 9 pairs of systems with conflicting data access have indeterminate",
+      "expected": [
+        "crates/bevy_state/src/app.rs",
+        "crates/bevy_state/src/state_scoped.rs"
+      ]
+    },
+    {
+      "slug": "we-promise/sure",
+      "language": "ruby",
+      "repo": "https://github.com/we-promise/sure.git",
+      "license": "AGPL-3.0",
+      "sha": "24ab624f4f286f02e30bb54b42208644a10636be",
+      "issue": 5783,
+      "pullRequest": 5785,
+      "task": "Holdings API pagination can repeat and omit same-date rows\n\nThe holdings index paginates a relation ordered only by date. If more than one page has the same date, PostgreSQL can return ties in a different order for each offset. This makes a full traversal repeat some holding IDs and omit others. Reproduce with more than 100 holdings for one account on one date and compare the union of the first and second pages with the matching database IDs. Keep date as the primary sort and add the unique holding ID as a tie-breaker before pagination. Verify that exact-date and chronological requests retain their date order and expose every row once.",
+      "expected": [
+        "app/controllers/api/v1/holdings_controller.rb"
+      ]
+    },
+    {
+      "slug": "postalserver/postal",
+      "language": "ruby",
+      "repo": "https://github.com/postalserver/postal.git",
+      "license": "MIT",
+      "sha": "d038eaa8c763d3cafa797ccd6f773d53470bd336",
+      "issue": 3627,
+      "pullRequest": 3628,
+      "task": "WorkerRole lock is shared when containers have the same hostname and PID\n\n## Describe the bug\n\n`WorkerRole.acquire` identifies a worker with `Postal.locker_name`:\n\n```\nhost:<hostname> pid:<pid> thread:<thread_id>\n```\n\nOn Docker / compose, every worker container often has the **same hostname** (e.g. `postal`) and the Ruby process often has the **same PID** (and even the same tasks-thread id). All workers then present as one locker name, e.g. `host:postal pid:9 thread:17`.\n\n`acquire` treats that as “I already hold the lock” and returns `:renewed` for every process. Every worker runs scheduled tasks at the same time (CheckAllDNS, retention, …). We only see a single row",
+      "expected": [
+        "lib/postal/config.rb"
+      ]
+    },
+    {
+      "slug": "spree/spree",
+      "language": "ruby",
+      "repo": "https://github.com/spree/spree.git",
+      "license": "BSD-3-Clause",
+      "sha": "2e8d6766ea291e9172949044eebf3dc13473f12d",
+      "issue": 15288,
+      "pullRequest": 15289,
+      "task": "Saving any settings page silently overwrites the default market's currency and locale\n\n**Spree version:** 6.0.5 (official Docker image `ghcr.io/spree/spree:6.0.5`, PostgreSQL), React dashboard\n\n**What happens**\n\nSaving the Emails settings page (for example after uploading the email logo) sends `PATCH /api/v3/admin/store`. That request rewrites the **default market's** `currency`, `default_locale` and `supported_locales` with the values held on the `Spree::Store` record. In our case those were still `USD` / `en` / `nil`, so our default market (EUR, `nl`, `[en, nl]`) was switched to USD / `en` / `[en]` with no warning.\n\nThis happened twice on the same day. Both times the only writ",
+      "expected": [
+        "spree/core/app/models/concerns/spree/stores/markets.rb"
+      ]
+    },
+    {
+      "slug": "CocoaPods/CocoaPods",
+      "language": "ruby",
+      "repo": "https://github.com/CocoaPods/CocoaPods.git",
+      "license": "NOASSERTION",
+      "sha": "2d876fccb67c9e9539f33385275aee49eac8a993",
+      "issue": 12664,
+      "pullRequest": 12669,
+      "task": "pod lib lint is broken\n\n* [x ] I've read and understood the [*CONTRIBUTING* guidelines and have done my best effort to follow](https://github.com/CocoaPods/CocoaPods/blob/master/CONTRIBUTING.md).\r\n\r\n# Report\r\n\r\n## What did you do?\r\n\r\n`pod lib lint` on a fresh, very basic framework project.\r\n\r\n## What did you expect to happen?\r\n\r\nSuccessful linting\r\n\r\n## What happened instead?\r\n\r\nIt fails with various errors, such as:\r\n\r\n* `//privateTarget Support Files/MyFramework/MyFramework-umbrella.h:13:9: error: double-quoted include \"MyFramework.h\" in framework header, expected angle-bracketed instead`\r\n* `Sandbox: rsync.samba(4",
+      "expected": [
+        "lib/cocoapods/validator.rb"
+      ]
+    },
+    {
+      "slug": "basecamp/kamal",
+      "language": "ruby",
+      "repo": "https://github.com/basecamp/kamal.git",
+      "license": "MIT",
+      "sha": "eee0083b38661c3707c6b6052cc89e85038a096c",
+      "issue": 1936,
+      "pullRequest": 1937,
+      "task": "kamal app logs --follow silently ignores --since\n\n## Summary\n\n`--since` is a documented option on `kamal app logs` (`lib/kamal/cli/app.rb`), but when `--follow`/`-f` is also passed, it's silently dropped — no error, it just streams from the container's full log history instead of the requested window.\n\n## Root cause\n\n`Kamal::Commands::App::Logging#follow_logs` (`lib/kamal/commands/app/logging.rb`) has no `since:` parameter at all:\n\n```ruby\ndef logs(container_id: nil, timestamps: true, since: nil, lines: nil, grep: nil, grep_options: nil)\n  pipe \\\n    container_id_command(container_id),\n    \"xargs docker logs#{\" --timestamps\" if timestamps}#{\"",
+      "expected": [
+        "lib/kamal/cli/app.rb",
+        "lib/kamal/commands/app/logging.rb"
+      ]
+    },
+    {
+      "slug": "gollum/gollum",
+      "language": "ruby",
+      "repo": "https://github.com/gollum/gollum.git",
+      "license": "MIT",
+      "sha": "98cb39347dc1fd8f5cdbde93b174bfd796b01d42",
+      "issue": 1815,
+      "pullRequest": 1836,
+      "task": "Only first line of commit message should be in RSS feed item title, the rest should go to description\n\n**Describe the bug**\r\n\r\nPerhaps, not a bug but a feature request. The RSS feed seems to get an entire commit message, and it is put into RSS item `<title>` tag, while the `<description>` tag only gets meta information such as `Commited by`, `Commit ID` and `Affected files`.\r\n\r\nThis works okay while editing via web-interface, because the changes description input field only has one line, but if one works with Gollum repository on his local machine, there he can compose multiline commit messages, sometimes very long and detailed ones, and all that content will go to the `<title>`, messing up the",
+      "expected": [
+        "lib/gollum/views/rss.rb"
+      ]
+    },
+    {
+      "slug": "github-linguist/linguist",
+      "language": "ruby",
+      "repo": "https://github.com/github-linguist/linguist.git",
+      "license": "MIT",
+      "sha": "f39b13030cbbe5b2dd1ab8a98fc7f65bd239146e",
+      "issue": 8021,
+      "pullRequest": 8022,
+      "task": "Highlight `.secrets.baseline` as JSON\n\n## Describe the enhancement\n\nThe .secrets.baseline file, usually generated and used by the [detect-secrets](https://github.com/Yelp/detect-secrets) tool and pre-commit hook from Yelp, is a JSON file with a specific schema. GitHub code search with the following query gives 7.7k results, indicating its ubiquity:\n\n```text\nplugins_used path:.secrets.baseline\n```\n\nIt would be great if Linguist highlighted .secrets.baseline as JSON by default.",
+      "expected": [
+        "lib/linguist/generated.rb"
+      ]
+    },
+    {
+      "slug": "tmuxinator/tmuxinator",
+      "language": "ruby",
+      "repo": "https://github.com/tmuxinator/tmuxinator.git",
+      "license": "MIT",
+      "sha": "396e33f20c5695a4186dd8c651c8b800c47276c7",
+      "issue": 978,
+      "pullRequest": 1003,
+      "task": "Running `stop_all` triggers `sh` error\n\n**Describe the bug**\n\nWhen I run `tmuxinator stop_all`, it outputs an `sh` error for each session it closes:\n\n```sh\n$ mux stop_all\nStop all active projects:\n\nflash\n\nAre you sure? (n/y) y\nsh: 1: [[: not found\n```\n\n**To Reproduce**\n\nStart a `tmuxinator` session, then run `tmuxinator stop_all`. I believe it only applies when `/bin/sh` is a shell like `dash`.\n\n**Expected behavior**\n\nNo error output, sessions close cleanly.\n\n**Environment**\n\n- tmuxinator Version: 3.3.8\n- tmux Version: 3.4\n- Ruby Version: ruby 4.0.2 (2026-03-17 revision d3da9fec82) +PRISM [x86_64-linux]\n- OS: Linux Mint\n\n**Additiona",
+      "expected": [
+        "lib/tmuxinator/util.rb"
+      ]
+    },
+    {
+      "slug": "diaspora/diaspora",
+      "language": "ruby",
+      "repo": "https://github.com/diaspora/diaspora.git",
+      "license": "AGPL-3.0",
+      "sha": "d1e0b163e25cca972f8a382b7206022f3701bb90",
+      "issue": 8319,
+      "pullRequest": 8320,
+      "task": "\"Show local posts for user roles\" do not show the link in the UI\n\nWith #8232 a useful function was added. It will local users with a given role (Admin. moderators or all) to see just all local posts. \r\n\r\nBut in the UI the call was used not correctly so that nobody can see the extra link in the sidebar. \r\nCurrent sidebar\r\n![current_sidebar_if_enabled](https://user-images.githubusercontent.com/501326/140640226-4a5c0842-6ee5-4641-a7b6-cc6be3ce249c.png)\r\n\r\nexpected sidebar\r\n![expected_sidebar_if_enabled](https://user-images.githubusercontent.com/501326/140640234-37088840-cfbe-42f0-a9c3-267228c7984b.png)\r\n\r\nThis setting can be set in the Diaspora.toml with the 'e",
+      "expected": [
+        "lib/configuration_methods.rb"
+      ]
+    },
+    {
+      "slug": "fluent/fluentd",
+      "language": "ruby",
+      "repo": "https://github.com/fluent/fluentd.git",
+      "license": "Apache-2.0",
+      "sha": "bae5601e2ee7990c03a5f3fcb66162cf78927d92",
+      "issue": 3587,
+      "pullRequest": 5671,
+      "task": "Http output bearer token authentication\n\n### Is your feature request related to a problem? Please describe.\n\nnot related to a problem\n\n### Describe the solution you'd like\n\nHTTP output plugin supports only basic authentication would like to see the possibility to authenticate with a bearer token also\n\n### Describe alternatives you've considered\n\nno alternative\n\n### Additional context\n\n_No response_",
+      "expected": [
+        "lib/fluent/plugin/out_http.rb"
+      ]
+    },
+    {
+      "slug": "capistrano/capistrano",
+      "language": "ruby",
+      "repo": "https://github.com/capistrano/capistrano.git",
+      "license": "MIT",
+      "sha": "79132433f6d191084fe618ce90a9d2f7a5b3b280",
+      "issue": 2163,
+      "pullRequest": 2164,
+      "task": "uninitialized constant Capistrano::SCM::Git::StringIO\n\n```\r\n> cap staging deploy\r\n00:00 git:wrapper\r\n      01 mkdir -p /tmp\r\n    ✔ 01 deploy@_____ 0.432s\r\n#<Thread:0x000000011dcb1ec0 /Users/jurgen/.rbenv/versions/3.3.4/lib/ruby/gems/3.3.0/gems/sshkit-1.23.2/lib/sshkit/runners/parallel.rb:10 run> terminated with exception (report_on_exception is true):\r\n/Users/jurgen/.rbenv/versions/3.3.4/lib/ruby/gems/3.3.0/gems/sshkit-1.23.2/lib/sshkit/runners/parallel.rb:15:in `rescue in block (2 levels) in execute': Exception while executing as deploy@18.222.44.78: uninitialized constant Capistrano::SCM::Git::StringIO (SSHKit::Runner::ExecuteError)\r\n\tfrom /User",
+      "expected": [
+        "lib/capistrano/scm/git.rb"
+      ]
+    },
+    {
+      "slug": "sinatra/sinatra",
+      "language": "ruby",
+      "repo": "https://github.com/sinatra/sinatra.git",
+      "license": "MIT",
+      "sha": "fa99a21461d4f1f5337b9b9d7a38a1b51c8f4e55",
+      "issue": 2120,
+      "pullRequest": 2121,
+      "task": "Improvement suggestion\n\nHello,\n\nhttps://github.com/sinatra/sinatra/blob/7b50a1bbb5324838908dfaa00ec53ad322673a29/lib/sinatra/base.rb#L714\n\ncan we improve the regex by using something similar to below?\n\nhttps://github.com/sinatra/sinatra/commit/441c06a7eb1a5d59648806aa773f3a27fa89bc1e\n\nThanks!",
+      "expected": [
+        "lib/sinatra/base.rb"
+      ]
+    },
+    {
+      "slug": "ubicloud/ubicloud",
+      "language": "ruby",
+      "repo": "https://github.com/ubicloud/ubicloud.git",
+      "license": "AGPL-3.0",
+      "sha": "0fe01f4d2e48ad563e02b8fcee50e690501203dc",
+      "issue": 6937,
+      "pullRequest": 6941,
+      "task": "Daily CI unused associations check fails: VmHost#spdk_installations and #vhost_block_backends need adder: nil\n\nDaily CI's unused-associations step has failed on main for three consecutive runs, paging the on-call each time. All 9581 specs pass; the task exits 1 only because two `VmHost` associations have no adder.\n\nEvidence, run 42851373464 (job 129952653833, \"Daily CI\", failed step \"Run unused associations check\"), on commit 349df5921:\n\n```\nL11536 9581 examples, 0 failures\nL11539 All Associations Are Used.\nL11541 Associations Option That Can Be Added:\nL11542 VmHost#spdk_installations: , adder: nil\nL11543 VmHost#vhost_block_backends: , adder: nil\nL11544 rake aborted!\nL11545 Command failed with status (",
+      "expected": [
+        "model/vm_host.rb"
+      ]
+    },
+    {
+      "slug": "faker-ruby/faker",
+      "language": "ruby",
+      "repo": "https://github.com/faker-ruby/faker.git",
+      "license": "MIT",
+      "sha": "986f613a0c22825fed3cabdf3f65692fb2954a4b",
+      "issue": 3183,
+      "pullRequest": 3276,
+      "task": "Fix 'Polynomial regular expression used on uncontrolled data code' scanning alert\n\nhttps://github.com/faker-ruby/faker/security/code-scanning/14\nhttps://github.com/faker-ruby/faker/security/code-scanning/13",
+      "expected": [
+        "lib/faker.rb"
+      ]
+    },
+    {
+      "slug": "Shopify/liquid",
+      "language": "ruby",
+      "repo": "https://github.com/Shopify/liquid.git",
+      "license": "MIT",
+      "sha": "248f3a412f59da16fc184bc0bbd92522a1f62393",
+      "issue": 1990,
+      "pullRequest": 2007,
+      "task": "Unable to call \"key?\" and \"[]=\" on Liquid::Context when strict_variable is true\n\nWhile building a Custom Tag, I want to check if a variable exist in the context, but calling \"key?\" gives an error\n\nExample code:\n```\n>> context = Liquid::Context.new({})\n#<Liquid::Context:0x00000003027ffe68\n\n>> context.strict_variables=true\ntrue\n\n>> context.key?('test')\nLiquid error: undefined variable test (Liquid::UndefinedVariable)\n```\n\nSeems counterintuitive to not be able to use \"key?\" to check if a variable is set.\n\nSimilar issue with using `[]=` which does not work as expected, instead of allowing to set the variable if it doesn't exist, it throws an error instead.\n\n\nMy current workaro",
+      "expected": [
+        "lib/liquid/context.rb"
+      ]
+    },
+    {
+      "slug": "nikic/PHP-Parser",
+      "language": "php",
+      "repo": "https://github.com/nikic/PHP-Parser.git",
+      "license": "BSD-3-Clause",
+      "sha": "679d41ede0ad4236c22dbb52155aaa1b159b4d5c",
+      "issue": 1187,
+      "pullRequest": 1190,
+      "task": "`prettyPrintFile()` turns inline HTML that ends with `<?php` at the end of a file into an opening tag\n\n`<?php` only opens PHP code when it is followed by whitespace or by the end of the file. In `<?php<?php`, the first `<?php` is followed by `<`, so it is inline HTML. PHP outputs it, and PHP-Parser correctly parses the file to one `Stmt\\InlineHTML` whose value is `<?php`.\n\n`prettyPrintFile()` prints this file as `<?php`. That is an opening tag at the end of the file: the printed code parses to no statements, and running it outputs nothing. Inline HTML that ends with `<?php` is changed in the same way when it is the last statement of a file that has PHP code before it.\n\nAffected: 5.9.0 and maste",
+      "expected": [
+        "lib/PhpParser/PrettyPrinterAbstract.php"
+      ]
+    },
+    {
+      "slug": "FreshRSS/FreshRSS",
+      "language": "php",
+      "repo": "https://github.com/FreshRSS/FreshRSS.git",
+      "license": "AGPL-3.0",
+      "sha": "6af8ebcbff9f10ec8fc7573879aa6151bc68ac56",
+      "issue": 9551,
+      "pullRequest": 9552,
+      "task": "[Bug] XML subscription import does not work correctly for non-admin users\n\n### Describe the bug\n\nI encountered an issue in FreshRSS with categories whose names contain only digits.\n\nManually creating a category with a numeric-only name (e.g. `90`) works fine. However, when importing subscriptions from XML, the behavior is incorrect:\n\n1. The category is not created.\n2. If I manually create the category first and then import, the category list is empty.\n\n### To Reproduce\n\n1. Log in as a normal non-admin user(test_import_90).\n2. Import subscriptions from an XML file.\n3. Observe that the import does not behave correctly for this user.\n4. Use an XML file that references a",
+      "expected": [
+        "app/Services/ImportService.php"
+      ]
+    },
+    {
+      "slug": "briannesbitt/Carbon",
+      "language": "php",
+      "repo": "https://github.com/briannesbitt/Carbon.git",
+      "license": "MIT",
+      "sha": "0d4df967b0d73a9c9c431220ccaee886be080eb8",
+      "issue": 3408,
+      "pullRequest": 3409,
+      "task": "Lookalike letters from another alphabet in sh 'before' and mk 'weekdays_min'\n\nHello,\n\nI encountered an issue with the following code:\n\n```php\n$before = Carbon::parse('2026-01-01 00:00:00')->locale('sh')\n    ->diffForHumans(Carbon::parse('2026-01-01 00:00:05'));\n$minDay = Carbon::parse('2026-11-22')->locale('mk')->minDayName;\n\necho $before, \"\\n\";\nvar_dump(preg_match('/\\p{Cyrillic}/u', $before));\nvar_dump(preg_match('/\\p{Latin}/u', $minDay));\n```\n\nCarbon version: **3.15.1** (same on master)\n\nPHP version: **8.5.12**\n\nI expected to get:\n\n```\n5 sekundi ranije\nint(0)\nint(0)\n```\n\nBut I actually get:\n\n```\n5 sekundi raniјe\nint(1)\nint(1)\n```\n\nTwo translation strings have a letter",
+      "expected": [
+        "src/Carbon/Lang/mk.php",
+        "src/Carbon/Lang/sh.php"
+      ]
+    },
+    {
+      "slug": "getgrav/grav",
+      "language": "php",
+      "repo": "https://github.com/getgrav/grav.git",
+      "license": "MIT",
+      "sha": "49019c95e32fbfe073e54729a0f3bb9af579f7b0",
+      "issue": 4359,
+      "pullRequest": 4360,
+      "task": "Watermark not on all images\n\nIt seems that the watermark is only applied to images when using e.g. a crop method. But a plain image does not apply the watermark. Is this by design? Or should something be configured to make this work?\n\n```yaml\n# This image does not have a watermark\n![](gilbert5.jpg)\n\n# But this one does\n![](gilbert5.jpg?cropResize=300)\n```\n\nI suppose it cannot be caching, because this is on the same page, where I added the crop one later. I only got the watermark for the one with a crop.\n\nSome example on my Grav site:\n\n* https://www.zeitgeistbeweging.nl/nl/blog/20220108-chapter-meeting (with crop, and thus",
+      "expected": [
+        "system/src/Grav/Common/Page/Medium/ImageMedium.php"
+      ]
+    },
+    {
+      "slug": "cachethq/cachet",
+      "language": "php",
+      "repo": "https://github.com/cachethq/cachet.git",
+      "license": "NOASSERTION",
+      "sha": "0b08753432364e4cdf2d4cc73b1cd98c65493fe5",
+      "issue": 4620,
+      "pullRequest": 4623,
+      "task": "SQLite connection causes \"database is locked\" errors when hit with concurrent requests\n\nThe default defined SQLite connection leaves `journal_mode`, `busy_timeout`, and `synchronous` set to null, so concurrent API requests (e.g. hitting /api/schedules and /api/incidents in quick succession) intermittently fail with \"database is locked\". Enabling WAL mode and a busy timeout by default would possibly prevent this.",
+      "expected": [
+        "config/database.php"
+      ]
+    },
+    {
+      "slug": "erusev/parsedown",
+      "language": "php",
+      "repo": "https://github.com/erusev/parsedown.git",
+      "license": "MIT",
+      "sha": "cbe2e74d52ca80abf0647c4560dcf32382e06aeb",
+      "issue": 338,
+      "pullRequest": 576,
+      "task": "Run a completion block after text() has processed lines()\n\nI was building an extension and I wanted to run something after the blocks have been parsed by `lines` in `text`, the `lines` method is private (in `Parsedown`), and I wanted to do something after everything has been processed (but within my extension and not within my app).\n\nA `Complete` callback to the `text()` function.\n\n`in Parsedown.php`\n\n```\nfunction text($text)\n{\n    # make sure no definitions are set\n    $this->DefinitionData = array();\n\n    # standardize line breaks\n    $text = str_replace(array(\"\\r\\n\", \"\\r\"), \"\\n\", $text);\n\n    # remove surrounding line breaks\n    $text = trim($text,",
+      "expected": [
+        "Parsedown.php"
+      ]
+    },
+    {
+      "slug": "barryvdh/laravel-ide-helper",
+      "language": "php",
+      "repo": "https://github.com/barryvdh/laravel-ide-helper.git",
+      "license": "MIT",
+      "sha": "e1b1ef74aa5343ff50f1ed860b018da5990d939a",
+      "issue": 1775,
+      "pullRequest": 1783,
+      "task": "Exclude relations using `withTrashed` from being nullable when `soft_deletes_force_nullable` is on\n\n### Summary\n\nHi, I really like the new `soft_deletes_force_nullable` introduced in #1749, but i had to disable it for now as not all my relations are actually nullable (this introduced 263 phpstan errors, some real but majority was not).\n\nIn some relations I use the `->withTrashed()` so I don't loose data when I soft delete something, Ex: a product that is no longer used, but still has orders related to it.\n\n```php\n    /**\n     * @return BelongsTo<Product, $this>\n     */\n    public function product(): BelongsTo\n    {\n        return $this->belongsTo(Product::class)->withTrashed();\n    }\n```\n\nSo",
+      "expected": [
+        "src/Console/ModelsCommand.php"
+      ]
+    },
+    {
+      "slug": "Intervention/image",
+      "language": "php",
+      "repo": "https://github.com/Intervention/image.git",
+      "license": "MIT",
+      "sha": "b671d027e090ee49187d2197fcc316cbdaa83557",
+      "issue": 1556,
+      "pullRequest": 1557,
+      "task": "GD decoder discards the finfo media type in mediaTypeByBinary() since 4.4.0\n\nIn 4.4.0 the GD decoder's `mediaTypeByBinary()` no longer returns the media type it detects with finfo:\n\nhttps://github.com/Intervention/image/blob/4.4.0/src/Drivers/Gd/Decoders/AbstractDecoder.php#L66-L79\n\n```php\nif (function_exists('finfo_buffer') && function_exists('finfo_open')) {\n    $mediaType = finfo_buffer(finfo_open(FILEINFO_MIME_TYPE), $data);\n    if (is_string($mediaType)) {\n        $this->parseMediaTypeOrFail($mediaType); // result discarded\n    }\n}\n\n$info = @getimagesizefromstring($data);\n```\n\nIn 4.3.5 the same branch returned `MediaType::from($mediaType)`. Since 4.4.0, the finfo ",
+      "expected": [
+        "src/Drivers/Gd/Decoders/AbstractDecoder.php"
+      ]
+    },
+    {
+      "slug": "yiisoft/yii2",
+      "language": "php",
+      "repo": "https://github.com/yiisoft/yii2.git",
+      "license": "BSD-3-Clause",
+      "sha": "24da8f0e6fa974fbf2b8bf7aa6391c748ea74a0a",
+      "issue": 20322,
+      "pullRequest": 21052,
+      "task": "Bug: RegularExpressionValidator creates invalid regex in client-side\n\n## Issue\n\nIn `\"yiisoft/yii2\": \"~2.0.45\"`, the `yii\\validators\\RegularExpressionValidator` generates an invalid client-side regex for hexadecimal. \n\nGiven a pattern validation rule in a Form like `['foo', 'match', 'pattern' => '/^[\\x00-\\xFF]{8,72}$/']`, the `Html::escapeJsRegularExpression`, inside the `getClientOptions` method, returns `'/^[\\u00-\\uFF]{8,72}$/'`. The former regex, which is valid in `jquery 3.7.1` (seems to be the version being used by the framework), matches a word like \"password\" while the latter doesn't (because of the `w` in this case).\n\nI believe this `preg_replace` in `Htm",
+      "expected": [
+        "framework/helpers/BaseHtml.php"
+      ]
+    },
+    {
+      "slug": "digininja/DVWA",
+      "language": "php",
+      "repo": "https://github.com/digininja/DVWA.git",
+      "license": "GPL-3.0",
+      "sha": "1ef8152d87750cee4e4022f9a7556196573575ce",
+      "issue": 546,
+      "pullRequest": 547,
+      "task": "Browsers rejecting Session Cookie with localhost domain\n\n**Describe the bug**\r\nWhen DVWA starts a session, code is currently setting HTTP_HOST as the domain in the session cookie. Browsers are rejecting this setting as an incorrect domain name. Should probably add a check to this section of code to unset the domain name if it's localhost\r\nhttps://www.php.net/manual/en/function.setcookie.php#73107\r\n\r\n**To Reproduce**\r\n\r\nSteps to reproduce the behaviour:\r\n1. Install current DVWA on local system or in Docker environment\r\n2. Load http://localhost/login.php\r\n3. Observe the browser console error that indicates the cookie violates domain name policy and do",
+      "expected": [
+        "dvwa/includes/dvwaPage.inc.php"
+      ]
+    },
+    {
+      "slug": "PHPOffice/PhpSpreadsheet",
+      "language": "php",
+      "repo": "https://github.com/PHPOffice/PhpSpreadsheet.git",
+      "license": "MIT",
+      "sha": "7432633a94baf82c01fda840ebbc4fa124ee8521",
+      "issue": 792,
+      "pullRequest": 5077,
+      "task": "Exception when remove a sheet with named ranges\n\nThis is:\r\n\r\n```\r\n- [x] a bug report\r\n- [ ] a feature request\r\n- [ ] **not** a usage question (ask them on https://stackoverflow.com/questions/tagged/phpspreadsheet or https://gitter.im/PHPOffice/PhpSpreadsheet)\r\n```\r\n\r\n### What is the expected behavior?\r\nWrite the spreadsheet to file.\r\n\r\n### What is the current behavior?\r\n\"Sheet does not exist\" exception on PhpSpreadsheet\\Spreadsheet.php:748 line.\r\n\r\n### What are the steps to reproduce?\r\n- I have xlsx template, contains sheets with named ranges (\"Sheet1\" for example);\r\n- load this template;\r\n- drop \"Sheet1\" - Spreadsheet::removeSheetByIndex();",
+      "expected": [
+        "src/PhpSpreadsheet/Spreadsheet.php"
+      ]
+    },
+    {
+      "slug": "thephpleague/flysystem",
+      "language": "php",
+      "repo": "https://github.com/thephpleague/flysystem.git",
+      "license": "MIT",
+      "sha": "c8fa31b1ca17c014b4bca449a6280c254e933325",
+      "issue": 1825,
+      "pullRequest": 1906,
+      "task": "TypeError, ftp_chdir(): Argument #2 ($directory) must be of type string, null given in FtpAdapter.php:102\n\n### Bug Report\r\n\r\n| Q                 | A       |\r\n|-------------------|---------|\r\n| Flysystem Version | 3.24.0   |\r\n| Adapter Name      | Ftp |\r\n| Adapter version   | 3.24.0   |\r\n\r\n#### Summary\r\n\r\nHello ! There is a TypeError encountered in your source code, using the FtpAdapter.\r\n\r\nWhen we connect one time to the FTP and we try to `->write()`, an exception is thrown because the root directory is not present, not a problem for that. (_Unable to resolve connection root. It does not seem to exist:_).\r\n\r\nWhen we try to `->write()` a second time with the same instance, there is the TypeError, be",
+      "expected": [
+        "src/Ftp/FtpAdapter.php"
+      ]
+    },
+    {
+      "slug": "PHP-CS-Fixer/PHP-CS-Fixer",
+      "language": "php",
+      "repo": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer.git",
+      "license": "MIT",
+      "sha": "4a935fc9fbccafe291deea088f41204eb2290cb0",
+      "issue": 9899,
+      "pullRequest": 9900,
+      "task": "`single_space_around_construct` adds a space in PHP 8.5 `clone($object, [...])`\n\n### Problem description\n\nPHP 8.5 lets `clone` be called like a function, with an optional array of properties to change on the copy ([RFC: Clone with v2](https://wiki.php.net/rfc/clone_with_v2)):\n\n```php\n$copy = clone($object, ['name' => 'new']);\n```\n\n`single_space_around_construct` still treats `clone` as a keyword that must be followed by a single space, so it rewrites the call to `clone ($object, ['name' => 'new'])`. That makes it look like `clone` applied to a parenthesised expression rather than a call with two arguments.\n\nThe rule already makes this exception for `class` when it is follo",
+      "expected": [
+        "src/Fixer/LanguageConstruct/SingleSpaceAroundConstructFixer.php"
+      ]
+    },
+    {
+      "slug": "phpdotenv/phpdotenv",
+      "language": "php",
+      "repo": "https://github.com/phpdotenv/phpdotenv.git",
+      "license": "BSD-3-Clause",
+      "sha": "d704058e763a9896d3eb06e615a0a667be36b0a7",
+      "issue": 610,
+      "pullRequest": 621,
+      "task": "Unterminated double-quoted value at end of input is silently dropped\n\nWhen a double-quoted value is left unterminated at the end of the input, the whole entry and every line after it are dropped with no error. This is inconsistent with the single-quoted case, which reports a missing closing quote, so a stray quote can silently erase configuration rather than failing loudly.\n\n```php\nDotenv::parse('FOO=\"bar');            // returns [] — no exception\nDotenv::parse(\"A=\\\"oops\\nB=keep\");    // returns [] — B is swallowed too\nDotenv::parse(\"FOO='bar\");            // correctly throws \"a missing closing quote\"\n```\n\nThe cause is in `Lines::process()`: when the input ends ",
+      "expected": [
+        "src/Parser/Lines.php"
+      ]
+    },
+    {
+      "slug": "roots/sage",
+      "language": "php",
+      "repo": "https://github.com/roots/sage.git",
+      "license": "MIT",
+      "sha": "7920ac9eae20e7f12e62f496a41561c5c48eca1b",
+      "issue": 3278,
+      "pullRequest": 3279,
+      "task": "Error when using a \"button\" block with the \"outline\" style\n\n### Version\n\n11.0.1\n\n### What did you expect to happen?\n\nI expected to be able to add a button block w/ outline style to a page using the visual editor and for it to work.\n\n<img width=\"265\" height=\"336\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/b0098c9e-4ac3-4f3f-815e-e7bdc90d1acb\" />\n\n### What actually happens?\n\nI get an error.\n\n<img width=\"1728\" height=\"879\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/da7f05b3-383c-4d8b-8600-4fd52dab6201\" />\n\n### Steps to reproduce\n\nCreate a new page, add a button block, select the outline style, save your changes then view ",
+      "expected": [
+        "app/setup.php"
+      ]
+    },
+    {
+      "slug": "Devolutions/UniGetUI",
+      "language": "dotnet",
+      "repo": "https://github.com/Devolutions/UniGetUI.git",
+      "license": "MIT",
+      "sha": "9f9bd440d20a8acf5d9e5e5783fe3c6801b26f2d",
+      "issue": 5818,
+      "pullRequest": 5823,
+      "task": "Cargo manager: one deleted-on-crates.io package makes the whole update list fail with HTTP 404\n\n### Environment\n\n- UniGetUI v2026.3.4 (latest release at the time of the report)\n- Windows 10.0.26300\n- cargo 1.100.0\n\n### Summary\n\nA single installed crate whose crate was yanked and deleted from crates.io makes the whole Cargo\nupdate check fail with HTTP 404. The manager card shows\n`HttpRequestException: Response status code does not indicate success: 404 (Not Found).`,\n\"Last success: never\", 205 consecutive failures and an average duration of ~12-13 s -- while the same\nmanager lists installed packages (22) just fine, and winget / pip / npm / chocolatey stay healthy.\n\n### Root cause\n\nIn `Get",
+      "expected": [
+        "src/UniGetUI.PackageEngine.Managers.Cargo/Cargo.cs"
+      ]
+    },
+    {
+      "slug": "icsharpcode/ILSpy",
+      "language": "dotnet",
+      "repo": "https://github.com/icsharpcode/ILSpy.git",
+      "license": "MIT",
+      "sha": "caff1a9549afc1a97b5319454fe602bfbde5ccde",
+      "issue": 4338,
+      "pullRequest": 4340,
+      "task": "With statements on instances get incorrectly decompiled\n\n### Steps to reproduce\n1. Download Tedd.SQLite3 -> https://www.nuget.org/packages/Tedd.SQLite3/0.1.24-preview\n2. Direct link: https://www.nuget.org/api/v2/package/Tedd.SQLite3/0.1.24-preview\n2. Rename from tedd.sqlite3.0.1.24-preview.nupkg to tedd.sqlite3.0.1.24-preview.zip\n3. Extract\n4. Decompile Downloads\\tedd.sqlite3.0.1.24-preview\\lib\\net10.0\n### Error message shown\nNot an error message, but incorrect output: \n\n```\ndatabaseHeader with\n{\n    PageCount = committedDatabaseSize,\n    VersionValidFor = databaseHeader.ChangeCounter\n}.Write(array);\ninstead of \n```\n\n\n```\n(databaseHeader with\n{\n    ",
+      "expected": [
+        "ICSharpCode.Decompiler.Tests/TestCases/Pretty/SwitchExpressions.cs",
+        "ICSharpCode.Decompiler/CSharp/OutputVisitor/InsertParenthesesVisitor.cs"
+      ]
+    },
+    {
+      "slug": "QL-Win/QuickLook",
+      "language": "dotnet",
+      "repo": "https://github.com/QL-Win/QuickLook.git",
+      "license": "GPL-3.0",
+      "sha": "2ec219aa18416c6e3b89d6aad3d82d10610f917f",
+      "issue": 2020,
+      "pullRequest": 2032,
+      "task": "VideoViewer: rotated (portrait phone) videos shown sideways when system decimal separator is a comma\n\nDescribe the bug Portrait videos recorded on iPhone (stored as 1920x1080 with a rotation flag) are previewed sideways. This is likely the root cause of #762, which was closed without being reproduced.\n\nCause MediaInfo returns the rotation as \"90.000\". The VideoViewer parses it with the current culture:\n\nQuickLook.Plugin.VideoViewer/ViewerPanel.xaml.cs — double.TryParse(info?.Get(StreamKind.Video, 0, \"Rotation\"), out var rotation);\nQuickLook.Plugin.VideoViewer/Plugin.cs — same call for the window size\nWhen the decimal separator is a comma (ru-RU, uk-UA, many other locales), \"90.000\" fails to pa",
+      "expected": [
+        "QuickLook.Plugin/QuickLook.Plugin.VideoViewer/Plugin.cs",
+        "QuickLook.Plugin/QuickLook.Plugin.VideoViewer/ViewerPanel.xaml.cs"
+      ]
+    },
+    {
+      "slug": "dotnet/maui",
+      "language": "dotnet",
+      "repo": "https://github.com/dotnet/maui.git",
+      "license": "MIT",
+      "sha": "c1da9d5abb82ee737fe90a81d3c8781030e914ea",
+      "issue": 40467,
+      "pullRequest": 40481,
+      "task": "[MAUI] I9 -Incremental loading on scroll for 'RemainingItemsThreshold' - Opens an exception CLR/ObjCRuntime.ObjCException\n\n### Description\n\nOpening I9 -Incremental loading on scroll for 'RemainingItemsThreshold' opens an exception CLR/ObjCRuntime.ObjCException\n\n**Note:** \n1. On Release, the application will crash.\n\n### Steps to Reproduce\n\n1. Deploy [ManualMaui](https://github.com/dotnet/maui/tree/main/src/Controls/tests/ManualTests) to MacCatalyst or iOS\n2. Navigate to 'I CollectionView' > 'I9 Scrolling' > Incremental loading on scroll 'RemainingItemsThreshold'\n3. Once opened, start scrolling down\n4. Wait for a few seconds then the exception will appear\n\n**Actual Behavior:** Once the app is opened and you start sc",
+      "expected": [
+        "src/Controls/src/Core/Handlers/Items2/iOS/ItemsViewDelegator2.cs"
+      ]
+    },
+    {
+      "slug": "BCUninstaller/Bulk-Crap-Uninstaller",
+      "language": "dotnet",
+      "repo": "https://github.com/BCUninstaller/Bulk-Crap-Uninstaller.git",
+      "license": "Apache-2.0",
+      "sha": "dd7ce9c75298511dcd520e21d48b3980f4f1d56f",
+      "issue": 947,
+      "pullRequest": 968,
+      "task": "BCU-console: add `--dry-run` / `/N` no-op flag for uninstall and junk cleanup\n\n## Summary\n\n`BCU-console uninstall list.bcul /U /J` runs unattended and irreversibly, and there is no way to preview which uninstallers would fire or which junk files/registry keys would be deleted **without actually deleting**.\n\nThis is uncomfortable in the exact context BCU-console was built for: IT-pro scripting, imaging pipelines, mass deployments.\n\n## Proposal (additive)\n\nAdd `/N` (or `--dry-run` long form) to the `uninstall` subcommand in `source/BCU-console/Program.cs`:\n\n- Same discovery + list-resolution path.\n- Print exactly what **would** be uninstalled: display name, uninstall comma",
+      "expected": [
+        "source/BCU-console/Program.cs"
+      ]
+    },
+    {
+      "slug": "dotnet/roslyn",
+      "language": "dotnet",
+      "repo": "https://github.com/dotnet/roslyn.git",
+      "license": "MIT",
+      "sha": "9d42b6a3daa5f222206978ef2bd59ebd14d3926b",
+      "issue": 86479,
+      "pullRequest": 86596,
+      "task": "IDE0100 is reported for a comparison that performs a user-defined conversion to bool; the fix breaks the build or changes behavior\n\n**Version Used**: Microsoft.CodeAnalysis.CSharp.Features 5.9.0 (commit 35d9211b), hosted in a tool of ours, and `dotnet format` of .NET SDK 11.0.100-rc.3.26522.148. The sources of the analyzer (`AbstractRemoveRedundantEqualityDiagnosticAnalyzer.cs`) and of the code fix (`RemoveRedundantEqualityCodeFixProvider.cs`) are unchanged at the commit of 5.12.0 (1324e1d3) and on `main`.\n\n**Steps to Reproduce**:\n\n1. A class library (`net10.0`) with the file below, and an `.editorconfig` beside the solution that says `dotnet_diagnostic.IDE0100.severity = warning` under `[*.cs]`:\n\n   ```csharp\n   namespace",
+      "expected": [
+        "src/Analyzers/Core/Analyzers/RemoveRedundantEquality/AbstractRemoveRedundantEqualityDiagnosticAnalyzer.cs"
+      ]
+    },
+    {
+      "slug": "jasontaylordev/CleanArchitecture",
+      "language": "dotnet",
+      "repo": "https://github.com/jasontaylordev/CleanArchitecture.git",
+      "license": "MIT",
+      "sha": "f44846e12bd807e744e23b8f9dabd7709e119854",
+      "issue": 1628,
+      "pullRequest": 1661,
+      "task": "ASPNETCORE_ENVIRONMENT always Development when deploying to Azure\n\nFor some reason the variable ASPNETCORE_ENVIRONMENT always defaults to Development. This results in a failing database initialization, as the `ensureRecreated` flag is true for `IsDevelopment()`. In Azure, EnsureDeletedAsync and EnsureCreatedAsync require access to the master database which is not granted by default. \n\n```\nif (ensureRecreated)\n{\n    await _context.Database.EnsureDeletedAsync();\n    await _context.Database.EnsureCreatedAsync();\n}\nelse\n{\n    await _context.Database.MigrateAsync();\n}\n```\n\nI noticed the extension method `WithAspNetCoreEnvironment` sets this environment variable to",
+      "expected": [
+        "src/AppHost/Extensions.cs"
+      ]
+    },
+    {
+      "slug": "bitwarden/server",
+      "language": "dotnet",
+      "repo": "https://github.com/bitwarden/server.git",
+      "license": "NOASSERTION",
+      "sha": "0fce684df42ee39d026c70d405850862d535b789",
+      "issue": 4845,
+      "pullRequest": 7652,
+      "task": "Emergency Access E-Mails use Wrong Encoding for Names\n\n### Steps To Reproduce\n\n1. Configure a name for your account using special characters like a German umlaut\r\n2. Invite someone for emergency access\r\n3. Confirm the invatation on both sides\r\n\n\n### Expected Result\n\nThe e-mails should display the special characters correctly.\n\n### Actual Result\n\nThe actual e-mails look like:\r\n\r\n```\r\nYou have been invited to become an emergency contact for Stephan Windm&#252;ller.\r\nIf you do not wish to become an emergency contact for Stephan Windm&#252;ller, you can safely ignore this email.\r\n```\r\n\r\nand\r\n\r\n```\r\nThis email is to notify you that you have been confir",
+      "expected": [
+        "src/Core/Platform/Mail/HandlebarsMailService.cs"
+      ]
+    },
+    {
+      "slug": "ppy/osu",
+      "language": "dotnet",
+      "repo": "https://github.com/ppy/osu.git",
+      "license": "MIT",
+      "sha": "382c3bf717b7736bc74387b82249757ef5b12947",
+      "issue": 35973,
+      "pullRequest": 39125,
+      "task": "Using Ctrl+Enter in song select causes a broken animation in the footer\n\n### Type\n\nCosmetic\n\n### Bug description\n\nWhen you use Ctrl+Enter in song select to play a map, the footer animation looks broken. Looks like the mods button expands correctly, but the random and options buttons don't give him space, so it overlap?\n\n### Screenshots or videos\n\nhttps://github.com/user-attachments/assets/0ab14a0f-d49a-4c18-b9e2-4175ae1ccdfa\n\n### Version\n\n2025.1209.0-lazer\n\n### Logs\n\n[compressed-logs.zip](https://github.com/user-attachments/files/24103751/compressed-logs.zip)",
+      "expected": [
+        "osu.Game.Tests/Visual/UserInterface/TestSceneScreenFooter.cs",
+        "osu.Game/Screens/Footer/ScreenFooter.cs",
+        "osu.Game/Screens/Footer/ScreenFooterButton.cs"
+      ]
+    },
+    {
+      "slug": "ardalis/CleanArchitecture",
+      "language": "dotnet",
+      "repo": "https://github.com/ardalis/CleanArchitecture.git",
+      "license": "MIT",
+      "sha": "40be08e97abff8287a51f5fee129862af6e9e159",
+      "issue": 1194,
+      "pullRequest": 1197,
+      "task": "Template: UseDbGeneratedIds migration fails on SQL Server, so the app won't start on a fresh database\n\n## Summary\nApplying migrations to a **new SQL Server database** fails in `20260424000000_UseDbGeneratedIds`, and the Web app then fails to start (`MiddlewareConfig.MigrateDatabaseAsync` rethrows). On Windows the template uses SQL Server LocalDB (`DefaultConnection`) by default in Development, so a project freshly created with `dotnet new clean-arch` hits this on its first `dotnet run`.\n\n## Repro\nOn `main` (`b047a5f`), Windows, .NET 11 SDK:\n\n```powershell\n$env:ASPNETCORE_ENVIRONMENT=\"Development\"\n$env:ConnectionStrings__DefaultConnection=\"Server=(localdb)\\mssqllocaldb;Database=CleanArchRepro;Tr",
+      "expected": [
+        "src/Clean.Architecture.Infrastructure/Data/Migrations/20260424000000_UseDbGeneratedIds.cs"
+      ]
+    },
+    {
+      "slug": "DapperLib/Dapper",
+      "language": "dotnet",
+      "repo": "https://github.com/DapperLib/Dapper.git",
+      "license": "NOASSERTION",
+      "sha": "188094784256da61d7a37c43ea54c64213c2ce7c",
+      "issue": 1901,
+      "pullRequest": 2275,
+      "task": "Cell value not converted when using QueryAsync<T> with CommandFlags.None\n\nI am using the `QueryAsync<T>` method with `CommandFlags.None` so it will not be buffered.\r\n\r\n```cs\r\nCommandDefinition command = new CommandDefinition(\"SELECT 1\", flags: CommandFlags.None);\r\nIEnumerable<bool> results = await connection.QueryAsync<bool>(command);\r\nforeach (bool result in results)\r\n{\r\n}\r\n```\r\n\r\nSince I am not using a `CAST` statement, the type returned from the reader does not match the expected result type.\r\nThis leads to the following exception, which is reasonable:\r\n\r\n```\r\nSystem.InvalidCastException: Unable to cast object of type 'System.Int32' to type 'System.Boolean'.\r\n   ",
+      "expected": [
+        "Dapper/SqlMapper.Async.cs"
+      ]
+    },
+    {
+      "slug": "hellzerg/optimizer",
+      "language": "dotnet",
+      "repo": "https://github.com/hellzerg/optimizer.git",
+      "license": "GPL-3.0",
+      "sha": "0195bfa5babb4489bcb69c2b8f43c6e669ff654b",
+      "issue": 239,
+      "pullRequest": 241,
+      "task": "Hardware configuration default filename has not supported characters\n\nWhen saving hardware configuration the default date format is xx/xx/xxxx. \"/\" is not valid for a filename in\r\n![save](https://user-images.githubusercontent.com/40775865/197370232-44dcfa7e-ede6-4667-9777-bd99ba8cc900.png)\r\n Windows filesystem, it should default to xx-xx-xxxx. People who are not very computer savvy may have a problem with this.",
+      "expected": [
+        "Optimizer/Forms/MainForm.cs"
+      ]
+    },
+    {
+      "slug": "babalae/better-genshin-impact",
+      "language": "dotnet",
+      "repo": "https://github.com/babalae/better-genshin-impact.git",
+      "license": "GPL-3.0",
+      "sha": "8fa9260012905eec440d28051d174c34ef301313",
+      "issue": 3858,
+      "pullRequest": 3860,
+      "task": "[bug] 自动圣遗物分解副词条 是否已激活识别错误\n\n### 提交确认 / Checklist\n\n- [x] 我已经搜索过现有 issue，确认这不是重复问题 / I have searched existing issues and confirmed this is not a duplicate\n- [x] 我已阅读过[文档](https://www.bettergi.com/doc.html)，确认文档的内容无法解决我的问题 / I have read the [documentation](https://www.bettergi.com/doc.html) and confirmed it does not solve my problem\n- [x] 我愿意为了解决这个问题尽自己所能 / I am willing to do my part to help resolve this issue\n\n### 系统环境\n\n\nWindow 11\n\n### BetterGI 版本号\n\n0.66.0\n\n### 问题描述\n\n<img width=\"3187\" height=\"1281\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/6459661d-5eb4-4ba1-9566-9e9aebdd8247\" />\n<img width=\"680\" height=\"",
+      "expected": [
+        "BetterGenshinImpact/GameTask/AutoArtifactSalvage/AutoArtifactSalvageTask.cs"
+      ]
+    },
+    {
+      "slug": "Sonarr/Sonarr",
+      "language": "dotnet",
+      "repo": "https://github.com/Sonarr/Sonarr.git",
+      "license": "GPL-3.0",
+      "sha": "51a2412af235197ce15d7d4a17c053a8e2c26609",
+      "issue": 11981,
+      "pullRequest": 9322,
+      "task": "Don't consider Audio Commentary a 'language'\n\n### Is there an existing issue for this?\n\n- [x] I have searched the existing open and closed issues\n\n### Is your feature request related to a problem? Please describe\n\nWhen i set up rules to filter out dubs and MULTi rips as these waste space, unfortunately Radarr identifies audio commentary as a dubbed track as its usually in english and marked \"Director's Commentary\", \"Commentary\" or some version of this.\n\n### Describe the solution you'd like\n\nI would like Radarr to check the title of the track with ffmpeg or similar tools, and filter out 'commentary' matches.  This would prevent it form aut",
+      "expected": [
+        "src/NzbDrone.Core.Test/MediaFiles/EpisodeImport/Aggregation/Aggregators/Augmenters/Language/AugmentLanguageFromMediaInfoFixture.cs",
+        "src/NzbDrone.Core/MediaFiles/EpisodeImport/Aggregation/Aggregators/Augmenters/Language/AugmentLanguageFromMediaInfo.cs"
+      ]
+    },
+    {
+      "slug": "OpenRA/OpenRA",
+      "language": "dotnet",
+      "repo": "https://github.com/OpenRA/OpenRA.git",
+      "license": "GPL-3.0",
+      "sha": "78c08f1ca28f7dff7100086b010b414f9e6d075a",
+      "issue": 22659,
+      "pullRequest": 22660,
+      "task": "Utility --emmy-lua-api export crashes\n\n```\nError: Utility application crashed. See utility.log for details\nUnhandled exception. System.NotSupportedException: Command lacks support for exposing type to Lua: `System.Collections.Immutable.ImmutableArray`1[OpenRA.CVec]` required by `RegionInit`. Consider applying ScriptEmmyTypeOverrideAttribute or ISuppressInitExport\n   at OpenRA.Mods.Common.UtilityCommands.Documentation.EmmyLuaExts.<EmmyLuaString>g__EmmaLuaStringInner|1_0(Type type, String context) in /home/matthias/Entwicklung/OpenRA/OpenRA/OpenRA.Mods.Common/UtilityCommands/Documentation/ExtractEmmyLuaAPI.cs:line 444\n   at OpenRA.Mo",
+      "expected": [
+        "OpenRA.Game/Scripting/ScriptTypes.cs"
+      ]
+    }
+  ],
+  "skipped": [
+    {
+      "slug": "krahets/hello-algo",
+      "language": "python",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "openai/whisper",
+      "language": "python",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "pytorch/pytorch",
+      "language": "python",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "deepseek-ai/DeepSeek-V3",
+      "language": "python",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "karpathy/autoresearch",
+      "language": "python",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "Blankj/AndroidUtilCode",
+      "language": "java",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "TelegramMessenger/Telegram-Android",
+      "language": "java",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "chinabugotech/hutool",
+      "language": "java",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "lencx/ChatGPT",
+      "language": "rust",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "herdrdev/herdr",
+      "language": "rust",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "docusealco/docuseal",
+      "language": "ruby",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "Homebrew/homebrew-core",
+      "language": "ruby",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "mame/quine-relay",
+      "language": "ruby",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "koel/koel",
+      "language": "php",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "easychen/opc-methodology",
+      "language": "php",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "flarum/flarum",
+      "language": "php",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "phpstan/phpstan",
+      "language": "php",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "mailcow/mailcow-dockerized",
+      "language": "php",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "ntdevlabs/tiny11builder",
+      "language": "dotnet",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "BluePointLilac/ContextMenuManager",
+      "language": "dotnet",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    },
+    {
+      "slug": "TGSAN/CMWTAT_Digital_Edition",
+      "language": "dotnet",
+      "reason": "no eligible fixing pull request among the 100 most recently updated merged PRs"
+    }
+  ]
+}

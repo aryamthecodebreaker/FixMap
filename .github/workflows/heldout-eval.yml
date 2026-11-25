@@ -1,0 +1,44 @@
+name: Held-out evaluation
+
+# Runs one frozen benchmark suite once on Linux and uploads the recorded result, for cohorts
+# whose repositories cannot be checked out on Windows (for example paths containing * or ?).
+# Trigger by pushing a branch named eval/<suite>, e.g. eval/polyglot-heldout-3.
+on:
+  push:
+    branches: ["eval/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Select the suite from the branch name
+        id: suite
+        run: |
+          suite="${GITHUB_REF_NAME#eval/}"
+          if [[ ! "$suite" =~ ^[a-z0-9-]+$ ]] || [[ ! -f "benchmarks/$suite/dataset.json" ]]; then
+            echo "::error::No frozen dataset for suite '$suite'."
+            exit 1
+          fi
+          echo "name=$suite" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - run: npm run build:core
+      - name: Evaluate once
+        run: |
+          set -o pipefail
+          node scripts/evaluate-baseline.mjs --suite "${{ steps.suite.outputs.name }}" --discard-checkouts --record 2>&1 | tee evaluation.log
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: ${{ steps.suite.outputs.name }}-result
+          path: |
+            benchmarks/${{ steps.suite.outputs.name }}/baseline-results.json
+            evaluation.log
+          if-no-files-found: warn

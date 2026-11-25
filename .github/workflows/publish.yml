@@ -243,7 +243,9 @@ jobs:
           verify_npm_version() {
             local package_name=$1
             local published=""
-            for attempt in $(seq 1 30); do
+            # npm can take well over 5 minutes to serve a new version (v0.9.14 did);
+            # wait up to 15 minutes before failing the release.
+            for attempt in $(seq 1 90); do
               if published=$(npm view --prefer-online "${package_name}@${VERSION}" version 2>/dev/null) &&
                  [[ "$published" == "$VERSION" ]]; then
                 echo "Verified ${package_name}@${VERSION} on npm."
