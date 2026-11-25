@@ -45,7 +45,7 @@ export function routeReviewers(repo: RepoMap, input: ReviewRoutingInput): Review
   if (!Number.isFinite(Date.parse(input.now))) throw new Error("Review routing requires a valid assessment time.");
   const changedPaths = normalizePaths(input.changedPaths ?? repo.changedFiles);
   const diagnostics: ReviewRoutingResult["diagnostics"] = [];
-  const accumulated = new Map<string, { confidence: ReviewSuggestion["confidence"]; paths: Set<string>; evidence: ReviewEvidence[] }>();
+  const accumulated = new Map<string, Accumulated>();
   addCodeOwners(repo, changedPaths, accumulated, diagnostics);
   addAnnotations(repo, changedPaths, input.now, accumulated, diagnostics);
   addPolicy(repo, changedPaths, accumulated, diagnostics);
@@ -60,7 +60,13 @@ export function routeReviewers(repo: RepoMap, input: ReviewRoutingInput): Review
     paths: [...value.paths].sort(),
     evidence: value.evidence.sort(evidenceOrder),
     availabilityInferred: false
-  })).sort((a, b) => confidenceOrder(a.confidence) - confidenceOrder(b.confidence) || a.reviewer.localeCompare(b.reviewer));
+  })).sort((a, b) => {
+    const left = accumulated.get(a.reviewer)!;
+    const right = accumulated.get(b.reviewer)!;
+    return confidenceOrder(a.confidence) - confidenceOrder(b.confidence) ||
+      left.tier - right.tier || right.weight - left.weight || right.latest - left.latest ||
+      a.reviewer.localeCompare(b.reviewer);
+  });
   return { reviewRoutingVersion: 1, changedPaths, suggestions, diagnostics };
 }
 
@@ -211,22 +217,66 @@ function addHistory(
         sourceFingerprint: `git:${evidence.hash}`,
         path,
         detail: `${author} authored ${evidence.count} bounded non-merge commit${evidence.count === 1 ? "" : "s"} touching ${path}; current availability or employment is not inferred.`
+      }, { tier: 0, weight: evidence.count, latest: evidence.latest });
+    }
+  }
+  // Too few people touched the exact files: widen to the same folders, then to the most active
+  // recent committers, until three people are suggested. Each is labelled with the wider evidence
+  // and ranks below anyone with direct file history.
+  const commits = (repo.history?.commits ?? []).slice(0, MAX_HISTORY_COMMITS);
+  const anchor = paths[0];
+  if (accumulated.size >= 3 || commits.length === 0 || anchor === undefined) return;
+  const folders = [...new Set(paths.map((path) => path.split("/").slice(0, -1).join("/")))].filter(Boolean);
+  const widen = (tier: number, matches: (file: string) => boolean, describe: (author: string, count: number) => string) => {
+    const counts = new Map<string, { count: number; latest: number; hash: string }>();
+    for (const commit of commits) {
+      if (!commit.author || !commit.files.some(matches)) continue;
+      const previous = counts.get(commit.author);
+      counts.set(commit.author, {
+        count: (previous?.count ?? 0) + 1,
+        latest: Math.max(previous?.latest ?? 0, commit.committedAt),
+        hash: previous && previous.latest > commit.committedAt ? previous.hash : commit.hash
       });
     }
+    const ranked = [...counts].filter(([author]) => !accumulated.has(author.trim()))
+      .sort((a, b) => b[1].count - a[1].count || b[1].latest - a[1].latest || a[0].localeCompare(b[0]));
+    for (const [author, evidence] of ranked.slice(0, Math.max(0, 3 - accumulated.size))) {
+      add(accumulated, author, "low", anchor, {
+        kind: "git-history",
+        sourceFingerprint: `git:${evidence.hash}`,
+        path: anchor,
+        detail: `${describe(author, evidence.count)}; nobody with more direct history was found, and current availability or employment is not inferred.`
+      }, { tier, weight: evidence.count, latest: evidence.latest });
+    }
+  };
+  if (folders.length > 0) {
+    widen(1, (file) => folders.some((folder) => file.startsWith(`${folder}/`)),
+      (author, count) => `${author} authored ${count} bounded non-merge commit${count === 1 ? "" : "s"} in ${folders.join(", ")}`);
+  }
+  if (accumulated.size < 3) {
+    widen(2, () => true,
+      (author, count) => `${author} authored ${count} of the newest ${commits.length.toLocaleString()} non-merge commits in this repository`);
   }
 }
 
-type Accumulated = { confidence: ReviewSuggestion["confidence"]; paths: Set<string>; evidence: ReviewEvidence[] };
+type Accumulated = { confidence: ReviewSuggestion["confidence"]; paths: Set<string>; evidence: ReviewEvidence[]; tier: number; weight: number; latest: number };
+// Ownership files, annotations and policy are direct statements (tier 0, no weight); history
+// is weighted by commits, and widened history (folder, repository) ranks after direct history.
+type RankHint = { tier: number; weight: number; latest: number };
 function add(
   accumulated: Map<string, Accumulated>,
   reviewer: string,
   confidence: ReviewSuggestion["confidence"],
   path: string,
-  evidence: ReviewEvidence
+  evidence: ReviewEvidence,
+  rank: RankHint = { tier: 0, weight: 0, latest: 0 }
 ): void {
   const identity = reviewer.trim();
   if (!identity || identity.length > 200 || /[\0-\x1f\x7f]/.test(identity)) return;
-  const existing = accumulated.get(identity) ?? { confidence, paths: new Set<string>(), evidence: [] };
+  const existing = accumulated.get(identity) ?? { confidence, paths: new Set<string>(), evidence: [], tier: rank.tier, weight: 0, latest: 0 };
+  existing.tier = Math.min(existing.tier, rank.tier);
+  existing.weight += rank.weight;
+  existing.latest = Math.max(existing.latest, rank.latest);
   if (confidenceOrder(confidence) < confidenceOrder(existing.confidence)) existing.confidence = confidence;
   existing.paths.add(path);
   const routed = { ...evidence, changedPath: path };

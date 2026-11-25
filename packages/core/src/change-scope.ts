@@ -28,10 +28,12 @@ export type ChangeScopeTraversal = {
 };
 
 export type ChangeScopeEvidence = {
-  kind: "declared" | "dependency" | "dependent";
+  kind: "declared" | "dependency" | "dependent" | "co-change";
   from?: string;
   to: string;
   reason: string;
+  /** For co-change evidence: commits that changed both paths. */
+  occurrences?: number;
 };
 
 export type ChangeScopePath = {
@@ -103,9 +105,13 @@ const MAX_ANCHORS = 64;
 const MAX_DEPTH = 8;
 const MAX_NODES = 2_000;
 
+/** The impact graph's rule: a file must have changed alongside the anchor at least twice. */
+const MIN_CO_CHANGE_OCCURRENCES = 2;
+
 /**
- * Expands only explicit path anchors over exact repository import edges. Product meaning is
- * never inferred from anchor names or file text.
+ * Expands only explicit path anchors over exact repository import edges and, when Git history
+ * was scanned, files that repeatedly changed in the same commits. Product meaning is never
+ * inferred from anchor names or file text.
  */
 export function buildChangeScope(repo: RepoMap, input: ChangeScopeInput): ChangeScopeResult {
   if (!Number.isFinite(Date.parse(input.asOf))) throw new Error("Change scope requires a valid asOf timestamp.");
@@ -194,6 +200,44 @@ export function buildChangeScope(repo: RepoMap, input: ChangeScopeInput): Change
     }
   }
 
+  // Files that changed in the same commits as a selected path, at least twice. They join at
+  // distance 1 when imports did not already reach them, and order before weaker neighbours.
+  const coChangeOccurrences = new Map<string, number>();
+  if (repo.history && traversal.direction === "both" && traversal.maxDepth > 0) {
+    for (const seed of selectedPaths.keys()) {
+      const seedCommits = repo.history.commits.filter((commit) => commit.files.includes(seed));
+      const counts = new Map<string, number>();
+      for (const commit of seedCommits) {
+        for (const path of commit.files) {
+          if (path !== seed && fileByPath.has(path) && !selectedPaths.has(path)) counts.set(path, (counts.get(path) ?? 0) + 1);
+        }
+      }
+      for (const [path, occurrences] of [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))) {
+        if (occurrences < MIN_CO_CHANGE_OCCURRENCES) continue;
+        const evidence: ChangeScopeEvidence = {
+          kind: "co-change",
+          from: seed,
+          to: path,
+          reason: `${path} changed alongside ${seed} in ${occurrences} of its ${seedCommits.length} scanned commits.`,
+          occurrences
+        };
+        coChangeOccurrences.set(path, Math.max(coChangeOccurrences.get(path) ?? 0, occurrences));
+        const existing = affected.get(path);
+        if (existing) {
+          if (!existing.evidence.some((entry) => evidenceKey(entry) === evidenceKey(evidence))) existing.evidence.push(evidence);
+          existing.distance = Math.min(existing.distance, 1);
+          continue;
+        }
+        if (visited.size >= traversal.maxNodes) {
+          omitted.add(path);
+          continue;
+        }
+        visited.add(path);
+        affected.set(path, { distance: 1, evidence: [evidence] });
+      }
+    }
+  }
+
   if (omitted.size > 0) {
     diagnostics.push({
       code: "scope-bounded",
@@ -210,7 +254,9 @@ export function buildChangeScope(repo: RepoMap, input: ChangeScopeInput): Change
     .sort(pathOrder);
   const affectedPaths = [...affected]
     .map(([path, entry]) => scopePath(repositoryIdentity, fileByPath.get(path)!, path, "affected", entry.distance, entry.evidence, input))
-    .sort(pathOrder);
+    .sort((left, right) => left.distance - right.distance ||
+      (coChangeOccurrences.get(right.path) ?? 0) - (coChangeOccurrences.get(left.path) ?? 0) ||
+      left.path.localeCompare(right.path));
   const allPaths = [...selected.map((entry) => entry.path), ...affectedPaths.map((entry) => entry.path)];
   const pathSet = new Set(allPaths);
   const scopeRepo = { ...repo, changedFiles: allPaths };

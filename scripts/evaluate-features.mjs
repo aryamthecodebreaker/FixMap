@@ -68,6 +68,10 @@ for (const [index, benchmark] of selected.entries()) {
 
 if (only) {
   console.log(JSON.stringify(results, null, 2));
+} else if (args.includes("--no-record")) {
+  // Development measurement: print the verdicts without touching the recorded result.
+  console.log(renderSummary(summarize(results)));
+  console.log(JSON.stringify(results.map((entry) => ({ slug: entry.slug, changeScope: entry.changeScope, reviewers: entry.reviewers }))));
 } else {
   const summary = summarize(results);
   await writeFile(resultsPath, `${JSON.stringify({ featureBenchVersion: 1, recordedAt: new Date().toISOString().slice(0, 10), summary, cases: results }, null, 2)}\n`);
