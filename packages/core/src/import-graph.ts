@@ -167,6 +167,14 @@ export function buildImportGraph(files: RepoFile[], custom?: ReturnType<typeof c
     truncatedEdges += Math.max(0, project.pathDependencies.length - MAX_EDGES_PER_FILE);
   }
 
+  for (const project of rubyProjects) {
+    for (const gemfile of project.pathGems.slice(0, MAX_EDGES_PER_FILE)) {
+      addEdge(imports, project.path, gemfile);
+      addEdge(importedBy, gemfile, project.path);
+    }
+    truncatedEdges += Math.max(0, project.pathGems.length - MAX_EDGES_PER_FILE);
+  }
+
   // Cargo manifests: the build script Cargo runs first, and each literal path dependency's manifest.
   const cargoManifestByRoot = new Map(rustProjects.map((project) => [project.root, project.path]));
   for (const project of rustProjects) {
