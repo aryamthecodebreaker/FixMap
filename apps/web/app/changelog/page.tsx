@@ -44,9 +44,30 @@ type Release = {
 
 const releases: Release[] = [
   {
+    version: "0.9.12",
+    date: "November 25, 2026",
+    label: "Latest release",
+    summary: "The self-hosted container is now security-scanned on every change, and .NET projects are understood the way MSBuild reads them.",
+    groups: [
+      {
+        label: "Added",
+        items: [
+          ".NET: .slnx solutions, shared Directory.Build.props and .targets settings, the SDK's default usings, and source files linked in from other folders.",
+          "Every container change is scanned for known vulnerabilities on Intel and ARM, with a parts list (SBOM) of each image kept with the run."
+        ]
+      },
+      {
+        label: "Security",
+        items: [
+          "The first scan found the MCP image carried build tools it never runs, one with a critical flaw; it now contains only what it needs.",
+          "Both images apply Debian security updates when built and no longer include npm."
+        ]
+      }
+    ]
+  },
+  {
     version: "0.9.11",
     date: "November 24, 2026",
-    label: "Latest release",
     summary: "Python, Java, Go, Rust, Ruby, PHP and .NET support is out of preview after passing a fresh test on 28 real fixes from projects FixMap had never seen.",
     groups: [
       {

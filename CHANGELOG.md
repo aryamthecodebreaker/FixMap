@@ -6,6 +6,22 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.12 - 2026-11-25
+
+### Added
+
+- .NET: `.slnx` solution files are read like `.sln` (literal, repository-contained `<Project Path>` entries, including inside folders).
+- .NET: the nearest `Directory.Build.props` and `Directory.Build.targets` apply to each project, following literal imports and the documented `GetPathOfFileAbove` parent chain (cycle-safe, depth-bounded). Their `<Using Include>`/`<Using Remove>` items and `ImplicitUsings` setting are evaluated in MSBuild order.
+- .NET: `ImplicitUsings` enabled in a C# project expands to the SDK's default namespaces (Microsoft.NET.Sdk, .Web and .Worker).
+- .NET: a `<Compile Include>` that pulls in a source file from outside the project directory makes that project own the file, for import edges and test routing. A file linked by several projects is left unowned rather than guessed.
+- Container workflow: both self-hosted image targets are scanned on amd64 and arm64, a CycloneDX SBOM of each is kept with the run, and any fixable HIGH or CRITICAL vulnerability fails the build.
+
+### Fixed
+
+- The scanner now reads `.slnx`, `.props` and `.targets` files; before, their text was never sampled, so none of the above could be seen.
+- The MCP container image shipped the whole build tree, including ESLint, esbuild and Next.js; the first scan found a CRITICAL Go standard-library flaw in the esbuild binary. It now contains only the CLI's production dependencies.
+- Both container images apply Debian security updates at build time (the first scan found 6 fixable HIGH findings in the base) and no longer contain npm or corepack, which never run there.
+
 ## 0.9.11 - 2026-11-24
 
 ### Changed
