@@ -157,7 +157,7 @@ export default function EvidencePage() {
 
       <section className="section page-shell" aria-labelledby="languages-title">
         <div className="section-heading split-heading">
-          <div><p className="eyebrow">Seven more languages · {siteStats.languages.cases} held-out cases</p><h2 id="languages-title">Every language passed a fresh never-seen test.</h2></div>
+          <div><p className="eyebrow">Seven more languages · {siteStats.languages.cases} held-out cases</p><h2 id="languages-title">About as good as keyword search on fresh code.</h2></div>
           <p>Real fixed issues in Python, Java, Go, Rust, Ruby, PHP, and .NET repositories FixMap was never tuned on, chosen and frozen by a rule committed before the run. “Top 5” means the file changed by the merged fix appeared in the first five results.</p>
         </div>
         <div className="results-table" role="table" aria-label="Top-5 results by language for FixMap and BM25">
@@ -167,7 +167,7 @@ export default function EvidencePage() {
           ))}
           <div className="results-row" role="row"><span role="cell"><strong>All seven</strong></span><span role="cell"><strong>{siteStats.languages.cases}</strong></span><span role="cell"><strong>{rate(siteStats.languages.fixmapTop5)}</strong></span><span role="cell"><strong>{rate(siteStats.languages.bm25Top5)}</strong></span></div>
         </div>
-        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap&apos;s lead over BM25 here is not statistically significant</strong> (paired McNemar exact test, p = {siteStats.languages.top5PValue}; FixMap&apos;s 95% interval is {Math.round((siteStats.languages.fixmapInterval?.[0] ?? 0) * 100)}–{Math.round((siteStats.languages.fixmapInterval?.[1] ?? 0) * 100)}%). Every language found at least one fix and FixMap was not worse than BM25 overall, the two bars written before the run, so language support is no longer labelled preview. A first test on 22 November failed on Java (0 of 4); those cases are now development cases, and this set is new.</p></div>
+        <div className="evidence-callout"><WarningCircle size={25} aria-hidden /><p><strong>FixMap is not significantly better than keyword search here.</strong> We set the bar before the run: more fixes found in the top 5 than BM25, with p below 0.05. It missed (paired McNemar exact test, p = {siteStats.languages.top5PValue}; FixMap&apos;s 95% interval is {Math.round((siteStats.languages.fixmapInterval?.[0] ?? 0) * 100)}–{Math.round((siteStats.languages.fixmapInterval?.[1] ?? 0) * 100)}%). At the first result BM25 is slightly ahead ({rate(siteStats.languages.bm25Top1)} vs {rate(siteStats.languages.fixmapTop1)}). Language support left preview on an earlier fresh test of 28 cases, whose bar was &ldquo;not worse than keyword search&rdquo;; this larger test agrees with that and no more.</p></div>
       </section>
 
       <section className="section page-shell">

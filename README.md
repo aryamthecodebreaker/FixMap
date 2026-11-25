@@ -480,7 +480,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: aryamthecodebreaker/FixMap@v0.9.14
+      - uses: aryamthecodebreaker/FixMap@v0.9.15
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
