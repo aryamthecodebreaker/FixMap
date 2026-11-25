@@ -13,9 +13,9 @@ import { Install } from "./_components/install";
 import { LoopFilm } from "./_components/loop-film";
 import { Mark } from "./_components/logo";
 import { PrTabs } from "./_components/pr-tabs";
-import { Review } from "./_components/review";
 import { actionWorkflow, repoUrl, siteStats } from "./_lib/site-data";
 import { loadUsageStats, USAGE_REFRESH_SECONDS } from "./_lib/usage-stats";
+import { Review } from "./demo";
 
 export const revalidate = 300;
 

@@ -2,9 +2,9 @@
 
 import { ArrowsClockwise, ChatCircleText, CheckCircle, Flask, Question, Warning } from "@phosphor-icons/react";
 import { useDeferredValue, useMemo, useState } from "react";
-import { Mark } from "./logo";
-import { buildHomepageReport, homepageDefaultTask, homepagePresets, selectHomepageEvidence } from "../_lib/homepage-demo";
-import { sampleRepo } from "../sample-repo";
+import { Mark } from "./_components/logo";
+import { buildHomepageReport, homepageDefaultTask, homepagePresets, selectHomepageEvidence } from "./_lib/homepage-demo";
+import { sampleRepo } from "./sample-repo";
 
 const KEYWORDS = new Set(["import", "from", "export", "const", "let", "async", "await", "function", "return", "if", "else", "new", "throw", "type", "interface", "class", "extends", "for", "of", "in", "true", "false", "null", "undefined"]);
 
@@ -59,6 +59,7 @@ function startHere(reasons: string[]): string {
   return "Start here: this is the strongest match for your task.";
 }
 
+/** Website demo where visitors describe an issue and inspect the top-ranked file. */
 export function Review() {
   const [task, setTask] = useState<string>(homepageDefaultTask);
   const deferredTask = useDeferredValue(task);
