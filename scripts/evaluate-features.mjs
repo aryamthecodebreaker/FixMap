@@ -4,18 +4,28 @@
 //   node scripts/evaluate-features.mjs                 run every case (network on first run) and record results
 //   node scripts/evaluate-features.mjs --case <slug>   run one case, print it, record nothing
 //   node scripts/evaluate-features.mjs --check-recorded recompute every verdict from the recorded per-case data
+//   --bench feature-bench-2  use the second bench (PREREGISTRATION-2.md); --discard-checkouts deletes each clone after scoring
 //
 // Needs `gh` (authenticated) for pull request head SHAs and network for Git fetches, so it is a
 // manual/scheduled evaluation like evaluate-external.mjs, not part of `npm run ci`.
 import { execFileSync } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { materializePinnedRepository } from "./lib/external-cache.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const resultsPath = join(root, "benchmarks", "feature-bench", "results.json");
 const args = process.argv.slice(2);
+// Bench 1 (PREREGISTRATION.md) or bench 2 (PREREGISTRATION-2.md): same bars, different frozen cases.
+const BENCHES = {
+  "feature-bench": { results: "results.json", suites: ["heldout", "polyglot-heldout"] },
+  "feature-bench-2": { results: "results-2.json", suites: ["polyglot-heldout-2", "polyglot-heldout-3"] }
+};
+const benchName = args.includes("--bench") ? args[args.indexOf("--bench") + 1] : "feature-bench";
+const bench = BENCHES[benchName];
+if (!bench) throw new Error(`Unknown --bench ${benchName}; expected one of ${Object.keys(BENCHES).join(", ")}.`);
+const resultsPath = join(root, "benchmarks", "feature-bench", bench.results);
+const discardCheckouts = args.includes("--discard-checkouts");
 const MAX_SCOPE = 20;
 const HISTORY_DEPTH = 400;
 const MAX_MERGE_BASE_DEPTH = 2_000;
@@ -31,10 +41,11 @@ if (args.includes("--check-recorded")) {
 }
 
 const core = await import(pathToFileURL(join(root, "packages", "core", "dist", "index.js")).href);
-const cases = [
-  ...JSON.parse(await readFile(join(root, "benchmarks", "heldout", "dataset.json"), "utf8")).cases.map((entry) => ({ ...entry, language: entry.language ?? "typescript/javascript", suite: "heldout" })),
-  ...JSON.parse(await readFile(join(root, "benchmarks", "polyglot-heldout", "dataset.json"), "utf8")).cases.map((entry) => ({ ...entry, suite: "polyglot-heldout" }))
-];
+const cases = [];
+for (const suite of bench.suites) {
+  const dataset = JSON.parse(await readFile(join(root, "benchmarks", suite, "dataset.json"), "utf8"));
+  cases.push(...dataset.cases.map((entry) => ({ ...entry, language: entry.language ?? "typescript/javascript", suite })));
+}
 const only = args.includes("--case") ? args[args.indexOf("--case") + 1] : undefined;
 const selected = only ? cases.filter((entry) => entry.slug === only) : cases;
 if (selected.length === 0) throw new Error(`No case ${only}.`);
@@ -43,6 +54,7 @@ const git = (cwd, argv, options = {}) => execFileSync("git", argv, { cwd, encodi
 const tryGit = (cwd, argv) => { try { return git(cwd, argv); } catch { return undefined; } };
 
 const results = [];
+const pendingDiscard = [];
 for (const [index, benchmark] of selected.entries()) {
   process.stderr.write(`[${index + 1}/${selected.length}] ${benchmark.slug} #${benchmark.pullRequest}\n`);
   try {
@@ -51,6 +63,7 @@ for (const [index, benchmark] of selected.entries()) {
     results.push({ slug: benchmark.slug, language: benchmark.language, pullRequest: benchmark.pullRequest, status: "unavailable", reason: String(error?.message ?? error).split("\n")[0].slice(0, 300) });
   }
   process.stderr.write(`  -> ${JSON.stringify(results.at(-1)).slice(0, 400)}\n`);
+  for (const dir of pendingDiscard.splice(0)) await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }
 
 if (only) {
@@ -63,6 +76,7 @@ if (only) {
 
 async function runCase(benchmark) {
   const dir = await materializePinnedRepository(benchmark);
+  if (discardCheckouts) pendingDiscard.push(dir);
   const [owner, repository] = benchmark.slug.split("/");
   const head = execFileSync("gh", ["api", `repos/${owner}/${repository}/pulls/${benchmark.pullRequest}`, "--jq", ".head.sha"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
   if (!/^[0-9a-f]{40}$/.test(head)) throw new Error(`no head SHA for pull request ${benchmark.pullRequest}`);

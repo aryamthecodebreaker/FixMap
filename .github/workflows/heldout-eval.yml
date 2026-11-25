@@ -2,7 +2,8 @@ name: Held-out evaluation
 
 # Runs one frozen benchmark suite once on Linux and uploads the recorded result, for cohorts
 # whose repositories cannot be checked out on Windows (for example paths containing * or ?).
-# Trigger by pushing a branch named eval/<suite>, e.g. eval/polyglot-heldout-3.
+# Trigger by pushing a branch named eval/<suite>, e.g. eval/polyglot-heldout-3, or
+# eval/feature-bench-2 for the second real-world feature bench.
 on:
   push:
     branches: ["eval/**"]
@@ -23,7 +24,9 @@ jobs:
         id: suite
         run: |
           suite="${GITHUB_REF_NAME#eval/}"
-          if [[ ! "$suite" =~ ^[a-z0-9-]+$ ]] || [[ ! -f "benchmarks/$suite/dataset.json" ]]; then
+          if [[ "$suite" =~ ^feature-bench(-[0-9]+)?$ ]] && [[ -f "benchmarks/feature-bench/PREREGISTRATION${suite#feature-bench}.md" ]]; then
+            echo "kind=features" >> "$GITHUB_OUTPUT"
+          elif [[ ! "$suite" =~ ^[a-z0-9-]+$ ]] || [[ ! -f "benchmarks/$suite/dataset.json" ]]; then
             echo "::error::No frozen dataset for suite '$suite'."
             exit 1
           fi
@@ -31,14 +34,22 @@ jobs:
       - run: npm ci
       - run: npm run build:core
       - name: Evaluate once
+        env:
+          # The feature bench looks up pull request heads with gh (read-only public data).
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -o pipefail
-          node scripts/evaluate-baseline.mjs --suite "${{ steps.suite.outputs.name }}" --discard-checkouts --record 2>&1 | tee evaluation.log
+          if [[ "${{ steps.suite.outputs.kind }}" == "features" ]]; then
+            node scripts/evaluate-features.mjs --bench "${{ steps.suite.outputs.name }}" --discard-checkouts 2>&1 | tee evaluation.log
+          else
+            node scripts/evaluate-baseline.mjs --suite "${{ steps.suite.outputs.name }}" --discard-checkouts --record 2>&1 | tee evaluation.log
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: ${{ steps.suite.outputs.name }}-result
           path: |
             benchmarks/${{ steps.suite.outputs.name }}/baseline-results.json
+            benchmarks/feature-bench/results*.json
             evaluation.log
           if-no-files-found: warn
