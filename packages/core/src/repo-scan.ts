@@ -1621,6 +1621,8 @@ function classifyConventionalTextFile(path: string): "documentation" | "config" 
   if (CONVENTIONAL_DOCUMENT_NAMES.has(name)) return "documentation";
   if (CONVENTIONAL_CONFIG_NAMES.has(name)) return "config";
   if (/\.(?:csproj|fsproj|vbproj|sln|slnx|props|targets)$/.test(name)) return "config";
+  // A gemspec declares a gem's dependencies (a Rails engine's Rails dependency lives there).
+  if (name.endsWith(".gemspec")) return "config";
   // Go's vendor manifest decides which vendored packages imports resolve to.
   if (name === "modules.txt" && /(?:^|\/)vendor\/modules\.txt$/i.test(path.replace(/\\/g, "/"))) return "config";
   return undefined;
