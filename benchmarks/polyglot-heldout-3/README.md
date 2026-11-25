@@ -65,3 +65,32 @@ API, account, or upload behavior to the FixMap product.
   `heldout-eval.yml`, branch `eval/polyglot-heldout-3`), with the same frozen dataset and
   FixMap 0.9.14 ranking. Earlier cohorts were measured on Windows; results are compared only
   within this cohort, where both arms ran on the same Linux checkouts.
+
+## Result, 2026-11-25 (measured once on Linux, FixMap 0.9.14 ranking)
+
+| Condition | Outcome |
+| --- | --- |
+| 1. No silent failures | Pass: 105 of 105 cases scanned and ranked without error. |
+| 2. A significant win over keyword search | **Fail**: FixMap Top-5 73/105 (69.5%) vs BM25-over-code 69/105 (65.7%); 14 FixMap-only vs 10 BM25-only cases, paired McNemar exact p = 0.54. |
+
+**Decision: the claim is not made.** On never-seen code in these seven languages FixMap is
+about as good as keyword search, not significantly better. At Top-1 BM25 is slightly ahead
+(44 vs 40 of 105, p = 0.54).
+
+| Language | FixMap Top-5 | BM25 Top-5 |
+| --- | --- | --- |
+| Python | 9/15 | 11/15 |
+| Java | 13/15 | 12/15 |
+| Go | 7/15 | 8/15 |
+| Rust | 11/15 | 12/15 |
+| Ruby | 12/15 | 9/15 |
+| PHP | 12/15 | 11/15 |
+| .NET (C#) | 9/15 | 6/15 |
+
+FixMap's 95% interval for Top-5 is 60.2-77.5%. Of its 32 misses, 24 are rerank misses (the
+fixing file was a candidate but ranked below the Top-5) and 8 are candidate-recall misses.
+
+What this corrects: across all earlier recorded cohorts, cases where only one method found
+the file split about 3 to 1 for FixMap. Most of those cohorts were development sets FixMap
+had been tuned on. On this fresh, larger set the split is 14 to 10. These cases are now
+development cases; any ranking change motivated by them needs another fresh cohort.
