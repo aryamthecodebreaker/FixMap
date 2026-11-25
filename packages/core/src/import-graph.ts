@@ -167,6 +167,23 @@ export function buildImportGraph(files: RepoFile[], custom?: ReturnType<typeof c
     truncatedEdges += Math.max(0, project.pathDependencies.length - MAX_EDGES_PER_FILE);
   }
 
+  // Cargo manifests: the build script Cargo runs first, and each literal path dependency's manifest.
+  const cargoManifestByRoot = new Map(rustProjects.map((project) => [project.root, project.path]));
+  for (const project of rustProjects) {
+    const targets = [
+      ...(project.buildScript ? [project.buildScript] : []),
+      ...project.pathDependencies.flatMap((dependency) => {
+        const manifest = cargoManifestByRoot.get(dependency.root);
+        return manifest && manifest !== project.path ? [manifest] : [];
+      })
+    ];
+    for (const target of [...new Set(targets)].slice(0, MAX_EDGES_PER_FILE)) {
+      addEdge(imports, project.path, target);
+      addEdge(importedBy, target, project.path);
+    }
+    truncatedEdges += Math.max(0, new Set(targets).size - MAX_EDGES_PER_FILE);
+  }
+
   return {
     imports,
     importedBy,

@@ -249,6 +249,12 @@ const rustAdapter: LanguageAdapter = {
     for (const match of text.matchAll(/^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/gm)) {
       if (match[1] && !pathModules.has(match[1])) imports.push({ adapter: "rust", specifier: `self::${match[1]}`, importedNames: [], wildcard: false });
     }
+    // include!/include_str!/include_bytes! with a literal path read that file at compile time,
+    // relative to the current file. Paths built with concat!/env! (OUT_DIR) are only known
+    // after a build script runs, so they stay unresolved.
+    for (const match of text.matchAll(/\binclude(?:_str|_bytes)?!\s*\(\s*"([^"\\\n]+)"\s*\)/g)) {
+      if (match[1]) imports.push({ adapter: "rust", specifier: `file:${match[1]}`, importedNames: [], wildcard: false });
+    }
     return uniqueImports(imports);
   },
   extractDefinitions(text) {
