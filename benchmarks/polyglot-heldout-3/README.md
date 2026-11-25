@@ -54,3 +54,14 @@ development cases only.
 
 This collection uses public GitHub metadata during development only. It adds no network,
 API, account, or upload behavior to the FixMap product.
+
+## Run log
+
+- 2026-11-25, first attempt on Windows: stopped at case 64 of 105 when Git could not check out
+  `CocoaPods/CocoaPods` (fixture paths contain `*` and `?`, which Windows cannot create). The
+  run prints only timings until it finishes, so no hit or miss was observed and nothing was
+  recorded. No code that affects ranking changed before the rerun.
+- The measurement is therefore run once on Linux (GitHub Actions `ubuntu-24.04`, workflow
+  `heldout-eval.yml`, branch `eval/polyglot-heldout-3`), with the same frozen dataset and
+  FixMap 0.9.14 ranking. Earlier cohorts were measured on Windows; results are compared only
+  within this cohort, where both arms ran on the same Linux checkouts.
