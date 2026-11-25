@@ -6,6 +6,21 @@ Accuracy figures inside a released entry are the numbers measured **at that rele
 left as written. The current numbers live on the [evidence page](https://fixmap.aryam.me/evidence),
 which is generated from the recorded results rather than transcribed by hand.
 
+## 0.9.14 - 2026-11-25
+
+### Added
+
+- Rust: path dependencies are read from every form Cargo accepts: `[dependencies.<name>]` tables, dotted keys (`core.path = "../core"`), multi-line inline tables, and `[target.<cfg>.dependencies]` tables (FixMap selects no platform, so all are kept). Comments are only stripped outside strings.
+- Rust: a crate's build script (`[package] build = "..."`, or `build.rs` unless `build = false`) and its path dependencies' manifests are linked from `Cargo.toml` in the impact graph.
+- Rust: `include!`, `include_str!` and `include_bytes!` with a literal path link to that file. Paths built with `concat!(env!("OUT_DIR"), ...)` only exist after a build and stay unresolved.
+- Ruby: `config.autoload_lib(ignore: ...)` and literal `autoload_paths`/`eager_load_paths` entries (`Rails.root.join(...)`, `"#{config.root}/..."`, `%W(...)`) add to the autoloaded files.
+- Ruby: a Rails engine (`class Engine < Rails::Engine` under `lib/`) autoloads its own `app/`, with its Rails dependency read from the Gemfile or, for a `gemspec` Gemfile, the gemspec. A host app that pulls an engine in with `gem ..., path:` sees the engine's constants, and the two Gemfiles are linked.
+- Ruby: the only `Rake::TestTask` with a custom name routes as `rake <name>`.
+
+### Fixed
+
+- The scanner now reads `.gemspec` files.
+
 ## 0.9.13 - 2026-11-25
 
 ### Added

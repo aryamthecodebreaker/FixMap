@@ -320,6 +320,10 @@ var rustAdapter = {
       if (match[1] && !pathModules.has(match[1]))
         imports.push({ adapter: "rust", specifier: `self::${match[1]}`, importedNames: [], wildcard: false });
     }
+    for (const match of text2.matchAll(/\binclude(?:_str|_bytes)?!\s*\(\s*"([^"\\\n]+)"\s*\)/g)) {
+      if (match[1])
+        imports.push({ adapter: "rust", specifier: `file:${match[1]}`, importedNames: [], wildcard: false });
+    }
     return uniqueImports(imports);
   },
   extractDefinitions(text2) {
@@ -1855,9 +1859,9 @@ function buildRubyProjects(files) {
   const shells = manifests.map((file) => ({ path: file.path, root: directoryOf3(file.path) }));
   const rubyEvidenceFiles = files.filter((file) => {
     const name = file.path.split("/").pop()?.toLowerCase() ?? "";
-    return file.path.toLowerCase().endsWith(".rb") || file.path.toLowerCase().endsWith(".rake") || name === "gemfile" || name === "rakefile" || name === ".rspec";
+    return file.path.toLowerCase().endsWith(".rb") || file.path.toLowerCase().endsWith(".rake") || name === "gemfile" || name === "rakefile" || name === ".rspec" || name.endsWith(".gemspec");
   });
-  return manifests.map((manifest) => {
+  const projects = manifests.map((manifest) => {
     const root = directoryOf3(manifest.path);
     const scoped = rubyEvidenceFiles.filter((file) => rubyProjectForPath(shells, file.path)?.path === manifest.path);
     const rspecEvidence = /* @__PURE__ */ new Set();
@@ -1884,12 +1888,30 @@ function buildRubyProjects(files) {
     });
     if (application)
       railsEvidence.add(application.path);
-    const autoloadFiles = railsEvidence.size === 2 ? scoped.filter((file) => {
+    const engine = scoped.find((file) => {
       const relative6 = root ? file.path.slice(root.length + 1) : file.path;
-      return /^app\/(?!assets(?:\/|$)|javascript(?:\/|$)|views(?:\/|$))[^/]+\/.+\.rb$/i.test(relative6);
+      return /^lib\/(?:.+\/)?engine\.rb$/i.test(relative6) && /\bclass\s+Engine\s*<\s*(?:::)?Rails::Engine\b/.test(file.textSample);
+    });
+    if (engine)
+      railsEvidence.add(engine.path);
+    const gemspecRails = engine && /^\s*gemspec\b/m.test(manifest.textSample) ? scoped.find((file) => file.path.toLowerCase().endsWith(".gemspec") && /\badd_(?:runtime_)?dependency\s*\(?\s*["'](?:rails|railties)["']/.test(file.textSample)) : void 0;
+    if (gemspecRails)
+      railsEvidence.add(gemspecRails.path);
+    const isRails = (railsEvidence.has(manifest.path) || Boolean(gemspecRails)) && (Boolean(application) || Boolean(engine));
+    const extraRoots = application ? customAutoloadRoots(application.textSample, root) : { roots: [], ignored: [] };
+    const autoloadFiles = isRails ? scoped.filter((file) => {
+      if (!file.path.toLowerCase().endsWith(".rb"))
+        return false;
+      const relative6 = root ? file.path.slice(root.length + 1) : file.path;
+      if (/^app\/(?!assets(?:\/|$)|javascript(?:\/|$)|views(?:\/|$))[^/]+\/.+\.rb$/i.test(relative6))
+        return true;
+      return extraRoots.roots.some((extra) => file.path.startsWith(`${extra}/`)) && !extraRoots.ignored.some((ignored) => file.path.startsWith(`${ignored}/`));
     }).map((file) => file.path).sort((left, right) => left.localeCompare(right)) : [];
     const rakefile = scoped.find((file) => file.path.split("/").pop()?.toLowerCase() === "rakefile");
-    const rakeTestPath = rakefile && /\b(?:Rake::TestTask|task\s*(?:\(|\s)\s*:test\b)/.test(rakefile.textSample) ? rakefile.path : void 0;
+    const rakeTasks = rakefile ? minitestRakeTasks(rakefile.textSample) : [];
+    const rakeTestPath = rakefile && (rakeTasks.includes("test") || /\btask\s*(?:\(|\s)\s*:test\b/.test(rakefile.textSample)) ? rakefile.path : void 0;
+    const rakeTestTask = !rakeTestPath && rakefile && rakeTasks.length === 1 ? rakeTasks[0] : void 0;
+    const pathGems = [...manifest.textSample.matchAll(/^\s*gem\s*\(?\s*["'][^"']+["'][^\n]*?\bpath\s*(?::|=>)\s*["']([^"'#$]+)["']/gm)].map((match) => normalizeRelative(root, match[1] ?? "")).filter((target) => target !== void 0).map((target) => manifests.find((candidate) => directoryOf3(candidate.path) === target)?.path).filter((path) => path !== void 0 && path !== manifest.path);
     return {
       path: manifest.path,
       root,
@@ -1897,9 +1919,75 @@ function buildRubyProjects(files) {
       minitestEvidence: [...minitestEvidence].sort((left, right) => left.localeCompare(right)),
       railsEvidence: [...railsEvidence].sort((left, right) => left.localeCompare(right)),
       autoloadFiles,
-      ...rakeTestPath ? { rakeTestPath } : {}
+      ...rakeTestPath ? { rakeTestPath } : {},
+      ...rakeTestTask && rakefile ? { rakeTestTask, rakeTestPath: rakefile.path } : {},
+      pathGems: [...new Set(pathGems)].sort((left, right) => left.localeCompare(right))
     };
   });
+  const byPath = new Map(projects.map((project) => [project.path, project]));
+  for (const project of projects) {
+    if (project.autoloadFiles.length === 0)
+      continue;
+    const engineFiles = project.pathGems.flatMap((gemfile) => {
+      const dependency = byPath.get(gemfile);
+      return dependency && dependency.railsEvidence.some((path) => /\/engine\.rb$/i.test(path)) ? dependency.autoloadFiles : [];
+    });
+    if (engineFiles.length > 0) {
+      project.autoloadFiles = [.../* @__PURE__ */ new Set([...project.autoloadFiles, ...engineFiles])].sort((left, right) => left.localeCompare(right));
+    }
+  }
+  return projects;
+}
+function customAutoloadRoots(text2, root) {
+  const roots = /* @__PURE__ */ new Set();
+  const ignored = /* @__PURE__ */ new Set();
+  const add2 = (relative6, target) => {
+    const path = normalizeRelative(root, relative6);
+    if (path !== void 0 && path !== root)
+      target.add(path);
+  };
+  const autoloadLib = /\bconfig\.autoload_lib(?:_once)?\s*\(\s*ignore:\s*(?:%w[\[(]([^\])]*)[\])]|\[([^\]]*)\])\s*\)/.exec(text2) ?? (/\bconfig\.autoload_lib(?:_once)?\b(?!\s*\(\s*ignore)/.test(text2) ? ["", ""] : null);
+  if (autoloadLib) {
+    add2("lib", roots);
+    const list = autoloadLib[1] ?? (autoloadLib[2] ?? "").replace(/["':]/g, " ");
+    for (const entry2 of list.split(/[\s,]+/).filter(Boolean))
+      add2(`lib/${entry2}`, ignored);
+  }
+  for (const statement of text2.matchAll(/\bconfig\.(?:autoload|eager_load)_paths\s*(?:<<|\+=|\.push\(|\.concat\()\s*([^\n]+)/g)) {
+    const value = statement[1] ?? "";
+    for (const join4 of value.matchAll(/Rails\.root\.join\(([^)]*)\)/g)) {
+      const parts = [...(join4[1] ?? "").matchAll(/["']([^"'#$]+)["']/g)].map((part) => part[1]);
+      if (parts.length > 0 && parts.length === (join4[1] ?? "").split(",").length)
+        add2(parts.join("/"), roots);
+    }
+    for (const interpolated of value.matchAll(/#\{(?:config\.root|Rails\.root)\}\/([A-Za-z0-9_./-]+)/g))
+      add2(interpolated[1], roots);
+  }
+  return { roots: [...roots].sort(), ignored: [...ignored].sort() };
+}
+function minitestRakeTasks(text2) {
+  const names = /* @__PURE__ */ new Set();
+  for (const match of text2.matchAll(/\bRake::TestTask\.new\b\s*(\(\s*(?::([A-Za-z_][A-Za-z0-9_]*)|["']([A-Za-z0-9_:-]+)["'])?[^)]*\))?/g)) {
+    names.add(match[2] ?? match[3] ?? "test");
+  }
+  return [...names].sort();
+}
+function normalizeRelative(root, value) {
+  const trimmed = value.trim().replace(/\\/g, "/").replace(/\/$/, "");
+  if (!trimmed || /^[A-Za-z]:|^\//.test(trimmed) || /[*?$\0]/.test(trimmed))
+    return void 0;
+  const segments = root.split("/").filter(Boolean);
+  for (const segment of trimmed.split("/")) {
+    if (!segment || segment === ".")
+      continue;
+    if (segment === "..") {
+      if (segments.length === 0)
+        return void 0;
+      segments.pop();
+    } else
+      segments.push(segment);
+  }
+  return segments.join("/");
 }
 function rubyProjectForPath(projects, path) {
   const matching = projects.filter((project) => project.root ? path.startsWith(`${project.root}/`) : true);
@@ -1925,9 +2013,10 @@ function rubyTestCommandForProject(project, relatedTests = []) {
   }
   if (useMinitest && project.minitestEvidence.length > 0) {
     if (project.rakeTestPath) {
+      const task = project.rakeTestTask ?? "test";
       return {
-        command: scopedBundleCommand(project.root, "rake test"),
-        reason: `${project.path} has Minitest evidence and ${project.rakeTestPath} declares a test task`,
+        command: scopedBundleCommand(project.root, `rake ${task}`),
+        reason: project.rakeTestTask ? `${project.path} has Minitest evidence and ${project.rakeTestPath} declares its only Minitest task, "${task}"` : `${project.path} has Minitest evidence and ${project.rakeTestPath} declares a test task`,
         scopeDir: project.root
       };
     }
@@ -2441,7 +2530,8 @@ function depth3(path) {
 function buildRustProjects(files) {
   const manifests = files.filter((file) => file.path.split("/").pop()?.toLowerCase() === "cargo.toml").sort((left, right) => left.path.localeCompare(right.path));
   const manifestRoots = new Set(manifests.map((file) => directoryOf5(file.path)));
-  const parsed2 = manifests.map((manifest) => parseManifest(manifest, manifestRoots));
+  const repoPaths = new Set(files.map((file) => file.path));
+  const parsed2 = manifests.map((manifest) => parseManifest(manifest, manifestRoots, repoPaths));
   return parsed2.map((project) => {
     const inherited = project.inherited.flatMap((alias) => {
       const owner = [...parsed2].filter((candidate) => contains2(candidate.root, project.root)).sort((left, right) => depth4(right.root) - depth4(left.root) || left.path.localeCompare(right.path)).find((candidate) => candidate.workspace.some((dependency2) => dependency2.alias === alias));
@@ -2455,6 +2545,7 @@ function buildRustProjects(files) {
       path: project.path,
       root: project.root,
       ...project.name ? { name: project.name } : {},
+      ...project.buildScript ? { buildScript: project.buildScript } : {},
       pathDependencies: [...byAlias.values()].sort((left, right) => left.alias.localeCompare(right.alias))
     };
   });
@@ -2471,33 +2562,82 @@ function rustPathDependency(project, identifier) {
   const normalized = rustIdentifier(identifier);
   return project.pathDependencies.find((dependency) => rustIdentifier(dependency.alias) === normalized);
 }
-function parseManifest(file, manifestRoots) {
+var DEPENDENCY_HEADING = /^(workspace\.)?(?:target\..+\.)?(?:dev-|build-)?dependencies(?:\.([A-Za-z0-9_-]+|"[A-Za-z0-9_-]+"))?$/;
+function parseManifest(file, manifestRoots, repoPaths) {
   const root = directoryOf5(file.path);
   let section2 = "";
+  let tableDependency;
   let name;
+  let build;
   const direct = [];
   const workspace = [];
   const inherited = [];
+  const entries = [];
+  const flushTable = () => {
+    if (tableDependency)
+      entries.push({ alias: tableDependency.alias, workspace: tableDependency.workspace, fields: tableDependency.fields.join(",") });
+    tableDependency = void 0;
+  };
+  const dotted = /* @__PURE__ */ new Map();
+  let pending = "";
   for (const raw of file.textSample.split(/\r?\n/)) {
-    const line = raw.replace(/\s+#.*$/, "").trim();
-    const heading = /^\[([^\]]+)\]$/.exec(line)?.[1]?.trim().toLowerCase();
+    let line = stripComment(raw).trim();
+    if (pending) {
+      pending += " " + line;
+      if (braceDepth(pending) > 0)
+        continue;
+      line = pending.trim();
+      pending = "";
+    } else if (braceDepth(line) > 0) {
+      pending = line;
+      continue;
+    }
+    if (!line)
+      continue;
+    const heading = /^\[([^\[\]]+)\]$/.exec(line)?.[1]?.trim().replace(/\s*\.\s*/g, ".");
     if (heading) {
-      section2 = heading;
+      flushTable();
+      section2 = heading.toLowerCase();
+      const dependencyHeading2 = DEPENDENCY_HEADING.exec(heading);
+      if (dependencyHeading2?.[2]) {
+        tableDependency = { alias: rustIdentifier(dependencyHeading2[2].replace(/"/g, "")), workspace: Boolean(dependencyHeading2[1]), fields: [] };
+      }
       continue;
     }
-    if (section2 === "package" && !name) {
-      name = /^name\s*=\s*["']([^"']+)["']\s*$/.exec(line)?.[1]?.trim();
+    if (tableDependency) {
+      tableDependency.fields.push(line);
       continue;
     }
-    const dependencySection = section2 === "dependencies" || section2 === "dev-dependencies" || section2 === "build-dependencies" || section2.endsWith(".dependencies");
-    const workspaceSection = section2 === "workspace.dependencies";
-    if (!dependencySection && !workspaceSection)
+    if (section2 === "package") {
+      if (!name)
+        name = /^name\s*=\s*["']([^"']+)["']\s*$/.exec(line)?.[1]?.trim() ?? name;
+      const buildValue = /^build\s*=\s*(?:["']([^"']+)["']|(false|true))\s*$/.exec(line);
+      if (buildValue)
+        build = buildValue[2] === "false" ? false : buildValue[1] ?? "build.rs";
       continue;
-    const match = /^([A-Za-z0-9_-]+)\s*=\s*\{([^}]*)\}\s*$/.exec(line);
-    if (!match?.[1] || !match[2])
+    }
+    const dependencyHeading = DEPENDENCY_HEADING.exec(section2);
+    if (!dependencyHeading || dependencyHeading[2])
       continue;
-    const alias = rustIdentifier(match[1]);
-    const fields2 = match[2];
+    const isWorkspace = Boolean(dependencyHeading[1]);
+    const inline = /^([A-Za-z0-9_-]+)\s*=\s*\{(.*)\}\s*$/.exec(line);
+    if (inline?.[1]) {
+      entries.push({ alias: rustIdentifier(inline[1]), workspace: isWorkspace, fields: inline[2] ?? "" });
+      continue;
+    }
+    const dottedKey = /^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\s*=\s*(.+)$/.exec(line);
+    if (dottedKey?.[1] && dottedKey[2]) {
+      const alias = rustIdentifier(dottedKey[1]);
+      const entry2 = dotted.get(alias) ?? { workspace: isWorkspace, fields: [] };
+      entry2.fields.push(`${dottedKey[2]} = ${dottedKey[3]}`);
+      dotted.set(alias, entry2);
+    }
+  }
+  flushTable();
+  for (const [alias, entry2] of dotted)
+    entries.push({ alias, workspace: entry2.workspace, fields: entry2.fields.join(",") });
+  for (const entry2 of entries) {
+    const fields2 = entry2.fields;
     const packageName2 = /(?:^|,)\s*package\s*=\s*["']([^"']+)["']/.exec(fields2)?.[1]?.trim();
     const rawPath = /(?:^|,)\s*path\s*=\s*["']([^"']+)["']/.exec(fields2)?.[1]?.trim();
     if (rawPath) {
@@ -2505,25 +2645,64 @@ function parseManifest(file, manifestRoots) {
       if (!targetRoot || !manifestRoots.has(targetRoot))
         continue;
       const dependency = {
-        alias,
+        alias: entry2.alias,
         ...packageName2 ? { package: packageName2 } : {},
         root: targetRoot,
         evidencePath: file.path
       };
-      (workspaceSection ? workspace : direct).push(dependency);
+      (entry2.workspace ? workspace : direct).push(dependency);
       continue;
     }
-    if (dependencySection && /(?:^|,)\s*workspace\s*=\s*true\s*(?:,|$)/.test(fields2))
-      inherited.push(alias);
+    if (!entry2.workspace && /(?:^|,)\s*workspace\s*=\s*true\s*(?:,|$)/.test(fields2))
+      inherited.push(entry2.alias);
   }
+  const buildRelative = build === false ? void 0 : build ?? "build.rs";
+  const buildPath = buildRelative === void 0 ? void 0 : normalizeRelativeRoot2(root, buildRelative);
+  const buildScript = buildPath && repoPaths.has(buildPath) && buildPath.endsWith(".rs") ? buildPath : void 0;
   return {
     path: file.path,
     root,
     ...name ? { name } : {},
+    ...buildScript ? { buildScript } : {},
     direct,
     workspace,
     inherited: [...new Set(inherited)].sort()
   };
+}
+function stripComment(line) {
+  let quote;
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (quote) {
+      if (character === "\\" && quote === '"')
+        index += 1;
+      else if (character === quote)
+        quote = void 0;
+    } else if (character === '"' || character === "'")
+      quote = character;
+    else if (character === "#")
+      return line.slice(0, index);
+  }
+  return line;
+}
+function braceDepth(line) {
+  let depth5 = 0;
+  let quote;
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (quote) {
+      if (character === "\\" && quote === '"')
+        index += 1;
+      else if (character === quote)
+        quote = void 0;
+    } else if (character === '"' || character === "'")
+      quote = character;
+    else if (character === "{")
+      depth5 += 1;
+    else if (character === "}")
+      depth5 -= 1;
+  }
+  return depth5;
 }
 function normalizeRelativeRoot2(root, value) {
   if (!value || /^[\\/]/.test(value) || /^[A-Za-z]:/.test(value) || value.includes("\0"))
@@ -2677,6 +2856,28 @@ function buildImportGraph(files, custom) {
       addEdge(importedBy, dependency.projectPath, project.path);
     }
     truncatedEdges += Math.max(0, project.pathDependencies.length - MAX_EDGES_PER_FILE);
+  }
+  for (const project of rubyProjects) {
+    for (const gemfile of project.pathGems.slice(0, MAX_EDGES_PER_FILE)) {
+      addEdge(imports, project.path, gemfile);
+      addEdge(importedBy, gemfile, project.path);
+    }
+    truncatedEdges += Math.max(0, project.pathGems.length - MAX_EDGES_PER_FILE);
+  }
+  const cargoManifestByRoot = new Map(rustProjects.map((project) => [project.root, project.path]));
+  for (const project of rustProjects) {
+    const targets = [
+      ...project.buildScript ? [project.buildScript] : [],
+      ...project.pathDependencies.flatMap((dependency) => {
+        const manifest = cargoManifestByRoot.get(dependency.root);
+        return manifest && manifest !== project.path ? [manifest] : [];
+      })
+    ];
+    for (const target of [...new Set(targets)].slice(0, MAX_EDGES_PER_FILE)) {
+      addEdge(imports, project.path, target);
+      addEdge(importedBy, target, project.path);
+    }
+    truncatedEdges += Math.max(0, new Set(targets).size - MAX_EDGES_PER_FILE);
   }
   return {
     imports,
@@ -7837,6 +8038,8 @@ function classifyConventionalTextFile(path) {
     return "config";
   if (/\.(?:csproj|fsproj|vbproj|sln|slnx|props|targets)$/.test(name))
     return "config";
+  if (name.endsWith(".gemspec"))
+    return "config";
   if (name === "modules.txt" && /(?:^|\/)vendor\/modules\.txt$/i.test(path.replace(/\\/g, "/")))
     return "config";
   return void 0;
@@ -8872,7 +9075,7 @@ function toLines(content) {
       break;
     }
     const leading = /^[ \t]*/.exec(raw)[0];
-    const text2 = stripComment(raw.slice(leading.length)).trimEnd();
+    const text2 = stripComment2(raw.slice(leading.length)).trimEnd();
     if (!text2) {
       lines.push({ number: index + 1, indent: -1, text: "", raw });
       continue;
@@ -8883,7 +9086,7 @@ function toLines(content) {
   }
   return lines;
 }
-function stripComment(text2) {
+function stripComment2(text2) {
   if (text2.startsWith("#"))
     return "";
   let quote;

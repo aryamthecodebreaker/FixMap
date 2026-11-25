@@ -44,9 +44,23 @@ type Release = {
 
 const releases: Release[] = [
   {
-    version: "0.9.13",
+    version: "0.9.14",
     date: "November 25, 2026",
     label: "Latest release",
+    summary: "Rust and Ruby projects are read the way Cargo and Rails read them, which finishes support for all seven added languages.",
+    groups: [
+      {
+        label: "Added",
+        items: [
+          "Rust: every way Cargo lets you write a dependency, build scripts, and files pulled in with include!.",
+          "Ruby: extra autoload folders configured in Rails, Rails engines (including ones a host app pulls in), and Rake test tasks with custom names."
+        ]
+      }
+    ]
+  },
+  {
+    version: "0.9.13",
+    date: "November 25, 2026",
     summary: "Go and PHP projects are read the way their own tools read them: generated and vendored Go code, Composer globs and custom test scripts, and directory-based PHP includes.",
     groups: [
       {
