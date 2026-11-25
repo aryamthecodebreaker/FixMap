@@ -1,13 +1,5 @@
 import type { Metadata } from "next";
-import {
-  ArrowRight,
-  ChartLineUp,
-  CheckCircle,
-  Plus,
-  ShieldCheck,
-  Sparkle,
-  Wrench
-} from "@phosphor-icons/react/ssr";
+import { Tag } from "@phosphor-icons/react/ssr";
 import { repoUrl, siteStats } from "../_lib/site-data";
 
 export const metadata: Metadata = {
@@ -625,77 +617,42 @@ const releases: Release[] = [
   }
 ];
 
-const icons = {
-  Added: Plus,
-  Fixed: Wrench,
-  Improved: Sparkle,
-  Security: ShieldCheck,
-  Evidence: ChartLineUp
-} as const;
-
 const releaseId = (version: string) => `v-${version.toLowerCase().replaceAll(".", "-")}`;
 
 export default function ChangelogPage() {
   return (
-    <main>
-      <section className="subpage-hero page-shell changelog-hero">
-        <p className="eyebrow">Product changelog</p>
-        <h1>Every improvement.{" "}<br /><em>Plainly recorded.</em></h1>
-        <p>New features, important fixes, and the evidence behind each recent FixMap release.</p>
-        <div className="changelog-hero-meta">
-          <span><CheckCircle size={19} weight="fill" aria-hidden /> Current package: v{siteStats.version}</span>
-          <a className="text-link" href={`${repoUrl}/blob/main/CHANGELOG.md`}>Read the complete history <ArrowRight size={17} weight="bold" aria-hidden /></a>
-        </div>
-      </section>
-
-      <section className="section page-shell changelog-layout">
-        <aside className="release-index" aria-label="Recent releases">
-          <strong>Recent releases</strong>
-          <nav>
-            {releases.map((release) => (
-              <a key={release.version} href={`#${releaseId(release.version)}`}>
-                <span>v{release.version}</span>
-                <small>{release.date}</small>
-              </a>
-            ))}
-          </nav>
-        </aside>
-
-        <div className="release-list">
-          {releases.map((release) => (
-            <article className="release-entry" id={releaseId(release.version)} key={release.version}>
-              <header className="release-heading">
-                <div>
-                  <p>{release.date}</p>
-                  <h2>FixMap v{release.version}</h2>
+    <>
+      <div className="shell page-head">
+        <h1>Changelog</h1>
+        <p>
+          What changed in each published version, in plain words, including tests that did not pass. The newest is v{siteStats.version}.
+          The <a href={`${repoUrl}/blob/main/CHANGELOG.md`}>full changelog</a> has every detail.
+        </p>
+      </div>
+      <div className="shell releases">
+        {releases.map((release) => (
+          <section className="release" id={releaseId(release.version)} key={release.version} aria-labelledby={`${releaseId(release.version)}-title`}>
+            <div className="release-meta">
+              <span className="tag"><Tag aria-hidden />v{release.version}</span>
+              <span>{release.date}</span>
+              <a href={`${repoUrl}/releases/tag/v${release.version}`}>GitHub release</a>
+            </div>
+            <div className="release-card">
+              <h2 id={`${releaseId(release.version)}-title`}>
+                FixMap v{release.version}
+                {release.label ? <span className="state">{release.label}</span> : null}
+              </h2>
+              <p>{release.summary}</p>
+              {release.groups.map((group) => (
+                <div key={group.label}>
+                  <h3>{group.label}</h3>
+                  <ul>{group.items.map((item) => <li key={item}>{item}</li>)}</ul>
                 </div>
-                {release.label ? <span>{release.label}</span> : null}
-              </header>
-              <p className="release-summary">{release.summary}</p>
-              <div className="release-groups">
-                {release.groups.map((group) => {
-                  const Icon = icons[group.label];
-                  return (
-                    <section className="release-group" key={group.label}>
-                      <h3><Icon size={19} weight="bold" aria-hidden /> {group.label}</h3>
-                      <ul>
-                        {group.items.map((item) => <li key={item}>{item}</li>)}
-                      </ul>
-                    </section>
-                  );
-                })}
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="section dark-section">
-        <div className="page-shell changelog-bottom">
-          <div><p className="eyebrow">Nothing hidden</p><h2>Every release stays inspectable.</h2><p>The repository contains the full history, exact test evidence, and source for every change.</p></div>
-          <a className="button light" href={`${repoUrl}/releases`}>Browse GitHub releases <ArrowRight size={18} weight="bold" aria-hidden /></a>
-        </div>
-      </section>
-    </main>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </>
   );
 }

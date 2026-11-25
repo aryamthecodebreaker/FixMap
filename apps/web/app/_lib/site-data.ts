@@ -151,3 +151,25 @@ export const commands = {
   features: "fixmap features",
   mcp: "fixmap mcp"
 };
+
+/** The pull request workflow shown on Home and Docs, pinned to the current release. */
+export const actionWorkflow = `name: FixMap
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  fixmap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: fixmap
+        uses: aryamthecodebreaker/FixMap@v${siteStats.version}
+        with:
+          github-token: \${{ secrets.GITHUB_TOKEN }}`;

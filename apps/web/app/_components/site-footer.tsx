@@ -1,26 +1,22 @@
 import Link from "next/link";
-import { GithubLogo } from "@phosphor-icons/react/ssr";
-import { Logo } from "./logo";
+import { Brand } from "./logo";
 import { marketplaceUrl, npmUrl, repoUrl, siteStats } from "../_lib/site-data";
 
 export function SiteFooter() {
   return (
     <footer className="site-footer">
-      <div className="footer-main">
-        <div className="footer-brand">
-          <Logo inverse />
-          <p>Tells AI coding tools which files and tests to check first. Free, local-first, and open source.</p>
-        </div>
-        <div className="footer-links">
-          <div><strong>Explore</strong><Link href="/product">Product</Link><Link href="/features">All features</Link><Link href="/use-cases">Use cases</Link><Link href="/demo">Live demo</Link><Link href="/evidence">Evidence</Link><Link href="/changelog">Changelog</Link></div>
-          <div><strong>Use FixMap</strong><Link href="/get-started">Get started</Link><Link href="/docs">Docs</Link><a href={marketplaceUrl}>GitHub Action</a></div>
-          <div><strong>Project</strong><a href={repoUrl}><GithubLogo size={16} weight="fill" aria-hidden /> GitHub</a><a href={npmUrl}>npm</a><a href={`${repoUrl}/issues`}>Issues</a></div>
-        </div>
-      </div>
-      <div className="footer-bottom">
-        <span>FixMap v{siteStats.version}</span>
-        <span>MIT licensed</span>
-        <span>Made in the open</span>
+      <div className="shell footer-inner">
+        <Brand />
+        <span>v{siteStats.version} · MIT licensed · runs on your computer</span>
+        <nav className="footer-links" aria-label="Footer">
+          <Link href="/docs">Docs</Link>
+          <Link href="/evidence">Evidence</Link>
+          <Link href="/changelog">Changelog</Link>
+          <a href={repoUrl}>GitHub</a>
+          <a href={npmUrl}>npm</a>
+          <a href={marketplaceUrl}>GitHub Action</a>
+          <a href={`${repoUrl}/issues`}>Report a problem</a>
+        </nav>
       </div>
     </footer>
   );

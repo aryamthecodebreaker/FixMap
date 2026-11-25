@@ -1,86 +1,122 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  ArrowRight,
-  BracketsCurly,
-  CheckSquare,
-  Command,
-  FileMagnifyingGlass,
-  GithubLogo,
-  WarningCircle
-} from "@phosphor-icons/react/ssr";
+import { BookOpen, FileText, Hash } from "@phosphor-icons/react/ssr";
 import { CopyCommand } from "../_components/copy-command";
-import { commands, repoUrl } from "../_lib/site-data";
+import { actionWorkflow, commands, marketplaceUrl, repoUrl } from "../_lib/site-data";
 
 export const metadata: Metadata = {
-  title: "Documentation",
-  description: "FixMap documentation for Impact Graph, repository benchmarking, compact agent output, planning, explaining, comparing, verifying, MCP, and GitHub Actions.",
+  title: "Docs",
+  description: "Install FixMap in your AI coding tool, the terminal, over MCP or on pull requests, then plan, explain, verify and more.",
   alternates: { canonical: "/docs" },
-  openGraph: {
-    title: "FixMap documentation",
-    description: "CLI, MCP, GitHub Action, JSON report, and verification reference.",
-    url: "/docs"
-  }
+  openGraph: { title: "FixMap docs", description: "Install FixMap and use every command.", url: "/docs" }
 };
 
-const docLinks = [
-  { href: "#plan", icon: FileMagnifyingGlass, title: "Plan", body: "Map a task, issue, or diff." },
-  { href: "#explain", icon: BracketsCurly, title: "Explain", body: "Ask why a path is missing." },
-  { href: "#verify", icon: CheckSquare, title: "Verify", body: "Compare a plan with a diff." },
-  { href: "#slash-command", icon: Command, title: "/fixmap", body: "Discover every workflow in an agent." }
-];
+const toc = [
+  ["install", "Install"],
+  ["plan", "Your first plan"],
+  ["commands", "All commands"],
+  ["verify", "Check a finished change"],
+  ["mcp", "MCP tools"],
+  ["output", "Output formats"],
+  ["safety", "What FixMap never does"]
+] as const;
 
 export default function DocsPage() {
   return (
-    <main>
-      <section className="subpage-hero compact-hero page-shell docs-hero">
-        <p className="eyebrow">Documentation</p>
-        <h1>Understand the map.{" "}<br /><em>Use it deliberately.</em></h1>
-        <p>Start with the everyday workflow, then go deeper into output formats, verification, automation, and trust boundaries.</p>
-        <CopyCommand command={commands.publicIssue} />
-      </section>
+    <>
+      <div className="shell page-head">
+        <h1>Docs</h1>
+        <p>Set FixMap up once, then use it before every fix. Everything runs on your computer. There is no account, no API key and no AI model.</p>
+      </div>
+      <div className="shell read-layout">
+        <nav className="toc" aria-label="Docs sections">
+          {toc.map(([id, label]) => <a key={id} href={`#${id}`}><Hash aria-hidden />{label}</a>)}
+        </nav>
+        <div className="file-view">
+          <div className="file-view-head"><BookOpen aria-hidden /> README.md</div>
+          <article className="prose">
+            <h2 id="install">Install</h2>
+            <h3 id="agent">In your AI coding tool</h3>
+            <p>For Claude Code, Cursor, GitHub Copilot and tools that read agent skills. Install once, add the command to your project, then type <code>/fixmap</code> before you ask for a fix.</p>
+            <CopyCommand command="npm install --global @aryam/fixmap@latest" />
+            <CopyCommand command={commands.setup} />
+            <p><code>fixmap setup</code> can be run again safely. It will not overwrite a command you customised unless you pass <code>--force</code>.</p>
 
-      <section className="docs-layout page-shell">
-        <aside className="docs-sidebar" aria-label="Documentation sections">
-          <strong>On this page</strong>
-          <a href="#slash-command">/fixmap</a><a href="#plan">Plan + impact</a><a href="#context">Context</a><a href="#graph">Graph</a><a href="#explain">Explain</a><a href="#focus">Focus</a><a href="#verify">Verify</a><a href="#watch">Watch</a><a href="#benchmark">Benchmark</a><a href="#output">Output</a><a href="#validate">Validate</a><a href="#mcp">MCP</a><a href="#doctor">Doctor</a><a href="#safety">Safety</a>
-        </aside>
-        <div className="docs-content">
-          <div className="docs-cards">
-            {docLinks.map(({ href, icon: Icon, title, body }) => <a href={href} key={href}><Icon size={25} aria-hidden /><strong>{title}</strong><span>{body}</span><ArrowRight size={17} aria-hidden /></a>)}
-          </div>
+            <h3 id="terminal">In the terminal</h3>
+            <p>Try it without installing, on any public GitHub issue:</p>
+            <CopyCommand command="npx -y @aryam/fixmap@latest plan --issue https://github.com/chalk/chalk/issues/624" />
+            <p>Or add it to one project only:</p>
+            <CopyCommand command="npm install --save-dev @aryam/fixmap" />
 
-          <section id="slash-command" className="doc-section"><p className="eyebrow">Slash command</p><h2>Open the complete FixMap menu.</h2><p><code>fixmap setup</code> installs project-level discovery for Claude Code, Cursor, GitHub Copilot, and Agent Skills. Invoking <code>/fixmap</code> with no task lists Plan, Context, Graph, Explain, Compare, Verify, Watch, Benchmark, Validate, Doctor, MCP, focus controls, working-tree mapping, and fresh scans.</p><CopyCommand command={commands.setup} /><CopyCommand command={commands.features} /><p>The installer is idempotent and will not overwrite a customized command unless you explicitly pass <code>--force</code>.</p></section>
+            <h3 id="pull-requests">On pull requests</h3>
+            <p>The GitHub Action posts the starting list as a comment on each pull request. Save this as <code>.github/workflows/fixmap.yml</code>, or <a href={marketplaceUrl}>install it from the Marketplace</a>.</p>
+            <pre className="block" tabIndex={0}><code>{actionWorkflow}</code></pre>
 
-          <section id="plan" className="doc-section"><p className="eyebrow">Plan and Impact Graph</p><h2>Find the right place to start—and what to inspect next.</h2><p>Give FixMap one task source: plain issue text, a task file, stdin, a public GitHub issue URL, or a git diff. The primary context remains task-ranked. A separate Impact Graph maps imports, reverse dependents, routed tests, and files that repeatedly changed together in bounded Git history. Impact files are inspection candidates, not instructions to edit every path.</p><CopyCommand command={commands.localTask} /><h3>Public issue URL</h3><CopyCommand command={commands.publicIssue} /><h3>Working-tree or branch diff</h3><CopyCommand command={commands.diff} /><p>Remote repository mode is issue-only. Clone the repository locally when you need <code>--diff</code>, <code>--base</code>, <code>--head</code>, or complete local Git-history evidence. Shallow and unavailable history are reported explicitly while import and test relationships continue to work.</p></section>
+            <h2 id="plan">Your first plan</h2>
+            <p>Describe the problem the way you would to a teammate. FixMap answers with the files to open first, the test to run, related code to check and anything it is unsure about.</p>
+            <CopyCommand command={commands.localTask} />
+            <p>It also takes a GitHub issue link, a task file, or a diff of what you have changed so far:</p>
+            <CopyCommand command={commands.publicIssue} />
+            <CopyCommand command={commands.diff} />
+            <CopyCommand command={'fixmap plan --working-tree --issue "reset flow"'} />
+            <p>For a remote repository only issue text works; clone it to use diffs and full Git history. When history is shallow or missing, FixMap says so and keeps using imports and tests.</p>
 
-          <section id="context" className="doc-section"><p className="eyebrow">Context Pack</p><h2>Package the relevant source ranges.</h2><p><code>fixmap context</code> uses the Plan and Impact Graph to select deterministic source ranges. The default 10,000-token budget is an estimate of one token per four UTF-8 bytes of source; metadata is not charged to that budget. It is reproducible, but it is not a model-specific tokenizer count.</p><CopyCommand command={commands.context} /><CopyCommand command={'fixmap context --issue "reset links fail" --budget 4000 --format json --output context.json'} /><p>Every snippet records its primary or impact role, reason, confidence, line range, estimated source tokens, and whether the scanner sampled only part of a large file. Files omitted for budget or availability remain listed instead of disappearing silently.</p></section>
+            <h2 id="commands">All commands</h2>
+            <p><code>fixmap features</code> lists every command in the version you have, and which ones are still marked preview.</p>
+            <CopyCommand command={commands.features} />
+            <h3 id="context">context: hand over the right code</h3>
+            <p>Picks the most useful lines from the files in the plan, within a size budget (10,000 estimated tokens by default, about four bytes per token).</p>
+            <CopyCommand command={commands.context} />
+            <h3 id="graph">graph: draw how the files connect</h3>
+            <p>Exports imports, files that use them, tests and files that change together, as a Mermaid diagram or JSON.</p>
+            <CopyCommand command={commands.graph} />
+            <h3 id="explain">explain: why is a file missing?</h3>
+            <p>Tells you whether a file ranked lower, fell below the cutoff, was excluded on purpose, or was never scanned.</p>
+            <CopyCommand command={'fixmap plan --issue "reset links fail" --explain src/auth/token.ts'} />
+            <h3 id="focus">Focus the list</h3>
+            <p>Leave out folders that only talk about the product, like a marketing site. Patterns can also go in a <code>.fixmapignore</code> file.</p>
+            <CopyCommand command={'fixmap plan --issue "reset links fail" --exclude apps/web --limit 3'} />
+            <h3 id="compare">compare: did a better task help?</h3>
+            <CopyCommand command={'fixmap plan --issue "TOKEN_TTL_MINUTES is ignored" --compare before.json'} />
+            <h3 id="watch">watch: keep checking while an agent edits</h3>
+            <CopyCommand command={'fixmap watch --report plan.json --repo . --include-untracked'} />
+            <h3 id="benchmark">benchmark: test FixMap on your own history</h3>
+            <p>Replays recent commits and measures how often FixMap would have pointed at the file that changed, next to plain keyword search.</p>
+            <CopyCommand command="fixmap benchmark --repo . --last 50" />
+            <h3 id="doctor">doctor: which FixMap actually ran?</h3>
+            <CopyCommand command="fixmap doctor" />
 
-          <section id="graph" className="doc-section"><p className="eyebrow">Graph export</p><h2>Carry the evidence into a review.</h2><p><code>fixmap graph</code> exports imports, reverse dependents, routed tests, and co-change relationships as Mermaid or versioned JSON. Direction is preserved, and only relationships already supported by the Impact Graph are emitted.</p><CopyCommand command={commands.graph} /><CopyCommand command={'fixmap graph --issue "reset links fail" --format json --output graph.json'} /></section>
+            <h2 id="verify">Check a finished change</h2>
+            <p>Save a plan before editing, then compare it with the real change afterwards. Verify points out changed files the plan did not expect and related code nobody touched.</p>
+            <CopyCommand command={'fixmap plan --issue "reset links fail" --format json --output plan.json'} />
+            <CopyCommand command={commands.verify} />
+            <p>Verify does not run your tests or judge whether the fix is right. Add <code>--fail-on warning</code> to make warnings fail CI too.</p>
 
-          <section id="explain" className="doc-section"><p className="eyebrow">Explain</p><h2>Ask the missing-file question.</h2><p>Use <code>--explain</code> when you expected a path and it did not appear. The response distinguishes five different situations:</p><ul><li>The file ranked, just lower than expected.</li><li>It scored below the report cutoff.</li><li>It tied for a reported place but fell outside <code>--limit</code>.</li><li>It was excluded intentionally, such as a generated file whose source ranked instead.</li><li>The scanner never saw it, including a scan limit, a sparse checkout, or an unsupported extension.</li></ul><CopyCommand command={'fixmap plan --issue "reset links fail" --explain src/auth/token.ts'} /></section>
+            <h2 id="mcp">MCP tools</h2>
+            <p>Lets an agent call FixMap itself: plan, context, graph, explain, compare, verify and doctor, all over local stdio.</p>
+            <CopyCommand command="claude mcp add fixmap -- fixmap mcp" />
+            <p>For Cursor, Windsurf and other clients:</p>
+            <pre className="block" tabIndex={0}><code>{`{
+  "mcpServers": {
+    "fixmap": { "command": "fixmap", "args": ["mcp"] }
+  }
+}`}</code></pre>
 
-          <section id="focus" className="doc-section"><p className="eyebrow">Focus</p><h2>Narrow the map to what matters.</h2><p>Demo pages, marketing copy, and documentation often contain every symptom word a product documents, so they compete with the implementation. FixMap knows about conventions like <code>examples/</code>; it cannot know your repository&rsquo;s own layout.</p><CopyCommand command={'fixmap plan --issue "reset links fail" --exclude apps/web --limit 3'} /><p>Patterns can also live in a <code>.fixmapignore</code> file at the repository root, one per line. The two combine, and <code>--explain</code> reports an excluded file as excluded, naming the pattern that matched.</p><h3>Map what you are editing now</h3><CopyCommand command={'fixmap plan --working-tree --issue "reset flow"'} /><p>That means staged and unstaged tracked changes against <code>HEAD</code>. Untracked files stay out of the <em>change set</em> unless you add <code>--include-untracked</code>, so scratch metadata is not reported as an edit. They remain ranking candidates either way — a file an agent just wrote is usually the most relevant thing in the repository.</p><h3>Measure a better task</h3><p>Refine the wording, re-plan, and see whether the real file moved up:</p><CopyCommand command={'fixmap plan --issue "TOKEN_TTL_MINUTES is ignored" --compare before.json'} /></section>
+            <h2 id="output">Output formats</h2>
+            <p>Markdown by default. <code>--format agent</code> gives a compact list made for AI tools; <code>--format json</code> gives structured data you can save with <code>--output</code>.</p>
+            <CopyCommand command={'fixmap plan --issue "reset links fail" --format agent'} />
+            <p>JSON plans carry <code>reportVersion: 1</code>. New fields may be added, existing ones never change type, and <code>fixmap validate plan.json</code> checks a saved file.</p>
 
-          <section id="verify" className="doc-section"><p className="eyebrow">Verify</p><h2>Compare the plan with the change.</h2><p>Save a JSON plan before editing, then compare it with the real diff afterwards. Verify recalculates impact around the files that actually changed and reports strong relationships outside the original plan as advisory inspection notes.</p><CopyCommand command={'fixmap plan --issue "reset links fail" --format json --output plan.json'} /><CopyCommand command={commands.verify} /><CopyCommand command={'fixmap verify --report plan.json --working-tree --fail-on warning'} /><div className="doc-note"><WarningCircle size={22} aria-hidden /><p>Verify does not run tests or judge correctness. Errors fail by default. Add <code>--fail-on warning</code> when advisory findings, such as a source change without a test change, must also block CI.</p></div></section>
-
-          <section id="watch" className="doc-section"><p className="eyebrow">Watch</p><h2>Keep the map beside the edit.</h2><p><code>fixmap watch</code> fingerprints a local Git working tree and emits a fresh verification only when its state changes. Each update recalculates impact around the real edits, so an agent can see unmapped files, missing tests, new risks, and related inspection candidates while it works.</p><CopyCommand command={'fixmap watch --report plan.json --repo . --include-untracked'} /><CopyCommand command={'fixmap watch --report plan.json --repo . --format json'} /><p>JSON output is newline-delimited for streaming consumers. Use <code>--once</code> for a bounded automation check. Watch reads Git and source text, but never runs repository code or tests.</p></section>
-
-          <section id="benchmark" className="doc-section"><p className="eyebrow">Repository benchmark</p><h2>Measure FixMap where you work.</h2><p><code>fixmap benchmark</code> selects recent bounded non-merge commits, checks out each parent in an isolated temporary worktree, derives task text only from the commit metadata, and scores changed maintained source paths rather than generated twins. BM25-over-code, FixMap, and Impact Graph see the identical pre-change scanned corpus.</p><CopyCommand command={'fixmap benchmark --repo . --last 50'} /><CopyCommand command={'fixmap benchmark --repo . --last 50 --format json --output benchmark.json'} /><p>Results split all, path-mentioned, and unmentioned cohorts and include raw cases and Wilson intervals. Commits that are too large, have no usable task text, or contain no pre-existing target source are skipped with counts. FixMap never runs repository code during this process.</p></section>
-
-          <section id="output" className="doc-section"><p className="eyebrow">Output</p><h2>Readable by people, agents, and tools.</h2><p>Markdown is the default handoff. Add <code>--format agent</code> for a compact EDIT CANDIDATE / INSPECT / TEST / RISK / AVOID / UNCERTAINTY handoff, or <code>--format json</code> for structured output. Use <code>--output &lt;path&gt;</code> to save it. The current issue, comparison, verification, and output files are kept out of ranking, change detection, and cache state, so a saved FixMap report cannot recommend itself.</p><CopyCommand command={'fixmap plan --issue "reset links fail" --format agent'} /><p>New JSON plans include <code>reportVersion: 1</code>. Within a report version, fields may be added but existing fields will not be removed or change type; consumers should ignore unknown fields. A breaking output change requires a new report version. Compare and Verify still accept legacy plans without a marker, while rejecting marker values they do not understand.</p><div className="definition-list"><div><strong>Context files</strong><p>Task-ranked primary paths, scores, confidence labels, and evidence.</p></div><div><strong>Impact Graph</strong><p>Dependencies, dependents, routed tests, and repeated co-change relationships to inspect.</p></div><div><strong>Test routes</strong><p>Workspace-aware commands and reachable related tests.</p></div><div><strong>Risks</strong><p>Sensitive areas inferred from paths, symbols, and changes.</p></div><div><strong>Diagnostics</strong><p>Vague tasks, unresolved identifiers, scan limits, history coverage, and other uncertainty.</p></div></div></section>
-
-          <section id="validate" className="doc-section"><p className="eyebrow">Validate</p><h2>Check a saved report directly.</h2><p>The CLI exposes the same additive structural validator used by Compare, Verify, the GitHub Action, and MCP. It accepts legacy unmarked reports, accepts version 1 with additive fields, and rejects unsupported report versions or malformed context entries.</p><CopyCommand command={commands.validate} /></section>
-
-          <section id="mcp" className="doc-section"><p className="eyebrow">MCP</p><h2>Seven tools for the agent workflow.</h2><p><code>fixmap_plan</code> maps tasks and working trees. <code>fixmap_context</code> packages source ranges. <code>fixmap_graph</code> exports relationships. <code>fixmap_explain</code> answers why a file is missing. <code>fixmap_compare</code> measures task refinement. <code>fixmap_verify</code> checks the later diff, and <code>fixmap_doctor</code> diagnoses install shadows. All seven run locally over stdio.</p><CopyCommand command={commands.mcp} /><Link className="text-link" href="/get-started#mcp">MCP setup examples <ArrowRight size={17} weight="bold" aria-hidden /></Link></section>
-
-          <section id="doctor" className="doc-section"><p className="eyebrow">Doctor</p><h2>Check what actually started.</h2><p><code>doctor</code> reports the running version, resolved path, conflicting global, and Node version. Version 0.8.4 and newer also checks an exact npm-requested version when that newer Doctor starts.</p><CopyCommand command="fixmap doctor" /><p>An older project-local binary can win before newer Doctor code runs, so always check the printed running version. Use the isolated-prefix/direct-shim procedure in the README when the exact version matters.</p></section>
-
-          <section id="safety" className="doc-section"><p className="eyebrow">Safety and trust</p><h2>What FixMap will not do.</h2><ul><li>It does not install dependencies.</li><li>It does not run package scripts, builds, tests, or git hooks.</li><li>It does not upload local repository source.</li><li>It does not call a hosted model.</li><li>It does not claim the ranking proves a change is correct.</li></ul><a className="text-link" href={`${repoUrl}/blob/main/SECURITY.md`}>Read the security policy <ArrowRight size={17} weight="bold" aria-hidden /></a></section>
+            <h2 id="safety">What FixMap never does</h2>
+            <ul>
+              <li>Install dependencies, or run your scripts, builds, tests or Git hooks.</li>
+              <li>Upload your code, or call a hosted AI model.</li>
+              <li>Claim that its list proves a change is correct.</li>
+            </ul>
+            <p><a href={`${repoUrl}/blob/main/SECURITY.md`}>Security policy</a> · <Link href="/evidence">How well it works</Link> · <a href={`${repoUrl}/issues`}><FileText size={14} aria-hidden style={{ display: "inline", verticalAlign: "-2px" }} /> Report a problem</a></p>
+          </article>
         </div>
-      </section>
-
-      <section className="section dark-section"><div className="page-shell docs-bottom"><div><GithubLogo size={32} weight="fill" aria-hidden /><h2>Every detail is open for inspection.</h2><p>Read the source, reproduce the benchmarks, or report a ranking that surprised you.</p></div><a className="button light" href={repoUrl}>Open FixMap on GitHub <ArrowRight size={18} weight="bold" aria-hidden /></a></div></section>
-    </main>
+      </div>
+    </>
   );
 }

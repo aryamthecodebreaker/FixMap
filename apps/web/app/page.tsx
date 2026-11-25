@@ -2,190 +2,196 @@ import Link from "next/link";
 import {
   ArrowRight,
   CheckCircle,
-  GithubLogo,
-  Laptop,
-  LockKey,
-  Path,
-  Robot
+  CircleDashed,
+  FileCode,
+  GitCommit,
+  GitMerge,
+  GitPullRequest,
+  MinusCircle
 } from "@phosphor-icons/react/ssr";
-import { InteractiveMapStage } from "./_components/interactive-map-stage";
-import { AiExplainer } from "./_components/ai-explainer";
-import { FIXMAP_FEATURES } from "@aryam/fixmap-core/browser";
-import { repoUrl, siteStats } from "./_lib/site-data";
-import { loadUsageStats, USAGE_FIRST_PUBLISHED, USAGE_PACKAGE, USAGE_REPOSITORY } from "./_lib/usage-stats";
+import { Install } from "./_components/install";
+import { LoopFilm } from "./_components/loop-film";
+import { Mark } from "./_components/logo";
+import { PrTabs } from "./_components/pr-tabs";
+import { actionWorkflow, repoUrl, siteStats } from "./_lib/site-data";
+import { loadUsageStats, USAGE_REFRESH_SECONDS } from "./_lib/usage-stats";
+import { Review } from "./demo";
 
-/** Re-check npm and GitHub every 5 minutes, matching npm's own cache. Next needs a literal here. */
 export const revalidate = 300;
 
-const formatCount = (value: number) => value.toLocaleString("en-US");
-const launchMonth = new Date(`${USAGE_FIRST_PUBLISHED}T00:00:00Z`).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+const fresh = siteStats.languages;
+const count = (rate: number, cases: number) => Math.round(rate * cases);
+const fixmapHits = count(fresh.fixmapTop5, fresh.cases);
+const keywordHits = count(fresh.bm25Top5, fresh.cases);
+const adversarial = siteStats.adversarial;
 
-const outcomes = [
-  { number: "01", name: "Files to check first", detail: "See which files best match the problem and why FixMap picked them.", href: "/product#plan" },
-  { number: "02", name: "Tests to run", detail: "See the closest tests and the commands that run them.", href: "/product#tests" },
-  { number: "03", name: "Other code to review", detail: "See nearby code and sensitive areas that may need a careful look.", href: "/product#risks" }
-];
+export default async function Home() {
+  const usage = await loadUsageStats().catch(() => null);
+  const downloads = usage?.sinceLaunchWithCore ?? usage?.sinceLaunch;
 
-const surfaces = [
-  { icon: Robot, name: "Inside your AI coding tool", detail: "Type /fixmap in Claude Code, Cursor, GitHub Copilot, or another supported tool.", href: "/get-started#agent" },
-  { icon: Laptop, name: "In your terminal", detail: "Run one command on your computer. No account or API key is needed.", href: "/get-started#terminal" },
-  { icon: GithubLogo, name: "On pull requests", detail: "Add a FixMap report whenever a pull request changes.", href: "/get-started#pull-requests" }
-];
-
-const heldoutUnmentioned = siteStats.heldout.cohorts.unmentioned;
-const heldoutBaseline = siteStats.baselines.heldout;
-const count = (rate: number | null, cases: number) => Math.round((rate ?? 0) * cases);
-
-export default async function HomePage() {
-  const usage = await loadUsageStats();
   return (
-    <main className="pro-home">
-      <section className="pro-hero page-shell">
-        <div className="pro-hero-copy">
-          <h1>FixMap tells AI coding tools which files to check first.</h1>
-          <p className="pro-hero-lede">
-            You describe what is broken. FixMap checks the project and gives Codex, Claude Code,
-            or Cursor a short list: files to open, tests to run, and other code to review.
-          </p>
-          <div className="button-row">
-            <Link className="button primary" href="/demo">Try it with a sample project <ArrowRight size={17} weight="bold" aria-hidden /></Link>
-            <Link className="button secondary" href="/get-started">Use it on my project</Link>
-            <AiExplainer />
-          </div>
-          <div className="pro-trust-line" role="group" aria-label="FixMap trust facts">
-            <span><LockKey size={16} aria-hidden /> Runs on your computer</span>
-            <span><CheckCircle size={16} aria-hidden /> No API key</span>
-            <span><GithubLogo size={16} aria-hidden /> Free and open source</span>
-          </div>
-          <a className="pro-overview-link" href="#overview">Want to see it once? Watch the 31-second video.</a>
-        </div>
-        <InteractiveMapStage />
-      </section>
-
-      <section className="pro-workflow page-shell">
-        <div className="pro-section-heading">
-          <h2>FixMap makes a simple starting list.</h2>
-          <p>It does not write the fix. It helps the AI tool know where to look first.</p>
-        </div>
-        <div className="pro-workflow-list">
-          {outcomes.map((item) => (
-            <Link href={item.href} key={item.number}>
-              <span>{item.number}</span>
-              <strong>{item.name}</strong>
-              <p>{item.detail}</p>
-              <ArrowRight size={18} weight="bold" aria-hidden />
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="pro-proof">
-        <div className="page-shell pro-proof-inner">
-          <div>
-            <h2>What we know. What we do not know yet.</h2>
-            <p>We tested whether FixMap finds the right files. We have not proved that coding agents finish faster or use fewer tokens.</p>
-            <Link className="text-link" href="/evidence">See every test case <ArrowRight size={17} weight="bold" aria-hidden /></Link>
-          </div>
-          <div className="pro-proof-boundaries">
-            <article>
-              <span>Tested</span>
-              <strong>{count(heldoutUnmentioned.top3HitRate, heldoutUnmentioned.cases)}/{heldoutUnmentioned.cases} held-out tasks put the fixing file in the first 3 results.</strong>
-              <p>Against a simpler BM25 keyword search on the same tasks: Top 1, FixMap {count(heldoutBaseline.fixmap.top1HitRate, heldoutBaseline.fixmap.cases)}/{heldoutBaseline.fixmap.cases} vs BM25 {count(heldoutBaseline.bm25.top1HitRate, heldoutBaseline.bm25.cases)}/{heldoutBaseline.bm25.cases}; Top 3, {count(heldoutBaseline.fixmap.top3HitRate, heldoutBaseline.fixmap.cases)}/{heldoutBaseline.fixmap.cases} vs {count(heldoutBaseline.bm25.top3HitRate, heldoutBaseline.bm25.cases)}/{heldoutBaseline.bm25.cases}; Top 5, {count(heldoutBaseline.fixmap.top5HitRate, heldoutBaseline.fixmap.cases)}/{heldoutBaseline.fixmap.cases} vs {count(heldoutBaseline.bm25.top5HitRate, heldoutBaseline.bm25.cases)}/{heldoutBaseline.bm25.cases}. With this few cases none of the differences is statistically significant.</p>
-            </article>
-            <article>
-              <span>How it works</span>
-              <strong>FixMap looks for clues in the project, then builds the list.</strong>
-              <p>It uses file names, code words, imports, nearby tests, and a limited amount of Git history.</p>
-            </article>
-            <article>
-              <span>Not tested yet</span>
-              <strong>Whether FixMap saves time, tokens, money, or tool calls—or improves task success.</strong>
-              <p>The study plan exists, but no completed runs support those claims yet.</p>
-            </article>
+    <>
+      <div className="shell pr-head">
+        <div className="pr-top">
+          <h1 className="pr-title">
+            Tell your AI coding tool which files to check first <span className="num">#{siteStats.version}</span>
+          </h1>
+          <div className="pr-actions">
+            <a className="btn btn-quiet" href="#conversation">Try it</a>
+            <a className="btn btn-primary" href="#merge">Install FixMap</a>
           </div>
         </div>
-      </section>
-
-      <section className="pro-usage page-shell" aria-labelledby="pro-usage-title">
-        <div className="pro-section-heading">
-          <h2 id="pro-usage-title">How often FixMap is downloaded.</h2>
-          <p>
-            Live from npm and GitHub, checked every 5 minutes. npm publishes download counts once a day, so
-            the newest day is yesterday. A download is not a person: automated builds, mirrors, and repeat
-            installs all count. FixMap itself never reports usage.
-          </p>
-          <Link className="text-link" href="/features">
-            See all {FIXMAP_FEATURES.length} features ({FIXMAP_FEATURES.filter((feature) => !feature.preview).length} ready, {FIXMAP_FEATURES.filter((feature) => feature.preview).length} preview) <ArrowRight size={17} weight="bold" aria-hidden />
-          </Link>
+        <div className="pr-meta">
+          <span className="state"><GitPullRequest size={16} weight="bold" aria-hidden /> Ready to review</span>
+          <span>Free, open source, and private: it runs on your computer.</span>
         </div>
-        {usage ? (
-          <div>
-            <dl className="pro-usage-grid">
-              <div><dt>Downloads, last 7 days</dt><dd>{formatCount(usage.lastWeek)}</dd></div>
-              <div><dt>Downloads, last 30 days</dt><dd>{formatCount(usage.lastMonth)}</dd></div>
-              <div><dt>Downloads since {launchMonth}</dt><dd>{formatCount(usage.sinceLaunch)}</dd></div>
-              <div><dt>GitHub stars</dt><dd>{usage.stars === null ? "—" : formatCount(usage.stars)}</dd></div>
-            </dl>
-            {usage.sinceLaunchWithCore !== null ? (
-              <p className="pro-usage-source">
-                {formatCount(usage.sinceLaunchWithCore)} including the engine package, which the CLI installs automatically.
-              </p>
-            ) : null}
-            <p className="pro-usage-source">
-              Source: <a href={`https://www.npmjs.com/package/${USAGE_PACKAGE}`}>{USAGE_PACKAGE} on npm</a> and{" "}
-              <a href={`https://github.com/${USAGE_REPOSITORY}`}>GitHub</a>. npm counts through{" "}
-              <time dateTime={usage.countsThrough}>
-                {new Date(`${usage.countsThrough}T00:00:00Z`).toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}
-              </time>; checked{" "}
-              <time dateTime={usage.fetchedAt}>
-                {new Date(usage.fetchedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC
-              </time>.
-            </p>
+        <p className="pr-lede">
+          Describe what is broken. FixMap checks the code and tells <strong>Claude Code, Codex, Cursor</strong> or any AI coding tool
+          which files to open, which test to run and what else to look at. No account, no API key, no AI model.
+        </p>
+      </div>
+
+      <PrTabs />
+
+      <div className="shell pr-layout" id="conversation">
+        <Review />
+        <aside className="side" aria-label="About FixMap">
+          <div className="side-block">
+            <h2>Reviewer</h2>
+            <div className="reviewer"><Mark className="mark" /> FixMap <CheckCircle className="ok" weight="fill" aria-label="approved" /></div>
           </div>
-        ) : (
-          <p className="pro-usage-source">
-            Download numbers are unavailable right now. See <a href={`https://www.npmjs.com/package/${USAGE_PACKAGE}`}>{USAGE_PACKAGE} on npm</a>.
-          </p>
-        )}
+          <div className="side-block">
+            <h2>Works with</h2>
+            <div className="labels">
+              <span className="label">Claude Code</span>
+              <span className="label">Codex</span>
+              <span className="label">Cursor</span>
+              <span className="label">GitHub Copilot</span>
+              <span className="label">any MCP client</span>
+            </div>
+          </div>
+          <div className="side-block">
+            <h2>Runs</h2>
+            <div className="labels">
+              <span className="label g">on your computer</span>
+              <span className="label g">no API key</span>
+              <span className="label g">no AI model</span>
+              <span className="label g">open source</span>
+            </div>
+          </div>
+          <div className="side-block">
+            <h2>Activity</h2>
+            {usage && downloads !== undefined && downloads !== null ? (
+              <>
+                <div className="stat-line"><span>Downloads since July</span><b>{downloads.toLocaleString("en-US")}</b></div>
+                <div className="stat-line"><span>Last 7 days</span><b>{usage.lastWeek.toLocaleString("en-US")}</b></div>
+                <p className="note">Live from npm (CLI and engine), refreshed every {USAGE_REFRESH_SECONDS / 60} minutes. A download is not a person.</p>
+              </>
+            ) : (
+              <p>npm could not be reached just now, so no number is shown.</p>
+            )}
+          </div>
+        </aside>
+      </div>
+
+      <section className="shell section" id="commits" aria-labelledby="commits-heading">
+        <div className="section-head">
+          <h2 id="commits-heading">How FixMap builds the list</h2>
+          <p>No AI model. Every item comes with the evidence behind it, from your own project.</p>
+        </div>
+        <div className="commits">
+          <div className="commit">
+            <FileCode aria-hidden />
+            <div><strong>Matches the task to names in the code</strong><p>Function names, constants, file paths and error text from your task, found where they are defined.</p></div>
+            <span className="sha">names</span>
+          </div>
+          <div className="commit">
+            <GitCommit aria-hidden />
+            <div><strong>Follows imports and finds the nearest tests</strong><p>What the file uses, what uses it, and which test command checks it.</p></div>
+            <span className="sha">imports</span>
+          </div>
+          <div className="commit">
+            <GitMerge aria-hidden />
+            <div><strong>Checks which files change together</strong><p>Recent Git history shows code that usually moves with the file, so it is worth a look too.</p></div>
+            <span className="sha">history</span>
+          </div>
+        </div>
       </section>
 
-      <section className="pro-surfaces page-shell">
-        <div className="pro-section-heading">
-          <h2>Pick the easiest way to use FixMap.</h2>
+      <section className="shell section" id="checks" aria-labelledby="checks-heading">
+        <div className="section-head">
+          <h2 id="checks-heading">Checks, including the ones that did not pass</h2>
+          <p>Measured on real bugs from open-source projects FixMap had never seen, with the pass bar written down before each run.</p>
         </div>
-        <div className="pro-surface-grid">
-          {surfaces.map(({ icon: Icon, ...surface }) => (
-            <Link href={surface.href} key={surface.name}>
-              <Icon size={21} aria-hidden />
-              <h3>{surface.name}</h3>
-              <p>{surface.detail}</p>
-              <span>Set up <ArrowRight size={15} weight="bold" aria-hidden /></span>
-            </Link>
-          ))}
+        <div className="checks">
+          <div className="checks-head">
+            <strong>4 checks</strong>
+            <span>2 passed · 1 about even · 1 not run yet</span>
+          </div>
+          <div className="check pass">
+            <CheckCircle weight="fill" aria-hidden />
+            <div>
+              <strong>Finds the file a real fix changed</strong>
+              <p>In its top 5 for {fixmapHits} of {fresh.cases} fixes from never-seen projects in Python, Java, Go, Rust, Ruby, PHP and C#.</p>
+            </div>
+            <span className="result">{fixmapHits}/{fresh.cases}</span>
+          </div>
+          <div className="check neutral">
+            <MinusCircle weight="fill" aria-hidden />
+            <div>
+              <strong>Beats plain keyword search</strong>
+              <p>About even: {fixmapHits} against {keywordHits} in the top 5, not a significant difference (p = {fresh.top5PValue}). We say so instead of claiming a win.</p>
+            </div>
+            <span className="result">{fixmapHits} vs {keywordHits}</span>
+          </div>
+          <div className="check pass">
+            <CheckCircle weight="fill" aria-hidden />
+            <div>
+              <strong>Says when it is not sure</strong>
+              <p>On {adversarial.cases} tasks built to fool it, with made-up names or no clues, it stayed low-confidence every time instead of inventing an answer.</p>
+            </div>
+            <span className="result">{adversarial.passed}/{adversarial.cases}</span>
+          </div>
+          <div className="check skip">
+            <CircleDashed weight="bold" aria-hidden />
+            <div>
+              <strong>Saves your AI tool time, tokens or money</strong>
+              <p>Not measured yet. The study is written down; no runs have been done, so we make no claim.</p>
+            </div>
+            <span className="result">not run</span>
+          </div>
+          <div className="checks-foot"><Link href="/evidence">See every result and test case <ArrowRight size={14} weight="bold" aria-hidden style={{ display: "inline", verticalAlign: "-2px" }} /></Link></div>
         </div>
       </section>
 
-      <section className="pro-overview page-shell" id="overview" aria-labelledby="pro-overview-title">
-        <div className="pro-section-heading">
-          <h2 id="pro-overview-title">Watch one full example.</h2>
-          <p>See a coding problem turn into a short list of files, tests, and related code.</p>
+      <section className="shell section" id="merge" aria-labelledby="merge-heading">
+        <div className="merge">
+          <div className="avatar" aria-hidden><GitMerge weight="bold" /></div>
+          <div className="merge-box">
+            <div className="merge-top">
+              <h2 id="merge-heading">Ready to use on your own project</h2>
+              <p>Free and open source. Pick where you want the starting list to show up.</p>
+            </div>
+            <Install workflow={actionWorkflow} />
+            <div className="merge-actions">
+              <Link className="btn btn-primary" href="/docs">Read the setup guide <ArrowRight size={16} weight="bold" aria-hidden /></Link>
+              <a className="btn btn-quiet" href={repoUrl}>View the source</a>
+            </div>
+          </div>
         </div>
-        <details>
-          <summary>Play the 31-second video <ArrowRight size={17} weight="bold" aria-hidden /></summary>
-          <video controls playsInline preload="metadata" poster="/fixmap-launch-poster.jpg" aria-label="FixMap product overview film">
-            <source src="/fixmap-launch.mp4" type="video/mp4" />
-            <a href="/fixmap-launch.mp4">Download the FixMap product overview film.</a>
-          </video>
-        </details>
       </section>
 
-      <section className="pro-final page-shell">
-        <div><Path size={22} aria-hidden /><strong>Want your AI coding tool to know where to start?</strong><span>Try the sample or use FixMap on your project.</span></div>
-        <div className="button-row">
-          <Link className="button primary" href="/get-started">Get started <ArrowRight size={17} weight="bold" aria-hidden /></Link>
-          <a className="text-link" href={repoUrl}><GithubLogo size={17} weight="fill" aria-hidden /> View source</a>
+      <section className="shell closing" aria-labelledby="closing-heading">
+        <div>
+          <h2 id="closing-heading">Give your AI coding tool a better first step.</h2>
+          <p>It still writes the fix. FixMap helps it start in the right place, and says so when it does not know.</p>
+          <div className="actions">
+            <a className="btn btn-primary" href="#conversation">Try it on the sample</a>
+            <Link className="btn btn-quiet" href="/docs">Install FixMap</Link>
+          </div>
         </div>
+        <LoopFilm />
       </section>
-    </main>
+    </>
   );
 }

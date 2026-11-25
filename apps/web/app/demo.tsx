@@ -1,412 +1,197 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { buildPathExcluder, buildReportFromRepo, compareReports, explainFile, quoteCliValue, verifyPlan } from "@aryam/fixmap-core/browser";
-import type { CliShell } from "@aryam/fixmap-core/browser";
-import { demoPresets } from "./demo-presets";
-import { sampleRepo, sampleRepoWithChanges, samplePaths } from "./sample-repo";
+import { ArrowsClockwise, ChatCircleText, CheckCircle, Flask, Question, Warning } from "@phosphor-icons/react";
+import { useDeferredValue, useMemo, useState } from "react";
+import { Mark } from "./_components/logo";
+import { buildHomepageReport, homepageDefaultTask, homepagePresets, selectHomepageEvidence } from "./_lib/homepage-demo";
+import { sampleRepo } from "./sample-repo";
 
-type Stage = "plan" | "explain" | "compare" | "verify";
+const KEYWORDS = new Set(["import", "from", "export", "const", "let", "async", "await", "function", "return", "if", "else", "new", "throw", "type", "interface", "class", "extends", "for", "of", "in", "true", "false", "null", "undefined"]);
 
-const scenarios = [
-  { label: "Edited the build output", changed: ["dist/auth/reset-password.js"] },
-  { label: "Shipped with no test", changed: ["src/email/transport.ts"] },
-  { label: "Also touched billing", changed: ["src/email/transport.ts", "src/billing/invoice.ts"] },
-  {
-    label: "Source and test together",
-    changed: ["src/auth/reset-password.ts", "test/auth/reset-password.test.ts"]
+/** A small, safe highlighter for the sample's TypeScript: keywords, strings, numbers, comments. */
+function highlight(line: string) {
+  const parts: Array<{ text: string; kind?: string }> = [];
+  const pattern = /(\/\/.*$)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)|(\b\d[\d_]*\b)|(\b[A-Za-z_]\w*\b)/g;
+  let last = 0;
+  for (const match of line.matchAll(pattern)) {
+    const index = match.index ?? 0;
+    if (index > last) parts.push({ text: line.slice(last, index) });
+    const [text] = match;
+    if (match[1]) parts.push({ text, kind: "tok-com" });
+    else if (match[2]) parts.push({ text, kind: "tok-str" });
+    else if (match[3]) parts.push({ text, kind: "tok-num" });
+    else parts.push(KEYWORDS.has(text) ? { text, kind: "tok-kw" } : { text });
+    last = index + text.length;
   }
-];
-
-const explainTargets = samplePaths;
-
-function subscribeToShell(): () => void {
-  return () => undefined;
+  if (last < line.length) parts.push({ text: line.slice(last) });
+  return parts.map((part, index) => (part.kind ? <span key={index} className={part.kind}>{part.text}</span> : part.text));
 }
 
-function browserShell(): CliShell {
-  return /Windows/i.test(navigator.userAgent) ? "powershell" : "posix";
+/** The line FixMap's reason points at: a named identifier's definition, else the first line using a task word. */
+function hitLine(lines: string[], reasons: string[], task: string): number {
+  const named = reasons
+    .flatMap((reason) => /(?:identifiers?|symbols?)[^:]*:\s*(.+)$/i.exec(reason)?.[1]?.split(/,\s*/) ?? [])
+    .map((value) => value.trim())
+    .filter(Boolean);
+  for (const name of named) {
+    const definition = lines.findIndex((line) => new RegExp(`\\b(?:const|let|function|class|type|interface)\\s+${name}\\b`).test(line));
+    if (definition >= 0) return definition;
+    const use = lines.findIndex((line) => line.includes(name));
+    if (use >= 0) return use;
+  }
+  const words = task.toLowerCase().split(/[^a-z0-9_]+/).filter((word) => word.length > 3);
+  const found = lines.findIndex((line) => words.some((word) => line.toLowerCase().includes(word)));
+  return found >= 0 ? found : 0;
 }
 
-function serverShell(): CliShell {
-  return "posix";
+/** One plain sentence from FixMap's strongest reason: a definition beats a mention beats a path match. */
+function startHere(reasons: string[]): string {
+  const value = (prefix: RegExp) => reasons.map((reason) => prefix.exec(reason)?.[1]).find(Boolean);
+  const defines = value(/^defines task identifiers: (.+)$/);
+  if (defines) return `Start here: this file defines ${defines}, which your task names.`;
+  const symbols = value(/^defines symbols matching task terms: (.+)$/);
+  if (symbols) return `Start here: this file defines ${symbols}, which matches your task.`;
+  const mentions = value(/^content matches task terms: (.+)$/);
+  const path = value(/^path matches task terms: (.+)$/);
+  if (mentions && path) return `Start here: its name matches ${path}, and the code mentions ${mentions}.`;
+  if (mentions) return `Start here: the code mentions ${mentions}.`;
+  if (path) return `Start here: its name matches ${path}.`;
+  return "Start here: this is the strongest match for your task.";
 }
 
-export function Demo() {
-  const [task, setTask] = useState<string>(demoPresets[0].label);
-  const [stage, setStage] = useState<Stage>("plan");
-  const [explainTarget, setExplainTarget] = useState("dist/auth/reset-password.js");
-  const [scenario, setScenario] = useState(0);
-  const [limit, setLimit] = useState(8);
-  const [excludeBuild, setExcludeBuild] = useState(false);
-  const [workingTree, setWorkingTree] = useState(false);
-
-  // The wording the previous plan ran with, so Compare answers the question its stage asks —
-  // "did refining the task move the real file?" — rather than always diffing against the
-  // first preset. `settled` tracks the last wording that stopped changing, and only a genuine
-  // edit promotes it to the baseline, so the delta survives instead of collapsing to empty as
-  // soon as typing stops. The ref is read inside the effect, never during render.
-  const [baselineTask, setBaselineTask] = useState<string>(demoPresets[0].label);
-  const settled = useRef<string>(demoPresets[0].label);
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (task !== settled.current) {
-        setBaselineTask(settled.current);
-        settled.current = task;
-      }
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [task]);
-
-  const exclude = useMemo(() => buildPathExcluder(excludeBuild ? ["dist/**"] : []), [excludeBuild]);
-  const activeRepo = useMemo(() => workingTree ? sampleRepoWithChanges(scenarios[scenario]!.changed) : sampleRepo, [workingTree, scenario]);
-  const report = useMemo(() => buildReportFromRepo(activeRepo, { issueText: task, limit, exclude }), [activeRepo, task, limit, exclude]);
-  // Built on the same repository as the current plan. Diffing a clean-tree baseline against a
-  // working-tree plan moved two variables at once and labeled the result a task refinement.
-  const baseline = useMemo(
-    () => buildReportFromRepo(activeRepo, { issueText: baselineTask, limit, exclude }),
-    [activeRepo, baselineTask, limit, exclude]
-  );
-  const comparison = useMemo(() => compareReports(baseline, report), [baseline, report]);
-  // Explain re-ranks, so it has to see the tree the plan saw or it explains a ranking that
-  // was never on screen.
-  const explanation = useMemo(
-    () => explainFile(activeRepo, { issueText: task, limit, exclude }, explainTarget),
-    [activeRepo, task, limit, exclude, explainTarget]
-  );
-  // Verify compares a plan against what changed after it. Injecting scenario changes while
-  // the plan was built on a clean tree let verify contradict the plan beside it.
-  const verifyRepo = useMemo(
-    () => workingTree ? activeRepo : sampleRepoWithChanges(scenarios[scenario]!.changed),
-    [workingTree, activeRepo, scenario]
-  );
-  const verification = useMemo(() => verifyPlan(report, verifyRepo), [report, verifyRepo]);
-
-  const activePreset = demoPresets.find((preset) => preset.label === task);
-  // Every control on screen has to appear here, or the command someone copies produces a
-  // different ranking from the one they are looking at — which is the one thing a live demo
-  // must not do.
-  const scanFlags =
-    `${limit === 8 ? "" : ` --limit ${limit}`}` +
-    `${excludeBuild ? ' --exclude "dist/**"' : ""}` +
-    `${workingTree ? " --working-tree" : ""}`;
-  const shell = useSyncExternalStore(subscribeToShell, browserShell, serverShell);
-  const quotedTask = quoteCliValue(task, shell);
-  const command = {
-    plan: `fixmap plan --issue ${quotedTask}${scanFlags} --format json --output plan.json`,
-    explain: `fixmap plan --issue ${quotedTask} --explain ${quoteCliValue(explainTarget, shell)}${scanFlags}`,
-    compare: `fixmap plan --issue ${quotedTask} --compare plan.json${scanFlags}`,
-    verify: `fixmap verify --report plan.json ${workingTree ? "--working-tree" : "--diff main...HEAD"}`
-  }[stage];
+/** Website demo where visitors describe an issue and inspect the top-ranked file. */
+export function Review() {
+  const [task, setTask] = useState<string>(homepageDefaultTask);
+  const deferredTask = useDeferredValue(task);
+  const report = useMemo(() => buildHomepageReport(deferredTask), [deferredTask]);
+  const evidence = useMemo(() => selectHomepageEvidence(report), [report]);
+  const top = evidence.editCandidate;
+  const file = top ? sampleRepo.files.find((entry) => entry.path === top.path) : undefined;
+  const lines = file ? file.textSample.replace(/\n$/, "").split("\n") : [];
+  const hit = top && file ? hitLine(lines, top.reasons, deferredTask) : 0;
+  const start = Math.max(0, hit - 4);
+  const excerpt = lines.slice(start, Math.min(lines.length, hit + 5));
+  const test = evidence.testRoute;
+  const nearestTest = test?.relatedFiles?.[0];
+  const impact = evidence.impactFile;
+  const risk = evidence.risk;
+  const pending = deferredTask !== task;
 
   return (
-    <div className="workbench">
-      <div className="stage-tabs" role="group" aria-label="FixMap stages">
-        {(
-          [
-            ["plan", "1 · Find files", "Where should I start?"],
-            ["explain", "2 · Ask why", "Why this file?"],
-            ["compare", "3 · Refine task", "Did the result improve?"],
-            ["verify", "4 · Check change", "Did the work drift?"]
-          ] as const
-        ).map(([value, label, hint]) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={stage === value}
-            className={stage === value ? "stage-tab active" : "stage-tab"}
-            onClick={() => setStage(value)}
-          >
-            <b>{label}</b>
-            <small>{hint}</small>
-          </button>
-        ))}
-      </div>
-
-      <div className="demo-shell">
-        <div className="demo-input">
-          <label htmlFor="task">Describe the software problem</label>
-          <textarea id="task" value={task} onChange={(event) => setTask(event.target.value)} rows={3} />
-          <div className="preset-list" role="group" aria-label="Example software problems">
-            {demoPresets.map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                aria-pressed={task === preset.label}
-                onClick={() => setTask(preset.label)}
-              >
-                {preset.label}
-              </button>
-            ))}
+    <div className="timeline">
+      <article className="event" aria-labelledby="task-heading">
+        <div className="avatar" aria-hidden>Y</div>
+        <div className="comment">
+          <div className="comment-head">
+            <strong id="task-heading">You</strong>
+            <span>describe what is broken</span>
+            <span className="badge">sample project</span>
           </div>
-          {activePreset ? <p className="preset-note">{activePreset.note}</p> : null}
-
-          <details className="demo-advanced">
-            <summary>Adjust limits, exclusions, and CLI output</summary>
-            <label className="picker-label" htmlFor="context-limit">Maximum file suggestions: {limit}</label>
-            <input id="context-limit" type="range" min="1" max="8" value={limit} onChange={(event) => setLimit(Number(event.target.value))} />
-            <label className="picker-label"><input type="checkbox" checked={excludeBuild} onChange={(event) => setExcludeBuild(event.target.checked)} /> Ignore generated <code>dist/**</code> files</label>
-            <label className="picker-label"><input type="checkbox" checked={workingTree} onChange={(event) => setWorkingTree(event.target.checked)} /> Include unsaved working-tree changes</label>
-            <p className="demo-command">
-              <span>Run the same example from a terminal</span>
-              <code>{command}</code>
-            </p>
-          </details>
-
-          <div className="privacy-note">
-            <span aria-hidden="true">●</span>
-            <p>
-              <strong>This is the real FixMap engine.</strong> It runs on a sample repository in
-              this tab. Nothing you type is uploaded.
-            </p>
-          </div>
-        </div>
-
-        <div className="demo-results" aria-live="polite">
-          {stage === "plan" ? <PlanPanel report={report} /> : null}
-          {stage === "explain" ? (
-            <ExplainPanel
-              explanation={explanation}
-              target={explainTarget}
-              onTargetChange={setExplainTarget}
-            />
-          ) : null}
-          {stage === "verify" ? (
-            <VerifyPanel
-              verification={verification}
-              scenario={scenario}
-              onScenarioChange={setScenario}
-            />
-          ) : null}
-          {stage === "compare" ? <ComparePanel comparison={comparison} /> : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PlanPanel({ report }: { report: ReturnType<typeof buildReportFromRepo> }) {
-  return (
-    <>
-      <div className="results-head">
-        <span>Files to inspect first</span>
-        <small>{report.contextFiles.length} suggestions</small>
-      </div>
-
-      {report.contextFiles.length > 0 ? (
-        report.contextFiles.map((file, index) => (
-          <article className="result" key={file.path}>
-            <span className="result-number">{String(index + 1).padStart(2, "0")}</span>
-            <div>
-              <code>{file.path}</code>
-              <details className="result-reasons">
-                <summary>Why FixMap suggested this file</summary>
-                <p>{file.reasons.join("; ")}</p>
-                <small>Ranking score: {file.score}</small>
-              </details>
-            </div>
-            <span className={`confidence ${file.confidence}`}>
-              {file.confidence} match
-            </span>
-          </article>
-        ))
-      ) : (
-        <div className="empty-result">
-          <strong>FixMap could not ground this task.</strong>
-          <p>Add a symptom, file name, or code symbol. FixMap will not invent a confident-looking result for a vague request.</p>
-        </div>
-      )}
-
-      {report.testRoutes.length > 0 ? (
-        <div className="route-preview">
-          <span>Test or check to run</span>
-          <code>{report.testRoutes[0]!.command}</code>
-        </div>
-      ) : null}
-
-      {report.impact?.files.length ? (
-        <div className="panel-block">
-          <p className="panel-heading">Other files this change may affect</p>
-          {report.impact.files.slice(0, 5).map((file) => (
-            <p key={file.path}>
-              <span className={`severity ${file.confidence === "high" ? "warning" : "info"}`}>{file.confidence}</span>
-              <code>{file.path}</code> — {file.evidence.map((entry) => entry.reason).join("; ")}
-            </p>
-          ))}
-        </div>
-      ) : null}
-      {report.testRoutes[0]?.relatedFiles.length ? (
-        <p className="route-related">
-          Nearest test: <code>{report.testRoutes[0]!.relatedFiles[0]}</code>
-        </p>
-      ) : null}
-
-      {report.risks.length > 0 ? (
-        <div className="panel-block">
-          <p className="panel-heading">Risks worth reviewing</p>
-          {report.risks.map((risk) => (
-            <p key={risk.area}>
-              <span className={`severity ${risk.severity}`}>{risk.severity}</span>
-              {risk.area} — {risk.reason}
-            </p>
-          ))}
-        </div>
-      ) : null}
-
-      {report.diagnostics.length > 0 ? (
-        <div className="panel-block">
-          <p className="panel-heading">Diagnostics</p>
-          {report.diagnostics.map((diagnostic, index) => (
-            <p key={`${diagnostic.code}-${diagnostic.paths?.[0] ?? index}`}>
-              <span className={`severity ${diagnostic.severity}`}>{diagnostic.severity}</span>
-              {diagnostic.message}
-            </p>
-          ))}
-        </div>
-      ) : null}
-
-      {report.analysis ? <p className="next-action">→ {report.analysis.nextAction}</p> : null}
-    </>
-  );
-}
-
-function ExplainPanel({
-  explanation,
-  target,
-  onTargetChange
-}: {
-  explanation: ReturnType<typeof explainFile>;
-  target: string;
-  onTargetChange: (path: string) => void;
-}) {
-  return (
-    <>
-      <div className="results-head">
-        <span>Why this file</span>
-        <small className={`status-${explanation.status}`}>{explanation.status.replace("-", " ")}</small>
-      </div>
-
-      <label className="picker-label" htmlFor="explain-target">
-        Pick any file in the sample repository
-      </label>
-      <select
-        id="explain-target"
-        className="picker"
-        value={target}
-        onChange={(event) => onTargetChange(event.target.value)}
-      >
-        {explainTargets.map((path) => (
-          <option key={path} value={path}>
-            {path}
-          </option>
-        ))}
-      </select>
-
-      <p className="explain-summary">{explanation.summary}</p>
-
-      {explanation.reasons.length > 0 ? (
-        <div className="panel-block">
-          <p className="panel-heading">Scored for</p>
-          {explanation.reasons.map((reason) => (
-            <p key={reason}>{reason}</p>
-          ))}
-        </div>
-      ) : null}
-
-      <p className="panel-footnote">
-        This tells you whether the file ranked lower, fell below the cutoff, was excluded on
-        purpose, or was never scanned.
-      </p>
-    </>
-  );
-}
-
-function ComparePanel({ comparison }: { comparison: ReturnType<typeof compareReports> }) {
-  // Leaving the plan is a change too. Omitting it made the counter say "0 changed" beside
-  // summaries such as "7 left", and hid the paths that explained the delta.
-  const changes = [
-    ...comparison.entered,
-    ...comparison.left,
-    ...comparison.moved,
-    ...comparison.confidenceChanged
-  ];
-  return (
-    <>
-      <div className="results-head"><span>What changed after you clarified the task</span><small>{changes.length} changes</small></div>
-      <p className="explain-summary">{comparison.summary}</p>
-      {changes.map((delta) => (
-        <article className="finding" key={`${delta.status}-${delta.path}`}>
-          <span className="severity info">{delta.status}</span>
-          <div><code>{delta.path}</code><p>rank {delta.previousRank ?? "—"} → {delta.currentRank ?? "—"}; score {delta.previousScore ?? "—"} → {delta.currentScore ?? "—"}</p></div>
-        </article>
-      ))}
-      <p className="panel-footnote">A clearer task should move the real fix site closer to the top. Compare shows whether it actually did.</p>
-    </>
-  );
-}
-
-function VerifyPanel({
-  verification,
-  scenario,
-  onScenarioChange
-}: {
-  verification: ReturnType<typeof verifyPlan>;
-  scenario: number;
-  onScenarioChange: (index: number) => void;
-}) {
-  const hasError = verification.findings.some((finding) => finding.severity === "error");
-
-  return (
-    <>
-      <div className="results-head">
-        <span>Planned work vs. changed files</span>
-        <small className={hasError ? "status-excluded" : "status-ranked"}>
-          {hasError ? "Needs review" : "No blocking errors"}
-        </small>
-      </div>
-
-      <p className="picker-label" id="scenario-label">
-        Pretend the change touched
-      </p>
-      <div className="preset-list" id="scenario" role="group" aria-labelledby="scenario-label">
-        {scenarios.map((option, index) => (
-          <button
-            key={option.label}
-            type="button"
-            aria-pressed={scenario === index}
-            onClick={() => onScenarioChange(index)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-      <p className="changed-list">
-        {scenarios[scenario]!.changed.map((path) => (
-          <code key={path}>{path}</code>
-        ))}
-      </p>
-
-      <p className="explain-summary">{verification.summary}</p>
-
-      {verification.findings.map((finding, index) => (
-        <article className="finding" key={`${finding.code}-${finding.paths[0] ?? index}`}>
-          <span className={`severity ${finding.severity}`}>{finding.severity}</span>
-          <div>
-            <p>{finding.message}</p>
-            <span className="finding-paths">
-              {finding.paths.map((path) => (
-                <code key={path}>{path}</code>
+          <div className="comment-body task-form">
+            <label htmlFor="task">Task for FixMap</label>
+            <textarea id="task" value={task} onChange={(event) => setTask(event.target.value)} spellCheck={false} />
+            <div className="presets" role="group" aria-label="Example tasks">
+              {homepagePresets.map((preset) => (
+                <button key={preset.label} type="button" className="preset" aria-pressed={task === preset.task} onClick={() => setTask(preset.task)}>
+                  {preset.label}
+                </button>
               ))}
-            </span>
+            </div>
           </div>
-        </article>
-      ))}
+        </div>
+      </article>
 
-      <p className="panel-footnote">
-        Only the discarded edit exits non-zero, because that one is wrong whatever the task was.
-        Everything else is advisory: a plan can be wrong and a change can still be right, so
-        FixMap reports the gap rather than judging it.
-      </p>
-    </>
+      <article className="event" aria-labelledby="review-heading" aria-busy={pending}>
+        <div className="avatar bot" aria-hidden><Mark /></div>
+        <div className="comment review">
+          <div className="comment-head">
+            <strong id="review-heading">FixMap</strong>
+            <span>reviewed the task against the sample project</span>
+            {pending ? <span className="badge"><ArrowsClockwise size={12} aria-hidden />&nbsp;checking</span> : <span className="badge ok">done</span>}
+          </div>
+          <div className="comment-body" aria-live="polite">
+            {top && file ? (
+              <>
+                <div className="file">
+                  <div className="file-head">
+                    <span className="rank" aria-label="First">1</span>
+                    <span className="path">{top.path}</span>
+                    <span className="why">open this first</span>
+                  </div>
+                  <div className="code" role="group" aria-label={`${top.path}, lines ${start + 1} to ${start + excerpt.length}`}>
+                    {excerpt.map((text, offset) => {
+                      const number = start + offset + 1;
+                      const isHit = start + offset === hit;
+                      return (
+                        <div key={number}>
+                          <div className={`line${isHit ? " hit" : ""}`}>
+                            <span className="ln">{number}</span>
+                            <span className="sg" aria-hidden>{isHit ? "›" : " "}</span>
+                            <code>{highlight(text)}</code>
+                          </div>
+                          {isHit ? (
+                            <div className="thread" key={`${deferredTask}-${number}`}>
+                              <div className="thread-head">
+                                <span className="mini"><Mark /></span>
+                                <strong>FixMap</strong>
+                                <span>commented on line {number}</span>
+                              </div>
+                              <div className="thread-body">
+                                {startHere(top.reasons)}
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="review-list">
+                  {test ? (
+                    <div className="review-item">
+                      <Flask aria-hidden />
+                      <div>
+                        <strong>Run <code>{test.command}</code></strong>
+                        <p>{nearestTest ? <>Closest test: <code>{nearestTest}</code></> : test.reason}</p>
+                      </div>
+                    </div>
+                  ) : null}
+                  {impact ? (
+                    <div className="review-item">
+                      <ChatCircleText aria-hidden />
+                      <div>
+                        <strong>Also look at <code>{impact.path}</code></strong>
+                        <p>{impact.evidence[0]?.reason ?? "Connected to the first file."}</p>
+                      </div>
+                    </div>
+                  ) : null}
+                  {risk ? (
+                    <div className="review-item warn">
+                      <Warning aria-hidden />
+                      <div>
+                        <strong>Careful: {risk.area}</strong>
+                        <p>{risk.reason}</p>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <div className="empty-review">
+                <strong><Question size={18} weight="bold" aria-hidden /> Not sure where to start</strong>
+                <p>
+                  This task does not name anything FixMap can find in the project, so it suggests nothing rather than guessing.
+                  Add a symptom, a function name or an error message.
+                </p>
+              </div>
+            )}
+            <p className="privacy">
+              <CheckCircle size={14} weight="bold" aria-hidden style={{ display: "inline", verticalAlign: "-2px" }} /> This runs FixMap&apos;s real engine in your browser on a small sample project. Nothing you type leaves this page.
+            </p>
+          </div>
+        </div>
+      </article>
+    </div>
   );
 }

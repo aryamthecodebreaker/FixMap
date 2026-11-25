@@ -18,9 +18,13 @@ child.stderr.on("data", (chunk) => output.push(chunk.toString()));
 
 try {
   await waitForServer(`${origin}/`);
-  await assertPage("/", "FixMap tells AI coding tools which files to check first.");
-  await assertPage("/demo", "See FixMap choose");
-  console.log(`Web production smoke passed: / and /demo returned expected content from next start on ${origin}.`);
+  await assertPage("/", "Tell your AI coding tool which files to check first");
+  await assertPage("/docs", "What FixMap never does");
+  await assertPage("/evidence", "Fresh projects in seven languages");
+  await assertPage("/changelog", "Changelog");
+  // Retired pages redirect; fetch follows the redirect to the page that replaced them.
+  await assertPage("/demo", "Tell your AI coding tool which files to check first");
+  console.log(`Web production smoke passed: /, /docs, /evidence, /changelog and the /demo redirect returned expected content from next start on ${origin}.`);
 } catch (error) {
   console.error(`${error instanceof Error ? error.message : String(error)}\n${output.join("").slice(-4_000)}`);
   process.exitCode = 1;
