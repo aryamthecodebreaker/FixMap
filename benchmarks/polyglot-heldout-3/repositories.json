@@ -1,0 +1,848 @@
+{
+  "status": "held-out",
+  "targetPerLanguage": 15,
+  "modifiedFilesOnly": true,
+  "candidateRule": "For each language, GitHub repository search (language filter, sorted by stars, descending, first 100 results on 2026-11-25), skipping archived repositories, forks, every repository listed or used by any earlier FixMap cohort, and repositories whose name or description matches /awesome|tutorial|interview|course|book|roadmap|list of|collection|cheat|guide|learn|resources|example|leetcode|algorithm|exercise|demo|sample|homework|free |projects|system design|prompts?|papers/i. The first 30 survivors per language are listed in star order.",
+  "repositories": [
+    {
+      "slug": "harry0703/MoneyPrinterTurbo",
+      "language": "python"
+    },
+    {
+      "slug": "ytdl-org/youtube-dl",
+      "language": "python"
+    },
+    {
+      "slug": "krahets/hello-algo",
+      "language": "python"
+    },
+    {
+      "slug": "browser-use/browser-use",
+      "language": "python"
+    },
+    {
+      "slug": "sherlock-project/sherlock",
+      "language": "python"
+    },
+    {
+      "slug": "Panniantong/Agent-Reach",
+      "language": "python"
+    },
+    {
+      "slug": "openai/whisper",
+      "language": "python"
+    },
+    {
+      "slug": "pytorch/pytorch",
+      "language": "python"
+    },
+    {
+      "slug": "D4Vinci/Scrapling",
+      "language": "python"
+    },
+    {
+      "slug": "deepseek-ai/DeepSeek-V3",
+      "language": "python"
+    },
+    {
+      "slug": "karpathy/autoresearch",
+      "language": "python"
+    },
+    {
+      "slug": "hacksider/Deep-Live-Cam",
+      "language": "python"
+    },
+    {
+      "slug": "nvbn/thefuck",
+      "language": "python"
+    },
+    {
+      "slug": "vllm-project/vllm",
+      "language": "python"
+    },
+    {
+      "slug": "3b1b/manim",
+      "language": "python"
+    },
+    {
+      "slug": "odysseus-dev/odysseus",
+      "language": "python"
+    },
+    {
+      "slug": "PaddlePaddle/PaddleOCR",
+      "language": "python"
+    },
+    {
+      "slug": "home-assistant/core",
+      "language": "python"
+    },
+    {
+      "slug": "datawhalechina/hello-agents",
+      "language": "python"
+    },
+    {
+      "slug": "666ghj/MiroFish",
+      "language": "python"
+    },
+    {
+      "slug": "bytedance/deer-flow",
+      "language": "python"
+    },
+    {
+      "slug": "opendatalab/MinerU",
+      "language": "python"
+    },
+    {
+      "slug": "OpenMontageInc/OpenMontage",
+      "language": "python"
+    },
+    {
+      "slug": "d2l-ai/d2l-zh",
+      "language": "python"
+    },
+    {
+      "slug": "Z4nzu/hackingtool",
+      "language": "python"
+    },
+    {
+      "slug": "abi/screenshot-to-code",
+      "language": "python"
+    },
+    {
+      "slug": "headroomlabs-ai/headroom",
+      "language": "python"
+    },
+    {
+      "slug": "unslothai/unsloth",
+      "language": "python"
+    },
+    {
+      "slug": "hugohe3/ppt-master",
+      "language": "python"
+    },
+    {
+      "slug": "python/cpython",
+      "language": "python"
+    },
+    {
+      "slug": "spring-projects/spring-boot",
+      "language": "java"
+    },
+    {
+      "slug": "airbnb/lottie-android",
+      "language": "java"
+    },
+    {
+      "slug": "bumptech/glide",
+      "language": "java"
+    },
+    {
+      "slug": "SeleniumHQ/selenium",
+      "language": "java"
+    },
+    {
+      "slug": "zxing/zxing",
+      "language": "java"
+    },
+    {
+      "slug": "Blankj/AndroidUtilCode",
+      "language": "java"
+    },
+    {
+      "slug": "alibaba/nacos",
+      "language": "java"
+    },
+    {
+      "slug": "binarywang/WxJava",
+      "language": "java"
+    },
+    {
+      "slug": "conductor-oss/conductor",
+      "language": "java"
+    },
+    {
+      "slug": "xuxueli/xxl-job",
+      "language": "java"
+    },
+    {
+      "slug": "TelegramMessenger/Telegram-Android",
+      "language": "java"
+    },
+    {
+      "slug": "opendataloader-project/opendataloader-pdf",
+      "language": "java"
+    },
+    {
+      "slug": "kestra-io/kestra",
+      "language": "java"
+    },
+    {
+      "slug": "chinabugotech/hutool",
+      "language": "java"
+    },
+    {
+      "slug": "Anuken/Mindustry",
+      "language": "java"
+    },
+    {
+      "slug": "apolloconfig/apollo",
+      "language": "java"
+    },
+    {
+      "slug": "alibaba/canal",
+      "language": "java"
+    },
+    {
+      "slug": "alibaba/spring-cloud-alibaba",
+      "language": "java"
+    },
+    {
+      "slug": "wuyouzhuguli/SpringAll",
+      "language": "java"
+    },
+    {
+      "slug": "OtterMind/Chat2DB",
+      "language": "java"
+    },
+    {
+      "slug": "alibaba/druid",
+      "language": "java"
+    },
+    {
+      "slug": "lenve/vhr",
+      "language": "java"
+    },
+    {
+      "slug": "iBotPeaches/Apktool",
+      "language": "java"
+    },
+    {
+      "slug": "OpenAPITools/openapi-generator",
+      "language": "java"
+    },
+    {
+      "slug": "jenkinsci/jenkins",
+      "language": "java"
+    },
+    {
+      "slug": "qiurunze123/miaosha",
+      "language": "java"
+    },
+    {
+      "slug": "apache/flink",
+      "language": "java"
+    },
+    {
+      "slug": "bazelbuild/bazel",
+      "language": "java"
+    },
+    {
+      "slug": "apache/incubator-seata",
+      "language": "java"
+    },
+    {
+      "slug": "LSPosed/LSPosed",
+      "language": "java"
+    },
+    {
+      "slug": "grafana/grafana",
+      "language": "go"
+    },
+    {
+      "slug": "traefik/traefik",
+      "language": "go"
+    },
+    {
+      "slug": "usememos/memos",
+      "language": "go"
+    },
+    {
+      "slug": "rclone/rclone",
+      "language": "go"
+    },
+    {
+      "slug": "FiloSottile/mkcert",
+      "language": "go"
+    },
+    {
+      "slug": "go-gitea/gitea",
+      "language": "go"
+    },
+    {
+      "slug": "multica-ai/multica",
+      "language": "go"
+    },
+    {
+      "slug": "alibaba/open-code-review",
+      "language": "go"
+    },
+    {
+      "slug": "wagoodman/dive",
+      "language": "go"
+    },
+    {
+      "slug": "jesseduffield/lazydocker",
+      "language": "go"
+    },
+    {
+      "slug": "etcd-io/etcd",
+      "language": "go"
+    },
+    {
+      "slug": "QuantumNous/new-api",
+      "language": "go"
+    },
+    {
+      "slug": "ethereum/go-ethereum",
+      "language": "go"
+    },
+    {
+      "slug": "MHSanaei/3x-ui",
+      "language": "go"
+    },
+    {
+      "slug": "mudler/LocalAI",
+      "language": "go"
+    },
+    {
+      "slug": "AlistGo/alist",
+      "language": "go"
+    },
+    {
+      "slug": "hashicorp/terraform",
+      "language": "go"
+    },
+    {
+      "slug": "gogs/gogs",
+      "language": "go"
+    },
+    {
+      "slug": "cli/cli",
+      "language": "go"
+    },
+    {
+      "slug": "v2ray/v2ray-core",
+      "language": "go"
+    },
+    {
+      "slug": "milvus-io/milvus",
+      "language": "go"
+    },
+    {
+      "slug": "Wei-Shaw/sub2api",
+      "language": "go"
+    },
+    {
+      "slug": "juanfont/headscale",
+      "language": "go"
+    },
+    {
+      "slug": "charmbracelet/bubbletea",
+      "language": "go"
+    },
+    {
+      "slug": "XTLS/Xray-core",
+      "language": "go"
+    },
+    {
+      "slug": "yetone/magpie",
+      "language": "go"
+    },
+    {
+      "slug": "schollz/croc",
+      "language": "go"
+    },
+    {
+      "slug": "pingcap/tidb",
+      "language": "go"
+    },
+    {
+      "slug": "photoprism/photoprism",
+      "language": "go"
+    },
+    {
+      "slug": "gofiber/fiber",
+      "language": "go"
+    },
+    {
+      "slug": "dani-garcia/vaultwarden",
+      "language": "rust"
+    },
+    {
+      "slug": "BurntSushi/ripgrep",
+      "language": "rust"
+    },
+    {
+      "slug": "openinterpreter/openinterpreter",
+      "language": "rust"
+    },
+    {
+      "slug": "LadybirdBrowser/ladybird",
+      "language": "rust"
+    },
+    {
+      "slug": "alacritty/alacritty",
+      "language": "rust"
+    },
+    {
+      "slug": "warpdotdev/warp",
+      "language": "rust"
+    },
+    {
+      "slug": "tw93/Pake",
+      "language": "rust"
+    },
+    {
+      "slug": "sharkdp/bat",
+      "language": "rust"
+    },
+    {
+      "slug": "FuelLabs/sway",
+      "language": "rust"
+    },
+    {
+      "slug": "meilisearch/meilisearch",
+      "language": "rust"
+    },
+    {
+      "slug": "aaif-goose/goose",
+      "language": "rust"
+    },
+    {
+      "slug": "FuelLabs/fuel-core",
+      "language": "rust"
+    },
+    {
+      "slug": "lencx/ChatGPT",
+      "language": "rust"
+    },
+    {
+      "slug": "vercel-labs/agent-browser",
+      "language": "rust"
+    },
+    {
+      "slug": "herdrdev/herdr",
+      "language": "rust"
+    },
+    {
+      "slug": "astral-sh/ruff",
+      "language": "rust"
+    },
+    {
+      "slug": "bevyengine/bevy",
+      "language": "rust"
+    },
+    {
+      "slug": "helix-editor/helix",
+      "language": "rust"
+    },
+    {
+      "slug": "janhq/jan",
+      "language": "rust"
+    },
+    {
+      "slug": "juspay/hyperswitch",
+      "language": "rust"
+    },
+    {
+      "slug": "sharkdp/fd",
+      "language": "rust"
+    },
+    {
+      "slug": "parcel-bundler/parcel",
+      "language": "rust"
+    },
+    {
+      "slug": "sxyazi/yazi",
+      "language": "rust"
+    },
+    {
+      "slug": "GyulyVGC/sniffnet",
+      "language": "rust"
+    },
+    {
+      "slug": "storytold/craft-anything",
+      "language": "rust"
+    },
+    {
+      "slug": "FuelLabs/fuels-rs",
+      "language": "rust"
+    },
+    {
+      "slug": "tinyhumansai/openhuman",
+      "language": "rust"
+    },
+    {
+      "slug": "storytold/artcraft",
+      "language": "rust"
+    },
+    {
+      "slug": "codewhale-hq/Codewhale",
+      "language": "rust"
+    },
+    {
+      "slug": "nushell/nushell",
+      "language": "rust"
+    },
+    {
+      "slug": "docusealco/docuseal",
+      "language": "ruby"
+    },
+    {
+      "slug": "we-promise/sure",
+      "language": "ruby"
+    },
+    {
+      "slug": "postalserver/postal",
+      "language": "ruby"
+    },
+    {
+      "slug": "spree/spree",
+      "language": "ruby"
+    },
+    {
+      "slug": "Homebrew/homebrew-core",
+      "language": "ruby"
+    },
+    {
+      "slug": "CocoaPods/CocoaPods",
+      "language": "ruby"
+    },
+    {
+      "slug": "basecamp/kamal",
+      "language": "ruby"
+    },
+    {
+      "slug": "mame/quine-relay",
+      "language": "ruby"
+    },
+    {
+      "slug": "gollum/gollum",
+      "language": "ruby"
+    },
+    {
+      "slug": "github-linguist/linguist",
+      "language": "ruby"
+    },
+    {
+      "slug": "tmuxinator/tmuxinator",
+      "language": "ruby"
+    },
+    {
+      "slug": "diaspora/diaspora",
+      "language": "ruby"
+    },
+    {
+      "slug": "fluent/fluentd",
+      "language": "ruby"
+    },
+    {
+      "slug": "capistrano/capistrano",
+      "language": "ruby"
+    },
+    {
+      "slug": "sinatra/sinatra",
+      "language": "ruby"
+    },
+    {
+      "slug": "ubicloud/ubicloud",
+      "language": "ruby"
+    },
+    {
+      "slug": "faker-ruby/faker",
+      "language": "ruby"
+    },
+    {
+      "slug": "Shopify/liquid",
+      "language": "ruby"
+    },
+    {
+      "slug": "greatghoul/remote-working",
+      "language": "ruby"
+    },
+    {
+      "slug": "jordansissel/fpm",
+      "language": "ruby"
+    },
+    {
+      "slug": "Freika/dawarich",
+      "language": "ruby"
+    },
+    {
+      "slug": "antiwork/gumroad",
+      "language": "ruby"
+    },
+    {
+      "slug": "teamcapybara/capybara",
+      "language": "ruby"
+    },
+    {
+      "slug": "ruby-grape/grape",
+      "language": "ruby"
+    },
+    {
+      "slug": "wpscanteam/wpscan",
+      "language": "ruby"
+    },
+    {
+      "slug": "activeadmin/activeadmin",
+      "language": "ruby"
+    },
+    {
+      "slug": "resque/resque",
+      "language": "ruby"
+    },
+    {
+      "slug": "imathis/octopress",
+      "language": "ruby"
+    },
+    {
+      "slug": "community/community",
+      "language": "ruby"
+    },
+    {
+      "slug": "ankane/pghero",
+      "language": "ruby"
+    },
+    {
+      "slug": "nikic/PHP-Parser",
+      "language": "php"
+    },
+    {
+      "slug": "koel/koel",
+      "language": "php"
+    },
+    {
+      "slug": "easychen/opc-methodology",
+      "language": "php"
+    },
+    {
+      "slug": "FreshRSS/FreshRSS",
+      "language": "php"
+    },
+    {
+      "slug": "briannesbitt/Carbon",
+      "language": "php"
+    },
+    {
+      "slug": "flarum/flarum",
+      "language": "php"
+    },
+    {
+      "slug": "getgrav/grav",
+      "language": "php"
+    },
+    {
+      "slug": "cachethq/cachet",
+      "language": "php"
+    },
+    {
+      "slug": "erusev/parsedown",
+      "language": "php"
+    },
+    {
+      "slug": "barryvdh/laravel-ide-helper",
+      "language": "php"
+    },
+    {
+      "slug": "Intervention/image",
+      "language": "php"
+    },
+    {
+      "slug": "yiisoft/yii2",
+      "language": "php"
+    },
+    {
+      "slug": "phpstan/phpstan",
+      "language": "php"
+    },
+    {
+      "slug": "digininja/DVWA",
+      "language": "php"
+    },
+    {
+      "slug": "PHPOffice/PhpSpreadsheet",
+      "language": "php"
+    },
+    {
+      "slug": "mailcow/mailcow-dockerized",
+      "language": "php"
+    },
+    {
+      "slug": "thephpleague/flysystem",
+      "language": "php"
+    },
+    {
+      "slug": "PHP-CS-Fixer/PHP-CS-Fixer",
+      "language": "php"
+    },
+    {
+      "slug": "phpdotenv/phpdotenv",
+      "language": "php"
+    },
+    {
+      "slug": "roots/sage",
+      "language": "php"
+    },
+    {
+      "slug": "filp/whoops",
+      "language": "php"
+    },
+    {
+      "slug": "wallabag/wallabag",
+      "language": "php"
+    },
+    {
+      "slug": "spatie/laravel-permission",
+      "language": "php"
+    },
+    {
+      "slug": "star7th/showdoc",
+      "language": "php"
+    },
+    {
+      "slug": "SpartnerNL/Laravel-Excel",
+      "language": "php"
+    },
+    {
+      "slug": "ramsey/uuid",
+      "language": "php"
+    },
+    {
+      "slug": "typecho/typecho",
+      "language": "php"
+    },
+    {
+      "slug": "piotrplenik/clean-code-php",
+      "language": "php"
+    },
+    {
+      "slug": "YOURLS/YOURLS",
+      "language": "php"
+    },
+    {
+      "slug": "phacility/phabricator",
+      "language": "php"
+    },
+    {
+      "slug": "Devolutions/UniGetUI",
+      "language": "dotnet"
+    },
+    {
+      "slug": "icsharpcode/ILSpy",
+      "language": "dotnet"
+    },
+    {
+      "slug": "QL-Win/QuickLook",
+      "language": "dotnet"
+    },
+    {
+      "slug": "dotnet/maui",
+      "language": "dotnet"
+    },
+    {
+      "slug": "BCUninstaller/Bulk-Crap-Uninstaller",
+      "language": "dotnet"
+    },
+    {
+      "slug": "ntdevlabs/tiny11builder",
+      "language": "dotnet"
+    },
+    {
+      "slug": "dotnet/roslyn",
+      "language": "dotnet"
+    },
+    {
+      "slug": "jasontaylordev/CleanArchitecture",
+      "language": "dotnet"
+    },
+    {
+      "slug": "bitwarden/server",
+      "language": "dotnet"
+    },
+    {
+      "slug": "BluePointLilac/ContextMenuManager",
+      "language": "dotnet"
+    },
+    {
+      "slug": "TGSAN/CMWTAT_Digital_Edition",
+      "language": "dotnet"
+    },
+    {
+      "slug": "ppy/osu",
+      "language": "dotnet"
+    },
+    {
+      "slug": "ardalis/CleanArchitecture",
+      "language": "dotnet"
+    },
+    {
+      "slug": "DapperLib/Dapper",
+      "language": "dotnet"
+    },
+    {
+      "slug": "hellzerg/optimizer",
+      "language": "dotnet"
+    },
+    {
+      "slug": "babalae/better-genshin-impact",
+      "language": "dotnet"
+    },
+    {
+      "slug": "Sonarr/Sonarr",
+      "language": "dotnet"
+    },
+    {
+      "slug": "OpenRA/OpenRA",
+      "language": "dotnet"
+    },
+    {
+      "slug": "netchx/netch",
+      "language": "dotnet"
+    },
+    {
+      "slug": "Tyrrrz/YoutubeDownloader",
+      "language": "dotnet"
+    },
+    {
+      "slug": "Jackett/Jackett",
+      "language": "dotnet"
+    },
+    {
+      "slug": "MaterialDesignInXAML/MaterialDesignInXamlToolkit",
+      "language": "dotnet"
+    },
+    {
+      "slug": "CoplayDev/unity-mcp",
+      "language": "dotnet"
+    },
+    {
+      "slug": "nilaoda/N_m3u8DL-CLI",
+      "language": "dotnet"
+    },
+    {
+      "slug": "Flow-Launcher/Flow.Launcher",
+      "language": "dotnet"
+    },
+    {
+      "slug": "Tichau/FileConverter",
+      "language": "dotnet"
+    },
+    {
+      "slug": "duplicati/duplicati",
+      "language": "dotnet"
+    },
+    {
+      "slug": "SubtitleEdit/subtitleedit",
+      "language": "dotnet"
+    },
+    {
+      "slug": "srwi/EverythingToolbar",
+      "language": "dotnet"
+    },
+    {
+      "slug": "memstechtips/Winhance",
+      "language": "dotnet"
+    }
+  ]
+}

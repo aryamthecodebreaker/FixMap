@@ -12,7 +12,7 @@ const exec = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const suiteIndex = process.argv.indexOf("--suite");
 const suite = suiteIndex === -1 ? "polyglot-dev" : process.argv[suiteIndex + 1];
-if (!suite || !["polyglot-dev", "polyglot-validation", "polyglot-heldout", "java-heldout", "polyglot-heldout-2"].includes(suite)) {
+if (!suite || !["polyglot-dev", "polyglot-validation", "polyglot-heldout", "java-heldout", "polyglot-heldout-2", "polyglot-heldout-3"].includes(suite)) {
   throw new Error(`Unknown polyglot cohort suite: ${suite ?? "(missing)"}.`);
 }
 const suiteDir = join(root, "benchmarks", suite);

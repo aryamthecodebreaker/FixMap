@@ -30,7 +30,7 @@
 // baselines. That is deliberate: a baseline that has been handicapped proves nothing.
 
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { materializePinnedRepository } from "./lib/external-cache.mjs";
@@ -41,7 +41,7 @@ import { wilsonInterval } from "./lib/wilson.mjs";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
   process.stdout.write(
-    "Usage: node scripts/evaluate-baseline.mjs [--suite external|heldout|multilanguage-dev|polyglot-dev|polyglot-validation|polyglot-heldout|java-heldout|polyglot-heldout-2] [--case owner/repo] [--reranker-ablations] [--compact] [--record|--check-recorded|--record-ablation|--check-ablation]\n"
+    "Usage: node scripts/evaluate-baseline.mjs [--suite external|heldout|multilanguage-dev|polyglot-dev|polyglot-validation|polyglot-heldout|java-heldout|polyglot-heldout-2|polyglot-heldout-3] [--case owner/repo] [--reranker-ablations] [--compact] [--discard-checkouts] [--record|--check-recorded|--record-ablation|--check-ablation]\n"
   );
   process.exit(0);
 }
@@ -51,7 +51,7 @@ const { scanRepo, rankContextFilesEvidenceDetailed } = await import(
 
 const suiteIndex = process.argv.indexOf("--suite");
 const suite = suiteIndex === -1 ? "external" : process.argv[suiteIndex + 1];
-if (!["external", "heldout", "multilanguage-dev", "polyglot-dev", "polyglot-validation", "polyglot-heldout", "java-heldout", "polyglot-heldout-2"].includes(suite)) {
+if (!["external", "heldout", "multilanguage-dev", "polyglot-dev", "polyglot-validation", "polyglot-heldout", "java-heldout", "polyglot-heldout-2", "polyglot-heldout-3"].includes(suite)) {
   process.stderr.write(`Unknown suite "${suite}"; expected one of the suites in the usage line.\n`);
   process.exit(1);
 }
@@ -75,6 +75,8 @@ const recordedResultsPath = join(suiteDir, "baseline-results.json");
 const recordedAblationPath = join(suiteDir, "reranker-ablation-results.json");
 const includeRerankerAblations = process.argv.includes("--reranker-ablations");
 const compactOutput = process.argv.includes("--compact");
+// Large cohorts can exceed free disk: delete each cached checkout once its case is scored.
+const discardCheckouts = process.argv.includes("--discard-checkouts");
 const recordAblation = process.argv.includes("--record-ablation");
 const checkAblation = process.argv.includes("--check-ablation");
 if (includeRerankerAblations && !suite.endsWith("-dev")) {
@@ -439,6 +441,7 @@ for (const [caseNumber, benchmark] of dataset.cases.entries()) {
     pipelineTimingsMs
   });
   perCase.push(caseRow);
+  if (discardCheckouts) await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }
 
 function scoreCohort(cohort) {
