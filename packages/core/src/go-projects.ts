@@ -5,6 +5,8 @@ export type GoModule = {
   root: string;
   name: string;
   replacements: GoReplacement[];
+  /** Package import paths listed in this module's literal vendor/modules.txt. */
+  vendoredPackages: string[];
 };
 
 export type GoReplacement = {
@@ -26,6 +28,7 @@ export function buildGoModules(files: readonly RepoFile[]): GoModule[] {
     return [{ file, path: file.path, root: directoryOf(file.path), name }];
   });
   const moduleRoots = new Set(manifests.map((manifest) => manifest.root));
+  const byPath = new Map(files.map((file) => [file.path, file]));
   return manifests.map((manifest): GoModule => {
     const replacementsByModule = new Map<string, string[]>();
     for (const replacement of parseReplaceClauses(manifest.file.textSample)) {
@@ -38,7 +41,8 @@ export function buildGoModules(files: readonly RepoFile[]): GoModule[] {
     const replacements = [...replacementsByModule.entries()].flatMap(([module, targets]): GoReplacement[] =>
       targets.length === 1 ? [{ module, targetRoot: targets[0]! }] : []
     ).sort((left, right) => right.module.length - left.module.length || left.module.localeCompare(right.module));
-    return { path: manifest.path, root: manifest.root, name: manifest.name, replacements };
+    const vendorManifest = byPath.get(manifest.root ? `${manifest.root}/vendor/modules.txt` : "vendor/modules.txt");
+    return { path: manifest.path, root: manifest.root, name: manifest.name, replacements, vendoredPackages: vendorManifest ? parseVendoredPackages(vendorManifest.textSample) : [] };
   }).sort((left, right) => left.root.localeCompare(right.root) || left.name.localeCompare(right.name));
 }
 
@@ -82,6 +86,48 @@ export function goReplacementForImport(module: GoModule, specifier: string): GoR
   const longest = matching[0]!.module.length;
   const equallySpecific = matching.filter((replacement) => replacement.module.length === longest);
   return equallySpecific.length === 1 ? equallySpecific[0] : undefined;
+}
+
+/**
+ * The package a vendored import resolves to: `<module root>/vendor/<import path>`, only when
+ * the module's vendor/modules.txt lists that exact package (the go command's own rule for
+ * vendor mode). Workspace, local-module and replace resolution are tried first by callers.
+ */
+export function goVendoredDirectory(module: GoModule, specifier: string): string | undefined {
+  if (!module.vendoredPackages.includes(specifier)) return undefined;
+  return [module.root, "vendor", specifier].filter(Boolean).join("/");
+}
+
+// The text before the package clause holds Go's file-level directives.
+function goHeader(text: string): string {
+  const packageClause = /^\s*package\s+[A-Za-z_]/m.exec(text);
+  return packageClause ? text.slice(0, packageClause.index) : "";
+}
+
+/**
+ * A file excluded from every build by `//go:build ignore` (or the legacy `// +build ignore`).
+ * These are standalone programs such as code generators, not members of the directory's package.
+ */
+export function isGoBuildIgnored(file: Pick<RepoFile, "path" | "textSample">): boolean {
+  if (!file.path.endsWith(".go")) return false;
+  const header = goHeader(file.textSample);
+  return /^\/\/go:build\s+ignore\s*$/m.test(header) || /^\/\/\s*\+build\s+ignore\s*$/m.test(header);
+}
+
+/** Go's generated-code convention: a `// Code generated ... DO NOT EDIT.` line before the package clause. */
+export function isGoGeneratedSource(file: Pick<RepoFile, "path" | "textSample">): boolean {
+  return file.path.endsWith(".go") && /^\/\/ Code generated .* DO NOT EDIT\.$/m.test(goHeader(file.textSample));
+}
+
+function parseVendoredPackages(text: string): string[] {
+  const packages = new Set<string>();
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    // "# module version" and "## explicit" lines describe modules; bare lines are packages.
+    if (!line || line.startsWith("#") || /[\s*?\0]/.test(line) || line.startsWith(".") || line.startsWith("/")) continue;
+    packages.add(line);
+  }
+  return [...packages].sort();
 }
 
 function parseUsePaths(text: string): string[] {

@@ -20,6 +20,7 @@ import {
   isVagueTaskText
 } from "./grounding.js";
 import type { TaskGrounding } from "./grounding.js";
+import { isGoGeneratedSource } from "./go-projects.js";
 import { isBackupPath, isGeneratedPath, isRecordedEvaluationOutput, LOCKFILE_NAMES, moduleStem, pathMatchesMention } from "./paths.js";
 import { extractTaskSignals, tokenizePath, tokenizeText } from "./signals.js";
 import {
@@ -469,6 +470,7 @@ export function rankContextFilesDetailed(
           !file.isTest &&
           !isAuxiliaryCodePath(file.path) &&
           !isTypeDeclarationPath(file.path) &&
+          !isGoGeneratedSource(file) &&
           !file.path.toLowerCase().startsWith("benchmarks/")
         ) {
           score += 4;
@@ -583,6 +585,13 @@ export function rankContextFilesDetailed(
       if (isBundledOutput(file.textSample, file.path) && !isChanged && !mentionedPaths.has(file.path)) {
         score -= BUNDLED_OUTPUT_PENALTY;
         reasons.push("machine-generated bundle deprioritized");
+      }
+
+      // `// Code generated ... DO NOT EDIT.` files are rewritten by their generator; the
+      // fix belongs in the generator or its input. A task that names the file still sees it.
+      if (isGoGeneratedSource(file) && !isChanged && !mentionedPaths.has(file.path)) {
+        score -= BUNDLED_OUTPUT_PENALTY;
+        reasons.push("generated Go code (DO NOT EDIT header) deprioritized; edit its generator instead");
       }
 
       if (pathTokens.has("auth") || pathTokens.has("login")) {
