@@ -2,7 +2,7 @@ import { extractLanguageDefinitions, extractLanguageImports, languageAdapterForF
 import { buildComposerProjects, composerDependencyClosure, resolveComposerSymbol, type ComposerProject } from "./composer-projects.js";
 import { buildDotnetProjects, dotnetLinkingProject, dotnetReferenceClosure, type DotnetProject } from "./dotnet-projects.js";
 import { buildRustProjects, rustPathDependency, rustProjectForPath, type RustProject } from "./rust-projects.js";
-import { buildGoModules, buildGoWorkspaces, goModuleForPath, goReplacementForImport, goWorkspaceForModules, type GoModule, type GoWorkspace } from "./go-projects.js";
+import { buildGoModules, buildGoWorkspaces, goModuleForPath, goReplacementForImport, goVendoredDirectory, goWorkspaceForModules, isGoBuildIgnored, type GoModule, type GoWorkspace } from "./go-projects.js";
 import { buildRubyProjects, rubyProjectForPath, type RubyProject } from "./ruby-projects.js";
 import type { RepoFile } from "./types.js";
 import type { createCustomLanguageContext } from "./custom-language-context.js";
@@ -35,6 +35,7 @@ type ResolverIndex = {
   suffixPaths: Map<string, string[]>;
   javaPackagePaths: Map<string, string[]>;
   directoryPaths: Map<string, string[]>;
+  goBuildIgnored: Set<string>;
   goModules: GoModule[];
   goWorkspaces: GoWorkspace[];
   rustProjects: RustProject[];
@@ -302,7 +303,7 @@ function resolveGoImport(fromPath: string, imported: LanguageImport, resolverInd
     const suffix = imported.specifier === replacement.module ? "" : imported.specifier.slice(replacement.module.length + 1);
     const directory = [replacement.targetRoot, suffix].filter(Boolean).join("/");
     return (resolverIndex.directoryPaths.get(directory) ?? [])
-      .filter((path) => path.endsWith(".go") && !path.endsWith("_test.go"))
+      .filter((path) => path.endsWith(".go") && !path.endsWith("_test.go") && !resolverIndex.goBuildIgnored.has(path))
       .sort(shortestPathFirst)
       .slice(0, 20);
   }
@@ -316,11 +317,17 @@ function resolveGoImport(fromPath: string, imported: LanguageImport, resolverInd
       goWorkspaceForModules(resolverIndex.goWorkspaces, sourceModule.root, candidate.root) !== undefined)
     : equallySpecific;
   const module = reachable.length === 1 ? reachable[0] : undefined;
-  if (!module) return [];
+  if (!module) {
+    const vendored = sourceModule ? goVendoredDirectory(sourceModule, imported.specifier) : undefined;
+    return vendored ? (resolverIndex.directoryPaths.get(vendored) ?? [])
+      .filter((path) => path.endsWith(".go") && !path.endsWith("_test.go") && !resolverIndex.goBuildIgnored.has(path))
+      .sort(shortestPathFirst)
+      .slice(0, 20) : [];
+  }
   const suffix = imported.specifier === module.name ? "" : imported.specifier.slice(module.name.length + 1);
   const directory = [module.root, suffix].filter(Boolean).join("/");
   return (resolverIndex.directoryPaths.get(directory) ?? [])
-    .filter((path) => path.endsWith(".go") && !path.endsWith("_test.go"))
+    .filter((path) => path.endsWith(".go") && !path.endsWith("_test.go") && !resolverIndex.goBuildIgnored.has(path))
     .sort(shortestPathFirst)
     .slice(0, 20);
 }
@@ -592,6 +599,7 @@ function buildResolverIndex(
     suffixPaths,
     javaPackagePaths,
     directoryPaths,
+    goBuildIgnored: new Set(files.filter(isGoBuildIgnored).map((file) => file.path)),
     goModules,
     goWorkspaces,
     rustProjects,

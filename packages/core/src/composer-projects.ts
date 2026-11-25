@@ -10,14 +10,19 @@ export type ComposerProject = {
   pathRepositoryPatterns: string[];
   pathDependencies: Array<{ package: string; projectPath: string; root: string }>;
   testScript: boolean;
+  /** The one non-`test` script that runs the suite, when `test` is absent and exactly one candidate exists. */
+  customTestScript?: string;
   pestDependency: boolean;
   pestConfig?: string;
+  /** Literal directories Pest.php binds with `->in(...)`, relative to the repository. */
+  pestDirectories: string[];
   phpunitDependency: boolean;
   phpunitConfig?: string;
 };
 
 export function buildComposerProjects(files: RepoFile[]): ComposerProject[] {
   const canonicalPaths = new Map(files.map((file) => [file.path.toLowerCase(), file.path]));
+  const filesByPath = new Map(files.map((file) => [file.path, file]));
   const projects = files
     .filter((file) => file.path === "composer.json" || file.path.endsWith("/composer.json"))
     .sort((left, right) => left.path.localeCompare(right.path))
@@ -34,9 +39,8 @@ export function buildComposerProjects(files: RepoFile[]): ComposerProject[] {
       const autoload = collectAutoload(manifest.autoload, root);
       const autoloadDev = collectAutoload(manifest["autoload-dev"], root);
       const scripts = isRecord(manifest.scripts) ? manifest.scripts : {};
-      const testScript = (typeof scripts.test === "string" && scripts.test.trim().length > 0) ||
-        (Array.isArray(scripts.test) && scripts.test.length > 0 &&
-          scripts.test.every((entry) => typeof entry === "string" && entry.trim().length > 0));
+      const testScript = isScriptBody(scripts.test);
+      const customTestScript = testScript ? undefined : soleCustomTestScript(scripts);
       const requireDev = isRecord(manifest["require-dev"]) ? manifest["require-dev"] : {};
       const required = isRecord(manifest.require) ? manifest.require : {};
       const name = typeof manifest.name === "string" && /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/.test(manifest.name)
@@ -55,6 +59,9 @@ export function buildComposerProjects(files: RepoFile[]): ComposerProject[] {
         .map((name) => root ? `${root}/${name}` : name)
         .map((path) => canonicalPaths.get(path.toLowerCase()))
         .find((path): path is string => path !== undefined);
+      const pestDirectories = pestConfig
+        ? pestInDirectories(filesByPath.get(pestConfig)?.textSample ?? "", directoryOf(pestConfig), canonicalPaths)
+        : [];
       return [{
         path: file.path,
         root,
@@ -66,6 +73,8 @@ export function buildComposerProjects(files: RepoFile[]): ComposerProject[] {
         pathRepositoryPatterns,
         pathDependencies: [],
         testScript,
+        ...(customTestScript ? { customTestScript } : {}),
+        pestDirectories,
         pestDependency:
           (typeof requireDev["pestphp/pest"] === "string" && requireDev["pestphp/pest"].trim().length > 0) ||
           (typeof required["pestphp/pest"] === "string" && required["pestphp/pest"].trim().length > 0),
@@ -154,12 +163,22 @@ export function composerTestCommandForProject(
       scopeDir: project.root
     };
   }
+  if (project.customTestScript) {
+    return {
+      command: project.root
+        ? `composer --working-dir ${project.root} run-script ${project.customTestScript}`
+        : `composer run-script ${project.customTestScript}`,
+      reason: `${project.path} declares no "test" script; "${project.customTestScript}" is its only script that runs the test suite`,
+      scopeDir: project.root
+    };
+  }
   if (project.pestDependency) {
     const executable = project.root ? `${project.root}/vendor/bin/pest` : "vendor/bin/pest";
+    const directories = project.pestDirectories.length > 0 ? ` (test directories: ${project.pestDirectories.join(", ")})` : "";
     return {
       command: executable,
       reason: project.pestConfig
-        ? `${project.path} declares pestphp/pest and ${project.pestConfig} configures the suite`
+        ? `${project.path} declares pestphp/pest and ${project.pestConfig} configures the suite${directories}`
         : `${project.path} declares pestphp/pest in its dependencies`,
       scopeDir: project.root
     };
@@ -211,7 +230,7 @@ function collectPathRepositoryPatterns(value: unknown, root: string): string[] {
 
 function resolveManifestPattern(root: string, value: string): string | undefined {
   const trimmed = value.trim().replace(/\\/g, "/").replace(/\/$/, "");
-  if (!trimmed || trimmed === "." || /[$?\[\]\0]/.test(trimmed) || /^[A-Za-z]:[\/]|^[\/]/.test(trimmed)) return undefined;
+  if (!trimmed || trimmed === "." || /[$\0]/.test(trimmed) || /^[A-Za-z]:[\/]|^[\/]/.test(trimmed)) return undefined;
   const segments: string[] = root.split("/").filter(Boolean);
   for (const segment of trimmed.split("/")) {
     if (!segment || segment === ".") continue;
@@ -220,7 +239,9 @@ function resolveManifestPattern(root: string, value: string): string | undefined
       segments.pop();
       continue;
     }
-    if (segment !== "*" && segment.includes("*")) return undefined;
+    // Composer expands path repositories with PHP's glob(): *, ? and [...] within one
+    // directory level. "**" and brace sets are not glob() syntax there and fail closed.
+    if (segment.includes("**") || /[{}]/.test(segment) || !validGlobSegment(segment)) return undefined;
     segments.push(segment);
   }
   return segments.join("/");
@@ -230,7 +251,78 @@ function matchesRepositoryPattern(pattern: string, root: string): boolean {
   const expected = pattern.split("/");
   const actual = root.split("/").filter(Boolean);
   if (expected.length !== actual.length) return false;
-  return expected.every((segment, index) => segment === "*" || segment === actual[index]);
+  return expected.every((segment, index) => globSegmentRegExp(segment).test(actual[index] ?? ""));
+}
+
+function validGlobSegment(segment: string): boolean {
+  let depth = 0;
+  for (const character of segment) {
+    if (character === "[") depth += 1;
+    else if (character === "]") depth -= 1;
+    if (depth < 0 || depth > 1) return false;
+  }
+  return depth === 0;
+}
+
+function globSegmentRegExp(segment: string): RegExp {
+  let pattern = "";
+  for (let index = 0; index < segment.length; index += 1) {
+    const character = segment[index]!;
+    if (character === "*") pattern += "[^/]*";
+    else if (character === "?") pattern += "[^/]";
+    else if (character === "[") {
+      const close = segment.indexOf("]", index + 1);
+      const body = segment.slice(index + 1, close).replace(/^!/, "^").replace(/[\\\]]/g, "\\$&");
+      pattern += `[${body}]`;
+      index = close;
+    } else pattern += character.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  // glob() does not match hidden directories with a leading wildcard.
+  return new RegExp(segment.startsWith(".") ? `^${pattern}$` : `^(?!\\.)${pattern}$`);
+}
+
+function isScriptBody(value: unknown): boolean {
+  return (typeof value === "string" && value.trim().length > 0) ||
+    (Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === "string" && entry.trim().length > 0));
+}
+
+// A script counts as the test entry point only when its name says so and its body runs a
+// test runner (directly, through vendor/bin, or by referencing another such script).
+function soleCustomTestScript(scripts: Record<string, unknown>): string | undefined {
+  const runsTests = (name: string, seen = new Set<string>()): boolean => {
+    if (seen.has(name)) return false;
+    seen.add(name);
+    const body = scripts[name];
+    if (!isScriptBody(body)) return false;
+    const commands = typeof body === "string" ? [body] : (body as string[]);
+    return commands.some((command) => {
+      const trimmed = command.trim();
+      if (trimmed.startsWith("@")) {
+        const target = trimmed.slice(1).split(/\s+/)[0] ?? "";
+        return target === "php" ? /\b(?:phpunit|pest)\b/.test(trimmed) : runsTests(target, seen);
+      }
+      return /(?:^|[\s/])(?:phpunit|pest|paratest)(?:\s|$)/.test(trimmed) || /\bartisan\s+test\b/.test(trimmed);
+    });
+  };
+  const candidates = Object.keys(scripts)
+    .filter((name) => /^(?:tests|test[:_-][a-z0-9:_-]+|phpunit|pest)$/i.test(name) && runsTests(name))
+    .sort();
+  return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+function pestInDirectories(text: string, configRoot: string, canonicalPaths: ReadonlyMap<string, string>): string[] {
+  const directories = new Set<string>();
+  for (const call of text.matchAll(/->\s*in\s*\(([^)]*)\)/g)) {
+    for (const literal of (call[1] ?? "").matchAll(/(["'])([^"'$]+)\1/g)) {
+      const value = literal[2]!.trim();
+      if (!value || /[*?]/.test(value) || /^[A-Za-z]:[\\/]|^[\\/]/.test(value)) continue;
+      const directory = normalizeRepositoryPath(configRoot ? `${configRoot}/${value}` : value);
+      if (!directory) continue;
+      const prefix = `${directory.toLowerCase()}/`;
+      if ([...canonicalPaths.keys()].some((path) => path.startsWith(prefix))) directories.add(directory);
+    }
+  }
+  return [...directories].sort((left, right) => left.localeCompare(right));
 }
 
 function normalizeRepositoryPath(path: string): string | undefined {

@@ -298,6 +298,16 @@ const phpAdapter: LanguageAdapter = {
     for (const match of text.matchAll(/\b(?:require|require_once|include|include_once)\s*(?:\(\s*)?["']([^"'\n]+)["']/g)) {
       if (match[1]) imports.push({ adapter: "php", specifier: `file:${match[1]}`, importedNames: [], wildcard: false });
     }
+    // Directory-anchored includes are static even though they are expressions:
+    // __DIR__ . '/x.php', dirname(__FILE__) . '/x.php', and dirname(__DIR__[, levels]) . '/x.php'.
+    // Anything built from variables or calls stays unresolved; FixMap never runs the code.
+    const anchored = /\b(?:require|require_once|include|include_once)\s*\(?\s*(__DIR__|dirname\s*\(\s*__FILE__\s*\)|dirname\s*\(\s*__DIR__\s*(?:,\s*([1-9])\s*)?\))\s*\.\s*["'](\/[^"'\n$]+)["']\s*\)?\s*;/g;
+    for (const match of text.matchAll(anchored)) {
+      const anchor = match[1] ?? "";
+      const levels = anchor.startsWith("dirname") && anchor.includes("__DIR__") ? Number(match[2] ?? "1") : 0;
+      const relative = `${"../".repeat(levels)}.${match[3]}`;
+      imports.push({ adapter: "php", specifier: `file:${relative}`, importedNames: [], wildcard: false });
+    }
     return uniqueImports(imports);
   },
   extractDefinitions(text) {
