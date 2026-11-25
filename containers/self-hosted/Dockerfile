@@ -11,22 +11,37 @@ RUN npm ci
 COPY . .
 RUN npm run build:core && npm run build:cli && npm run build:web
 
+# Production dependencies of the CLI workspace only. The build stage carries every dev tool
+# (TypeScript, ESLint, esbuild, Next.js); none of them runs in the MCP image.
+FROM ${NODE_IMAGE} AS mcp-deps
+WORKDIR /build
+COPY package.json package-lock.json ./
+COPY packages/core/package.json packages/core/package.json
+COPY packages/cli/package.json packages/cli/package.json
+COPY packages/action/package.json packages/action/package.json
+COPY apps/web/package.json apps/web/package.json
+RUN npm ci --omit=dev --ignore-scripts --workspace packages/cli
+
 FROM ${NODE_IMAGE} AS mcp
 LABEL org.opencontainers.image.source="https://github.com/aryamthecodebreaker/FixMap"
 ENV NODE_ENV=production \
     HOME=/tmp/fixmap-home \
     FIXMAP_CACHE_DIR=/var/lib/fixmap/cache
 WORKDIR /opt/fixmap
-COPY --from=build --chown=node:node /build/node_modules ./node_modules
+COPY --from=mcp-deps --chown=node:node /build/node_modules ./node_modules
 COPY --from=build --chown=node:node /build/packages/core/package.json ./packages/core/package.json
 COPY --from=build --chown=node:node /build/packages/core/dist ./packages/core/dist
 COPY --from=build --chown=node:node /build/packages/cli/package.json ./packages/cli/package.json
 COPY --from=build --chown=node:node /build/packages/cli/dist ./packages/cli/dist
 # Git reads diffs and history from the mounted repository. That checkout is owned by the host user,
 # not the container's node user, so /workspace is marked safe for git system-wide.
+# Debian security updates are applied at build time (the image scan gates on fixable HIGH and
+# CRITICAL findings), and npm and corepack, which never run here, are removed with their dependencies.
 RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends git \
  && rm -rf /var/lib/apt/lists/* \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
  && git config --system --add safe.directory /workspace \
  && mkdir -p /var/lib/fixmap/cache /workspace /tmp/fixmap-home && chown -R node:node /var/lib/fixmap /workspace /tmp/fixmap-home
 USER node
@@ -45,7 +60,11 @@ WORKDIR /opt/fixmap
 COPY --from=build --chown=node:node /build/apps/web/.next/standalone ./
 COPY --from=build --chown=node:node /build/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build --chown=node:node /build/apps/web/public ./apps/web/public
-RUN mkdir -p /tmp/fixmap-home && chown -R node:node /tmp/fixmap-home
+RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/* \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+ && mkdir -p /tmp/fixmap-home && chown -R node:node /tmp/fixmap-home
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]

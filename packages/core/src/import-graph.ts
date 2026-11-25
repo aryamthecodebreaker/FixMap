@@ -1,6 +1,6 @@
 import { extractLanguageDefinitions, extractLanguageImports, languageAdapterForFile, type LanguageImport } from "./language-adapters.js";
 import { buildComposerProjects, composerDependencyClosure, resolveComposerSymbol, type ComposerProject } from "./composer-projects.js";
-import { buildDotnetProjects, dotnetReferenceClosure, type DotnetProject } from "./dotnet-projects.js";
+import { buildDotnetProjects, dotnetLinkingProject, dotnetReferenceClosure, type DotnetProject } from "./dotnet-projects.js";
 import { buildRustProjects, rustPathDependency, rustProjectForPath, type RustProject } from "./rust-projects.js";
 import { buildGoModules, buildGoWorkspaces, goModuleForPath, goReplacementForImport, goWorkspaceForModules, type GoModule, type GoWorkspace } from "./go-projects.js";
 import { buildRubyProjects, rubyProjectForPath, type RubyProject } from "./ruby-projects.js";
@@ -528,7 +528,7 @@ function buildResolverIndex(
         .filter((definition) => definition.kind !== "method")
         .map((definition) => definition.name))];
       if (symbols.length > 0) dotnetSymbolsByFile.set(file.path, symbols);
-      const owner = projectForSourcePath(file.path, dotnetProjectsByRoot);
+      const owner = projectForSourcePath(file.path, dotnetProjectsByRoot) ?? dotnetLinkingProject(dotnetProjects, file.path);
       if (owner) dotnetProjectByFile.set(file.path, owner);
     }
     if (file.path.toLowerCase().endsWith(".rb")) {

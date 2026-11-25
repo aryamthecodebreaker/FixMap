@@ -48,3 +48,53 @@ jobs:
           node-version: 24
       - run: node scripts/check-container-policy.mjs
       - run: node scripts/container-smoke.mjs
+
+  scan:
+    name: Image scan and SBOM on ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Build both runtime targets
+        run: |
+          docker build -f containers/self-hosted/Dockerfile --target mcp -t fixmap-mcp:scan .
+          docker build -f containers/self-hosted/Dockerfile --target web -t fixmap-web:scan .
+      # CycloneDX SBOMs of exactly what ships, kept with the run.
+      - name: SBOM (mcp)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: fixmap-mcp:scan
+          format: cyclonedx
+          output: sbom-mcp.cdx.json
+      - name: SBOM (web)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: fixmap-web:scan
+          format: cyclonedx
+          output: sbom-web.cdx.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom-${{ matrix.runner }}
+          path: sbom-*.cdx.json
+          if-no-files-found: error
+      # Gate: any HIGH or CRITICAL vulnerability that has a fix available fails the build.
+      - name: Vulnerability gate (mcp)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: fixmap-mcp:scan
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Vulnerability gate (web)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: fixmap-web:scan
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
