@@ -53,7 +53,7 @@
     "benchmark:check": "npm run build:core && node scripts/benchmark-scan.mjs --tier 1000 --check",
     "benchmark:savings": "npm run build:core && node scripts/benchmark-savings.mjs",
     "benchmark:savings:record": "npm run build:core && node scripts/benchmark-savings.mjs --record",
-    "ci": "npm run typecheck && npm test && npm run audit:all && npm run lint && npm run build:ci && npm run check:action-metadata && npm run check:server-manifest && npm run check:container-policy && npm run check:polyglot-validation && npm run check:action-bundle && npm run check:rendered && npm run smoke && npm run stress:v0.10 && npm run study:agent:check && npm run study:agent:test && npm run evaluate && npm run evaluate:adversarial:gate && npm run benchmark:check",
+    "ci": "npm run typecheck && npm test && npm run audit:all && npm run lint && npm run build:ci && npm run check:action-metadata && npm run check:server-manifest && npm run check:container-policy && npm run check:polyglot-validation && npm run check:action-bundle && npm run check:rendered && npm run check:benchmarks-doc && npm run smoke && npm run stress:v0.10 && npm run study:agent:check && npm run study:agent:test && npm run evaluate && npm run evaluate:adversarial:gate && npm run benchmark:check",
     "evaluate": "npm run build:core && node scripts/evaluate.mjs",
     "evaluate:external": "npm run build:core && node scripts/evaluate-external.mjs",
     "evaluate:external:record": "npm run build:core && node scripts/evaluate-external.mjs --record",
@@ -75,7 +75,8 @@
     "render:examples": "npm run build:core && node scripts/render-honest-examples.mjs",
     "check:rendered": "node scripts/check-generated.mjs rendered",
     "study:agent:check": "node scripts/evaluate-agent-study.mjs",
-    "study:agent:test": "node --test scripts/evaluate-agent-study.test.mjs"
+    "study:agent:test": "node --test scripts/evaluate-agent-study.test.mjs",
+    "check:benchmarks-doc": "node scripts/render-benchmarks-doc.mjs --check"
   },
   "engines": {
     "node": ">=20.11"
